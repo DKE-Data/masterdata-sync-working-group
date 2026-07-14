@@ -8,7 +8,11 @@ Implementation details might be mentioned in discussions, however any such menti
 
 ## Structure of this repository
 
-[./openapi.yaml](./openapi.yaml) - The OpenAPI specification for the Masterdata Sync API.
-[./specification.md](./specification.md) - The specification for the Masterdata Sync API, explaining the details and reasoning that are not covered by the OpenAPI specification.
+- [./openapi.yaml](./openapi.yaml) - The OpenAPI specification for the Masterdata Sync API.
+- [./specification.md](./specification.md) - The specification for the Masterdata Sync API, explaining the details and reasoning that are not covered by the OpenAPI specification.
 
+Other:
+
+- [./RFC.md](./RFC.md) - The RFC wrapper for the specification, used to generate the RFC page.
+- [tools/](./tools/) - Tooling to automate routine tasks.
 
