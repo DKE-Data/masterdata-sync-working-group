@@ -1,0 +1,1 @@
+( kramdown-rfc RFC.md > RFC.xml  ) && xml2rfc RFC.xml --html
