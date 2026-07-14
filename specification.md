@@ -43,7 +43,7 @@ be added later without breaking the mechanisms defined here.
 
 This protocol facilitates the *synchronization* of master data. To do so,
 agrirouter maintains a canonical copy of each entity (see
-(#ssot)). That storage exists **only** to enable synchronization. In particular,
+[](#ssot)). That storage exists **only** to enable synchronization. In particular,
 this protocol is explicitly **not**:
 
 - a history or archival store for master data;
@@ -63,7 +63,7 @@ from the document abstract.
 Data structures in this document are illustrated using JSON {{?RFC8259}} for
 readability. Unless a section states otherwise, these illustrations are
 **non-normative examples**. The normative on-the-wire encoding is defined in
-(#encoding). Field geometries are expressed using GeoJSON {{?RFC7946}}, and
+[](#encoding). Field geometries are expressed using GeoJSON {{?RFC7946}}, and
 timestamps use the date and time formats of {{?RFC3339}}.
 
 # Terminology
@@ -83,7 +83,7 @@ Entity:
 
 Canonical object:
 : The version of an entity held by agrirouter in the Single Source of Truth store
-  (see (#ssot)). It carries the agrirouter-assigned identifier and the
+  (see [](#ssot)). It carries the agrirouter-assigned identifier and the
   cross-participant identifier mapping.
 
 External identifier:
@@ -110,8 +110,8 @@ synchronized entity it stores:
 
 The SSOT store is what makes robust n:m synchronization tractable: it provides a
 single place against which updates are reconciled, it powers loop prevention (see
-(#loops)), and it lets a newly connected or returning system be seeded from a
-known-good set (see (#seeding)).
+[](#loops)), and it lets a newly connected or returning system be seeded from a
+known-good set (see [](#seeding)).
 
 The choice of a canonical central store — rather than a purely meshed exchange —
 is a settled design decision for this protocol. The previously considered
@@ -129,7 +129,7 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
   to each participant's own identifier reduces drift and prevents update loops.
 - **Hard validation and canonicity.** The exchange format MUST be unambiguous:
   every logical value has exactly one valid encoding, and non-conforming messages
-  are rejected rather than repaired (see (#canonicity)).
+  are rejected rather than repaired (see [](#canonicity)).
 - **Facilitation, not a product.** The canonical store exists only to enable
   synchronization; it is not exposed or marketed as a standalone data product.
 
@@ -161,7 +161,7 @@ being expressed here in an encoding-independent way.
 > The object model and its encoding are being reconciled with the outcomes of the
 > FarmSPT project, on which the SSOT entity store builds. Details in this section
 > that touch canonical form, definitions, and identifier handling are therefore
-> **provisional** until that alignment is complete. See (#open-issues).
+> **provisional** until that alignment is complete. See [](#open-issues).
 
 ## Common envelope {#envelope}
 
@@ -193,21 +193,21 @@ Envelope fields:
   a source system creates a not-yet-known entity. It MUST NOT be chosen or changed
   by a participant.
 - `externalId` (string, required on send): the sending participant's own
-  identifier for the entity. See (#idmapping) for how it is interpreted.
+  identifier for the entity. See [](#idmapping) for how it is interpreted.
 - `idMappings` (array): the identifier mapping maintained by agrirouter. Each
   element pairs an `endpointId` with that endpoint's `externalId`. This field is
   populated by agrirouter on the objects it delivers and is ignored on send.
 - `active` (boolean): whether the entity is currently active. Deactivation is
-  expressed through the `:deactivate` message (see (#deactivate)); `active` on a
+  expressed through the `:deactivate` message (see [](#deactivate)); `active` on a
   delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by
   agrirouter for the canonical object. It is central to loop prevention and
-  conflict detection (see (#loops)).
+  conflict detection (see [](#loops)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
 - `sourceEndpointId` (string): the endpoint whose change produced the current
   canonical revision.
 - `previousVersions` (array of references): references to prior entities that this
-  entity supersedes, used for split and merge (see (#splitmerge)). Empty for
+  entity supersedes, used for split and merge (see [](#splitmerge)). Empty for
   entities with no such lineage.
 
 A **reference** to another entity (for example a field referring to its farm) is
@@ -236,7 +236,7 @@ A farm groups fields and belongs to a customer. Canonical attributes (subset,
 aligned with ISOXML `FRM`):
 
 - `name` (string, required).
-- `customer` (reference, optional): the owning customer (see (#envelope)).
+- `customer` (reference, optional): the owning customer (see [](#envelope)).
 - `address` (object, optional): as for a customer.
 
 ## Field
@@ -253,7 +253,7 @@ ISOXML `PFD`, "partfield"):
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON
   `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose
   properties carry an obstacle `kind`.
-- `harvestPeriod` (object, optional): see (#harvest).
+- `harvestPeriod` (object, optional): see [](#harvest).
 - `metadata` (object, optional): additional key/value metadata that does not fit a
   defined attribute. Participants MUST preserve metadata they do not understand
   and MUST relay it unchanged.
@@ -264,7 +264,7 @@ A field MAY reference a customer and a farm; a farm MAY reference a customer.
 These dependencies are significant for routing and seeding: a participant that is
 to receive fields MUST also be enabled for the customers and farms those fields
 depend on, so that references can be resolved on the receiving side (see
-(#routing)).
+[](#routing)).
 
 ## Harvest period {#harvest}
 
@@ -287,7 +287,7 @@ A participant that natively uses a discrete year MUST map it to an interval on s
 and MAY use `label` to round-trip its own presentation.
 
 > The interval-versus-year modelling is **not yet finally settled**; the interval
-> form above is the working proposal. See (#open-issues).
+> form above is the working proposal. See [](#open-issues).
 
 # Encoding and canonicity {#canonicity}
 
@@ -296,7 +296,7 @@ and MAY use `label` to round-trip its own presentation.
 The normative wire encoding for `masterdata:*` payloads is a constrained subset of
 the EFDI / ISOXML (ISO 11783-10) representation of the corresponding entities
 (partfield, farm, customer). The exact subset and its Protobuf/EFDI form are being
-finalized together with the FarmSPT alignment (see (#open-issues)); the JSON shown
+finalized together with the FarmSPT alignment (see [](#open-issues)); the JSON shown
 in this document is an illustrative projection of that model and is not itself the
 binding format.
 
@@ -334,7 +334,7 @@ and each participant's `externalId` for that object.
 An endpoint MUST NOT reuse one of its own external identifiers for two distinct
 canonical objects. If an endpoint sends an `externalId` that is already mapped to a
 *different* canonical object than the one implied by the message, agrirouter MUST
-reject the message (see (#asymmetric)).
+reject the message (see [](#asymmetric)).
 
 # Synchronization processes
 
@@ -357,7 +357,7 @@ Therefore:
   MUST make each endpoint's read/write configuration discoverable to the other
   participants so that a system can adapt its behaviour — for instance, presenting
   an entity as read-only when it is not permitted to write it back.
-- Because of entity dependencies (see (#field)), enabling an endpoint to receive
+- Because of entity dependencies (see [](#field)), enabling an endpoint to receive
   fields SHOULD also enable the customers and farms those fields reference.
   Implementations SHOULD surface these dependencies to the user rather than
   silently enabling additional data.
@@ -373,7 +373,7 @@ reconciles that existing data with the SSOT. Each endpoint has, per entity type,
 seeding state. The defined progression is:
 
 1. **Connected.** The endpoint is created and the user opts it into master-data
-   exchange for one or more entity types (see (#routing)).
+   exchange for one or more entity types (see [](#routing)).
 2. **Seeding from agrirouter.** agrirouter sends the endpoint every canonical
    object of the opted-in types that the endpoint is entitled to receive.
 3. **Seeding to agrirouter.** After the endpoint has confirmed receipt of those
@@ -396,7 +396,7 @@ agrirouter in the loop.
 The protocol therefore does not attempt to merge such objects automatically.
 Instead, an endpoint MUST NOT send back one of its own external identifiers already
 associated with a *different* object; agrirouter rejects the offending message (see
-(#idmapping)). This pushes resolution of a genuine n:1 situation to the
+[](#idmapping)). This pushes resolution of a genuine n:1 situation to the
 participating systems, which is the intended behaviour for this version.
 
 ### Differing required/optional attributes
@@ -412,9 +412,9 @@ satisfy them.
 
 A connection may be lost while changes accumulate on both sides. On reconnection,
 an endpoint resumes from its last known state rather than re-running a full seeding
-from scratch; the `revision` counter (see (#loops)) lets both sides determine what
+from scratch; the `revision` counter (see [](#loops)) lets both sides determine what
 has changed. The precise catch-up/resume semantics are tracked as an open item
-(see (#open-issues)).
+(see [](#open-issues)).
 
 ## Loop prevention {#loops}
 
@@ -464,13 +464,13 @@ Rather than distinguishing "split" from "merge" as separate operations, the
 protocol represents both uniformly through lineage:
 
 - A newly created entity that supersedes one or more prior entities carries
-  references to them in `previousVersions` (see (#envelope)). A split produces
+  references to them in `previousVersions` (see [](#envelope)). A split produces
   several new entities that each reference the original; a merge produces one new
   entity that references several originals. No operation-specific message is
   required.
 - A system that receives such an entity receives the *identifiers* of the
   referenced predecessors, and MAY retrieve their full data on demand using
-  `masterdata:<type>:request` (see (#request)).
+  `masterdata:<type>:request` (see [](#request)).
 - Systems that do not retain historical data may ignore `previousVersions`; the
   information is advisory lineage, not a required processing step.
 
@@ -481,7 +481,7 @@ currently hold — for example a predecessor referenced through `previousVersion
 or a dependency (a field's farm) it has not yet been seeded with. A request
 identifies the wanted entity by `agrirouterId`, and agrirouter responds by
 delivering the corresponding `masterdata:<type>` object if the requester is
-entitled to it under its opt-in configuration (see (#routing)).
+entitled to it under its opt-in configuration (see [](#routing)).
 
 # Security considerations
 
@@ -491,7 +491,7 @@ access-controlled channels as other agrirouter traffic, and the HTTP surface in
 `openapi.yaml` is protected by OAuth 2.0 {{?RFC6749}} bearer tokens.
 
 Beyond transport, two protocol-level concerns are relevant. First, the routing
-opt-in of (#routing) is itself a security control: because attaching an endpoint to
+opt-in of [](#routing) is itself a security control: because attaching an endpoint to
 a master-data network can expose a user's customers, farms, and field boundaries to
 that endpoint, master-data routes MUST be created only through explicit,
 per-endpoint, per-entity opt-in, never by default routing. Second, agrirouter's
@@ -509,19 +509,19 @@ The following items are actively tracked by the working group and affect
 provisional parts of this document:
 
 - **Object model & data format alignment with FarmSPT** — the canonical model
-  (#data-model) and encoding (#encoding) are being reconciled with FarmSPT
+  [](#data-model) and encoding [](#encoding) are being reconciled with FarmSPT
   outcomes before being locked down. *(AR-2349)*
 - **Unambiguous EFDI subset & hard validation** — the exact validated subset of
-  (#canonicity). *(AR-2020)*
+  [](#canonicity). *(AR-2020)*
 - **Routing model** — the concrete default-route policy, opt-in switches, and
-  read/write propagation of (#routing). *(AR-2353)*
+  read/write propagation of [](#routing). *(AR-2353)*
 - **Initial load / seeding** — formalizing the seeding state machine, conflict UX
-  responsibilities, and downtime/resume semantics of (#seeding). *(AR-2019)*
+  responsibilities, and downtime/resume semantics of [](#seeding). *(AR-2019)*
 - **Loop prevention** — final handling of unconditional-notification systems in
-  (#loops). *(AR-1915)*
-- **Split / merge** — the lineage model of (#splitmerge). *(AR-2036)*
-- **Harvest period** — interval-versus-year resolution in (#harvest). *(AR-2037)*
-- **`:deactivate` idempotency** — duplicate deactivations in (#deactivate).
+  [](#loops). *(AR-1915)*
+- **Split / merge** — the lineage model of [](#splitmerge). *(AR-2036)*
+- **Harvest period** — interval-versus-year resolution in [](#harvest). *(AR-2037)*
+- **`:deactivate` idempotency** — duplicate deactivations in [](#deactivate).
   *(AR-2084)*
 
 The conceptual/normative work is tracked under epic **AR-2017** (Master Data
