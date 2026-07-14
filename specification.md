@@ -56,10 +56,6 @@ of synchronization capability.
 
 ## Notational conventions
 
-The key words defined in BCP 14 {{!RFC2119}} {{!RFC8174}} (MUST, MUST NOT,
-SHOULD, MAY, and so on) are used as described there; the boilerplate is emitted
-from the document abstract.
-
 Data structures in this document are illustrated using JSON {{?RFC8259}} for
 readability. Unless a section states otherwise, these illustrations are
 **non-normative examples**. The normative on-the-wire encoding is defined in
