@@ -17,18 +17,13 @@ entered by hand everywhere, and RTK-surveyed boundaries or guidance lines are
 hard to move between products.
 
 This document specifies the *Agriculture Masterdata Sync Protocol* (AMSP): a set
-of data formats, message types, and behavioural rules that let connected systems
+of data formats and operations enabling connected systems
 exchange and continuously synchronize agricultural **master data** across the
 agrirouter platform, bidirectionally, over an n:m network of participants.
 
-The protocol is defined on top of the agrirouter message transport. It does not
-replace that transport; it adds a normative agreement — a set of "playing rules" —
-that every participating system follows so that synchronization is technically
-interoperable and predictable for users.
-
 ## Scope
 
-The first version of this protocol covers three entity types, referred to
+First iteration would cover three entity types, referred to
 throughout as the **MVP entities**:
 
 - **Customers**
@@ -82,8 +77,9 @@ Canonical object:
   (see [the SSOT store](#agrirouter-as-the-single-source-of-truth)). It carries the agrirouter-assigned identifier and the
   cross-participant identifier mapping.
 
-External identifier:
-: The identifier a participant uses for an entity within its own system. External
+Local identifier:
+: The identifier a participant uses for an entity within its own system — the
+  identifier by which that participant knows the entity in its own store. Local
   identifiers are only unique within the issuing endpoint.
 
 agrirouter identifier:
@@ -102,7 +98,7 @@ synchronized entity it stores:
 
 1. the *canonical version* of the entity, and
 2. an *identifier mapping* that records, for each participant that knows the
-   entity, that participant's external identifier for it.
+   entity, that participant's local identifier for it.
 
 The SSOT store is what makes robust n:m synchronization tractable: it provides a
 single place against which updates are reconciled, it powers loop prevention (see
@@ -168,10 +164,10 @@ Every `masterdata:<type>` object shares a common envelope. Example
 {
   "type": "field",
   "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
-  "externalId": "PFD-00042",
+  "localId": "PFD-00042",
   "idMappings": [
-    { "endpointId": "urn:endpoint:jd:abc", "externalId": "field-9931" },
-    { "endpointId": "urn:endpoint:cci:xyz", "externalId": "b1e7..." }
+    { "endpointId": "urn:endpoint:jd:abc", "localId": "field-9931" },
+    { "endpointId": "urn:endpoint:cci:xyz", "localId": "b1e7..." }
   ],
   "active": true,
   "revision": 7,
@@ -188,10 +184,10 @@ Envelope fields:
   ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when
   a source system creates a not-yet-known entity. It MUST NOT be chosen or changed
   by a participant.
-- `externalId` (string, required on send): the sending participant's own
+- `localId` (string, required on send): the sending participant's own
   identifier for the entity. See [Identifier mapping](#identifier-mapping) for how it is interpreted.
 - `idMappings` (array): the identifier mapping maintained by agrirouter. Each
-  element pairs an `endpointId` with that endpoint's `externalId`. This field is
+  element pairs an `endpointId` with that endpoint's `localId`. This field is
   populated by agrirouter on the objects it delivers and is ignored on send.
 - `active` (boolean): whether the entity is currently active. Deactivation is
   expressed through the `:deactivate` message (see [Deactivation](#deactivation)); `active` on a
@@ -208,11 +204,11 @@ Envelope fields:
 
 A **reference** to another entity (for example a field referring to its farm) is
 expressed as an object carrying, at minimum, the `agrirouterId` of the target when
-known, and MAY additionally carry the referencing participant's `externalId` for
+known, and MAY additionally carry the referencing participant's `localId` for
 that target:
 
 ~~~ json
-{ "agrirouterId": "…", "externalId": "FRM-7" }
+{ "agrirouterId": "…", "localId": "FRM-7" }
 ~~~
 
 ## Customer
@@ -313,22 +309,22 @@ Regardless of the finalized encoding, the following rules are normative:
 ## Identifier mapping
 
 agrirouter maintains, per canonical object, a mapping between its `agrirouterId`
-and each participant's `externalId` for that object.
+and each participant's `localId` for that object.
 
-- On receiving a `masterdata:<type>` from endpoint E carrying `externalId` X:
+- On receiving a `masterdata:<type>` from endpoint E carrying `localId` X:
   - if the mapping already resolves (E, X) to a canonical object, that object is
     updated;
   - otherwise a new canonical object is created, `agrirouterId` is assigned, and
     (E, X) is recorded in its mapping.
 - When agrirouter delivers a canonical object to endpoint E, it SHOULD include E's
-  own `externalId` (if known) so the receiver can reconcile against its local data
+  own `localId` (if known) so the receiver can reconcile against its local data
   without a lookup.
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept
   (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to
   task-data-based tooling.
 
-An endpoint MUST NOT reuse one of its own external identifiers for two distinct
-canonical objects. If an endpoint sends an `externalId` that is already mapped to a
+An endpoint MUST NOT reuse one of its own local identifiers for two distinct
+canonical objects. If an endpoint sends a `localId` that is already mapped to a
 *different* canonical object than the one implied by the message, agrirouter MUST
 reject the message (see [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)).
 
@@ -390,7 +386,7 @@ not fully solvable by agrirouter, because the ambiguity exists even without
 agrirouter in the loop.
 
 The protocol therefore does not attempt to merge such objects automatically.
-Instead, an endpoint MUST NOT send back one of its own external identifiers already
+Instead, an endpoint MUST NOT send back one of its own local identifiers already
 associated with a *different* object; agrirouter rejects the offending message (see
 [Identifier mapping](#identifier-mapping)). This pushes resolution of a genuine n:1 situation to the
 participating systems, which is the intended behaviour for this version.
