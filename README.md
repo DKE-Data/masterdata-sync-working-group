@@ -15,8 +15,11 @@ Use [pull requests](https://github.com/DKE-Data/masterdata-sync-working-group/pu
 
 ## Structure of this repository
 
-- [./openapi.yaml](./openapi.yaml) - The OpenAPI specification for the Masterdata Sync API.
-- [./specification.md](./specification.md) - The specification for the Masterdata Sync API, explaining the details and reasoning that are not covered by the OpenAPI specification.
+- [./openapi.yaml](./openapi.yaml) - **NOT READY[*]** The OpenAPI specification for the Masterdata Sync API.
+- [./specification.md](./specification.md) - **NOT READY[*]** The specification for the Masterdata Sync API, explaining the details and reasoning that are not covered by the OpenAPI specification.
+- [./architecture](./architecture) - non normative collection of architecture decision records illustrating masterdata sync concepts and flows and reasoning behind the specification.
+
+**[*] Current state**: the specs are currently in an initial AI-assisted draft state and currently are quite off from what is planned to be there. Until we finalize all ADR's, expect specification to be wrong.
 
 Other:
 
