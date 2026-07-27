@@ -252,7 +252,7 @@ for. Canonical attributes (subset, aligned with ISOXML `CTR`):
 - `commercialRegistryNumber`(number, optional): Unique identifier out of commercial register
 - `specialsedUsageType`(RefCode, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… 
   (see [Agrovoc](https://agrovoc.fao.org/browse/agrovoc/en/page/c_2807))
-- `member` (object, optional): `memberRole` (Based on [ADAPT Data Type: Role](https://adaptstandard.org/dtd.html)),
+- `member` (object, optional): `memberRole` (Based on [ADAPT Data Type: **Role**](https://adaptstandard.org/dtd.html)),
   `name`, `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
   
 ## Farm
