@@ -23,9 +23,10 @@ agrirouter platform, bidirectionally, over an n:m network of participants.
 
 ## Scope
 
-First iteration would cover three entity types, referred to
+First iteration would cover four entity types, referred to
 throughout as the **MVP entities**:
 
+- **Organizations** 
 - **Customers**
 - **Farms**
 - **Fields**, including their boundaries, obstacles, and metadata
@@ -69,7 +70,7 @@ Endpoint:
   `masterdata:*` message types are configured per endpoint.
 
 Entity:
-: A single master-data object of one of the supported types (a customer, a farm,
+: A single master-data object of one of the supported types (a organization, a customer, a farm,
   or a field).
 
 Canonical object:
@@ -128,7 +129,7 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
 ## Message types
 
 Synchronization is carried by a family of `masterdata:*` agrirouter message
-types. For each supported entity `<type>` (one of `field`, `farm`, `customer`):
+types. For each supported entity `<type>` (one of `organization`, `field`, `farm`, `customer`):
 
 | Message type                    | Purpose                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -211,24 +212,58 @@ that target:
 { "agrirouterId": "…", "localId": "FRM-7" }
 ~~~
 
+## Organization 
+
+An organisation refers to the structure of a farm or a group of several farms
+
+### Organizational Structure
+
+* **Cardinality:** One farmer can manage multiple farms.
+* **Single-Farm Scenario:** If a farmer has only one farm, the *Organization* and *Farm* are identical.
+* **Contractor Scenario:** 
+  * **Organization:** Acts as the contractor.
+  * **Farm:** Acts as the customer's farm.
+ 
+Canonical attributes:
+
+- `name` (string, required)
+- `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+- `contact` (object, optional): `phone`, `mobile`, `email`.
+- `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+- `taxNumber`(number, optional): Unique, identifier assigned by tax authorities to farm
+- `taxId`(number, optional): Unique, numerical identifier assigned by tax authorities to farm/contractor
+- `tradeId`(number, optional): Unique, numerical identifier assigned by public authorities to farm/contractor
+- `commercialRegistryNumber`(number, optional): Unique identifier out of commercial register
+  
+  
 ## Customer
 
-A customer is the natural or legal person a farm belongs to or a contractor works
+A customer is the natural a farm belongs to or a contractor works
 for. Canonical attributes (subset, aligned with ISOXML `CTR`):
 
-- `name` (object): either a person name (`firstName`, `lastName`, optional
-  `title`) or an `organizationName`. Exactly one form MUST be present.
+- `name` (object): a person name (`firstName`, `lastName`, optional `title`). Exactly one form MUST be present.
 - `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`,
   `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
-
+- `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+- `taxNumber`(number, optional): Unique, identifier assigned by tax authorities to farm
+- `taxId`(number, optional): Unique, numerical identifier assigned by tax authorities
+- `tradeId`(number, optional): Unique, numerical identifier assigned by public authorities
+- `commercialRegistryNumber`(number, optional): Unique identifier out of commercial register
+- `specialsedUsageType`(RefCode, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… 
+  (see [Agrovoc](https://agrovoc.fao.org/browse/agrovoc/en/page/c_2807))
+- `member` (object, optional): `memberRole` (Based on [ADAPT Data Type: Role](https://adaptstandard.org/dtd.html)),
+  `name`, `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+  
 ## Farm
 
 A farm groups fields and belongs to a customer. Canonical attributes (subset,
 aligned with ISOXML `FRM`):
 
+- `owner` (reference, required): A farm must be assigned to an organization or customer:
+  If farm has only one farm branch/focus, then it is the same as organization; 
+  In the case of contractor: farm = customer.
 - `name` (string, required).
-- `customer` (reference, optional): the owning customer (see [Common envelope](#common-envelope)).
 - `address` (object, optional): as for a customer.
 
 ## Field
