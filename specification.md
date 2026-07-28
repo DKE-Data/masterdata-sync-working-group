@@ -260,11 +260,12 @@ for. Canonical attributes (subset, aligned with ISOXML `CTR`):
 A farm groups fields and belongs to a customer. Canonical attributes (subset,
 aligned with ISOXML `FRM`):
 
-- `owner` (reference, required): A farm must be assigned to an organization or customer:
-  If farm has only one farm branch/focus, then it is the same as organization; 
-  In the case of contractor: farm = customer.
+- `owner` (reference, required): A farm must be assigned to an *organization* or *customer*:
+  - If farm has only one farm branch/focus, then it is the same as *organization*; 
+  - In the case of *contractor*: *farm = customer*.
 - `name` (string, required).
 - `address` (object, optional): as for a customer.
+- `geoReference` (`Point`, optional): Longitude and latitude from the farm
 
 ## Field
 
@@ -275,6 +276,8 @@ ISOXML `PFD`, "partfield"):
 - `area` (number, optional): nominal area in square metres.
 - `customer` (reference, optional): the associated customer.
 - `farm` (reference, optional): the associated farm.
+- `soil`(object, optional): `type` (RefCode like: `sand`, `loamy sand`, `heavy loamy sand`, `sandy to silty loam`, `clayey loam`, `clay`), `rating points`
+- `topography`(number, optional): slope, gradient like 7°
 - `boundary` (GeoJSON, optional): the field boundary as a GeoJSON
   `Polygon` or `MultiPolygon` {{?RFC7946}}.
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON
