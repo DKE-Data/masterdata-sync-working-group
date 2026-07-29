@@ -25,6 +25,21 @@ Revision that agrirouter has determined to be the current revision of the object
 
 The actual data store on the partner side (or in outbound integration done by agrirouter) might not be actually able to keep track of last agrirouter revision number, but it is still expected that such clients would be able to track that separately from their primary store (this mostly applies to outbound integrations which cannot propagate CAS revision down to the actual data store).
 
+## Rejected alternatives
+
+### Conflict-free replicated data types (CRDTs)
+
+We considered modelling master-data objects as **conflict-free replicated data types
+(CRDTs)**, which would merge concurrent edits automatically and would decouple write
+acceptance from sync liveness (with CAS, a client that cannot reach agrirouter cannot
+learn the fresh revision it needs to write). We reject them because for the fields
+that carry an object's actual meaning - a boundary polygon, a name, a status - there
+is no meaningful automatic merge, so a CRDT degrades to silently discarding one edit,
+which is exactly the loss this ADR exists to prevent, only harder to notice. They also
+impose per-object causal metadata (version vectors, tombstones) on every partner and
+on the wire, where CAS needs only a single integer. Using CRDTs *inside* a
+partner's own store remains a fine implementation choice.
+
 ## Consequences
 
 Special cases:
