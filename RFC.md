@@ -39,3 +39,15 @@ This document describes the Masterdata Sync protocol, which focuses on synchroni
 --- middle
 
 {::include ./specification.md}
+
+--- back
+
+# OpenAPI definition of the Masterdata Sync API
+
+Here we provide the OpenAPI definition (`openapi.yaml`) for
+the Masterdata Sync API described in this document. It is informative; where it
+differs from the normative behaviour specified in the body, the body prevails.
+
+~~~ yaml
+{::include ./openapi.yaml}
+~~~
