@@ -226,10 +226,10 @@ Canonical attributes:
 - `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
 - `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `taxNumber`(number, optional): Unique, identifier assigned by tax authorities to farm
-- `taxId`(number, optional): Unique, numerical identifier assigned by tax authorities to farm/contractor
-- `tradeId`(number, optional): Unique, numerical identifier assigned by public authorities to farm/contractor
-- `commercialRegistryNumber`(number, optional): Unique identifier out of commercial register
+- `taxNumber`(string, optional): Unique, identifier assigned by tax authorities to farm
+- `taxId`(string, optional): Unique, numerical identifier assigned by tax authorities to farm/contractor
+- `tradeId`(string, optional): Unique, numerical identifier assigned by public authorities to farm/contractor
+- `commercialRegistryNumber`(string, optional): Unique identifier out of commercial register
   
   
 ## Customer
@@ -242,11 +242,11 @@ Canonical attributes (subset, aligned with ISOXML `CTR`):
   `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
 - `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `taxNumber`(number, optional): Unique, identifier assigned by tax authorities to farm
-- `taxId`(number, optional): Unique, numerical identifier assigned by tax authorities
-- `tradeId`(number, optional): Unique, numerical identifier assigned by public authorities
-- `commercialRegistryNumber`(number, optional): Unique identifier out of commercial register
-- `specialsedUsageType`(string, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… 
+- `taxNumber`(string, optional): Unique, identifier assigned by tax authorities to farm
+- `taxId`(string, optional): Unique, numerical identifier assigned by tax authorities
+- `tradeId`(string, optional): Unique, numerical identifier assigned by public authorities
+- `commercialRegistryNumber`(string, optional): Unique identifier out of commercial register
+- `specialisedUsageType`(string, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… 
   (see [Agrovoc](https://agrovoc.fao.org/browse/agrovoc/en/page/c_2807))
 - `member` (object, optional): `memberRole` (Based on [ADAPT Data Type: **Role**](https://adaptstandard.org/dtd.html)),
   `name`, `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
@@ -292,13 +292,13 @@ Canonical attributes:
 
 - `boundary` (GeoJSON): the field boundary as a GeoJSON
   `Polygon` or `MultiPolygon` {{?RFC7946}}.
-- `type` (string): Enum value like:
+- `boundaryType` (string): the boundary classification. Enum value like:
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
   - `OPERATIONAL`: Used to define management areas for specific fieldwork.
   - `ECONOMIC_DEFINED`: Used for planning and analysis for economic purposes, e.g. for sustainability programmes or invoicing.
-  - `ADMISTRATIVE_RECEIVED`: Used for data organisation
+  - `ADMINISTRATIVE_RECEIVED`: Used for data organisation
      see [AgGateway](https://aggateway.org/Portals/1010/WebSite/About%20Us/FIELD%20BOUNDARY%20FLYER%20122123.pdf?ver=2024-01-03-212959-590)
-- `CreationMethod` (string): Enum value like:
+- `creationMethod` (string): Enum value like:
   - `UNKNOWN`:	Creation method is unknown
   - `MANUAL`: Hand drawn in a computer system (FMIS) based on imagery or other information.
   - `DRIVEN`: Record a series of points that define the boundary by driving a machine (e.g. tractor) equipped with a GNSS receiver around the perimeter of the field.
@@ -311,7 +311,7 @@ Canonical attributes:
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON
   `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose
   properties carry an obstacle `kind`.
-- `RegulatoryRequirements` (string, optional): Enum value like:
+- `regulatoryRequirements` (string, optional): Enum value like:
   - `RED_ZONE_NITROGEN`: Red zone identification (N,P overfertilization)
   - `WATER_PROTECTION_AREA`: Including a water protection area
 - `metadata` (object, optional): additional key/value metadata that does not fit a

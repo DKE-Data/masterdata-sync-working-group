@@ -33,4 +33,4 @@ AMSP defines its own canonical data model that is used for the purpose of Master
 
 AMSP also defines a set of validation rules and corresponding error responses that are used to enforce a canonical representation of all entities and their relationships.
 
-<!-- detailed models to be added -->
+See exact data model definitions in [openapi.yaml](../openapi.yaml) and explanatory [specification.md](../specification.md).

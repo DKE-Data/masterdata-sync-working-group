@@ -1,4 +1,4 @@
-# To be reviewed: this file is entiry written by AI at this moment and MUST 
+# To be reviewed: this file is entiry written by AI at this moment and MUST
 # be reviewed by the team before proceeding. This here is just a 'primer'
 # to get the repository setup.
 
@@ -10,8 +10,14 @@ info:
   description: >
     HTTP surface for the Agriculture Masterdata Sync Protocol (AMSP). It lets a
     connected participant send, deactivate, request, and read the master-data
-    entities (customers, farms, fields) that agrirouter synchronizes across an
-    n:m network of systems, and configure per-entity opt-in for an endpoint.
+    entities (organizations, customers, farms, fields, field boundaries) that
+    agrirouter synchronizes across an n:m network of systems, and configure
+    per-entity opt-in for an endpoint.
+
+
+    Each entity type has its own set of paths and its own concrete schema; there
+    is no generic entity resource. The union type `Entity` survives only where a
+    single channel genuinely carries all types — the event stream.
 
 
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
@@ -33,56 +39,56 @@ security:
   - bearerAuth: []
 
 tags:
-  - name: Masterdata
-    description: Sending, deactivating, requesting, and reading synchronized entities.
+  - name: Organizations
+    description: Sending, deactivating, requesting, and reading organizations.
+  - name: Customers
+    description: Sending, deactivating, requesting, and reading customers.
+  - name: Farms
+    description: Sending, deactivating, requesting, and reading farms.
+  - name: Fields
+    description: Sending, deactivating, requesting, and reading fields.
+  - name: FieldBoundaries
+    description: Sending, deactivating, requesting, and reading field boundaries.
   - name: Configuration
     description: Per-endpoint, per-entity opt-in for master-data exchange.
   - name: Events
     description: Receiving master-data changes as Server-Sent Events.
 
 paths:
-  /masterdata/{entityType}/{localId}:
+  # ------------------------------------------------------------- organizations
+
+  /masterdata/organizations/{localId}:
     parameters:
-      - $ref: '#/components/parameters/EntityType'
-      - name: localId
-        in: path
-        required: true
-        description: >
-          The sending participant's own identifier for the entity. Unique within
-          the calling endpoint. A local identifier already mapped to a
-          different canonical object is rejected (see the specification, "Identifier
-          mapping").
-        schema:
-          type: string
+      - $ref: '#/components/parameters/LocalId'
     put:
-      tags: [Masterdata]
-      summary: Send (create or update) a master-data entity
+      tags: [Organizations]
+      summary: Send (create or update) an organization
       description: >
-        Submits a `masterdata:<type>` object from the calling endpoint. If the
+        Submits a `masterdata:organization` object from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
-      operationId: putMasterdataEntity
+      operationId: putOrganization
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Entity'
+              $ref: '#/components/schemas/Organization'
       responses:
         '200':
-          description: Entity accepted; the resulting canonical object is returned.
+          description: Organization accepted; the resulting canonical object is returned.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Entity'
+                $ref: '#/components/schemas/Organization'
         '201':
           description: A new canonical object was created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Entity'
+                $ref: '#/components/schemas/Organization'
         '400':
           $ref: '#/components/responses/ValidationError'
         '403':
@@ -90,158 +96,681 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
     get:
-      tags: [Masterdata]
-      summary: Read one canonical entity by local identifier
-      operationId: getMasterdataEntityByLocalId
+      tags: [Organizations]
+      summary: Read one canonical organization by local identifier
+      operationId: getOrganizationByLocalId
       responses:
         '200':
           description: The canonical object mapped to this endpoint's local id.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Entity'
+                $ref: '#/components/schemas/Organization'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/{entityType}/{localId}/deactivate:
+  /masterdata/organizations/{localId}/deactivation:
     parameters:
-      - $ref: '#/components/parameters/EntityType'
-      - name: localId
-        in: path
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/LocalId'
     post:
-      tags: [Masterdata]
-      summary: Deactivate a master-data entity
+      tags: [Organizations]
+      summary: Deactivate an organization
       description: >
-        Signals that the entity was deactivated in the source system (archival,
+        Signals that the organization was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification.
-      operationId: deactivateMasterdataEntity
+      operationId: deactivateOrganization
       responses:
         '200':
-          description: Entity is inactive (either newly deactivated or already inactive).
+          description: Organization is inactive (either newly deactivated or already inactive).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Entity'
+                $ref: '#/components/schemas/Organization'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/{entityType}:
-    parameters:
-      - $ref: '#/components/parameters/EntityType'
+  /masterdata/organizations:
     get:
-      tags: [Masterdata]
-      summary: List canonical entities the endpoint is entitled to
+      tags: [Organizations]
+      summary: List canonical organizations the endpoint is entitled to
       description: >
-        Returns the canonical objects of the given type that the calling endpoint
-        may receive under its opt-in configuration. Primarily used during the
-        "seeding from agrirouter" phase of initial load.
-      operationId: listMasterdataEntities
+        Returns the canonical organizations that the calling endpoint may receive under
+        its opt-in configuration. Primarily used during the "seeding from
+        agrirouter" phase of initial load.
+      operationId: listOrganizations
       parameters:
-        - name: active
-          in: query
-          description: If set, filters by active state.
-          schema:
-            type: boolean
-        - name: pageToken
-          in: query
-          description: Opaque cursor returned by a previous call.
-          schema:
-            type: string
-        - name: pageSize
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 500
-            default: 100
+        - $ref: '#/components/parameters/Active'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
-          description: A page of canonical objects.
+          description: A page of canonical organizations.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Entity'
-                  nextPageToken:
-                    type: string
-                    description: Absent on the last page.
-                required: [items]
+                $ref: '#/components/schemas/OrganizationPage'
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /masterdata/{entityType}/by-id/{agrirouterId}:
+  /masterdata/organizations/by-id/{agrirouterId}:
     parameters:
-      - $ref: '#/components/parameters/EntityType'
-      - name: agrirouterId
-        in: path
-        required: true
-        description: The agrirouter-assigned canonical identifier (UUID).
-        schema:
-          type: string
-          format: uuid
+      - $ref: '#/components/parameters/AgrirouterId'
     get:
-      tags: [Masterdata]
-      summary: Read one canonical entity by agrirouter identifier
-      operationId: getMasterdataEntityById
+      tags: [Organizations]
+      summary: Read one canonical organization by agrirouter identifier
+      operationId: getOrganizationById
       responses:
         '200':
           description: The canonical object.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Entity'
+                $ref: '#/components/schemas/Organization'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/{entityType}/requests:
-    parameters:
-      - $ref: '#/components/parameters/EntityType'
+  /masterdata/organizations/requests:
     post:
-      tags: [Masterdata]
-      summary: Request an entity (lazy loading)
+      tags: [Organizations]
+      summary: Request an organization (lazy loading)
       description: >
-        Actively requests an entity the caller does not currently hold — for
+        Actively requests an organization the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
         dependency not yet seeded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
-      operationId: requestMasterdataEntity
+      operationId: requestOrganization
+      requestBody:
+        $ref: '#/components/requestBodies/EntityRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/RequestAccepted'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ----------------------------------------------------------------- customers
+
+  /masterdata/customers/{localId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    put:
+      tags: [Customers]
+      summary: Send (create or update) a customer
+      description: >
+        Submits a `masterdata:customer` object from the calling endpoint. If the
+        (endpoint, localId) pair is already mapped to a canonical object, that
+        object is updated; otherwise a new canonical object is created and an
+        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        revision) do not create a new revision and are not forwarded.
+      operationId: putCustomer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                agrirouterId:
-                  type: string
-                  format: uuid
-                  description: The canonical identifier of the wanted entity.
-              required: [agrirouterId]
+              $ref: '#/components/schemas/Customer'
       responses:
-        '202':
-          description: >
-            Request accepted; the entity will be delivered via the event stream if
-            the caller is entitled to it.
+        '200':
+          description: Customer accepted; the resulting canonical object is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '201':
+          description: A new canonical object was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+    get:
+      tags: [Customers]
+      summary: Read one canonical customer by local identifier
+      operationId: getCustomerByLocalId
+      responses:
+        '200':
+          description: The canonical object mapped to this endpoint's local id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /masterdata/customers/{localId}/deactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    post:
+      tags: [Customers]
+      summary: Deactivate a customer
+      description: >
+        Signals that the customer was deactivated in the source system (archival,
+        deletion, or similar). The canonical object is set inactive but retained.
+        The operation is idempotent: deactivating an already-inactive entity
+        succeeds without creating a new revision or notification.
+      operationId: deactivateCustomer
+      responses:
+        '200':
+          description: Customer is inactive (either newly deactivated or already inactive).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/customers:
+    get:
+      tags: [Customers]
+      summary: List canonical customers the endpoint is entitled to
+      description: >
+        Returns the canonical customers that the calling endpoint may receive under
+        its opt-in configuration. Primarily used during the "seeding from
+        agrirouter" phase of initial load.
+      operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/Active'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A page of canonical customers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /masterdata/customers/by-id/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterId'
+    get:
+      tags: [Customers]
+      summary: Read one canonical customer by agrirouter identifier
+      operationId: getCustomerById
+      responses:
+        '200':
+          description: The canonical object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/customers/requests:
+    post:
+      tags: [Customers]
+      summary: Request a customer (lazy loading)
+      description: >
+        Actively requests a customer the caller does not currently hold — for
+        example a predecessor referenced through `previousVersions`, or a
+        dependency not yet seeded. If the caller is entitled to the entity, it is
+        delivered asynchronously as a master-data change event (see
+        `/masterdata/events`).
+      operationId: requestCustomer
+      requestBody:
+        $ref: '#/components/requestBodies/EntityRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/RequestAccepted'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # --------------------------------------------------------------------- farms
+
+  /masterdata/farms/{localId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    put:
+      tags: [Farms]
+      summary: Send (create or update) a farm
+      description: >
+        Submits a `masterdata:farm` object from the calling endpoint. If the
+        (endpoint, localId) pair is already mapped to a canonical object, that
+        object is updated; otherwise a new canonical object is created and an
+        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        revision) do not create a new revision and are not forwarded.
+      operationId: putFarm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Farm'
+      responses:
+        '200':
+          description: Farm accepted; the resulting canonical object is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '201':
+          description: A new canonical object was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+    get:
+      tags: [Farms]
+      summary: Read one canonical farm by local identifier
+      operationId: getFarmByLocalId
+      responses:
+        '200':
+          description: The canonical object mapped to this endpoint's local id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/farms/{localId}/deactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    post:
+      tags: [Farms]
+      summary: Deactivate a farm
+      description: >
+        Signals that the farm was deactivated in the source system (archival,
+        deletion, or similar). The canonical object is set inactive but retained.
+        The operation is idempotent: deactivating an already-inactive entity
+        succeeds without creating a new revision or notification.
+      operationId: deactivateFarm
+      responses:
+        '200':
+          description: Farm is inactive (either newly deactivated or already inactive).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/farms:
+    get:
+      tags: [Farms]
+      summary: List canonical farms the endpoint is entitled to
+      description: >
+        Returns the canonical farms that the calling endpoint may receive under
+        its opt-in configuration. Primarily used during the "seeding from
+        agrirouter" phase of initial load.
+      operationId: listFarms
+      parameters:
+        - $ref: '#/components/parameters/Active'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A page of canonical farms.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FarmPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /masterdata/farms/by-id/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterId'
+    get:
+      tags: [Farms]
+      summary: Read one canonical farm by agrirouter identifier
+      operationId: getFarmById
+      responses:
+        '200':
+          description: The canonical object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/farms/requests:
+    post:
+      tags: [Farms]
+      summary: Request a farm (lazy loading)
+      description: >
+        Actively requests a farm the caller does not currently hold — for
+        example a predecessor referenced through `previousVersions`, or a
+        dependency not yet seeded. If the caller is entitled to the entity, it is
+        delivered asynchronously as a master-data change event (see
+        `/masterdata/events`).
+      operationId: requestFarm
+      requestBody:
+        $ref: '#/components/requestBodies/EntityRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/RequestAccepted'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # -------------------------------------------------------------------- fields
+
+  /masterdata/fields/{localId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    put:
+      tags: [Fields]
+      summary: Send (create or update) a field
+      description: >
+        Submits a `masterdata:field` object from the calling endpoint. If the
+        (endpoint, localId) pair is already mapped to a canonical object, that
+        object is updated; otherwise a new canonical object is created and an
+        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        revision) do not create a new revision and are not forwarded.
+      operationId: putField
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Field'
+      responses:
+        '200':
+          description: Field accepted; the resulting canonical object is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '201':
+          description: A new canonical object was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+    get:
+      tags: [Fields]
+      summary: Read one canonical field by local identifier
+      operationId: getFieldByLocalId
+      responses:
+        '200':
+          description: The canonical object mapped to this endpoint's local id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/fields/{localId}/deactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    post:
+      tags: [Fields]
+      summary: Deactivate a field
+      description: >
+        Signals that the field was deactivated in the source system (archival,
+        deletion, or similar). The canonical object is set inactive but retained.
+        The operation is idempotent: deactivating an already-inactive entity
+        succeeds without creating a new revision or notification.
+      operationId: deactivateField
+      responses:
+        '200':
+          description: Field is inactive (either newly deactivated or already inactive).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/fields:
+    get:
+      tags: [Fields]
+      summary: List canonical fields the endpoint is entitled to
+      description: >
+        Returns the canonical fields that the calling endpoint may receive under
+        its opt-in configuration. Primarily used during the "seeding from
+        agrirouter" phase of initial load.
+      operationId: listFields
+      parameters:
+        - $ref: '#/components/parameters/Active'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A page of canonical fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /masterdata/fields/by-id/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterId'
+    get:
+      tags: [Fields]
+      summary: Read one canonical field by agrirouter identifier
+      operationId: getFieldById
+      responses:
+        '200':
+          description: The canonical object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/fields/requests:
+    post:
+      tags: [Fields]
+      summary: Request a field (lazy loading)
+      description: >
+        Actively requests a field the caller does not currently hold — for
+        example a predecessor referenced through `previousVersions`, or a
+        dependency not yet seeded. If the caller is entitled to the entity, it is
+        delivered asynchronously as a master-data change event (see
+        `/masterdata/events`).
+      operationId: requestField
+      requestBody:
+        $ref: '#/components/requestBodies/EntityRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/RequestAccepted'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------------------------------------------------- field-boundaries
+
+  /masterdata/field-boundaries/{localId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    put:
+      tags: [FieldBoundaries]
+      summary: Send (create or update) a field boundary
+      description: >
+        Submits a `masterdata:fieldboundary` object from the calling endpoint. If the
+        (endpoint, localId) pair is already mapped to a canonical object, that
+        object is updated; otherwise a new canonical object is created and an
+        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        revision) do not create a new revision and are not forwarded.
+      operationId: putFieldBoundary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldBoundary'
+      responses:
+        '200':
+          description: FieldBoundarie accepted; the resulting canonical object is returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundary'
+        '201':
+          description: A new canonical object was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundary'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+    get:
+      tags: [FieldBoundaries]
+      summary: Read one canonical field boundary by local identifier
+      operationId: getFieldBoundaryByLocalId
+      responses:
+        '200':
+          description: The canonical object mapped to this endpoint's local id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/field-boundaries/{localId}/deactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+    post:
+      tags: [FieldBoundaries]
+      summary: Deactivate a field boundary
+      description: >
+        Signals that the field boundary was deactivated in the source system (archival,
+        deletion, or similar). The canonical object is set inactive but retained.
+        The operation is idempotent: deactivating an already-inactive entity
+        succeeds without creating a new revision or notification.
+      operationId: deactivateFieldBoundary
+      responses:
+        '200':
+          description: FieldBoundarie is inactive (either newly deactivated or already inactive).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/field-boundaries:
+    get:
+      tags: [FieldBoundaries]
+      summary: List canonical field boundarys the endpoint is entitled to
+      description: >
+        Returns the canonical field boundarys that the calling endpoint may receive under
+        its opt-in configuration. Primarily used during the "seeding from
+        agrirouter" phase of initial load.
+      operationId: listFieldBoundaries
+      parameters:
+        - $ref: '#/components/parameters/Active'
+        - $ref: '#/components/parameters/PageToken'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: A page of canonical field boundarys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundaryPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /masterdata/field-boundaries/by-id/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterId'
+    get:
+      tags: [FieldBoundaries]
+      summary: Read one canonical field boundary by agrirouter identifier
+      operationId: getFieldBoundaryById
+      responses:
+        '200':
+          description: The canonical object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /masterdata/field-boundaries/requests:
+    post:
+      tags: [FieldBoundaries]
+      summary: Request a field boundary (lazy loading)
+      description: >
+        Actively requests a field boundary the caller does not currently hold — for
+        example a predecessor referenced through `previousVersions`, or a
+        dependency not yet seeded. If the caller is entitled to the entity, it is
+        delivered asynchronously as a master-data change event (see
+        `/masterdata/events`).
+      operationId: requestFieldBoundary
+      requestBody:
+        $ref: '#/components/requestBodies/EntityRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/RequestAccepted'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ------------------------------------------------------------------- events
 
   /masterdata/events:
     get:
@@ -250,8 +779,10 @@ paths:
       description: >
         A persistent SSE stream of master-data changes for the calling endpoint.
         agrirouter never echoes a change back to the endpoint it originated from.
-        Each event's `data` is an `Entity`; delivered objects carry this endpoint's
-        own `localId` in `idMappings` when known.
+        Because one stream carries every opted-in entity type, each event's `data`
+        is an `Entity` — an `Organization`, `Customer`, `Farm`, `Field`, or
+        `FieldBoundary` discriminated by its `type` property. Delivered objects
+        carry this endpoint's own `localId` in `idMappings` when known.
       operationId: streamMasterdataEvents
       responses:
         '200':
@@ -259,10 +790,12 @@ paths:
           content:
             text/event-stream:
               schema:
-                type: string
+                $ref: '#/components/schemas/Entity'
                 description: >
-                  SSE frames with `event:` one of `MASTERDATA_CHANGED` or
-                  `MASTERDATA_DEACTIVATED`, and `data:` an `Entity` JSON object.
+                  The `data:` payload of each SSE frame. Frames carry an `event:`
+                  of either `MASTERDATA_CHANGED` or `MASTERDATA_DEACTIVATED`.
+
+  # ------------------------------------------------------------ configuration
 
   /endpoints/{externalEndpointId}/masterdata-config:
     parameters:
@@ -292,8 +825,8 @@ paths:
       description: >
         Configures per-entity opt-in and read/write direction. Master-data routes
         are created only through this explicit opt-in, never by default routing.
-        Enabling reception of fields SHOULD also enable the customers and farms
-        those fields depend on.
+        Enabling reception of fields SHOULD also enable the organizations,
+        customers, farms, and field boundaries those fields depend on.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -326,16 +859,59 @@ components:
             masterdata: Send, request, and read synchronized master data.
 
   parameters:
-    EntityType:
-      name: entityType
+    LocalId:
+      name: localId
       in: path
       required: true
-      description: The master-data entity type.
+      description: >
+        The sending participant's own identifier for the entity. Unique within
+        the calling endpoint per entity type. A local identifier already mapped to
+        a different canonical object is rejected (see the specification,
+        "Identifier mapping").
       schema:
         type: string
-        enum: [customers, farms, fields]
+    AgrirouterId:
+      name: agrirouterId
+      in: path
+      required: true
+      description: The agrirouter-assigned canonical identifier (UUID).
+      schema:
+        type: string
+        format: uuid
+    Active:
+      name: active
+      in: query
+      description: If set, filters by active state.
+      schema:
+        type: boolean
+    PageToken:
+      name: pageToken
+      in: query
+      description: Opaque cursor returned by a previous call.
+      schema:
+        type: string
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+
+  requestBodies:
+    EntityRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EntityRequest'
 
   responses:
+    RequestAccepted:
+      description: >
+        Request accepted; the entity will be delivered via the event stream if
+        the caller is entitled to it.
     ValidationError:
       description: >
         The message failed hard validation against the master-data subset and was
@@ -381,6 +957,16 @@ components:
             type: string
       required: [code, message]
 
+    EntityRequest:
+      type: object
+      description: A lazy-loading request for a single canonical object.
+      properties:
+        agrirouterId:
+          type: string
+          format: uuid
+          description: The canonical identifier of the wanted entity.
+      required: [agrirouterId]
+
     EntityReference:
       type: object
       description: A reference to another entity by canonical and/or local id.
@@ -406,11 +992,11 @@ components:
 
     Envelope:
       type: object
-      description: Fields common to every master-data entity.
+      description: >
+        Fields common to every master-data entity. The concrete entity type is
+        determined by the path; each entity schema pins the `type` discriminator
+        so that objects remain self-describing on the event stream.
       properties:
-        type:
-          type: string
-          enum: [customer, farm, field]
         agrirouterId:
           type: string
           format: uuid
@@ -444,10 +1030,11 @@ components:
           description: References to entities this one supersedes (split / merge lineage).
           items:
             $ref: '#/components/schemas/EntityReference'
-      required: [type, localId]
+      required: [localId]
 
     PersonName:
       type: object
+      description: A person name.
       properties:
         title:
           type: string
@@ -456,20 +1043,6 @@ components:
         lastName:
           type: string
       required: [lastName]
-
-    Name:
-      description: Either a person name or an organization name; exactly one form.
-      oneOf:
-        - type: object
-          properties:
-            person:
-              $ref: '#/components/schemas/PersonName'
-          required: [person]
-        - type: object
-          properties:
-            organizationName:
-              type: string
-          required: [organizationName]
 
     Address:
       type: object
@@ -518,35 +1091,200 @@ components:
           description: 'Human-facing designation, e.g. "2026" or "2025/2026".'
       required: [validFrom]
 
-    Customer:
+    Organization:
+      description: >
+        The structure of a farm or a group of several farms. Acts as the
+        contractor in a contractor scenario; identical to the farm when a farmer
+        has a single farm.
       allOf:
         - $ref: '#/components/schemas/Envelope'
         - type: object
           properties:
+            type:
+              const: organization
+              readOnly: true
+              description: >
+                Discriminator, set by agrirouter. Implied by the path on send.
             name:
-              $ref: '#/components/schemas/Name'
+              type: string
             address:
               $ref: '#/components/schemas/Address'
             contact:
               $ref: '#/components/schemas/Contact'
-          required: [name]
+            billingAddress:
+              $ref: '#/components/schemas/Address'
+            taxNumber:
+              type: string
+              description: Identifier assigned by tax authorities.
+            taxId:
+              type: string
+              description: Numerical identifier assigned by tax authorities.
+            tradeId:
+              type: string
+              description: Numerical identifier assigned by public authorities.
+            commercialRegistryNumber:
+              type: string
+              description: Identifier from the commercial register.
+          required: [type, name]
 
-    Farm:
+    Customer:
+      description: >
+        An individual in charge of on-site farm operations — producing,
+        harvesting, transporting, and storing a commodity, and overseeing asset
+        and input usage.
       allOf:
         - $ref: '#/components/schemas/Envelope'
         - type: object
           properties:
+            type:
+              const: customer
+              readOnly: true
+              description: >
+                Discriminator, set by agrirouter. Implied by the path on send.
             name:
-              type: string
-            customer:
-              $ref: '#/components/schemas/EntityReference'
+              $ref: '#/components/schemas/PersonName'
             address:
               $ref: '#/components/schemas/Address'
-          required: [name]
+            contact:
+              $ref: '#/components/schemas/Contact'
+            billingAddress:
+              $ref: '#/components/schemas/Address'
+            taxNumber:
+              type: string
+              description: Identifier assigned by tax authorities.
+            taxId:
+              type: string
+              description: Numerical identifier assigned by tax authorities.
+            tradeId:
+              type: string
+              description: Numerical identifier assigned by public authorities.
+            commercialRegistryNumber:
+              type: string
+              description: Identifier from the commercial register.
+            specialisedUsageType:
+              type: string
+              description: >
+                Specialised usage type of the customer/grower (e.g. arable
+                farming, dairy, vineyard, orchard). See Agrovoc.
+            member:
+              $ref: '#/components/schemas/Member'
+          required: [type, name]
+
+    Member:
+      type: object
+      description: A member associated with a customer.
+      properties:
+        memberRole:
+          type: string
+          description: Based on the ADAPT Role data type.
+        name:
+          type: string
+        street:
+          type: string
+        poBox:
+          type: string
+        postalCode:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+          description: ISO 3166-1 alpha-2 country code.
+          pattern: '^[A-Z]{2}$'
+
+    Farm:
+      description: >
+        A grouping of fields that the farmer considers part of the same
+        management group.
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          properties:
+            type:
+              const: farm
+              readOnly: true
+              description: >
+                Discriminator, set by agrirouter. Implied by the path on send.
+            owner:
+              $ref: '#/components/schemas/EntityReference'
+              description: >
+                The organization or customer the farm is assigned to. For a
+                single-branch farm this is the organization; in a contractor
+                scenario the farm equals the customer.
+            name:
+              type: string
+            address:
+              $ref: '#/components/schemas/Address'
+            geoReference:
+              $ref: '#/components/schemas/Geometry'
+              description: A GeoJSON Point (longitude, latitude) locating the farm.
+          required: [type, owner, name]
+
+    SoilInfo:
+      type: object
+      description: Soil characteristics of a field.
+      properties:
+        type:
+          type: string
+          enum:
+            - SAND
+            - LOAMY_SAND
+            - HEAVY_LOAMY_SAND
+            - SANDY_TO_SILTY_LOAM
+            - CLAYEY_LOAM
+            - CLAY
+        ratingPoints:
+          type: number
+
+    Field:
+      description: >
+        A named, customer-accepted physical space where production agriculture
+        takes place, used to partition and identify data.
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          properties:
+            type:
+              const: field
+              readOnly: true
+              description: >
+                Discriminator, set by agrirouter. Implied by the path on send.
+            name:
+              type: string
+            area:
+              type: number
+              description: Nominal area in square metres.
+            customer:
+              $ref: '#/components/schemas/EntityReference'
+            farm:
+              $ref: '#/components/schemas/EntityReference'
+            soil:
+              $ref: '#/components/schemas/SoilInfo'
+            topography:
+              type: number
+              description: 'Slope / gradient, e.g. 7 (degrees).'
+            fieldBoundaries:
+              type: array
+              description: References to the field's boundaries.
+              items:
+                $ref: '#/components/schemas/EntityReference'
+            harvestPeriod:
+              $ref: '#/components/schemas/HarvestPeriod'
+            metadata:
+              type: object
+              description: >
+                Additional key/value metadata. Participants MUST preserve and relay
+                metadata they do not understand.
+              additionalProperties: true
+          required: [type, name]
 
     Obstacle:
       type: object
-      description: A GeoJSON Feature describing an in-field obstacle.
+      description: >
+        A GeoJSON Feature describing an in-field obstacle whose geometry is a
+        Point, LineString, or Polygon.
       properties:
         type:
           const: Feature
@@ -561,49 +1299,140 @@ components:
           required: [kind]
       required: [type, geometry, properties]
 
-    Field:
+    FieldBoundary:
+      description: >
+        A geometry identifying the geo-spatial coordinates of a field, including
+        its outer boundary and any obstacles left out. A field may have several
+        boundaries that differ in geometry by intended use.
       allOf:
         - $ref: '#/components/schemas/Envelope'
         - type: object
           properties:
-            name:
-              type: string
-            area:
-              type: number
-              description: Nominal area in square metres.
-            customer:
-              $ref: '#/components/schemas/EntityReference'
-            farm:
-              $ref: '#/components/schemas/EntityReference'
+            type:
+              const: fieldBoundary
+              readOnly: true
+              description: >
+                Discriminator, set by agrirouter. Implied by the path on send.
             boundary:
               $ref: '#/components/schemas/Geometry'
-              description: A GeoJSON Polygon or MultiPolygon boundary.
+              description: A GeoJSON Polygon or MultiPolygon.
+            boundaryType:
+              type: string
+              description: The boundary classification.
+              enum:
+                - CONCEPTUAL
+                - OPERATIONAL
+                - ECONOMIC_DEFINED
+                - ADMINISTRATIVE_RECEIVED
+            creationMethod:
+              type: string
+              enum:
+                - UNKNOWN
+                - MANUAL
+                - DRIVEN
+                - SURVEYED
+                - AUTO_OPERATION
+                - AUTO_IMAGERY
+                - ADMINISTRATIVE
+            harvestPeriod:
+              $ref: '#/components/schemas/HarvestPeriod'
             obstacles:
               type: array
               items:
                 $ref: '#/components/schemas/Obstacle'
-            harvestPeriod:
-              $ref: '#/components/schemas/HarvestPeriod'
+            regulatoryRequirements:
+              type: string
+              description: A regulatory constraint applying to the boundary.
+              enum:
+                - RED_ZONE_NITROGEN
+                - WATER_PROTECTION_AREA
             metadata:
               type: object
               description: >
                 Additional key/value metadata. Participants MUST preserve and relay
                 metadata they do not understand.
               additionalProperties: true
-          required: [name]
+          required: [type, boundary]
+
+    OrganizationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        nextPageToken:
+          type: string
+          description: Absent on the last page.
+      required: [items]
+
+    CustomerPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        nextPageToken:
+          type: string
+          description: Absent on the last page.
+      required: [items]
+
+    FarmPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Farm'
+        nextPageToken:
+          type: string
+          description: Absent on the last page.
+      required: [items]
+
+    FieldPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+        nextPageToken:
+          type: string
+          description: Absent on the last page.
+      required: [items]
+
+    FieldBoundaryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldBoundary'
+        nextPageToken:
+          type: string
+          description: Absent on the last page.
+      required: [items]
 
     Entity:
-      description: Any master-data entity.
+      description: >
+        Any master-data entity. Used only on the event stream, which carries every
+        opted-in entity type over a single connection; the typed resources use the
+        concrete schemas directly.
       oneOf:
+        - $ref: '#/components/schemas/Organization'
         - $ref: '#/components/schemas/Customer'
         - $ref: '#/components/schemas/Farm'
         - $ref: '#/components/schemas/Field'
+        - $ref: '#/components/schemas/FieldBoundary'
       discriminator:
         propertyName: type
         mapping:
+          organization: '#/components/schemas/Organization'
           customer: '#/components/schemas/Customer'
           farm: '#/components/schemas/Farm'
           field: '#/components/schemas/Field'
+          fieldBoundary: '#/components/schemas/FieldBoundary'
 
     Geometry:
       type: object
@@ -623,7 +1452,7 @@ components:
       properties:
         entityType:
           type: string
-          enum: [customers, farms, fields]
+          enum: [organizations, customers, farms, fields, fieldBoundaries]
         direction:
           type: string
           description: The permitted direction for this entity type.
