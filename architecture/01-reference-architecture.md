@@ -39,32 +39,26 @@ Adopt an architecture where agrirouter sits in the middle and holds the
 **canonical** copy, while each partner keeps its own.
 
 ```mermaid
-flowchart TB
-    user(["👤 User"]) -->|"creates / edits<br/>master data"| A
-    user -->|"creates / edits<br/>master data"| B
-
-    subgraph A ["Partner A (e.g. an FMIS)"]
-        Astore[("Local store<br/>own copy · own ids")]
-    end
-
-    subgraph AR ["agrirouter"]
-        SSOT[("SSOT store<br/><b>canonical</b> objects<br/>+ id mapping")]
-    end
-
-    subgraph B ["Partner B (e.g. a machine platform)"]
-        Bstore[("Local store<br/>own copy · own ids")]
-    end
-
-    A <-->|"synchronization"| AR
-    AR <-->|"synchronization"| B
-
-    classDef store fill:#eef,stroke:#557,stroke-width:1px;
-    classDef canon fill:#efe,stroke:#575,stroke-width:2px;
-    class Astore,Bstore store;
-    class SSOT canon;
+flowchart LR
+    Astore[("Partner A Local store<br/>own copy · own ids")]
+    SSOT[("agrirouter SSOT store<br/><b>canonical</b> objects<br/>+ id mapping")]
+    Bstore[("Partner B Local store<br/>own copy · own ids")]
+    user(["👤 User"])
+    Aplatform["Partner A Platform"]
+    Bplatform["Partner B Platform"]
+    user -->|"creates / edits / uses<br/>master data"| Aplatform
+    user -->|"creates / edits / uses<br/>master data"| Bplatform
+    Aplatform -->|"reads / writes<br/>master data"| Astore
+    Bplatform -->|"reads / writes<br/>master data"| Bstore
+    Astore <-->|"synchronization"| SSOT
+    SSOT <-->|"synchronization"| Bstore
+    Aplatform [("Partner A Platform")]
+    Bplatform [("Partner B Platform")]
+    %% ceasg:{"id":"1d1ti28h"} %%
+    %% mermaid-flow:pos Astore=84,297 SSOT=436,297 Bstore=769,296 user=417,48 Aplatform=84,131 Bplatform=772,144
 ```
 
-### D1 - Each system keeps its own store and its own identifiers
+### Each system keeps its own store and its own identifiers
 
 Every partner keeps its **own local copy** of the master data under its **own
 identifiers**, and continues to serve its own users from that copy. Read "Partner
@@ -96,7 +90,7 @@ These are the key reasons:
   effort per partner; keeping each system on its own local store avoids that
   rework and lowers the barrier to adopting the protocol.
 
-### D2 - agrirouter holds the canonical Single Source of Truth
+### agrirouter holds the canonical Single Source of Truth
 
 agrirouter holds the [Single Source of Truth (SSOT) store](../specification.md#agrirouter-as-the-single-source-of-truth):
 for every synchronized entity, the *canonical* version plus an *identifier
@@ -235,29 +229,21 @@ a new revision nor forward it to other partners.
 
 ## Consequences
 
-### Why the middle store earns its place
-
-Everything above could *almost* be done with a pure mesh. The canonical SSOT store
-is what makes the n:m case tractable:
-
 - **One place to reconcile against.** Every change is applied to a single canonical
   object, so there is a definitive current value and `revision` rather than N
-  partners arguing about whose copy is newest.
-- **Identity across vendors.** The id mapping lets "field-9931 in A" and "b1e7… in
-  B" be recognized as one entity, which is what prevents duplication on delivery.
+  different systems arguing about whose copy is newest.
+- **Identity across vendors.** The id mapping lets separately identified objects be recognized as one entity, which is what prevents duplication on delivery.
 - **Loop prevention has an anchor.** Origin suppression and no-op detection need a
-  single authority that knows the source and the current state - that is the SSOT.
+  single authority that knows the source and the current state - that is the agrirouter single source of truth.
 - **New and returning systems can be seeded.** A partner that connects (or
   reconnects) is brought up to date from the canonical set; see
   [Initial load and seeding](../specification.md#initial-load-and-seeding). Any
   partner can disconnect and reappear with no loss of sync capability.
-
-### Costs and limits of this decision
-
+- **Possible latencies**: background sync implies a separate process that is not necessarily instant (i.e reads may be stale - eventual consistency). In some situations it may even lead to writes being rejected due to stale reads. See [ADR 05 - Solving stale reads](./05-stale-reads.md) for more details.
 - agrirouter takes on **statefulness and storage** it would not have as a pure
   message bus, along with responsibility for validation and canonicity.
 - The canonical store is a facilitation mechanism only. It is deliberately **not**
-  a history store, a data-maintenance UI, or a marketed "source of truth" product.
+  a history store, a data-maintenance UI, or a marketed "source of truth" product (for example it is not supposed to be queried directly).
 - Some problems are **pushed to the partner applications by design**: field-level conflict
   resolution during seeding, and genuine n:1 granularity mismatches, are resolved
   in partner software, not adjudicated by agrirouter (see
