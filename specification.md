@@ -23,13 +23,14 @@ agrirouter platform, bidirectionally, over an n:m network of participants.
 
 ## Scope
 
-First iteration would cover four entity types, referred to
+First iteration would cover the following entity types, referred to
 throughout as the **MVP entities**:
 
 - **Organizations** 
 - **Customers**
 - **Farms**
-- **Fields**, including their boundaries, obstacles, and metadata
+- **Fields**, including their metadata
+- **FieldBoundaries**, including their obstacles, and metadata
 
 Further entity types (points of interest, guidance/AB lines, inputs, crops, work
 orders, and work records) are out of scope for this version and are expected to
@@ -146,15 +147,10 @@ described by the companion OpenAPI document (`openapi.yaml`).
 
 # Data model
 
-This section defines the canonical object model for the MVP entities. The model
-is deliberately close to the ISOXML / EFDI representation of the same concepts
+This section defines the canonical object model for the MVP entities, fully aligned and reconciled with the outcomes of the FarmSPT project.
+The model is deliberately close to the ISOXML / EFDI representation of the same concepts
 (ISO 11783-10) so that existing task-data tooling can map to and from it, while
 being expressed here in an encoding-independent way.
-
-> The object model and its encoding are being reconciled with the outcomes of the
-> FarmSPT project, on which the SSOT entity store builds. Details in this section
-> that touch canonical form, definitions, and identifier handling are therefore
-> **provisional** until that alignment is complete. See [Open issues](#open-issues).
 
 ## Common envelope
 
@@ -237,9 +233,9 @@ Canonical attributes:
   
   
 ## Customer
+An individual in charge of on-site farm operations to produce, harvest, transport and store a commodity; one who oversees mobile and stationary asset usage; one who oversees selection, application, and usage of all commodity inputs.
 
-A customer is the natural a farm belongs to or a contractor works
-for. Canonical attributes (subset, aligned with ISOXML `CTR`):
+Canonical attributes (subset, aligned with ISOXML `CTR`):
 
 - `name` (object): a person name (`firstName`, `lastName`, optional `title`). Exactly one form MUST be present.
 - `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`,
@@ -250,14 +246,16 @@ for. Canonical attributes (subset, aligned with ISOXML `CTR`):
 - `taxId`(number, optional): Unique, numerical identifier assigned by tax authorities
 - `tradeId`(number, optional): Unique, numerical identifier assigned by public authorities
 - `commercialRegistryNumber`(number, optional): Unique identifier out of commercial register
-- `specialsedUsageType`(RefCode, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… 
+- `specialsedUsageType`(string, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… 
   (see [Agrovoc](https://agrovoc.fao.org/browse/agrovoc/en/page/c_2807))
 - `member` (object, optional): `memberRole` (Based on [ADAPT Data Type: **Role**](https://adaptstandard.org/dtd.html)),
   `name`, `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
   
 ## Farm
 
-A farm groups fields and belongs to a customer. Canonical attributes (subset,
+A grouping of fields that the farmer considers part of the same management group.
+
+Canonical attributes (subset,
 aligned with ISOXML `FRM`):
 
 - `owner` (reference, required): A farm must be assigned to an *organization* or *customer*:
@@ -269,21 +267,53 @@ aligned with ISOXML `FRM`):
 
 ## Field
 
-A field is the core spatial entity. Canonical attributes (subset, aligned with
-ISOXML `PFD`, "partfield"):
+A named and customer-accepted physical space where production agriculture takes place used to partition and identify data. 
+Canonical attributes (subset, aligned with ISOXML `PFD`, "partfield"):
 
 - `name` (string, required).
 - `area` (number, optional): nominal area in square metres.
 - `customer` (reference, optional): the associated customer.
 - `farm` (reference, optional): the associated farm.
-- `soil`(object, optional): `type` (RefCode like: `sand`, `loamy sand`, `heavy loamy sand`, `sandy to silty loam`, `clayey loam`, `clay`), `rating points`
+- `soil`(object, optional): `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), `rating points`
 - `topography`(number, optional): slope, gradient like 7°
-- `boundary` (GeoJSON, optional): the field boundary as a GeoJSON
+- `fieldBoundaries` (array, optional): references to the field [boundaries](#FieldBoundaries) as a GeoJSON
+- `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
+- `metadata` (object, optional): additional key/value metadata that does not fit a
+  defined attribute. Participants MUST preserve metadata they do not understand
+  and MUST relay it unchanged.
+
+## FieldBoundaries
+
+A geometry that identifies the geo-spatial coordinates of a field. 
+The boundary can be used to define the area for a particular operation, a particular crop or crops, or for legal purposes. 
+A field can have different boundaries that may vary in geometry based on their specific use.
+A field boundary include the outer boundary of the editable area and obstacles within the field (such as poles, biotopes or wet patches) that are left out.
+Canonical attributes:
+
+- `boundary` (GeoJSON): the field boundary as a GeoJSON
   `Polygon` or `MultiPolygon` {{?RFC7946}}.
+- `type` (string): Enum value like:
+  - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
+  - `OPERATIONAL`: Used to define management areas for specific fieldwork.
+  - `ECONOMIC_DEFINED`: Used for planning and analysis for economic purposes, e.g. for sustainability programmes or invoicing.
+  - `ADMISTRATIVE_RECEIVED`: Used for data organisation
+     see [AgGateway](https://aggateway.org/Portals/1010/WebSite/About%20Us/FIELD%20BOUNDARY%20FLYER%20122123.pdf?ver=2024-01-03-212959-590)
+- `CreationMethod` (string): Enum value like:
+  - `UNKNOWN`:	Creation method is unknown
+  - `MANUAL`: Hand drawn in a computer system (FMIS) based on imagery or other information.
+  - `DRIVEN`: Record a series of points that define the boundary by driving a machine (e.g. tractor) equipped with a GNSS receiver around the perimeter of the field.
+  - `SURVEYED`: Defined by a professional surveyor	VALID	
+  - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
+  - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
+  - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
+     (Based on [ADAPT Data Type: **BoundaryCreationMethod**](https://adaptstandard.org/dtd.html)
+- `harvestPeriod` (object): see [Harvest period](#harvest-period).
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON
   `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose
   properties carry an obstacle `kind`.
-- `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
+- `RegulatoryRequirements` (string, optional): Enum value like:
+  - `RED_ZONE_NITROGEN`: Red zone identification (N,P overfertilization)
+  - `WATER_PROTECTION_AREA`: Including a water protection area
 - `metadata` (object, optional): additional key/value metadata that does not fit a
   defined attribute. Participants MUST preserve metadata they do not understand
   and MUST relay it unchanged.
@@ -538,9 +568,6 @@ synchronization and SHOULD honour deactivation promptly.
 The following items are actively tracked by the working group and affect
 provisional parts of this document:
 
-- **Object model & data format alignment with FarmSPT** — the canonical model
-  [the data model](#data-model) and encoding [Encoding](#encoding) are being reconciled with FarmSPT
-  outcomes before being locked down. *(AR-2349)*
 - **Unambiguous EFDI subset & hard validation** — the exact validated subset of
   [Encoding and canonicity](#encoding-and-canonicity). *(AR-2020)*
 - **Routing model** — the concrete default-route policy, opt-in switches, and
