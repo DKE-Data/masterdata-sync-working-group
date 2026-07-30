@@ -6,7 +6,7 @@ openapi: 3.1.0
 
 info:
   title: Agriculture Masterdata Sync API
-  version: 0.1.0
+  version: 0.1.0-alpha1
   description: >
     HTTP surface for the Agriculture Masterdata Sync Protocol (AMSP). It lets a
     connected participant send, deactivate, request, and read the master-data
