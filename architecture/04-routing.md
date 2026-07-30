@@ -52,8 +52,7 @@ HubRoute(endpointId, 'masterdata') - route between endpoint and hub, which is di
 - not directional - endpoint is either connected to hub or not
 - may be "read only"? (i.e allows for app to read masterdata, but not write it..) - should consider how application knows about whether it is allowed to write or not and handles errors
 
-What should happen if user disconnected endpoint from the masterdata hub, but data originated from that endpoint has already been written to SSOT? Should we delete that data and ask connected endpoints to deactivate it? Should user have a way to drop data from SSOT by themselves somehow? Or should we do nothing? 
-- we should do nothing
+In case if user disconnected endpoint from the masterdata hub, but data originated from that endpoint has already been written to SSOT it might be tempting to attempt to clean out the data owned by that endpoint, however this might be complex and potentially not what user expects, so in this case data should remain.
 
 ## Consequences
 
