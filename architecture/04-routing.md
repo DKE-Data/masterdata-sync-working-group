@@ -50,7 +50,9 @@ Note that `hub` name implies that it is a central point that fans out data to al
 For hub we would need to define a new type of route:
 HubRoute(endpointId, 'masterdata') - route between endpoint and hub, which is different from normal route(sourceEndpointId, recipientEndpointId) that is used for routing between endpoints:
 - not directional - endpoint is either connected to hub or not
-- may be "read only"? (i.e allows for app to read masterdata, but not write it..) - should consider how application knows about whether it is allowed to write or not and handles errors
+- may potentially be "read only"
+
+Potential "read only" mechanic is optional. Introducing this would require also additional error handling and informing applications about the configuration that user set their endpoint to "read only" for masterdata hub, so that they do not attempt to write there. Since this creates additional complexity for partner implementations it should not be in MVP.
 
 In case if user disconnected endpoint from the masterdata hub, but data originated from that endpoint has already been written to SSOT it might be tempting to attempt to clean out the data owned by that endpoint, however this might be complex and potentially not what user expects, so in this case data should remain.
 
