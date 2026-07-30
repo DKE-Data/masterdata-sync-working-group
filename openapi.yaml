@@ -19,21 +19,10 @@ info:
     is no generic entity resource. The union type `Entity` survives only where a
     single channel genuinely carries all types — the event stream.
 
-
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
-    every entity plus a mapping to each participant's own identifier. This API is
-    the concrete transport for the `masterdata:*` message types described in the
-    companion specification (`specification.md`). It is a working draft and tracks
-    the open issues noted there; schemas and paths are provisional pending the
-    FarmSPT object-model alignment.
+    every entity plus a mapping to each participant's own identifier.
   contact:
     name: DKE-Data Masterdata Sync Working Group
-
-servers:
-  - url: https://api.qa.agrirouter.farm
-    description: QA
-  - url: https://api.prod.agrirouter.farm
-    description: Production
 
 security:
   - bearerAuth: []
