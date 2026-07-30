@@ -21,8 +21,41 @@ To not deal with "split brain" complexity whilst also keeping same UX in regards
 
 Via creating arrows to the masterdata hub, user can control which endpoints (devices, cloud software) are participating in masterdata exchange, in the same way that they already control which endpoints are talking to each other directly.
 
+```mermaid
+flowchart TB
+    Aplatform["A platform endpoint"]
+    Bplatform["B platform endpoint"]
+    MasterdataHub["Masterdata hub"]
+    Bplatform -->|"route(endpoint,hub)"| MasterdataHub
+    Aplatform -->|"route(endpoint,hub)"| MasterdataHub
+    %% ceasg:{"id":"hr01a8qx"} %%
+    %% mermaid-flow:pos Aplatform=126,57 Bplatform=392,59 MasterdataHub=251,211
+```
+
+This creates a new type of entity for agrirouter: `hub`. 
+
+`hub` is NOT an endpoint, but in many ways it may function same as endpoints do.
+
+What `hub` does same as endpoint:
+- shown in UI as a block looking similarly to endpoint (but possibly in different location than normal endpoints?)
+- routes can be established with any other **compatible** endpoints
+
+What `hub` does NOT do same as endpoint:
+- only one hub of particular type can exist in a tenant (i.e one `masterdata hub` per tenant) - this avoids the "split brain" situation described above
+- is not visible as endpoint from any API perspective, including G4, needs to be represented there as a special case (including f.e connecting to masterdata exchange during remote application connection - aka RAC)
+- is not backed up by any remote application, but rather by `agrirouter` itself
+
+Note that `hub` name implies that it is a central point that fans out data to all connected participants indiscriminately and single instance of the `hub` in a tenant does exactly that. So when referring to `hub` here and further, the single `hub` is like a single endpoint in a tenant, not as in one `hub` per `agrirouter`, it would be f.e incorrect to say 'our system communicates with agrirouter masterdata hub', since there is no such thing as agrirouter hub. You can say though 'user routed our endpoint to masterdata hub in their tenant'. And you can say 'our system communicates with masterdata API of agrirouter'.
+
+For hub we would need to define a new type of route:
+HubRoute(endpointId, hubId) - route between endpoint and hub, which is different from normal route(sourceEndpointId, recipientEndpointId) that is used for routing between endpoints:
+- not directional - endpoint is either connected to hub or not
+- may be "read only"? (i.e allows for app to read masterdata, but not write it..)
 
 ## Consequences
+
+- new type of entity `hub` is introduced, which we may want to use for other purposes in the future, but for now is only used for masterdata exchange where it matches explicit UX requirements, which potentially may happen in other cases as well
+- from user perspective masterdata exchange is controlled in much the same way as other data flows by connecting blocks with arrows visually, there is just new block shown that is not technically an endpoint
 
 ### Open questions
 
