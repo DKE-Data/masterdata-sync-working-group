@@ -14,7 +14,6 @@ info:
     agrirouter synchronizes across an n:m network of systems, and configure
     per-entity opt-in for an endpoint.
 
-
     Each entity type has its own set of paths and its own concrete schema; there
     is no generic entity resource. The union type `Entity` survives only where a
     single channel genuinely carries all types — the event stream.
@@ -40,6 +39,8 @@ tags:
     description: Sending, deactivating, requesting, and reading field boundaries.
   - name: Configuration
     description: Per-endpoint, per-entity opt-in for master-data exchange.
+  - name: InitialLoad
+    description: Per-endpoint initial-load state machine.
   - name: Events
     description: Receiving master-data changes as Server-Sent Events.
 
@@ -84,21 +85,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    get:
-      tags: [Organizations]
-      summary: Read one canonical organization by local identifier
-      operationId: getOrganizationByLocalId
-      responses:
-        '200':
-          description: The canonical object mapped to this endpoint's local id.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /masterdata/organizations/{localId}/deactivation:
     parameters:
@@ -124,48 +110,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/organizations:
-    get:
-      tags: [Organizations]
-      summary: List canonical organizations the endpoint is entitled to
-      description: >
-        Returns the canonical organizations that the calling endpoint may receive under
-        its opt-in configuration. Primarily used during the "seeding from
-        agrirouter" phase of initial load.
-      operationId: listOrganizations
-      parameters:
-        - $ref: '#/components/parameters/Active'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
-      responses:
-        '200':
-          description: A page of canonical organizations.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OrganizationPage'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /masterdata/organizations/by-id/{agrirouterId}:
-    parameters:
-      - $ref: '#/components/parameters/AgrirouterId'
-    get:
-      tags: [Organizations]
-      summary: Read one canonical organization by agrirouter identifier
-      operationId: getOrganizationById
-      responses:
-        '200':
-          description: The canonical object.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /masterdata/organizations/requests:
     post:
       tags: [Organizations]
@@ -173,7 +117,7 @@ paths:
       description: >
         Actively requests an organization the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
-        dependency not yet seeded. If the caller is entitled to the entity, it is
+        dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
       operationId: requestOrganization
@@ -227,21 +171,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    get:
-      tags: [Customers]
-      summary: Read one canonical customer by local identifier
-      operationId: getCustomerByLocalId
-      responses:
-        '200':
-          description: The canonical object mapped to this endpoint's local id.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Customer'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /masterdata/customers/{localId}/deactivation:
     parameters:
@@ -267,48 +196,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/customers:
-    get:
-      tags: [Customers]
-      summary: List canonical customers the endpoint is entitled to
-      description: >
-        Returns the canonical customers that the calling endpoint may receive under
-        its opt-in configuration. Primarily used during the "seeding from
-        agrirouter" phase of initial load.
-      operationId: listCustomers
-      parameters:
-        - $ref: '#/components/parameters/Active'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
-      responses:
-        '200':
-          description: A page of canonical customers.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CustomerPage'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /masterdata/customers/by-id/{agrirouterId}:
-    parameters:
-      - $ref: '#/components/parameters/AgrirouterId'
-    get:
-      tags: [Customers]
-      summary: Read one canonical customer by agrirouter identifier
-      operationId: getCustomerById
-      responses:
-        '200':
-          description: The canonical object.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Customer'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /masterdata/customers/requests:
     post:
       tags: [Customers]
@@ -316,7 +203,7 @@ paths:
       description: >
         Actively requests a customer the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
-        dependency not yet seeded. If the caller is entitled to the entity, it is
+        dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
       operationId: requestCustomer
@@ -370,21 +257,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    get:
-      tags: [Farms]
-      summary: Read one canonical farm by local identifier
-      operationId: getFarmByLocalId
-      responses:
-        '200':
-          description: The canonical object mapped to this endpoint's local id.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Farm'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /masterdata/farms/{localId}/deactivation:
     parameters:
@@ -410,48 +282,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/farms:
-    get:
-      tags: [Farms]
-      summary: List canonical farms the endpoint is entitled to
-      description: >
-        Returns the canonical farms that the calling endpoint may receive under
-        its opt-in configuration. Primarily used during the "seeding from
-        agrirouter" phase of initial load.
-      operationId: listFarms
-      parameters:
-        - $ref: '#/components/parameters/Active'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
-      responses:
-        '200':
-          description: A page of canonical farms.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FarmPage'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /masterdata/farms/by-id/{agrirouterId}:
-    parameters:
-      - $ref: '#/components/parameters/AgrirouterId'
-    get:
-      tags: [Farms]
-      summary: Read one canonical farm by agrirouter identifier
-      operationId: getFarmById
-      responses:
-        '200':
-          description: The canonical object.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Farm'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /masterdata/farms/requests:
     post:
       tags: [Farms]
@@ -459,7 +289,7 @@ paths:
       description: >
         Actively requests a farm the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
-        dependency not yet seeded. If the caller is entitled to the entity, it is
+        dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
       operationId: requestFarm
@@ -513,21 +343,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    get:
-      tags: [Fields]
-      summary: Read one canonical field by local identifier
-      operationId: getFieldByLocalId
-      responses:
-        '200':
-          description: The canonical object mapped to this endpoint's local id.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Field'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /masterdata/fields/{localId}/deactivation:
     parameters:
@@ -553,48 +368,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/fields:
-    get:
-      tags: [Fields]
-      summary: List canonical fields the endpoint is entitled to
-      description: >
-        Returns the canonical fields that the calling endpoint may receive under
-        its opt-in configuration. Primarily used during the "seeding from
-        agrirouter" phase of initial load.
-      operationId: listFields
-      parameters:
-        - $ref: '#/components/parameters/Active'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
-      responses:
-        '200':
-          description: A page of canonical fields.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FieldPage'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /masterdata/fields/by-id/{agrirouterId}:
-    parameters:
-      - $ref: '#/components/parameters/AgrirouterId'
-    get:
-      tags: [Fields]
-      summary: Read one canonical field by agrirouter identifier
-      operationId: getFieldById
-      responses:
-        '200':
-          description: The canonical object.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Field'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /masterdata/fields/requests:
     post:
       tags: [Fields]
@@ -602,7 +375,7 @@ paths:
       description: >
         Actively requests a field the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
-        dependency not yet seeded. If the caller is entitled to the entity, it is
+        dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
       operationId: requestField
@@ -656,21 +429,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    get:
-      tags: [FieldBoundaries]
-      summary: Read one canonical field boundary by local identifier
-      operationId: getFieldBoundaryByLocalId
-      responses:
-        '200':
-          description: The canonical object mapped to this endpoint's local id.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FieldBoundary'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /masterdata/field-boundaries/{localId}/deactivation:
     parameters:
@@ -696,48 +454,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/field-boundaries:
-    get:
-      tags: [FieldBoundaries]
-      summary: List canonical field boundarys the endpoint is entitled to
-      description: >
-        Returns the canonical field boundarys that the calling endpoint may receive under
-        its opt-in configuration. Primarily used during the "seeding from
-        agrirouter" phase of initial load.
-      operationId: listFieldBoundaries
-      parameters:
-        - $ref: '#/components/parameters/Active'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/PageSize'
-      responses:
-        '200':
-          description: A page of canonical field boundarys.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FieldBoundaryPage'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /masterdata/field-boundaries/by-id/{agrirouterId}:
-    parameters:
-      - $ref: '#/components/parameters/AgrirouterId'
-    get:
-      tags: [FieldBoundaries]
-      summary: Read one canonical field boundary by agrirouter identifier
-      operationId: getFieldBoundaryById
-      responses:
-        '200':
-          description: The canonical object.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FieldBoundary'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /masterdata/field-boundaries/requests:
     post:
       tags: [FieldBoundaries]
@@ -745,7 +461,7 @@ paths:
       description: >
         Actively requests a field boundary the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
-        dependency not yet seeded. If the caller is entitled to the entity, it is
+        dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
       operationId: requestFieldBoundary
@@ -788,11 +504,7 @@ paths:
 
   /endpoints/{externalEndpointId}/masterdata-config:
     parameters:
-      - name: externalEndpointId
-        in: path
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/ExternalEndpointId'
     get:
       tags: [Configuration]
       summary: Get the endpoint's master-data opt-in configuration
@@ -816,6 +528,10 @@ paths:
         are created only through this explicit opt-in, never by default routing.
         Enabling reception of fields SHOULD also enable the organizations,
         customers, farms, and field boundaries those fields depend on.
+
+        Opting an entity type in also starts its initial load: that entity
+        type enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
+        resource).
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -834,6 +550,117 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  # ----------------------------------------------------------------- initial load
+
+  /endpoints/{externalEndpointId}/masterdata-initial-load:
+    parameters:
+      - $ref: '#/components/parameters/ExternalEndpointId'
+    get:
+      tags: [InitialLoad]
+      summary: Get initial load status for all entity types
+      description: >
+        Returns the per-entity-type initial load state for the endpoint.
+        The state machine per entity type is:
+        `NOT_STARTED` → `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` →
+        `COMPLETED`. Opting an entity type in (via the master-data configuration)
+        moves it to `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
+        with the confirmation and completion operations below.
+      operationId: getInitialLoadStatus
+      responses:
+        '200':
+          description: The endpoint's initial load status across all entity types.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitialLoadStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}:
+    parameters:
+      - $ref: '#/components/parameters/ExternalEndpointId'
+      - $ref: '#/components/parameters/InitialLoadEntityType'
+    get:
+      tags: [InitialLoad]
+      summary: Get initial load status for one entity type
+      operationId: getEntityInitialLoadStatus
+      responses:
+        '200':
+          description: The initial load status for this entity type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityInitialLoadStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/confirmation:
+    parameters:
+      - $ref: '#/components/parameters/ExternalEndpointId'
+      - $ref: '#/components/parameters/InitialLoadEntityType'
+    post:
+      tags: [InitialLoad]
+      summary: Confirm receipt of the from-agrirouter set
+      description: >
+        The endpoint confirms it has received the full "loading from agrirouter"
+        set for this entity type, transitioning it from `LOADING_FROM_AGRIROUTER`
+        to `LOADING_TO_AGRIROUTER`. From that point the endpoint sends the objects
+        it knows about (the ordinary PUT operations), including any it changed
+        while resolving conflicts. Idempotent: confirming again when already in
+        `LOADING_TO_AGRIROUTER` or `COMPLETED` returns the current status
+        unchanged.
+      operationId: confirmInitialLoad
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitialLoadConfirmation'
+      responses:
+        '200':
+          description: Updated initial load status for this entity type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityInitialLoadStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InitialLoadConflict'
+
+  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/completion:
+    parameters:
+      - $ref: '#/components/parameters/ExternalEndpointId'
+      - $ref: '#/components/parameters/InitialLoadEntityType'
+    post:
+      tags: [InitialLoad]
+      summary: Signal that loading to agrirouter is complete
+      description: >
+        The endpoint signals it has sent all objects it knows about, transitioning
+        this entity type from `LOADING_TO_AGRIROUTER` to `COMPLETED`, after which
+        steady-state (day-2) synchronization applies. Idempotent: completing again
+        when already `COMPLETED` returns the current status unchanged.
+      operationId: completeInitialLoad
+      responses:
+        '200':
+          description: Updated initial load status for this entity type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityInitialLoadStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/InitialLoadConflict'
 
 components:
   securitySchemes:
@@ -859,34 +686,21 @@ components:
         "Identifier mapping").
       schema:
         type: string
-    AgrirouterId:
-      name: agrirouterId
+    ExternalEndpointId:
+      name: externalEndpointId
       in: path
       required: true
-      description: The agrirouter-assigned canonical identifier (UUID).
+      description: The endpoint's external identifier.
       schema:
         type: string
-        format: uuid
-    Active:
-      name: active
-      in: query
-      description: If set, filters by active state.
-      schema:
-        type: boolean
-    PageToken:
-      name: pageToken
-      in: query
-      description: Opaque cursor returned by a previous call.
+    InitialLoadEntityType:
+      name: entityType
+      in: path
+      required: true
+      description: The master-data entity type.
       schema:
         type: string
-    PageSize:
-      name: pageSize
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 500
-        default: 100
+        enum: [organizations, customers, farms, fields, fieldBoundaries]
 
   requestBodies:
     EntityRequest:
@@ -927,6 +741,15 @@ components:
       description: >
         The supplied local identifier is already mapped to a different canonical
         object (an asymmetric / n:1 mapping the caller must resolve).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InitialLoadConflict:
+      description: >
+        The requested transition is not valid from the entity type's current
+        initial load state (e.g. confirming before opt-in, or completing before
+        confirming).
       content:
         application/json:
           schema:
@@ -1343,66 +1166,6 @@ components:
               additionalProperties: true
           required: [type, boundary]
 
-    OrganizationPage:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Organization'
-        nextPageToken:
-          type: string
-          description: Absent on the last page.
-      required: [items]
-
-    CustomerPage:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Customer'
-        nextPageToken:
-          type: string
-          description: Absent on the last page.
-      required: [items]
-
-    FarmPage:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Farm'
-        nextPageToken:
-          type: string
-          description: Absent on the last page.
-      required: [items]
-
-    FieldPage:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Field'
-        nextPageToken:
-          type: string
-          description: Absent on the last page.
-      required: [items]
-
-    FieldBoundaryPage:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/FieldBoundary'
-        nextPageToken:
-          type: string
-          description: Absent on the last page.
-      required: [items]
-
     Entity:
       description: >
         Any master-data entity. Used only on the event stream, which carries every
@@ -1462,3 +1225,62 @@ components:
           items:
             $ref: '#/components/schemas/EntityTypeToggle'
       required: [toggles]
+
+    InitialLoadState:
+      type: string
+      description: >
+        Per-endpoint, per-entity-type initial-load state. Opting an entity type
+        in (via the master-data configuration) starts it at
+        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward with the
+        confirmation and completion operations.
+      enum:
+        - NOT_STARTED
+        - LOADING_FROM_AGRIROUTER
+        - LOADING_TO_AGRIROUTER
+        - COMPLETED
+
+    EntityInitialLoadStatus:
+      type: object
+      properties:
+        entityType:
+          type: string
+          enum: [organizations, customers, farms, fields, fieldBoundaries]
+        state:
+          $ref: '#/components/schemas/InitialLoadState'
+        checkpoint:
+          type: string
+          readOnly: true
+          description: >
+            Opaque marker of how far the from-agrirouter set has been confirmed.
+            Echoed from the endpoint's confirmation; may be replayed to resume an
+            interrupted initial load or a post-downtime catch-up.
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required: [entityType, state]
+
+    InitialLoadStatus:
+      type: object
+      description: Initial-load state for every entity type of an endpoint.
+      properties:
+        endpointId:
+          type: string
+          readOnly: true
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityInitialLoadStatus'
+      required: [entities]
+
+    InitialLoadConfirmation:
+      type: object
+      description: >
+        The endpoint's confirmation that it has received the full
+        loading-from-agrirouter set for the entity type.
+      properties:
+        checkpoint:
+          type: string
+          description: >
+            Opaque marker (e.g. the last cursor or revision watermark the
+            endpoint received) identifying how much of the set was consumed.
