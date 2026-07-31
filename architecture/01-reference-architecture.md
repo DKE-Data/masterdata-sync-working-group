@@ -58,8 +58,8 @@ flowchart LR
     Bplatform -->|"reads / writes<br/>master data"| Bstore
     SSOT -->|"synchronization"| Bstore
     SSOT -->|"synchronization"| Astore
-    Aplatform [("Partner A Platform")]
-    Bplatform [("Partner B Platform")]
+    Aplatform (["Partner A Platform"])
+    Bplatform (["Partner B Platform"])
     %% ceasg:{"id":"1d1ti28h"} %%
     %% mermaid-flow:pos Aplatform=84,131 Astore=84,297 Bstore=830,297 Bplatform=833,145 SSOT=436,297 user=447,45
     %% mermaid-flow:gpos sub1=-27,65,223,292 sub2=719,79,223,278 sub3=309,205,255,160
