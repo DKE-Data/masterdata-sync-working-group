@@ -78,7 +78,7 @@ flowchart TB
 
 ## Consequences
 
-- agrirouter holds an explicit per-endpoint, per-entity-type initial-load state and exposes it, plus the two endpoint-driven transitions (confirm, complete), as part of the master-data API.
+- agrirouter holds an explicit per-endpoint, per-entity-type initial-load state and exposes it as a `status` subresource that the endpoint reads and advances by setting its state (confirm receipt, then complete), as part of the master-data API.
 - The "from agrirouter, then to agrirouter" ordering is what prevents duplication: reconciliation happens against the canonical set before the endpoint sends anything.
 - Some of the hard parts are intentionally organizational: conflict resolution and granularity mismatches live in partner software, so the protocol defines the flow and the failure signals but not the resolution.
 - Initial load and resume share the same checkpoint machinery, so a returning system is a continuation of the same state rather than a separate code path.

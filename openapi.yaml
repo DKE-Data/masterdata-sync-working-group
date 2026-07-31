@@ -565,7 +565,7 @@ paths:
         `NOT_STARTED` → `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` →
         `COMPLETED`. Opting an entity type in (via the master-data configuration)
         moves it to `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
-        with the confirmation and completion operations below.
+        by sending a PUT request to its per-entity-type `status` subresource.
       operationId: getInitialLoadStatus
       responses:
         '200':
@@ -579,7 +579,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}:
+  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/status:
     parameters:
       - $ref: '#/components/parameters/ExternalEndpointId'
       - $ref: '#/components/parameters/InitialLoadEntityType'
@@ -598,29 +598,33 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/confirmation:
-    parameters:
-      - $ref: '#/components/parameters/ExternalEndpointId'
-      - $ref: '#/components/parameters/InitialLoadEntityType'
-    post:
+    put:
       tags: [InitialLoad]
-      summary: Confirm receipt of the from-agrirouter set
+      summary: Set the initial load state for one entity type
       description: >
-        The endpoint confirms it has received the full "loading from agrirouter"
-        set for this entity type, transitioning it from `LOADING_FROM_AGRIROUTER`
-        to `LOADING_TO_AGRIROUTER`. From that point the endpoint sends the objects
-        it knows about (the ordinary PUT operations), including any it changed
-        while resolving conflicts. Idempotent: confirming again when already in
-        `LOADING_TO_AGRIROUTER` or `COMPLETED` returns the current status
-        unchanged.
-      operationId: confirmInitialLoad
+        Sets this entity type's initial-load `state`. Only forward transitions are
+        valid; agrirouter rejects any other with `409`.
+
+
+        Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has received the full
+        "loading from agrirouter" set (optionally carrying a `checkpoint` marking
+        how far it consumed, for resume); from that point the endpoint sends the
+        objects it knows about via the ordinary PUT operations. Set `COMPLETED`
+        once the endpoint has sent everything, after which steady-state (day-2)
+        synchronization applies. The initial
+        `NOT_STARTED → LOADING_FROM_AGRIROUTER` transition is driven by opting the
+        entity type in, not by this operation.
+
+
+        Idempotent: setting the state the entity type is already in returns the
+        current status unchanged.
+      operationId: setEntityInitialLoadState
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/InitialLoadConfirmation'
+              $ref: '#/components/schemas/InitialLoadStateUpdate'
       responses:
         '200':
           description: Updated initial load status for this entity type.
@@ -628,33 +632,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EntityInitialLoadStatus'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/InitialLoadConflict'
-
-  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/completion:
-    parameters:
-      - $ref: '#/components/parameters/ExternalEndpointId'
-      - $ref: '#/components/parameters/InitialLoadEntityType'
-    post:
-      tags: [InitialLoad]
-      summary: Signal that loading to agrirouter is complete
-      description: >
-        The endpoint signals it has sent all objects it knows about, transitioning
-        this entity type from `LOADING_TO_AGRIROUTER` to `COMPLETED`, after which
-        steady-state (day-2) synchronization applies. Idempotent: completing again
-        when already `COMPLETED` returns the current status unchanged.
-      operationId: completeInitialLoad
-      responses:
-        '200':
-          description: Updated initial load status for this entity type.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityInitialLoadStatus'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1231,8 +1210,8 @@ components:
       description: >
         Per-endpoint, per-entity-type initial-load state. Opting an entity type
         in (via the master-data configuration) starts it at
-        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward with the
-        confirmation and completion operations.
+        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward by sending a
+        PUT request to the entity type's `status` subresource.
       enum:
         - NOT_STARTED
         - LOADING_FROM_AGRIROUTER
@@ -1273,14 +1252,19 @@ components:
             $ref: '#/components/schemas/EntityInitialLoadStatus'
       required: [entities]
 
-    InitialLoadConfirmation:
+    InitialLoadStateUpdate:
       type: object
       description: >
-        The endpoint's confirmation that it has received the full
-        loading-from-agrirouter set for the entity type.
+        The target initial-load `state` for an entity type. Only forward
+        transitions are accepted.
       properties:
+        state:
+          $ref: '#/components/schemas/InitialLoadState'
         checkpoint:
           type: string
           description: >
-            Opaque marker (e.g. the last cursor or revision watermark the
-            endpoint received) identifying how much of the set was consumed.
+            When setting `LOADING_TO_AGRIROUTER` (confirming receipt of the
+            from-agrirouter set), an opaque marker — e.g. the last cursor or
+            revision watermark the endpoint received — identifying how much of the
+            set was consumed. Used to resume an interrupted initial load.
+      required: [state]
