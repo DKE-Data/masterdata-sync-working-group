@@ -524,7 +524,7 @@ paths:
       tags: [Configuration]
       summary: Set the endpoint's master-data opt-in configuration
       description: >
-        Configures per-entity opt-in and read/write direction. Master-data routes
+        Configures per-entity opt-in. Master-data routes
         are created only through this explicit opt-in, never by default routing.
         Enabling reception of fields SHOULD also enable the organizations,
         customers, farms, and field boundaries those fields depend on.
@@ -1184,11 +1184,7 @@ components:
         entityType:
           type: string
           enum: [organizations, customers, farms, fields, fieldBoundaries]
-        direction:
-          type: string
-          description: The permitted direction for this entity type.
-          enum: [READ, WRITE, READ_WRITE]
-      required: [entityType, direction]
+      required: [entityType]
 
     MasterdataConfig:
       type: object

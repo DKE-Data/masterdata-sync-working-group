@@ -26,10 +26,10 @@ flowchart TB
     Aplatform["A platform endpoint"]
     Bplatform["B platform endpoint"]
     MasterdataHub["Masterdata hub"]
-    Bplatform <-->|"route(endpoint,hub)"| MasterdataHub
-    Aplatform <-->|"route(endpoint,hub)"| MasterdataHub
+    Bplatform <-->|"hubRoute(endpoint,hub)"| MasterdataHub
+    Aplatform <-->|"hubRoute(endpoint,hub)"| MasterdataHub
     %% ceasg:{"id":"hr01a8qx"} %%
-    %% mermaid-flow:pos Aplatform=126,57 Bplatform=392,59 MasterdataHub=239,-97
+    %% mermaid-flow:pos Aplatform=102,59 Bplatform=389,62 MasterdataHub=239,-97
 ```
 
 This creates a new type of entity for agrirouter: `hub`. 

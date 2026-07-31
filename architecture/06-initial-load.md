@@ -45,6 +45,85 @@ The flow, per entity type:
 4. **Load to agrirouter.** The endpoint now sends the objects it holds that the canonical set did not contain, plus any it changed while resolving conflicts. Because it reconciled first, it sends genuinely new objects instead of duplicates of ones it just received.
 5. **Complete.** When the endpoint has sent everything, the entity type enters `COMPLETED`, and ordinary steady-state synchronization ([ADR 01](./01-reference-architecture.md)) applies from then on.
 
+### The flow in concrete calls
+
+The same five steps expressed as the actual operations of the master-data API,
+for one entity type (`farms`). `{eid}` is the endpoint's `externalEndpointId`.
+
+<!-- TODO - figure out Ux of conflict resolution and whether app needs to tell us that user should be redirected to conflict resolution page..
+Also consider how this would work in other masterdata route creation
+scenarios (when route is created automatically).
+
+TODO: try to figure out scaling here because it might be tricky to
+send response on SSE rather than on same instance (pod) that god /requests.
+Also /requests might need to be part of initial load? -->
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant P as Partner (endpoint)
+    participant AR as agrirouter (SSOT)
+
+    U->>P: opt this endpoint into farms
+    P->>AR: PUT /endpoints/{eid}/masterdata-config<br/>{ toggles: [{ entityType: "farms" }] }
+    AR-->>P: 200 MasterdataConfig
+    Note over AR: farms → LOADING_FROM_AGRIROUTER
+
+    P->>AR: GET /masterdata/events (SSE)
+    AR-->>P: 200 text/event-stream
+    loop every canonical farm the endpoint is entitled to
+        AR-->>P: event: MASTERDATA_CHANGED<br/>id: evt-8842<br/>data: { type: "farm", agrirouterId: 1f2e…4567,<br/>revision: 3, idMappings: [...] }
+        Note over P: reconcile against own store<br/>(id mapping, user decides on conflicts)
+    end
+    opt referenced object not held yet
+        P->>AR: POST /masterdata/organizations/requests<br/>{ agrirouterId: 9ab0…1234 }
+        AR-->>P: 202 Accepted
+        AR-->>P: event: MASTERDATA_CHANGED (organization)
+    end
+
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ state: "LOADING_TO_AGRIROUTER", checkpoint: "evt-8842" }
+    AR-->>P: 200 EntityInitialLoadStatus { state: "LOADING_TO_AGRIROUTER" }
+
+    loop every local farm that is new or was changed while resolving a conflict
+        P->>AR: PUT /masterdata/farms/{localId}<br/>{ type: "farm", owner: {...}, name: "Hof Nord" }
+        alt genuinely new to the network
+            AR-->>P: 201 Farm { agrirouterId: 7c1d…8899, revision: 1 }
+        else localId already mapped to a different canonical object
+            AR-->>P: 409 Error (mapping conflict - resolved in the partner)
+        end
+    end
+
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ state: "COMPLETED" }
+    AR-->>P: 200 EntityInitialLoadStatus { state: "COMPLETED" }
+    Note over P,AR: steady-state synchronization from here on,<br/>over the same event stream
+```
+
+Points worth noting about the calls themselves:
+
+- **There is no bulk "give me everything" endpoint.** The from-agrirouter
+  direction reuses the ordinary event stream (`GET /masterdata/events`); initial
+  load is a replay over the same channel rather than a second delivery mechanism,
+  which is what lets [resume](#resume-is-the-same-machinery-not-a-special-case)
+  share the machinery. Stream position and reconnect are handled by
+  [ADR 07](./07-sync-streaming.md).
+- **Opting in is what starts the load.** The endpoint never sets
+  `LOADING_FROM_AGRIROUTER` itself; `PUT .../masterdata-config` does. The two
+  transitions the endpoint drives are the confirmation and the completion, both
+  through `PUT .../masterdata-initial-load/{entityType}/status`. Only forward
+  transitions are accepted - anything else is a `409`.
+- **The checkpoint is carried on the confirmation.** It is opaque to agrirouter
+  and echoed back on `GET`, so an interrupted load resumes from it instead of
+  starting over.
+- **The to-agrirouter direction uses the ordinary send operation.** There is no
+  special initial-load write path - `PUT /masterdata/farms/{localId}` is the same
+  call the endpoint uses in steady state, and the same `409` signals a
+  [non-unique mapping](#granularity-mismatches-and-differing-requirements).
+- **The sequence runs per entity type**, so `organizations`, `customers` and
+  `farms` reach `COMPLETED` before `fields` is confirmed - a field cannot be
+  reconciled against dependencies the endpoint has not received yet.
+  `GET /endpoints/{eid}/masterdata-initial-load` returns all of them at once.
+
 ### Conflicts are resolved in the partner, not in agrirouter
 
 While reconciling, the endpoint may find that its own object and the canonical object for the same real-world entity disagree. Consistent with [ADR 01](./01-reference-architecture.md), agrirouter does not adjudicate field-level conflicts: it provides the canonical set to reconcile against, and the **partner's own software presents the conflict to the user**. This keeps agrirouter out of business decisions it has no basis to make, and it is why the "to agrirouter" step can carry objects the user changed during resolution.

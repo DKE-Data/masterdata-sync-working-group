@@ -40,22 +40,29 @@ Adopt an architecture where agrirouter sits in the middle and holds the
 
 ```mermaid
 flowchart LR
-    Astore[("Partner A Local store<br/>own copy · own ids")]
-    SSOT[("agrirouter SSOT store<br/><b>canonical</b> objects<br/>+ id mapping")]
-    Bstore[("Partner B Local store<br/>own copy · own ids")]
-    user(["👤 User"])
-    Aplatform["Partner A Platform"]
-    Bplatform["Partner B Platform"]
+    subgraph sub1 ["Partner A"]
+        Aplatform["Partner A Platform"]
+        Astore[("Partner A Local store<br/>own copy · own ids")]
+    end
+    subgraph sub2 ["Partner B"]
+        Bstore[("Partner B Local store<br/>own copy · own ids")]
+        Bplatform["Partner B Platform"]
+    end
+    subgraph sub3 ["agrirouter"]
+        SSOT[("agrirouter SSOT store<br/><b>canonical</b> objects<br/>+ id mapping")]
+    end
+    user(["User"])
     user -->|"creates / edits / uses<br/>master data"| Aplatform
     user -->|"creates / edits / uses<br/>master data"| Bplatform
     Aplatform -->|"reads / writes<br/>master data"| Astore
     Bplatform -->|"reads / writes<br/>master data"| Bstore
-    Astore <-->|"synchronization"| SSOT
-    SSOT <-->|"synchronization"| Bstore
+    SSOT -->|"synchronization"| Bstore
+    SSOT -->|"synchronization"| Astore
     Aplatform [("Partner A Platform")]
     Bplatform [("Partner B Platform")]
     %% ceasg:{"id":"1d1ti28h"} %%
-    %% mermaid-flow:pos Astore=84,297 SSOT=436,297 Bstore=769,296 user=417,48 Aplatform=84,131 Bplatform=772,144
+    %% mermaid-flow:pos Aplatform=84,131 Astore=84,297 Bstore=830,297 Bplatform=833,145 SSOT=436,297 user=447,45
+    %% mermaid-flow:gpos sub1=-27,65,223,292 sub2=719,79,223,278 sub3=309,205,255,160
 ```
 
 ### Each system keeps its own store and its own identifiers
