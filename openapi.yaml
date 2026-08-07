@@ -10,7 +10,7 @@ info:
   description: >
     HTTP surface for the Agriculture Masterdata Sync Protocol (AMSP). It lets a
     connected participant send, deactivate, request, and read the master-data
-    entities (organizations, customers, farms, fields, field boundaries) that
+    entities (organizations, persons, farms, fields, field boundaries) that
     agrirouter synchronizes across an n:m network of systems, and configure
     per-entity opt-in for an endpoint.
 
@@ -29,8 +29,8 @@ security:
 tags:
   - name: Organizations
     description: Sending, deactivating, requesting, and reading organizations.
-  - name: Customers
-    description: Sending, deactivating, requesting, and reading customers.
+  - name: Persons
+    description: Sending, deactivating, requesting, and reading persons.
   - name: Farms
     description: Sending, deactivating, requesting, and reading farms.
   - name: Fields
@@ -131,40 +131,40 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  # ----------------------------------------------------------------- customers
+  # ------------------------------------------------------------------- persons
 
-  /masterdata/customers/{localId}:
+  /masterdata/persons/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
     put:
-      tags: [Customers]
-      summary: Send (create or update) a customer
+      tags: [Persons]
+      summary: Send (create or update) a person
       description: >
-        Submits a `masterdata:customer` object from the calling endpoint. If the
+        Submits a `masterdata:person` object from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
-      operationId: putCustomer
+      operationId: putPerson
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Customer'
+              $ref: '#/components/schemas/Person'
       responses:
         '200':
-          description: Customer accepted; the resulting canonical object is returned.
+          description: Person accepted; the resulting canonical object is returned.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Customer'
+                $ref: '#/components/schemas/Person'
         '201':
           description: A new canonical object was created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Customer'
+                $ref: '#/components/schemas/Person'
         '400':
           $ref: '#/components/responses/ValidationError'
         '403':
@@ -172,41 +172,41 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
-  /masterdata/customers/{localId}/deactivation:
+  /masterdata/persons/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
     post:
-      tags: [Customers]
-      summary: Deactivate a customer
+      tags: [Persons]
+      summary: Deactivate a person
       description: >
-        Signals that the customer was deactivated in the source system (archival,
+        Signals that the person was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification.
-      operationId: deactivateCustomer
+      operationId: deactivatePerson
       responses:
         '200':
-          description: Customer is inactive (either newly deactivated or already inactive).
+          description: Person is inactive (either newly deactivated or already inactive).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Customer'
+                $ref: '#/components/schemas/Person'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/customers/requests:
+  /masterdata/persons/requests:
     post:
-      tags: [Customers]
-      summary: Request a customer (lazy loading)
+      tags: [Persons]
+      summary: Request a person (lazy loading)
       description: >
-        Actively requests a customer the caller does not currently hold — for
+        Actively requests a person the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
         dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
-      operationId: requestCustomer
+      operationId: requestPerson
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
       responses:
@@ -485,7 +485,7 @@ paths:
         A persistent SSE stream of master-data changes for the calling endpoint.
         agrirouter never echoes a change back to the endpoint it originated from.
         Because one stream carries every opted-in entity type, each event's `data`
-        is an `Entity` — an `Organization`, `Customer`, `Farm`, `Field`, or
+        is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
         `FieldBoundary` discriminated by its `type` property. Delivered objects
         carry this endpoint's own `localId` in `idMappings` when known.
       operationId: streamMasterdataEvents
@@ -527,7 +527,7 @@ paths:
         Configures per-entity opt-in. Master-data routes
         are created only through this explicit opt-in, never by default routing.
         Enabling reception of fields SHOULD also enable the organizations,
-        customers, farms, and field boundaries those fields depend on.
+        persons, farms, and field boundaries those fields depend on.
 
         Opting an entity type in also starts its initial load: that entity
         type enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
@@ -679,7 +679,7 @@ components:
       description: The master-data entity type.
       schema:
         type: string
-        enum: [organizations, customers, farms, fields, fieldBoundaries]
+        enum: [organizations, persons, farms, fields, fieldBoundaries]
 
   requestBodies:
     EntityRequest:
@@ -760,7 +760,12 @@ components:
 
     EntityReference:
       type: object
-      description: A reference to another entity by canonical and/or local id.
+      description: >
+        A reference to another entity by canonical and/or local id. On send
+        either identifier suffices: a localId is resolved against the sender's
+        own mapping, and is rejected if the target has not been sent yet. On
+        delivery agrirouter populates agrirouterId, since the sender's localId
+        does not resolve in the receiver's namespace.
       properties:
         agrirouterId:
           type: string
@@ -770,6 +775,20 @@ components:
       anyOf:
         - required: [agrirouterId]
         - required: [localId]
+
+    PartyReference:
+      description: >
+        A reference to a party. The slot admits both organizations and persons,
+        so the entity type is required: a receiver that does not hold the target
+        must lazy-load it, and the request endpoints are per entity type. Typed
+        slots such as a field's farm need no discriminator.
+      allOf:
+        - $ref: '#/components/schemas/EntityReference'
+        - type: object
+          properties:
+            type:
+              enum: [organization, person]
+          required: [type]
 
     IdMapping:
       type: object
@@ -823,17 +842,6 @@ components:
             $ref: '#/components/schemas/EntityReference'
       required: [localId]
 
-    PersonName:
-      type: object
-      description: A person name.
-      properties:
-        title:
-          type: string
-        firstName:
-          type: string
-        lastName:
-          type: string
-      required: [firstName, lastName]
 
     Address:
       type: object
@@ -884,11 +892,12 @@ components:
 
     Organization:
       description: >
-        The structure of a farm or a group of several farms. Acts as the
-        contractor in a contractor scenario; identical to the farm when a farmer
-        has a single farm.
+        A legal entity that may hold land and to which persons may belong. It
+        plays no fixed role: whether it acts as a contractor or as a client
+        follows from the relations it stands in, not from an attribute.
       allOf:
         - $ref: '#/components/schemas/Envelope'
+        - $ref: '#/components/schemas/Party'
         - type: object
           properties:
             type:
@@ -898,92 +907,115 @@ components:
                 Discriminator, set by agrirouter. Implied by the path on send.
             name:
               type: string
-            address:
-              $ref: '#/components/schemas/Address'
-            contact:
-              $ref: '#/components/schemas/Contact'
-            billingAddress:
-              $ref: '#/components/schemas/Address'
-            taxNumber:
-              type: string
-              description: Identifier assigned by tax authorities.
-            taxId:
-              type: string
-              description: Numerical identifier assigned by tax authorities.
-            tradeId:
-              type: string
-              description: Numerical identifier assigned by public authorities.
             commercialRegistryNumber:
               type: string
               description: Identifier from the commercial register.
           required: [type, name]
 
-    Customer:
+    Party:
+      type: object
       description: >
-        An individual in charge of on-site farm operations — producing,
-        harvesting, transporting, and storing a commodity, and overseeing asset
-        and input usage.
+        Attributes common to every party, whether an organization or a natural
+        person. A farmer carries the fiscal identifiers as much as a company
+        does; only the commercial register entry is specific to organizations.
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        taxNumber:
+          type: string
+          description: Identifier assigned by tax authorities.
+        taxId:
+          type: string
+          description: Numerical identifier assigned by tax authorities.
+        tradeId:
+          type: string
+          description: Numerical identifier assigned by public authorities.
+
+    Person:
+      description: >
+        A natural person. A person may hold land, and may belong to one or more
+        organizations through `memberships`.
       allOf:
         - $ref: '#/components/schemas/Envelope'
+        - $ref: '#/components/schemas/Party'
         - type: object
           properties:
             type:
-              const: customer
+              const: person
               readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
-            name:
-              $ref: '#/components/schemas/PersonName'
-            address:
-              $ref: '#/components/schemas/Address'
-            contact:
-              $ref: '#/components/schemas/Contact'
-            billingAddress:
-              $ref: '#/components/schemas/Address'
-            taxNumber:
+            title:
               type: string
-              description: Identifier assigned by tax authorities.
-            taxId:
+            firstName:
               type: string
-              description: Numerical identifier assigned by tax authorities.
-            tradeId:
+            lastName:
               type: string
-              description: Numerical identifier assigned by public authorities.
-            commercialRegistryNumber:
-              type: string
-              description: Identifier from the commercial register.
-            specialisedUsageType:
-              type: string
+            memberships:
+              type: array
               description: >
-                Specialised usage type of the customer/grower (e.g. arable
-                farming, dairy, vineyard, orchard). See Agrovoc.
-            member:
-              $ref: '#/components/schemas/Member'
-          required: [type, name]
+                The organizations this person belongs to, each with the role
+                held there. A person carrying at least one entry is a member.
+              items:
+                $ref: '#/components/schemas/Membership'
+          required: [type, lastName]
 
-    Member:
+    Membership:
       type: object
-      description: A member associated with a customer.
+      description: A role held by a person in one organization.
       properties:
+        organizationId:
+          $ref: '#/components/schemas/EntityReference'
+          description: The organization the person belongs to.
         memberRole:
-          type: string
-          description: Based on the ADAPT Role data type.
-        name:
-          type: string
-        street:
-          type: string
-        poBox:
-          type: string
-        postalCode:
-          type: string
-        city:
-          type: string
-        state:
-          type: string
-        country:
-          type: string
-          description: ISO 3166-1 alpha-2 country code.
-          pattern: '^[A-Z]{2}$'
+          $ref: '#/components/schemas/Role'
+      required: [organizationId, memberRole]
+
+    Partner:
+      type: object
+      description: >
+        A party holding a role on a farm — the contractor that works it, the
+        advisor that reads it. Records a business relationship only. It does NOT
+        grant visibility of the farm: what an endpoint receives is decided by
+        opt-in and routing.
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartyReference'
+          description: The organization or person acting as partner.
+        partnerRole:
+          $ref: '#/components/schemas/Role'
+      required: [partnerId, partnerRole]
+
+    Role:
+      type: string
+      description: A role drawn from the ADAPT Role data type.
+      enum:
+        - UNKNOWN
+        - AUTHORIZER
+        - CROP_ADVISOR
+        - CUSTOMER
+        - CUSTOM_SERVICE_PROVIDER
+        - DATA_SERVICES_PROVIDER
+        - END_USER
+        - FARM_MANAGER
+        - FINANCIER
+        - STATIONARY_ASSET_SUPPLIER
+        - GOVERNMENT_AGENCY
+        - GROWER
+        - INPUT_SUPPLIER
+        - INSURANCE_AGENT
+        - IRRIGATION_MANAGER
+        - LABORER
+        - MARKET_ADVISOR
+        - MARKET_PROVIDER
+        - MOBILE_ASSET_SUPPLIER
+        - OPERATOR
+        - OWNER
+        - TRANSPORTER
 
     Farm:
       description: >
@@ -999,13 +1031,23 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
             owner:
-              $ref: '#/components/schemas/EntityReference'
-              description: >
-                The entity that holds the farm: the organization when the farm
-                is worked by the organization itself, the customer when it is
-                worked on that customer's behalf, as in the contractor scenario.
+              $ref: '#/components/schemas/PartyReference'
+              description: The organization or person that holds the farm.
             name:
               type: string
+            specialisedUsageType:
+              type: string
+              description: >
+                Production orientation of the farm (e.g. arable farming, dairy,
+                vineyard, orchard). Free-form, drawn from AGROVOC where a
+                matching concept exists.
+            partners:
+              type: array
+              description: >
+                Parties holding a role on this farm, such as the contractor that
+                works it or the advisor that reads it.
+              items:
+                $ref: '#/components/schemas/Partner'
             address:
               $ref: '#/components/schemas/Address'
             geoReference:
@@ -1031,8 +1073,8 @@ components:
 
     Field:
       description: >
-        A named, customer-accepted physical space where production agriculture
-        takes place, used to partition and identify data.
+        A named physical space where production agriculture takes place, used
+        to partition and identify data.
       allOf:
         - $ref: '#/components/schemas/Envelope'
         - type: object
@@ -1047,10 +1089,17 @@ components:
             area:
               type: number
               description: Nominal area in square metres.
-            customer:
-              $ref: '#/components/schemas/EntityReference'
             farm:
               $ref: '#/components/schemas/EntityReference'
+              description: The farm this field belongs to.
+            owner:
+              $ref: '#/components/schemas/PartyReference'
+              description: >
+                The organization or person holding this field, for systems that
+                attribute fields to a party directly. When absent, the field is
+                held by its farm's owner. When present, it takes precedence for
+                this field, which is how a field held by one party but managed
+                under another's farm is expressed.
             soil:
               $ref: '#/components/schemas/SoilInfo'
             topography:
@@ -1152,7 +1201,7 @@ components:
         concrete schemas directly.
       oneOf:
         - $ref: '#/components/schemas/Organization'
-        - $ref: '#/components/schemas/Customer'
+        - $ref: '#/components/schemas/Person'
         - $ref: '#/components/schemas/Farm'
         - $ref: '#/components/schemas/Field'
         - $ref: '#/components/schemas/FieldBoundary'
@@ -1160,7 +1209,7 @@ components:
         propertyName: type
         mapping:
           organization: '#/components/schemas/Organization'
-          customer: '#/components/schemas/Customer'
+          person: '#/components/schemas/Person'
           farm: '#/components/schemas/Farm'
           field: '#/components/schemas/Field'
           fieldBoundary: '#/components/schemas/FieldBoundary'
@@ -1183,7 +1232,7 @@ components:
       properties:
         entityType:
           type: string
-          enum: [organizations, customers, farms, fields, fieldBoundaries]
+          enum: [organizations, persons, farms, fields, fieldBoundaries]
       required: [entityType]
 
     MasterdataConfig:
@@ -1219,7 +1268,7 @@ components:
       properties:
         entityType:
           type: string
-          enum: [organizations, customers, farms, fields, fieldBoundaries]
+          enum: [organizations, persons, farms, fields, fieldBoundaries]
         state:
           $ref: '#/components/schemas/InitialLoadState'
         checkpoint:
