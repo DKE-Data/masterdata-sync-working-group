@@ -56,34 +56,34 @@ timestamps use the date and time formats of {{?RFC3339}}.
 # Terminology
 
 Participant:
-: A software product or machine platform connected to agrirouter that takes part
+a software product or machine platform connected to agrirouter that takes part
   in master-data synchronization through one or more endpoints.
 
 Endpoint:
-: An agrirouter endpoint as defined by the agrirouter platform. A participant may
+an agrirouter endpoint as defined by the agrirouter platform. A participant may
   operate one or more endpoints. Capabilities and subscriptions for the
   `masterdata:*` message types are configured per endpoint.
 
 Entity:
-: A single master-data object of one of the supported types (a organization, a customer, a farm,
-  or a field).
+a single master-data object of one of the supported types (an organization, a customer, a farm,
+  a field, or a field boundary).
 
 Canonical object:
-: The version of an entity held by agrirouter in the Single Source of Truth store
+the version of an entity held by agrirouter in the Single Source of Truth store
   (see [the SSOT store](#agrirouter-as-the-single-source-of-truth)). It carries the agrirouter-assigned identifier and the
   cross-participant identifier mapping.
 
 Local identifier:
-: The identifier a participant uses for an entity within its own system — the
+the identifier a participant uses for an entity within its own system — the
   identifier by which that participant knows the entity in its own store. Local
   identifiers are only unique within the issuing endpoint.
 
 agrirouter identifier:
-: The stable, globally unique identifier that agrirouter assigns to the canonical
+the stable, globally unique identifier that agrirouter assigns to the canonical
   object. Formatted as a UUID {{?RFC4122}}.
 
 Source system:
-: For a given change, the participant in which the change originated.
+for a given change, the participant in which the change originated.
 
 # Architecture overview
 
@@ -118,7 +118,7 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
 ## Message types
 
 Synchronization is carried by a family of `masterdata:*` agrirouter message
-types. For each supported entity `<type>` (one of `organization`, `field`, `farm`, `customer`):
+types. For each supported entity `<type>` (one of `organization`, `customer`, `farm`, `field`, `fieldBoundary`):
 
 | Message type                    | Purpose                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -128,10 +128,14 @@ types. For each supported entity `<type>` (one of `organization`, `field`, `farm
 
 These message types are transported using the ordinary agrirouter mechanisms for
 sending data and for receiving delivery events. A participant declares support for
-a given message type and direction through its endpoint capabilities, and receives
+a given message type<sup>1</sup> and direction<sup>2</sup> through its endpoint capabilities, and receives
 objects for the types it is subscribed to. The concrete HTTP surface that a
 participant uses to send, request, receive, and configure these messages is
 described by the companion OpenAPI document (`openapi.yaml`).
+
+<sup>1</sup> We are still to decide whether we just send every type to a participant and let them deal with filtering.
+
+<sup>2</sup> For the MVP we will likley not support selecting a direction and every route will be read/write.
 
 # Data model
 
@@ -164,7 +168,7 @@ Every `masterdata:<type>` object shares a common envelope. Example
 
 Envelope fields:
 
-- `type` (string, required): the entity type; one of `customer`, `farm`, `field`.
+- `type` (string, required): the entity type; one of `organization`, `customer`, `farm`, `field`, `fieldBoundary`.
 - `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
 - `localId` (string, required on send): the sending participant's own identifier for the entity. See [Identifier mapping](#identifier-mapping) for how it is interpreted.
 - `idMappings` (array): the identifier mapping maintained by agrirouter. Each element pairs an `endpointId` with that endpoint's `localId`. This field is populated by agrirouter on the objects it delivers and is ignored on send.
@@ -180,8 +184,27 @@ known, and MAY additionally carry the referencing participant's `localId` for
 that target:
 
 ~~~ json
-{ "agrirouterId": "…", "localId": "FRM-7" }
+{ "agrirouterId": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "localId": "FRM-7" }
 ~~~
+
+On the field of the envelope example above:
+
+~~~ json
+{
+  "type": "field",
+  "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
+  "localId": "PFD-00042",
+  "name": "North 40",
+  "farm": { 
+    "agrirouterId": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "localId": "FRM-7" },
+  "customer": { 
+    "agrirouterId": "9ab0c1d2-e3f4-5061-7283-94a5b6c71234" }
+}
+~~~
+
+The `localId` in a reference is the *referencing* participant's identifier for the
+target, not the target's canonical one — a receiving endpoint resolves the target
+through `agrirouterId` and its own [identifier mapping](#identifier-mapping).
 
 ## Organization
 
@@ -201,18 +224,18 @@ Canonical attributes:
 - `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
 - `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `taxNumber`(string, optional): Unique, identifier assigned by tax authorities to farm
-- `taxId`(string, optional): Unique, numerical identifier assigned by tax authorities to farm/contractor
-- `tradeId`(string, optional): Unique, numerical identifier assigned by public authorities to farm/contractor
-- `commercialRegistryNumber`(string, optional): Unique identifier out of commercial register
+- `taxNumber` (string, optional): Unique, identifier assigned by tax authorities to farm
+- `taxId` (string, optional): Unique, numerical identifier assigned by tax authorities to farm/contractor
+- `tradeId` (string, optional): Unique, numerical identifier assigned by public authorities to farm/contractor
+- `commercialRegistryNumber` (string, optional): Unique identifier out of commercial register
 
 
 ## Customer
 An individual in charge of on-site farm operations to produce, harvest, transport and store a commodity; one who oversees mobile and stationary asset usage; one who oversees selection, application, and usage of all commodity inputs.
 
-Canonical attributes (subset, aligned with ISOXML `CTR`):
+Canonical attributes (subset):
 
-- `name` (object): a person name (`firstName`, `lastName`, optional `title`). Exactly one form MUST be present.
+- `name` (object): a person name (`firstName`, `lastName`, optional `title`).
 - `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
 - `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
@@ -227,13 +250,9 @@ Canonical attributes (subset, aligned with ISOXML `CTR`):
 
 A grouping of fields that the farmer considers part of the same management group.
 
-Canonical attributes (subset,
-aligned with ISOXML `FRM`):
+Canonical attributes (subset):
 
-- `owner` (reference, required): A farm must be assigned to an *organization* or *customer*:
-
-  - If farm has only one farm branch/focus, then it is the same as *organization*;
-  - In the case of *contractor*: *farm = customer*.
+- `owner` (reference, required): the entity that holds the farm. It references an *organization* when the farm is worked by the organization itself, and a *customer* when the farm is worked on that customer's behalf, as in the contractor scenario.
 - `name` (string, required).
 - `address` (object, optional): as for a customer.
 - `geoReference` (`Point`, optional): Longitude and latitude from the farm
@@ -241,7 +260,7 @@ aligned with ISOXML `FRM`):
 ## Field
 
 A named and customer-accepted physical space where production agriculture takes place used to partition and identify data.
-Canonical attributes (subset, aligned with ISOXML `PFD`, "partfield"):
+Canonical attributes (subset):
 
 - `name` (string, required).
 - `area` (number, optional): nominal area in square metres.
@@ -249,11 +268,11 @@ Canonical attributes (subset, aligned with ISOXML `PFD`, "partfield"):
 - `farm` (reference, optional): the associated farm.
 - `soil`(object, optional): `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), `rating points`
 - `topography`(number, optional): slope, gradient like 7°
-- `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundaries) as a GeoJSON
+- `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
 - `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
 - `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. Participants MUST preserve metadata they do not understand and MUST relay it unchanged.
 
-## FieldBoundaries
+## FieldBoundary
 
 A geometry that identifies the geo-spatial coordinates of a field.
 The boundary can be used to define the area for a particular operation, a particular crop or crops, or for legal purposes.
@@ -277,7 +296,7 @@ Canonical attributes:
   - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
   - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
   - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown (Based on [ADAPT Data Type: BoundaryCreationMethod](https://adaptstandard.org/dtd.html)
-- `harvestPeriod` (object): see [Harvest period](#harvest-period).
+- `harvestPeriod` (object): see [Harvest period](#harvest-period). If the field that references this boundary also defines a `harvestPeriod`, the boundary's period MUST fall within it: `validFrom` no earlier than the field's `validFrom`, and `validTo` no later than the field's `validTo` (an absent field `validTo` imposes no upper bound).
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose properties carry an obstacle `kind`.
 - `regulatoryRequirements` (string, optional): Enum value like:
 

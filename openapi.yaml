@@ -833,7 +833,7 @@ components:
           type: string
         lastName:
           type: string
-      required: [lastName]
+      required: [firstName, lastName]
 
     Address:
       type: object
@@ -1001,9 +1001,9 @@ components:
             owner:
               $ref: '#/components/schemas/EntityReference'
               description: >
-                The organization or customer the farm is assigned to. For a
-                single-branch farm this is the organization; in a contractor
-                scenario the farm equals the customer.
+                The entity that holds the farm: the organization when the farm
+                is worked by the organization itself, the customer when it is
+                worked on that customer's behalf, as in the contractor scenario.
             name:
               type: string
             address:
