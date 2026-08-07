@@ -40,26 +40,24 @@ Adopt an architecture where agrirouter sits in the middle and holds the
 
 ```mermaid
 flowchart LR
-    subgraph sub1 ["Partner A"]
-        Aplatform["Partner A Platform"]
-        Astore[("Partner A Local store<br/>own copy · own ids")]
-    end
+    user(["User"])
     subgraph sub2 ["Partner B"]
+        Bplatform(["Partner B Platform"])
         Bstore[("Partner B Local store<br/>own copy · own ids")]
-        Bplatform["Partner B Platform"]
     end
     subgraph sub3 ["agrirouter"]
         SSOT[("agrirouter SSOT store<br/><b>canonical</b> objects<br/>+ id mapping")]
     end
-    user(["User"])
-    user -->|"creates / edits / uses<br/>master data"| Aplatform
+    subgraph sub1 ["Partner A"]
+        Aplatform(["Partner A Platform"])
+        Astore[("Partner A Local store<br/>own copy · own ids")]
+    end
     user -->|"creates / edits / uses<br/>master data"| Bplatform
-    Aplatform -->|"reads / writes<br/>master data"| Astore
+    user -->|"creates / edits / uses<br/>master data"| Aplatform
     Bplatform -->|"reads / writes<br/>master data"| Bstore
+    Aplatform -->|"reads / writes<br/>master data"| Astore
     SSOT -->|"synchronization"| Bstore
     SSOT -->|"synchronization"| Astore
-    Aplatform(["Partner A Platform"])
-    Bplatform(["Partner B Platform"])
     %% ceasg:{"id":"1d1ti28h"} %%
     %% mermaid-flow:pos Aplatform=84,131 Astore=84,297 Bstore=830,297 Bplatform=833,145 SSOT=436,297 user=447,45
     %% mermaid-flow:gpos sub1=-27,65,223,292 sub2=719,79,223,278 sub3=309,205,255,160
