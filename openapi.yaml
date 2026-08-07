@@ -20,6 +20,16 @@ info:
 
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
     every entity plus a mapping to each participant's own identifier.
+
+    Attributes whose value set is expected to grow follow the Zalando RESTful
+    API Guidelines convention for open-ended value lists
+    (https://opensource.zalando.com/restful-api-guidelines/#112): instead of a
+    closed `enum`, the currently known values are given as `examples` and the
+    description carries the `[Extensible enum]` prefix. Values may be added to
+    such an attribute without breaking deployed clients, so clients MUST accept
+    unknown values, relay them unchanged, and fall back to their unknown-value
+    handling. `enum` is reserved for sets this API fully controls and considers
+    complete. See "Extensible enumerations" in specification.md.
   contact:
     name: DKE-Data Masterdata Sync Working Group
 
@@ -992,8 +1002,10 @@ components:
 
     Role:
       type: string
-      description: A role drawn from the ADAPT Role data type.
-      enum:
+      description: >
+        [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+        A role drawn from the ADAPT Role data type.
+      examples:
         - UNKNOWN
         - AUTHORIZER
         - CROP_ADVISOR
@@ -1061,7 +1073,10 @@ components:
       properties:
         type:
           type: string
-          enum:
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The soil classification.
+          examples:
             - SAND
             - LOAMY_SAND
             - HEAVY_LOAMY_SAND
@@ -1158,15 +1173,20 @@ components:
               description: A GeoJSON Polygon or MultiPolygon.
             boundaryType:
               type: string
-              description: The boundary classification.
-              enum:
+              description: >
+                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+                The boundary classification.
+              examples:
                 - CONCEPTUAL
                 - OPERATIONAL
                 - ECONOMIC_DEFINED
                 - ADMINISTRATIVE_RECEIVED
             creationMethod:
               type: string
-              enum:
+              description: >
+                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+                How the boundary was produced.
+              examples:
                 - UNKNOWN
                 - MANUAL
                 - DRIVEN
@@ -1182,8 +1202,10 @@ components:
                 $ref: '#/components/schemas/Obstacle'
             regulatoryRequirements:
               type: string
-              description: A regulatory constraint applying to the boundary.
-              enum:
+              description: >
+                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+                A regulatory constraint applying to the boundary.
+              examples:
                 - RED_ZONE_NITROGEN
                 - WATER_PROTECTION_AREA
             metadata:
@@ -1222,7 +1244,10 @@ components:
       properties:
         type:
           type: string
-          enum: [Point, LineString, Polygon, MultiPolygon]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The GeoJSON geometry type.
+          examples: [Point, LineString, Polygon, MultiPolygon]
         coordinates:
           description: Nesting depth depends on `type`.
       required: [type, coordinates]
@@ -1232,7 +1257,10 @@ components:
       properties:
         entityType:
           type: string
-          enum: [organizations, persons, farms, fields, fieldBoundaries]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The entity type this toggle applies to.
+          examples: [organizations, persons, farms, fields, fieldBoundaries]
       required: [entityType]
 
     MasterdataConfig:

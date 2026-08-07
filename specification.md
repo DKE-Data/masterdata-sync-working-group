@@ -399,6 +399,29 @@ Regardless of the finalized encoding, the following rules are normative:
 - agrirouter MUST validate every incoming `masterdata:*` message against the defined subset. If validation fails, the message MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Messages are not silently repaired.
 - Validation and rejection apply only to the `masterdata:*` message types; they do not change the handling of other, pre-existing agrirouter message types.
 
+## Extensible enumerations
+
+Agricultural vocabularies grow: a new boundary creation method or a new regulatory
+zone appears long after an implementation has shipped. A JSON Schema `enum` is by
+definition a closed set, so every such addition would be an incompatible change
+requiring alignment with every deployed participant.
+
+This protocol therefore adopts the Zalando RESTful API Guidelines convention for
+open-ended value lists ([rule 112](https://opensource.zalando.com/restful-api-guidelines/#112)).
+Where a value set is not fully under this protocol's control, or cannot be
+considered complete for any imaginable future feature, the attribute is typed as a
+plain string, the currently known values are given as `examples`, and its
+description in [openapi.yaml](./openapi.yaml) is prefixed with `[Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations)`.
+`enum` is reserved for sets this protocol itself fixes and considers complete.
+
+The values listed for an extensible enum are those known at the time of writing,
+not an exhaustive set. Normatively:
+
+- A value outside the listed set MUST NOT be a validation failure (see [Hard validation](#hard-validation)) and MUST NOT cause the entity to be rejected, dropped, or altered.
+- Receivers MUST tolerate unknown values: relay them unchanged, and where the value drives behaviour, fall back to the handling they apply to an unknown value.
+- Values are `UPPER_SNAKE_CASE`.
+- Adding a value is a compatible change and MAY happen in a minor revision of this document. Removing or renaming a value is breaking and MUST NOT.
+
 ## Identifier mapping
 
 agrirouter maintains, per canonical object, a mapping between its `agrirouterId`
