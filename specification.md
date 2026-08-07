@@ -289,6 +289,7 @@ Canonical attributes (subset):
 - `address` (object, optional): as for a party.
 - `geoReference` (`Point`, optional): longitude and latitude of the farm.
 - `specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
+  - 👷‍♂️ _to be refined_
 - `partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry carries:
 
   - `partnerId` (reference, required): the organization or person.
@@ -310,8 +311,11 @@ Canonical attributes (subset):
 - `area` (number, optional): nominal area in square metres.
 - `farm` (reference, optional): the farm this field belongs to.
 - `owner` (reference, optional): the organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `owner` without a `farm`.
-- `soil`(object, optional): `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), `rating points`
+- `soil`(object, optional): 
+  - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), 
+  - `ratingPoints` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
 - `topography`(number, optional): slope, gradient like 7°
+  - 👷‍♂️ _to be refined_
 - `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
 - `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
 - `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. Participants MUST preserve metadata they do not understand and MUST relay it unchanged.

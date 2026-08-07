@@ -1084,7 +1084,12 @@ components:
             - CLAYEY_LOAM
             - CLAY
         ratingPoints:
-          type: number
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: >
+            Soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined
+            by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
 
     Field:
       description: >
