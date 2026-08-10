@@ -26,14 +26,14 @@ flowchart TB
     HASID{"Last-Event-ID<br/>present?"}
     INQUEUE{"id still in<br/>persisted queue?"}
     REPLAY["replay queued events<br/>after that id"]
-    LIVE["stream live events"]
     FULL["reset to LOADING_FROM_AGRIROUTER<br/>(full replay)"]
+    LIVE["stream live events"]
     CONNECT --> HASID
-    HASID -->|"no - new subscription"| FULL
     HASID -->|"yes"| INQUEUE
     INQUEUE -->|"yes - within retention"| REPLAY
-    INQUEUE -->|"no - evicted or unknown"| FULL
     REPLAY --> LIVE
+    HASID -->|"no - new subscription"| FULL
+    INQUEUE -->|"no - evicted or unknown"| FULL
     FULL --> LIVE
     %% ceasg:{"id":"h96o8i7i"} %%
     %% mermaid-flow:pos CONNECT=308,99 HASID=212,268 INQUEUE=536,344 REPLAY=537,539 LIVE=307,641 FULL=210,485
