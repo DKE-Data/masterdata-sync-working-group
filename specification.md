@@ -130,14 +130,14 @@ types. For each supported entity `<type>` (one of `organization`, `person`, `far
 
 These message types are transported using the ordinary agrirouter mechanisms for
 sending data and for receiving delivery events. A participant declares support for
-a given message type<sup>1</sup> and direction<sup>2</sup> through its endpoint capabilities, and receives
-objects for the types it is subscribed to. The concrete HTTP surface that a
+a given message type<sup>1</sup> through its endpoint capabilities, and receives
+objects for the types it is subscribed to. Support is not directional in the MVP:
+an opted-in entity type is exchanged in both directions (see
+[Routing and opt-in](#routing-and-opt-in)). The concrete HTTP surface that a
 participant uses to send, request, receive, and configure these messages is
 described by the companion OpenAPI document (`openapi.yaml`).
 
 <sup>1</sup> We are still to decide whether we just send every type to a participant and let them deal with filtering.
-
-<sup>2</sup> For the MVP we will likley not support selecting a direction and every route will be read/write.
 
 # Data model
 
@@ -457,7 +457,7 @@ Therefore:
 
 - Master-data routes MUST NOT be created by the machine→software default-route logic. A participant takes part in master-data exchange only through explicit **opt-in**.
 - Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
-- Opt-in carries a **direction** (read, write, or both) per entity type. agrirouter MUST make each endpoint's read/write configuration discoverable to the other participants so that a system can adapt its behaviour — for instance, presenting an entity as read-only when it is not permitted to write it back.
+- Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
 - Because of entity dependencies (see [Field](#field)), enabling an endpoint to receive fields SHOULD also enable the farms those fields reference, and the parties those farms reference. Implementations SHOULD surface these dependencies to the user rather than silently enabling additional data.
 - The opt-in decision SHOULD be offered to the user at endpoint onboarding, and MUST remain changeable afterwards.
 

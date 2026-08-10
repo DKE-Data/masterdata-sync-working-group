@@ -13,7 +13,7 @@ To name a few:
 - ADAPT - another data model used in agriculture
 - proprietary designed API's, such as f.e John Deere Operations Center which provides a REST API with its own data model
 
-ISOXML and EFDI are relatively widely used, however over time that model was noted to have a certain ambiguity and in some situations lack of clarity thus creating disagreements between different implementations. Lack of central validation mechanism also contributes to the problem somewhat as some implementations are more strict and some are more lenient in their interpretation of the standard.
+ISOXML and EFDI are relatively widely used, however over time those models were noted to have a certain ambiguity and in some situations lack of clarity thus creating disagreements between different implementations. Lack of central validation mechanism also contributes to the problem, as implementations are strict to different degrees in their interpretation of the standard.
 
 Examples:
 

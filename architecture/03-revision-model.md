@@ -49,6 +49,19 @@ object, and there is no branch tree to arbitrate.
 
 ## Consequences
 
+### A client-supplied `revision` is a precondition, never an assignment
+
+Writes carry the client's prior revision as a CAS precondition (see
+[ADR 05](./05-stale-reads.md)). agrirouter MUST compare that value and discard it;
+it MUST NOT be persisted, and the next revision is minted by agrirouter alone.
+
+Without it a partner could fast-forward the counter, or mint a revision high enough
+that its copy outranks every other — so "higher revision" would no longer mean
+"later write", and a partner reconciling a delivered object could accept a stale
+copy as the current one. The value is also guessable by construction (a
+small integer, visible to every entitled reader), so it can only ever be a
+concurrency token, never an authorization or authenticity one.
+
 ### A content digest may be used internally — but is not the revision
 
 A digest MUST NOT form part of the revision identity. There is one place it fits
@@ -71,7 +84,7 @@ resumes from "the last position I confirmed."
 ## Summary
 
 - `revision` is a **monotonic positive integer assigned by agrirouter**; no digest,
-  no signature.
+  no signature. A revision on an inbound write is **compared, never assigned**.
 - It gives a **total order**, which is what supersession, conflict detection, and
   resume actually need.
 - The correctness invariant is: **agrirouter serializes writes per canonical
