@@ -7,11 +7,11 @@
 
 [ADR 01](./01-reference-architecture.md) describes steady-state synchronization: once every participant is in step, a change made in one system propagates through the canonical store to the others. But the *first* time an endpoint joins master-data exchange - when the user routes it to the [masterdata hub](./04-routing.md) - there is a bootstrap problem that steady-state sync does not cover.
 
-Note on the naming: the initial load process to fix this is aka as "seeding", which is not used in the specification to avoid conflating with "seeding" as in planting seeds that might be introduced later when we cover other types of data, including possibly workplans and/or field operations, which might refer to seeding in that context, hence only "initial load" is used in the specs.
+Note on the naming: the initial load process to fix this is also known as "seeding". This term is not used in the specification to avoid conflating with "seeding" as in "planting seeds", which might be introduced later when we cover other types of data. For exmaple workplans and field operations might refer to _seeding_ in that context. Hence only "initial load" is used in the specs.
 
-The newly connected system is rarely empty. Users have usually already entered master data into it by other means, so it holds **its own set of farms, fields and customers under its own `localId`s**. At the same time agrirouter already holds the canonical set the rest of the network agreed on. Neither side is a blank slate, and the two sets overlap in unknown ways: the same real-world field may exist on both sides under different identifiers, or exist on only one.
+The newly connected system is rarely empty. Users have usually already entered master data into it by other means, so it holds **its own set of entities under its own `localId`s**. At the same time, agrirouter already holds the canonical set the rest of the network agreed on. Neither side is a blank slate, and the two sets overlap in unknown ways: the same real-world field may exist on both sides under different identifiers, or exist in only one.
 
-Bringing the two into agreement therefore has two directions:
+Therefore, bringing the two into agreement has two directions:
 
 - **From agrirouter:** the endpoint must receive what the network already knows, so its user immediately sees the shared master data.
 - **To agrirouter:** the network must learn what the endpoint holds that is not canonical yet, so nothing the user already had is lost.
@@ -26,15 +26,16 @@ Model initial load as an explicit **per-entity-type state machine** that agrirou
 
 ```mermaid
 flowchart TB
-    NS["NOT_STARTED"]
+    START(( ))
     LF["LOADING_FROM_AGRIROUTER"]
     LT["LOADING_TO_AGRIROUTER"]
     C["COMPLETED"]
-    NS -->|"entity type opted into the hub"| LF
+    START -->|"entity type opted into the hub"| LF
     LF -->|"endpoint confirms<br/>it received the canonical set"| LT
     LT -->|"endpoint has sent everything it holds"| C
+    C -->|"entity type opted out<br/>(possible from any state)"| START
     %% ceasg:{"id":"adkxr9hx"} %%
-    %% mermaid-flow:pos NS=198,82 LF=401,176 LT=402,276 C=198,378
+    %% mermaid-flow:pos START=198,82 LF=401,176 LT=402,276 C=198,378
 ```
 
 The flow, per entity type:
@@ -112,17 +113,29 @@ Points worth noting about the calls themselves:
   transitions the endpoint drives are the confirmation and the completion, both
   through `PUT .../masterdata-initial-load/{entityType}/status`. Only forward
   transitions are accepted - anything else is a `409`.
+- **Opting out is the one way back.** Removing an entity type from the
+  configuration discards its state, from whichever state it was in, and opting it
+  back in starts the load again. This is not a transition the endpoint can drive,
+  and it is not an exception to the forward-only rule above: agrirouter cannot
+  enumerate the changes that happened while the type was opted out, so a full load
+  is the only way back to agreement - the same reasoning as an evicted resume point
+  in [ADR 07](./07-sync-streaming.md).
 - **The checkpoint is carried on the confirmation.** It is opaque to agrirouter
   and echoed back on `GET`, so an interrupted load resumes from it instead of
   starting over.
-- **The to-agrirouter direction uses the ordinary send operation.** There is no
+- **The to-agrirouter direction uses the ordinary send operation.**  There is no
   special initial-load write path - `PUT /masterdata/farms/{localId}` is the same
   call the endpoint uses in steady state, and the same `409` signals a
   [non-unique mapping](#granularity-mismatches-and-differing-requirements).
-- **The sequence runs per entity type**, so `organizations`, `customers` and
-  `farms` reach `COMPLETED` before `fields` is confirmed - a field cannot be
+- **The sequence runs per entity type**, so for example `farms` reach `COMPLETED` before `fields` is confirmed - a field cannot be
   reconciled against dependencies the endpoint has not received yet.
-  `GET /endpoints/{eid}/masterdata-initial-load` returns all of them at once.
+  `GET /endpoints/{eid}/masterdata-initial-load` returns every opted-in entity
+  type at once.
+- **There is no "not started" state.** An entity type has an initial-load state
+  only once it is opted in - the absence of a toggle in `masterdata-config`
+  already says it does not participate, and a second representation of that
+  would allow the two to disagree. Opting out leaves the state and its
+  checkpoint intact, so opting back in resumes rather than reloading.
 
 ### Conflicts are resolved in the partner, not in agrirouter
 
@@ -143,16 +156,16 @@ Here is approximate lifecycle that we are expected to support:
 
 ```mermaid
 flowchart TB
-    NS["NOT_STARTED"]
+    START(( ))
     INITIAL_LOAD["INITIAL_LOAD<br/> (see states above)"]
     OPERATING["OPERATING"]
     DOWN["DOWN"]
-    NS -->|"starting initial load"| INITIAL_LOAD
+    START -->|"opted into the hub"| INITIAL_LOAD
     INITIAL_LOAD -->|"loaded"| OPERATING
     OPERATING -->|"application goes offline"| DOWN
     DOWN -->|"application comes back online"| INITIAL_LOAD
     %% ceasg:{"id":"un5r0wx1"} %%
-    %% mermaid-flow:pos NS=424,105 INITIAL_LOAD=134,176 OPERATING=410,277 DOWN=135,368
+    %% mermaid-flow:pos START=424,105 INITIAL_LOAD=134,176 OPERATING=410,277 DOWN=135,368
 ```
 
 ## Consequences

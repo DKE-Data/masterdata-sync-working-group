@@ -458,7 +458,8 @@ Therefore:
 - Master-data routes MUST NOT be created by the machine→software default-route logic. A participant takes part in master-data exchange only through explicit **opt-in**.
 - Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
 - Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
-- Because of entity dependencies (see [Field](#field)), enabling an endpoint to receive fields SHOULD also enable the farms those fields reference, and the parties those farms reference. Implementations SHOULD surface these dependencies to the user rather than silently enabling additional data.
+- Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST reject a configuration that is not dependency-closed rather than silently enabling the missing types. Implementations SHOULD surface the dependency to the user.
+- Opting an entity type **out** removes it from the configuration, and with it that entity type's initial-load state. Opting it back in starts a full initial load again: agrirouter cannot enumerate what the endpoint missed while the type was opted out.
 - The opt-in decision SHOULD be offered to the user at endpoint onboarding, and MUST remain changeable afterwards.
 
 The concrete configuration resource is described in `openapi.yaml`.
@@ -571,10 +572,12 @@ Beyond transport, two protocol-level concerns are relevant. First, the routing
 opt-in of [Routing and opt-in](#routing-and-opt-in) is itself a security control: because attaching an endpoint to
 a master-data network can expose a user's parties, farms, and field boundaries to
 that endpoint, master-data routes MUST be created only through explicit,
-per-endpoint, per-entity opt-in, never by default routing. Second, agrirouter's
-read/write configuration per endpoint governs which participants may modify shared
-entities; endpoints MUST respect the read/write status communicated for an entity
-type and MUST NOT rely on other participants to enforce it on their behalf.
+per-endpoint, per-entity opt-in, never by default routing. Second, opt-in is the
+**only** filter on what an endpoint receives: an endpoint opted into an entity
+type receives every canonical object of that type in the exchange, and no
+attribute inside a synchronized object narrows that (see [Farm](#farm)). The set
+of entity types a user opts an endpoint into therefore defines exactly what that
+endpoint is exposed to.
 
 Field boundaries and party contact details are personal and commercially
 sensitive data. Participants SHOULD expose only the data necessary for
@@ -586,7 +589,7 @@ The following items are still under discussion and affect provisional parts of
 this document:
 
 - **Unambiguous EFDI subset & hard validation** — the exact validated subset of [Encoding and canonicity](#encoding-and-canonicity).
-- **Routing model** — the concrete default-route policy, opt-in switches, and read/write propagation of [Routing and opt-in](#routing-and-opt-in).
+- **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
 - **Initial load** — formalizing the initial-load state machine, conflict-resolution responsibilities, and downtime/resume semantics of [Initial load and seeding](#initial-load-and-seeding).
 - **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).

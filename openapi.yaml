@@ -536,12 +536,16 @@ paths:
       description: >
         Configures per-entity opt-in. Master-data routes
         are created only through this explicit opt-in, never by default routing.
-        Enabling reception of fields SHOULD also enable the organizations,
-        persons, farms, and field boundaries those fields depend on.
+
+        The configuration MUST be dependency-closed: enabling fields requires
+        the farms those fields reference, and the organizations and persons
+        those farms reference, to be enabled as well. A configuration that is
+        not dependency-closed is rejected with `400`.
 
         Opting an entity type in also starts its initial load: that entity
         type enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
-        resource).
+        resource). Removing a toggle opts the entity type out and discards its
+        initial-load state, so opting it back in runs a full initial load.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -570,11 +574,12 @@ paths:
       tags: [InitialLoad]
       summary: Get initial load status for all entity types
       description: >
-        Returns the per-entity-type initial load state for the endpoint.
-        The state machine per entity type is:
-        `NOT_STARTED` → `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` →
-        `COMPLETED`. Opting an entity type in (via the master-data configuration)
-        moves it to `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
+        Returns the per-entity-type initial load state for the endpoint. Only
+        entity types the endpoint is opted into are listed. The state machine per
+        entity type is:
+        `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` → `COMPLETED`.
+        Opting an entity type in (via the master-data configuration) starts it at
+        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
         by sending a PUT request to its per-entity-type `status` subresource.
       operationId: getInitialLoadStatus
       responses:
@@ -621,9 +626,9 @@ paths:
         how far it consumed, for resume); from that point the endpoint sends the
         objects it knows about via the ordinary PUT operations. Set `COMPLETED`
         once the endpoint has sent everything, after which steady-state (day-2)
-        synchronization applies. The initial
-        `NOT_STARTED → LOADING_FROM_AGRIROUTER` transition is driven by opting the
-        entity type in, not by this operation.
+        synchronization applies. An entity type enters the initial state,
+        `LOADING_FROM_AGRIROUTER`, when it is opted in - not through this
+        operation.
 
 
         Idempotent: setting the state the entity type is already in returns the
@@ -1291,7 +1296,6 @@ components:
         `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward by sending a
         PUT request to the entity type's `status` subresource.
       enum:
-        - NOT_STARTED
         - LOADING_FROM_AGRIROUTER
         - LOADING_TO_AGRIROUTER
         - COMPLETED
@@ -1319,7 +1323,10 @@ components:
 
     InitialLoadStatus:
       type: object
-      description: Initial-load state for every entity type of an endpoint.
+      description: >
+        Initial-load state for every entity type the endpoint is opted into.
+        Entity types that are not opted in have no initial-load state and are
+        not listed.
       properties:
         endpointId:
           type: string
