@@ -622,9 +622,10 @@ paths:
 
 
         Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has received the full
-        "loading from agrirouter" set (optionally carrying a `checkpoint` marking
-        how far it consumed, for resume); from that point the endpoint sends the
-        objects it knows about via the ordinary PUT operations. Set `COMPLETED`
+        "loading from agrirouter" set; from that point the endpoint sends the
+        objects it knows about via the ordinary PUT operations. How far the
+        endpoint has consumed is expressed by its stream position
+        (`Last-Event-ID`), not by this operation. Set `COMPLETED`
         once the endpoint has sent everything, after which steady-state (day-2)
         synchronization applies. An entity type enters the initial state,
         `LOADING_FROM_AGRIROUTER`, when it is opted in - not through this
@@ -1308,13 +1309,6 @@ components:
           enum: [organizations, persons, farms, fields, fieldBoundaries]
         state:
           $ref: '#/components/schemas/InitialLoadState'
-        checkpoint:
-          type: string
-          readOnly: true
-          description: >
-            Opaque marker of how far the from-agrirouter set has been confirmed.
-            Echoed from the endpoint's confirmation; may be replayed to resume an
-            interrupted initial load or a post-downtime catch-up.
         updatedAt:
           type: string
           format: date-time
@@ -1345,11 +1339,4 @@ components:
       properties:
         state:
           $ref: '#/components/schemas/InitialLoadState'
-        checkpoint:
-          type: string
-          description: >
-            When setting `LOADING_TO_AGRIROUTER` (confirming receipt of the
-            from-agrirouter set), an opaque marker — e.g. the last cursor or
-            revision watermark the endpoint received — identifying how much of the
-            set was consumed. Used to resume an interrupted initial load.
       required: [state]

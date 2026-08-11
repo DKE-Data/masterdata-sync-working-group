@@ -83,7 +83,7 @@ sequenceDiagram
         AR-->>P: event: MASTERDATA_CHANGED (organization)
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ state: "LOADING_TO_AGRIROUTER", checkpoint: "evt-8842" }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ state: "LOADING_TO_AGRIROUTER" }
     AR-->>P: 200 EntityInitialLoadStatus { state: "LOADING_TO_AGRIROUTER" }
 
     loop every local farm that is new or was changed while resolving a conflict
@@ -121,9 +121,10 @@ Points worth noting about the calls themselves:
   enumerate the changes that happened while the type was opted out, so a full load
   is the only way back to agreement - the same reasoning as an evicted resume point
   in [ADR 07](./07-sync-streaming.md).
-- **The checkpoint is carried on the confirmation.** It is opaque to agrirouter
-  and echoed back on `GET`, so an interrupted load resumes from it instead of
-  starting over.
+- **The stream position is the only cursor.** The canonical set is enqueued as
+  ordinary events when the entity type is opted in, so how far the endpoint has
+  consumed is already expressed by `Last-Event-ID` - there is no second checkpoint
+  to carry on the confirmation. See [ADR 07](./07-sync-streaming.md).
 - **The to-agrirouter direction uses the ordinary send operation.**  There is no
   special initial-load write path - `PUT /masterdata/farms/{localId}` is the same
   call the endpoint uses in steady state, and the same `409` signals a
@@ -135,8 +136,9 @@ Points worth noting about the calls themselves:
 - **There is no "not started" state.** An entity type has an initial-load state
   only once it is opted in - the absence of a toggle in `masterdata-config`
   already says it does not participate, and a second representation of that
-  would allow the two to disagree. Opting out leaves the state and its
-  checkpoint intact, so opting back in resumes rather than reloading.
+  would allow the two to disagree. Opting out discards the state along with the
+  toggle, so opting back in reloads rather than resumes - see above for why
+  resuming would not be safe.
 
 ### Conflicts are resolved in the partner, not in agrirouter
 
@@ -151,7 +153,7 @@ Two problems surface at initial load that agrirouter deliberately does **not** t
 
 ### Resume is the same machinery, not a special case
 
-A connection can drop mid-load, or an already-`COMPLETED` endpoint can go offline while changes accumulate on both sides. Rather than re-running initial load from scratch, the endpoint resumes from the last position it confirmed. This needs a **per-endpoint delivery checkpoint**, not the per-object `revision` - see [ADR 03](./03-revision-model.md). The precise catch-up semantics are still open.
+A connection can drop mid-load, or an already-`COMPLETED` endpoint can go offline while changes accumulate on both sides. Rather than re-running initial load from scratch, the endpoint resumes from the last stream position it processed. That position is the **per-endpoint delivery sequence** [ADR 03](./03-revision-model.md) calls for rather than the per-object `revision`, and it is carried as `Last-Event-ID` - the catch-up semantics, including what happens once it has been evicted, are [ADR 07](./07-sync-streaming.md).
 
 Here is approximate lifecycle that we are expected to support:
 
@@ -174,5 +176,5 @@ flowchart TB
 - agrirouter holds an explicit per-endpoint, per-entity-type initial-load state and exposes it as a `status` subresource that the endpoint reads and advances by setting its state (confirm receipt, then complete), as part of the master-data API.
 - The "from agrirouter, then to agrirouter" ordering is what prevents duplication: reconciliation happens against the canonical set before the endpoint sends anything.
 - Some of the hard parts are intentionally organizational: conflict resolution and granularity mismatches live in partner software, so the protocol defines the flow and the failure signals but not the resolution.
-- Initial load and resume share the same checkpoint machinery, so a returning system is a continuation of the same state rather than a separate code path.
-- Several details remain open: the confirmation/checkpoint format, downtime / pause-resume semantics, and best-practice guidance for implementors on conflicts and differing requirements.
+- Initial load and resume share the same stream position, so a returning system is a continuation of the same state rather than a separate code path.
+- Several details remain open: downtime / pause-resume semantics, and best-practice guidance for implementors on conflicts and differing requirements.
