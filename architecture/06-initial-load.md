@@ -115,7 +115,8 @@ Points worth noting about the calls themselves:
   transitions are accepted - anything else is a `409`.
 - **Opting out is the one way back.** Removing an entity type from the
   configuration discards its state, from whichever state it was in, and opting it
-  back in starts the load again. This is not a transition the endpoint can drive,
+  back in starts the load again. This is not a transition the endpoint can drive 
+  by changing state, but by opting-out via masterdata-config resource,
   and it is not an exception to the forward-only rule above: agrirouter cannot
   enumerate the changes that happened while the type was opted out, so a full load
   is the only way back to agreement - the same reasoning as an evicted resume point
