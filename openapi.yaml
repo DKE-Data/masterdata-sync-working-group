@@ -498,6 +498,11 @@ paths:
         is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
         `FieldBoundary` discriminated by its `type` property. Delivered objects
         carry this endpoint's own `localId` in `idMappings` when known.
+
+        Opting an entity type in enqueues its canonical set onto this same stream,
+        closed by a `CANONICAL_SET_END` frame. Initial load is therefore a block of
+        events in the ordinary sequence rather than a second delivery mechanism,
+        and `Last-Event-ID` is the only position the endpoint keeps.
       operationId: streamMasterdataEvents
       responses:
         '200':
@@ -505,10 +510,14 @@ paths:
           content:
             text/event-stream:
               schema:
-                $ref: '#/components/schemas/Entity'
                 description: >
                   The `data:` payload of each SSE frame. Frames carry an `event:`
-                  of either `MASTERDATA_CHANGED` or `MASTERDATA_DEACTIVATED`.
+                  of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`, or
+                  `CANONICAL_SET_END`; the first two carry an `Entity` and the
+                  last a `CanonicalSetEnd`.
+                oneOf:
+                  - $ref: '#/components/schemas/Entity'
+                  - $ref: '#/components/schemas/CanonicalSetEnd'
 
   # ------------------------------------------------------------ configuration
 
@@ -544,8 +553,11 @@ paths:
 
         Opting an entity type in also starts its initial load: that entity
         type enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
-        resource). Removing a toggle opts the entity type out and discards its
-        initial-load state, so opting it back in runs a full initial load.
+        resource) and its canonical set is enqueued onto the endpoint's event
+        stream straight away, closed by a `CANONICAL_SET_END` frame — whether or
+        not the endpoint is connected at the time. Removing a toggle opts the
+        entity type out and discards its initial-load state, so opting it back in
+        runs a full initial load.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -621,11 +633,16 @@ paths:
         valid; agrirouter rejects any other with `409`.
 
 
-        Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has received the full
-        "loading from agrirouter" set; from that point the endpoint sends the
-        objects it knows about via the ordinary PUT operations. How far the
-        endpoint has consumed is expressed by its stream position
-        (`Last-Event-ID`), not by this operation. Set `COMPLETED`
+        Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has *reconciled* the
+        canonical set, not merely received it: the `CANONICAL_SET_END` frame
+        already tells the endpoint it holds the whole set, and this operation
+        additionally asserts that the conflicts reconciling surfaced have been
+        resolved in the endpoint's own software. The gap between the two is
+        human-paced and unbounded, so an entity type may sit in
+        `LOADING_FROM_AGRIROUTER` for a long time without anything being wrong.
+        From that point the endpoint sends the objects it knows about via the
+        ordinary PUT operations. How far the endpoint has consumed is expressed by
+        its stream position (`Last-Event-ID`), not by this operation. Set `COMPLETED`
         once the endpoint has sent everything, after which steady-state (day-2)
         synchronization applies. An entity type enters the initial state,
         `LOADING_FROM_AGRIROUTER`, when it is opted in - not through this
@@ -695,7 +712,9 @@ components:
       description: The master-data entity type.
       schema:
         type: string
-        enum: [organizations, persons, farms, fields, fieldBoundaries]
+        examples: [organizations, persons, farms, fields, fieldBoundaries]
+        description: >
+          [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
 
   requestBodies:
     EntityRequest:
@@ -1247,6 +1266,26 @@ components:
           field: '#/components/schemas/Field'
           fieldBoundary: '#/components/schemas/FieldBoundary'
 
+    CanonicalSetEnd:
+      type: object
+      description: >
+        Payload of a `CANONICAL_SET_END` frame. It closes the block of canonical
+        objects enqueued when an entity type was opted in, and it is what tells
+        the endpoint that the objects before it are the whole canonical set —
+        without it the block is indistinguishable from ordinary changes. It is an
+        ordinary event: it carries an `id` and is replayed on resume like any
+        other. It marks a boundary in the stream only. It does not assert that the
+        endpoint has reconciled the set; that is asserted by the endpoint itself,
+        by setting `LOADING_TO_AGRIROUTER` on the initial-load status subresource.
+      properties:
+        entityType:
+          type: string
+          examples: [organizations, persons, farms, fields, fieldBoundaries]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The entity type whose canonical set ends here.
+      required: [entityType]
+
     Geometry:
       type: object
       description: >
@@ -1306,9 +1345,25 @@ components:
       properties:
         entityType:
           type: string
-          enum: [organizations, persons, farms, fields, fieldBoundaries]
+          examples: [organizations, persons, farms, fields, fieldBoundaries]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
         state:
           $ref: '#/components/schemas/InitialLoadState'
+        canonicalSetEndEventId:
+          type: string
+          readOnly: true
+          description: >
+            Id of the `CANONICAL_SET_END` event that closes this entity type's
+            canonical set on the event stream. agrirouter assigns it when it
+            enqueues the set, so it is present as soon as the entity type is
+            opted in — before the endpoint has read anything, and whether or not
+            it is connected. It is a position in the stream, not a statement
+            about the endpoint: an endpoint whose committed `Last-Event-ID` is at
+            or past this id holds the whole canonical set. Discarded together with
+            the initial-load state when the entity type is opted out; opting it
+            back in enqueues a new set and a new marker.
+          examples: ['evt-6001']
         updatedAt:
           type: string
           format: date-time

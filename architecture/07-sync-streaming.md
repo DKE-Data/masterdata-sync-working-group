@@ -82,19 +82,21 @@ sequenceDiagram
     Note over E: offline, last processed evt-1000
     U->>AR: opt fields in
     AR->>Q: enqueue 5000 field objects<br/>evt-1001 ... evt-6000
-    AR->>Q: live farm changes<br/>evt-6001 ... evt-6200
+    AR->>Q: CANONICAL_SET_END (fields)<br/>evt-6001
+    AR->>Q: live farm changes<br/>evt-6002 ... evt-6201
     E->>AR: GET /masterdata/events<br/>Last-Event-ID: evt-1000
-    Q-->>E: evt-1001 ... evt-6200, one ordered run
+    Q-->>E: evt-1001 ... evt-6201, one ordered run
     Note over E: initial load and missed live changes<br/>arrive as one sequence, one cursor
 ```
 
 The ids are assigned when the toggle happens, not when E shows up, so the canonical
 set occupies `evt-1001` to `evt-6000` and everything that happens afterwards sits
 behind it. E's stored position is still `evt-1000` and still means what it did
-before - it resumes the way it would from any other disconnect, and never has to
-know that an initial load began while it was away. The load and the changes it
-missed arrive as one contiguous run, so there is no phase to switch between and no
-second request to make.
+before - it resumes the way it would from any other disconnect. The load and the
+changes it missed arrive as one contiguous run, so there is no phase to switch
+between and no second request to make. Reading the stream therefore needs no
+knowledge that a load began while E was away; what E does learn, in band, is where
+the block ends, because that is what licenses the confirmation.
 
 Two properties follow from that. Dependency order is free: opting farms and fields
 in together enqueues farms first, so they arrive first, which is what
@@ -103,57 +105,46 @@ the endpoint already holds. And a drop mid-load is not a special case - an endpo
 that stops at `evt-4000` reconnects with that id and carries on, using the same
 mechanism as a reconnect in steady state.
 
-**Alternative**: tracking initial-load progress outside the stream, as an opaque
-`checkpoint` the endpoint reports on its status resource and agrirouter stores and
-echoes back. The same scenario, with the endpoint dropping mid-load:
+### The end of a block is marked in band
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant AR as agrirouter
-    participant Q as E queue
-    participant E as Endpoint E
+Materializing the set is what makes the block invisible: `evt-1001 ... evt-6000`
+and everything behind it are all `MASTERDATA_CHANGED`, so nothing in the run tells
+E it now holds the whole canonical set. agrirouter therefore closes each block with
+a `CANONICAL_SET_END { entityType }` event at its tail, enqueued at toggle time
+like the objects before it. It is an ordinary event: it carries an id, it is
+replayed on resume, and a block per entity type means farms' marker precedes
+fields' objects, which is the order [ADR 06](./06-initial-load.md) reconciles in.
 
-    Note over Q: fields materialized as evt-1001 ... evt-6000
-    E->>AR: GET /masterdata/events<br/>Last-Event-ID: evt-1000
-    Q-->>E: evt-1001 ... evt-4200
-    Note over E: drops mid-load, having committed<br/>its own store only up to evt-3800
-    E->>AR: PUT .../fields/status<br/>{ checkpoint: "evt-3800" }
-    E->>AR: GET /masterdata/events<br/>Last-Event-ID: evt-3800
-    Note over AR: the same position, stored twice
-```
+The marker is a **boundary in the queue, not a claim about either side**. It says
+the objects before it are the whole canonical set, so E that has consumed past it
+is reconciling against a complete one. It does not say the user has worked through
+the conflicts that reconciling surfaced. The confirmation E sends afterwards,
+`PUT .../masterdata-initial-load/{entityType}/status`, is the one that claims that,
+and the gap between the two is human-paced and unbounded.
 
-1. **E reconnects** on the position it stored, `evt-1000`, and agrirouter begins
-   delivering the materialized set from there.
-2. **Delivery reaches `evt-4200` and the connection drops.** E received that far,
-   but its own store committed only through `evt-3800` - receiving an event and
-   durably applying it are not the same moment.
-3. **E reports a checkpoint** of `evt-3800`, the committed position - the same one
-   [Resuming a stream](#resuming-a-stream) requires it to resume on.
-4. **E reconnects with `Last-Event-ID: evt-3800`** - the same value it just
-   reported. The checkpoint told agrirouter nothing the reconnect did not.
+E MUST NOT stall the stream across that gap. Live changes for the type sit behind
+the marker on the same cursor, and waiting for a user is exactly what pushes a
+position out of retention, so E keeps consuming and reconciles against a canonical
+view that is still moving. Redelivery and later changes both land on an idempotent
+apply, which is what makes that safe.
 
-For a correctly built endpoint the two positions are therefore always equal, and
-the checkpoint is a copy of the stream position kept in a second place. An endpoint
-that reports what it *received* instead would put `evt-4200` on the status resource
-and still reconnect at `evt-3800`, leaving agrirouter holding two positions 400
-events apart for one endpoint and one queue - and because the checkpoint is chosen
-by the endpoint and opaque, agrirouter can neither detect the disagreement nor act
-on it. So the field is either redundant or unverifiable.
+Across a restart, "has the set finished arriving" is not a question agrirouter's
+state answers - it retunrs `LOADING_FROM_AGRIROUTER` on both sides of the marker.
+The marker's id answers it, and agrirouter knows that id because it minted it:
+enqueueing the block assigns it, in the same operation that puts the entity type
+into `LOADING_FROM_AGRIROUTER`. It is published as `canonicalSetEndEventId` on the
+status subresource, populated from that moment - before E has read anything, and
+whether or not E is even connected. The field is a position in the queue, not a
+statement about E, which is why agrirouter can fill it in without observing E at
+all. Opting the type out discards the state and the id with it; opting back in
+mints a new block and a new marker.
 
-Two further weaknesses. It is written only at the confirmation, at the end of the
-from-agrirouter phase, so during the load it is stale by construction. And
-surviving eviction, its one apparent advantage over a stream position, is illusory:
-knowing where the endpoint got to is worthless once the events after that point are
-gone.
-
-A checkpoint carries information `Last-Event-ID` does not only when the canonical
-set is delivered outside the queue, for example by scanning the SSOT when the endpoint
-connects. That shape needs the second cursor, and it needs every partner to
-discard any revision not newer than the one it holds, because a scan running
-alongside live delivery can hand over the same object twice in either order.
-Materializing at opt-in avoids both by keeping ordering agrirouter's problem
-rather than the network's.
+E derives the rest by comparing that id against its own committed position: at or
+past it means the whole set is held. This is the one place in this ADR where an
+event id is ordered rather than opaque, and it holds because the delivery sequence
+is monotonic per endpoint ([ADR 03](./03-revision-model.md)). An endpoint may
+instead record a durable bit when it commits the marker - a local shortcut, not a
+second source of truth. Either way E keeps no state machine, only the answer.
 
 ## Consequences
 
@@ -167,5 +158,12 @@ rather than the network's.
   triggers a full reload, which materializes the set again - a loop that never
   converges. Initial-load events therefore MUST NOT be evicted before they have
   been delivered once, or materialization MUST be deferred for endpoints with no
-  recently live stream.
+  recent live stream.
+- **Conflict resolution runs while the stream keeps moving.** `LOADING_FROM_AGRIROUTER`
+  and ordinary delivery overlap for as long as the user takes, so an endpoint cannot
+  treat initial load as a quiet window in which the canonical set holds still.
+- **Losing the position during resolution costs the resolution.** An endpoint evicted
+  while a user is halfway through conflicts reloads the set and reconciles again.
+  The mappings already committed make most of the second pass a no-op, but the
+  unresolved remainder is presented to the user afresh.
 

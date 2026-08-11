@@ -471,8 +471,8 @@ reconciles that existing data with the SSOT. Each endpoint has, per entity type,
 seeding state. The defined progression is:
 
 1. **Connected.** The endpoint is created and the user opts it into master-data exchange for one or more entity types (see [Routing and opt-in](#routing-and-opt-in)).
-2. **Seeding from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive.
-3. **Seeding to agrirouter.** After the endpoint has confirmed receipt of those objects, it sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts.
+2. **Seeding from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive, over the ordinary event stream, closing each type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends.
+3. **Seeding to agrirouter.** After the endpoint has reconciled those objects against its own data - which includes resolving conflicts with its user, and so takes as long as that takes - it confirms, and sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts.
 4. **Completed.** Steady-state (day-2) synchronization applies from here on.
 
 Conflict detection during seeding, and its resolution, are the responsibility of
