@@ -51,11 +51,7 @@ The flow, per entity type:
 The same five steps expressed as the actual operations of the master-data API,
 for one entity type (`farms`). `{eid}` is the endpoint's `externalEndpointId`.
 
-<!-- TODO - figure out Ux of conflict resolution and whether app needs to tell us that user should be redirected to conflict resolution page..
-Also consider how this would work in other masterdata route creation
-scenarios (when route is created automatically).
-
-TODO: try to figure out scaling here because it might be tricky to
+<!-- TODO: try to figure out scaling here because it might be tricky to
 send response on SSE rather than on same instance (pod) that god /requests.
 Also /requests might need to be part of initial load? -->
 
@@ -159,6 +155,35 @@ Points worth noting about the calls themselves:
 
 While reconciling, the endpoint may find that its own object and the canonical object for the same real-world entity disagree. Consistent with [ADR 01](./01-reference-architecture.md), agrirouter does not adjudicate field-level conflicts: it provides the canonical set to reconcile against, and the **partner's own software presents the conflict to the user**. This keeps agrirouter out of business decisions it has no basis to make, and it is why the "to agrirouter" step can carry objects the user changed during resolution.
 
+### Where the user is when conflicts appear
+
+The conflicts are in the partner's software, but the user who connected the endpoint is not necessarily there. Three questions follow: whether agrirouter has to be told that conflicts exist, whether it should send the user somewhere, and what happens when no user is present at all.
+
+**agrirouter is told that reconciliation needs user action.** The endpoint raises `awaitingUser` on the entity type's status the moment its own software detects that reconciliation is needed, and agrirouter clears it when the type advances to `LOADING_TO_AGRIROUTER`. That is the whole of the reporting:
+
+| what agrirouter holds | what agrirouter UI says about the endpoint |
+| --- | --- |
+| `LOADING_FROM_AGRIROUTER`, `awaitingUser` unset | setting up master data with *app* |
+| `LOADING_FROM_AGRIROUTER`, `awaitingUser` set | waiting for you in *app* |
+| `LOADING_TO_AGRIROUTER` | *app* is sending its data |
+| `COMPLETED` | in sync |
+
+`awaitingUser` is a flag signifying that user action is needed to perform reconciliation. It is reset by a transition agrirouter owns rather than by a second call from the endpoint. It is specified per entity type, like the resource it sits on, so farms can be clean while fields wait.
+
+**The unset case says nothing about the user**, which is why the first row is neutral. An absent flag is ambiguous in two directions at once - the endpoint may not report it at all, or may report it and have nothing to raise yet. Reporting the flag therefore only ever *upgrades* the label, and an endpoint that never sends it costs precision rather than correctness. Distinguishing "still sending" from "nothing to resolve" would need the endpoint to declare up front that it reports the flag, which buys one label for a conformance surface, and is left out.
+
+The flag is independent of the fact that the whole canonical set has been received: conflicts surface object by object as they arrive.
+
+**A link, not a redirect.** When the route is created there is nothing to resolve yet, so redirecting at that moment lands the user on an empty page - and the flag that says otherwise arrives minutes or hours later. So the partner declares `resolutionUrl`, an optional opaque URL set on `PUT .../masterdata-config` next to the toggles - the moment it knows which of its own tenants this endpoint is - and agrirouter renders it as a link throughout `LOADING_FROM_AGRIROUTER`, as the call to action once `awaitingUser` is set and quietly before that. It is not per conflict and not templated by agrirouter, and where it is absent the label stands on its own.
+
+**Route creation scenarios differ only in where the user already is.** The canvas arrow ([ADR 04](./04-routing.md)) and the entity-type toggles are two gates on the same thing, and the load starts once both are present:
+
+- **Partner-initiated** - RAC, or the partner's own settings screen. The user is in the partner app when the load starts and never leaves it, so nothing is required of agrirouter. This is the shape to prefer, and the reason `resolutionUrl` is optional.
+- **Drawn in the agrirouter canvas.** The user is in agrirouter and the work is elsewhere. This is the case the label and the link exist for.
+- **Created automatically.** Does not arise: default routing never creates a `HubRoute`. Opting into master data stays an explicit act by a user, for the reason [ADR 04](./04-routing.md) gives - connecting an application unintentionally can overwrite a lot of data - so an endpoint created by a partner that supports master data is not silently opted in, and no initial load starts with nobody to tell.
+
+**Waiting is not free**, which is why the partner should not rely on the user wandering back. A position evicted while resolution is half done costs a reload of the canonical set and a second pass over the same conflicts ([ADR 07](./07-sync-streaming.md)), so pending resolution SHOULD be surfaced in the partner's own UI rather than only on the screen the user happened to be on.
+
 ### Granularity mismatches and differing requirements
 
 Two problems surface at initial load that agrirouter deliberately does **not** try to solve:
@@ -192,5 +217,8 @@ flowchart TB
 - The "from agrirouter, then to agrirouter" ordering is what prevents duplication: reconciliation happens against the canonical set before the endpoint sends anything.
 - Some of the hard parts are intentionally organizational: conflict resolution and granularity mismatches live in partner software, so the protocol defines the flow and the failure signals but not the resolution.
 - Initial load and resume share the same stream position, so a returning system is a continuation of the same state rather than a separate code path.
+- agrirouter learns that a person is needed, never what for. `awaitingUser` is one monotonic bit per entity type, cleared by the confirmation, so no part of the system carries a second, staleable picture of the endpoint's conflicts.
+- The bit is advisory. Endpoints that omit it cost only label precision, and nothing in the flow branches on it.
+- `masterdata-config` gains an optional `resolutionUrl`, which is the only thing a partner has to supply for agrirouter to point a user at the right screen, and default routing never opts an endpoint into the hub.
 - The confirmation is the one step in the flow gated on a human. agrirouter learns when it finished sending and never when the user finished deciding, so an entity type can sit in `LOADING_FROM_AGRIROUTER` for days without anything being wrong, and no timeout on that state would be meaningful.
 - Several details remain open: downtime / pause-resume semantics, and best-practice guidance for implementors on conflicts and differing requirements.

@@ -1326,6 +1326,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EntityTypeToggle'
+        resolutionUrl:
+          type: string
+          format: uri
+          description: >
+            Where the user resolves initial-load conflicts in the endpoint's own
+            software. Optional, opaque to agrirouter, and not per conflict: it is
+            rendered as a link while an entity type has `awaitingUser` set.
+          examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
     InitialLoadState:
@@ -1350,6 +1358,16 @@ components:
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
         state:
           $ref: '#/components/schemas/InitialLoadState'
+        awaitingUser:
+          type: boolean
+          readOnly: true
+          description: >
+            Whether the endpoint's own software is needing user action
+            for this entity type — a conflict, a missing required
+            attribute, a granularity mismatch. Raised by the endpoint, cleared
+            by agrirouter when the entity type advances to
+            `LOADING_TO_AGRIROUTER`. agrirouter renders it as "waiting for you in
+            <app>", together with `resolutionUrl` where one is configured.
         canonicalSetEndEventId:
           type: string
           readOnly: true
@@ -1394,4 +1412,13 @@ components:
       properties:
         state:
           $ref: '#/components/schemas/InitialLoadState'
+        awaitingUser:
+          type: boolean
+          description: >
+            Set to `true` when this entity type's reconciliation is requiring
+            user action, so agrirouter can show the endpoint as waiting
+            rather than as still loading. Endpoints SHOULD report it, and may do
+            so with the idempotent PUT that repeats the current state. It is not
+            cleared by the endpoint: advancing to `LOADING_TO_AGRIROUTER` clears
+            it. Omitting it leaves the current value untouched.
       required: [state]
