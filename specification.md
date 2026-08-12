@@ -15,13 +15,15 @@ of data formats and operations enabling connected systems
 exchange and continuously synchronize agricultural **master data** across the
 agrirouter platform, bidirectionally, over an n:m network of participants.
 
+_Alternative name suggestion: "**AgmaSync**", derives from **Ag**riculture **Ma**sterdata **Sync**hronization and echoes the ancient Greek word **agma** (ἆγμα), symbolizing the bringing together of distributed information into a unified dataset._
+
 ## Scope
 
 First iteration would cover the following entity types, referred to
 throughout as the **MVP entities**:
 
 - **Organizations**
-- **Customers**
+- **Persons**
 - **Farms**
 - **Fields**, including their metadata
 - **FieldBoundaries**, including their obstacles, and metadata
@@ -56,34 +58,34 @@ timestamps use the date and time formats of {{?RFC3339}}.
 # Terminology
 
 Participant:
-: A software product or machine platform connected to agrirouter that takes part
+a software product or machine platform connected to agrirouter that takes part
   in master-data synchronization through one or more endpoints.
 
 Endpoint:
-: An agrirouter endpoint as defined by the agrirouter platform. A participant may
+an agrirouter endpoint as defined by the agrirouter platform. A participant may
   operate one or more endpoints. Capabilities and subscriptions for the
   `masterdata:*` message types are configured per endpoint.
 
 Entity:
-: A single master-data object of one of the supported types (a organization, a customer, a farm,
-  or a field).
+a single master-data object of one of the supported types (an organization, a person, a farm,
+  a field, or a field boundary).
 
 Canonical object:
-: The version of an entity held by agrirouter in the Single Source of Truth store
+the version of an entity held by agrirouter in the Single Source of Truth store
   (see [the SSOT store](#agrirouter-as-the-single-source-of-truth)). It carries the agrirouter-assigned identifier and the
   cross-participant identifier mapping.
 
 Local identifier:
-: The identifier a participant uses for an entity within its own system — the
+the identifier a participant uses for an entity within its own system — the
   identifier by which that participant knows the entity in its own store. Local
   identifiers are only unique within the issuing endpoint.
 
 agrirouter identifier:
-: The stable, globally unique identifier that agrirouter assigns to the canonical
+the stable, globally unique identifier that agrirouter assigns to the canonical
   object. Formatted as a UUID {{?RFC4122}}.
 
 Source system:
-: For a given change, the participant in which the change originated.
+for a given change, the participant in which the change originated.
 
 # Architecture overview
 
@@ -118,7 +120,7 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
 ## Message types
 
 Synchronization is carried by a family of `masterdata:*` agrirouter message
-types. For each supported entity `<type>` (one of `organization`, `field`, `farm`, `customer`):
+types. For each supported entity `<type>` (one of `organization`, `person`, `farm`, `field`, `fieldBoundary`):
 
 | Message type                    | Purpose                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -128,10 +130,14 @@ types. For each supported entity `<type>` (one of `organization`, `field`, `farm
 
 These message types are transported using the ordinary agrirouter mechanisms for
 sending data and for receiving delivery events. A participant declares support for
-a given message type and direction through its endpoint capabilities, and receives
-objects for the types it is subscribed to. The concrete HTTP surface that a
+a given message type<sup>1</sup> through its endpoint capabilities, and receives
+objects for the types it is subscribed to. Support is not directional in the MVP:
+an opted-in entity type is exchanged in both directions (see
+[Routing and opt-in](#routing-and-opt-in)). The concrete HTTP surface that a
 participant uses to send, request, receive, and configure these messages is
 described by the companion OpenAPI document (`openapi.yaml`).
+
+<sup>1</sup> We are still to decide whether we just send every type to a participant and let them deal with filtering.
 
 # Data model
 
@@ -164,7 +170,7 @@ Every `masterdata:<type>` object shares a common envelope. Example
 
 Envelope fields:
 
-- `type` (string, required): the entity type; one of `customer`, `farm`, `field`.
+- `type` (string, required): the entity type; one of `organization`, `person`, `farm`, `field`, `fieldBoundary`.
 - `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
 - `localId` (string, required on send): the sending participant's own identifier for the entity. See [Identifier mapping](#identifier-mapping) for how it is interpreted.
 - `idMappings` (array): the identifier mapping maintained by agrirouter. Each element pairs an `endpointId` with that endpoint's `localId`. This field is populated by agrirouter on the objects it delivers and is ignored on send.
@@ -174,86 +180,147 @@ Envelope fields:
 - `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision.
 - `previousVersions` (array of references): references to prior entities that this entity supersedes, used for split and merge (see [Split and merge](#split-and-merge)). Empty for entities with no such lineage.
 
+### References
+
 A **reference** to another entity (for example a field referring to its farm) is
-expressed as an object carrying, at minimum, the `agrirouterId` of the target when
-known, and MAY additionally carry the referencing participant's `localId` for
-that target:
+expressed as an object carrying the target's `agrirouterId`, the referencing
+participant's `localId` for the target, or both:
 
 ~~~ json
-{ "agrirouterId": "…", "localId": "FRM-7" }
+{ "agrirouterId": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "localId": "FRM-7" }
 ~~~
+
+On the field of the envelope example above:
+
+~~~ json
+{
+  "type": "field",
+  "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
+  "localId": "PFD-00042",
+  "name": "North 40",
+  "farm": {
+    "agrirouterId": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "localId": "FRM-7" }
+}
+~~~
+
+The `localId` in a reference is the *referencing* participant's identifier for the
+target, not the target's canonical one. The two identifiers are therefore not
+interchangeable in both directions:
+
+- **On send**, a participant MAY use either. A reference carrying only a `localId`
+  is resolved by agrirouter against the sender's own
+  [identifier mapping](#identifier-mapping). If it does not resolve — the target has
+  not been sent yet — the message MUST be rejected, and the participant MUST send the
+  target before the object referencing it.
+- **On delivery**, agrirouter MUST populate `agrirouterId`, and SHOULD replace the
+  `localId` with the receiving endpoint's own identifier for the target when known. A
+  receiving endpoint resolves the target through `agrirouterId`: the sender's `localId`
+  carries no meaning in the receiver's namespace.
+
+A reference to a party MUST additionally carry `type` (`organization` or `person`).
+A receiving endpoint that does not hold the target has to retrieve it through
+[`masterdata:<type>:request`](#requesting-objects-lazy-loading), which is per entity
+type; the `agrirouterId` alone does not tell it which type to request. Slots whose
+entity type is fixed — a field's farm — need no discriminator.
+
+This keeps `agrirouterId` off the write path: a participant builds references from
+its own identifiers, and does not have to capture and correlate canonical ids before
+it can send the objects that reference them. Ordering still applies — a target must
+be sent before the first reference to it.
+
+## Party
+
+A **party** is a legal or natural actor: an *organization* or a *person*. Both
+share a common attribute set, because a farmer holds the fiscal identifiers
+exactly as a company does. Only the commercial register entry is specific to
+organizations.
+
+Common attributes:
+
+- `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+- `contact` (object, optional): `phone`, `mobile`, `email`.
+- `billingAddress` (object, optional): as for `address`.
+- `taxNumber` (string, optional): identifier assigned by tax authorities.
+- `taxId` (string, optional): numerical identifier assigned by tax authorities.
+- `tradeId` (string, optional): numerical identifier assigned by public authorities.
+
+No attribute records that a party *is* a contractor or *is* a customer. Those are
+relations, and are read from the graph: a party that appears as a `partner` on
+another party's farm is acting as a contractor or advisor there, and a party
+whose farm names such a partner is that partner's client. The same party may do
+both at once, in different relations.
 
 ## Organization
 
-An organisation refers to the structure of a farm or a group of several farms
+A legal entity that may hold land and to which persons may belong.
 
-### Organizational Structure
+Canonical attributes, in addition to the common party attributes:
 
-* **Cardinality:** One farmer can manage multiple farms.
-* **Single-Farm Scenario:** If a farmer has only one farm, the *Organization* and *Farm* are identical.
-* **Contractor Scenario:**
-  * **Organization:** Acts as the contractor.
-  * **Farm:** Acts as the customer's farm.
+- `name` (string, required).
+- `commercialRegistryNumber` (string, optional): unique identifier out of the commercial register.
 
-Canonical attributes:
+## Person
 
-- `name` (string, required)
-- `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `contact` (object, optional): `phone`, `mobile`, `email`.
-- `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `taxNumber`(string, optional): Unique, identifier assigned by tax authorities to farm
-- `taxId`(string, optional): Unique, numerical identifier assigned by tax authorities to farm/contractor
-- `tradeId`(string, optional): Unique, numerical identifier assigned by public authorities to farm/contractor
-- `commercialRegistryNumber`(string, optional): Unique identifier out of commercial register
+A natural person. A person may hold land in their own right, and may belong to
+one or more organizations.
 
+Canonical attributes, in addition to the common party attributes:
 
-## Customer
-An individual in charge of on-site farm operations to produce, harvest, transport and store a commodity; one who oversees mobile and stationary asset usage; one who oversees selection, application, and usage of all commodity inputs.
+- `lastName` (string, required).
+- `firstName` (string, optional).
+- `title` (string, optional).
+- `memberships` (array, optional): the organizations this person belongs to. Each entry carries:
 
-Canonical attributes (subset, aligned with ISOXML `CTR`):
+  - `organizationId` (reference, required): the organization.
+  - `memberRole` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
 
-- `name` (object): a person name (`firstName`, `lastName`, optional `title`). Exactly one form MUST be present.
-- `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `contact` (object, optional): `phone`, `mobile`, `email`.
-- `billingAddress` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `taxNumber`(string, optional): Unique, identifier assigned by tax authorities to farm
-- `taxId`(string, optional): Unique, numerical identifier assigned by tax authorities
-- `tradeId`(string, optional): Unique, numerical identifier assigned by public authorities
-- `commercialRegistryNumber`(string, optional): Unique identifier out of commercial register
-- `specialisedUsageType`(string, optional): Specialised usage type of the customer/grower like arable farming, dairy, vineyard, orchard,… (see [Agrovoc](https://agrovoc.fao.org/browse/agrovoc/en/page/c_2807))
-- `member` (object, optional): `memberRole` (Based on [ADAPT Data Type: Role](https://adaptstandard.org/dtd.html)), `name`, `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+A person holding at least one membership is a **member** of the organizations it
+names. Membership is state on the person, so one advisor serving several
+organizations is a single canonical person rather than a copy per organization.
 
 ## Farm
 
 A grouping of fields that the farmer considers part of the same management group.
 
-Canonical attributes (subset,
-aligned with ISOXML `FRM`):
+Canonical attributes (subset):
 
-- `owner` (reference, required): A farm must be assigned to an *organization* or *customer*:
-
-  - If farm has only one farm branch/focus, then it is the same as *organization*;
-  - In the case of *contractor*: *farm = customer*.
+- `owner` (reference, required): the organization or person that holds the farm.
 - `name` (string, required).
-- `address` (object, optional): as for a customer.
-- `geoReference` (`Point`, optional): Longitude and latitude from the farm
+- `address` (object, optional): as for a party.
+- `geoReference` (`Point`, optional): longitude and latitude of the farm.
+- `specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
+  - 👷‍♂️ _to be refined_
+- `partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry carries:
+
+  - `partnerId` (reference, required): the organization or person.
+  - `partnerRole` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as `memberRole`.
+
+`partners` records a business relationship only. It MUST NOT be interpreted as
+granting access to the farm or to anything below it: what an endpoint receives is
+determined by opt-in and routing (see [Routing and opt-in](#routing-and-opt-in)),
+never by an attribute inside a synchronized object. A participant receiving a
+farm MUST NOT translate its `partners` entries into access grants in its own
+system without a separate decision by its user.
 
 ## Field
 
-A named and customer-accepted physical space where production agriculture takes place used to partition and identify data.
-Canonical attributes (subset, aligned with ISOXML `PFD`, "partfield"):
+A named physical space where production agriculture takes place, used to partition and identify data.
+Canonical attributes (subset):
 
 - `name` (string, required).
 - `area` (number, optional): nominal area in square metres.
-- `customer` (reference, optional): the associated customer.
-- `farm` (reference, optional): the associated farm.
-- `soil`(object, optional): `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), `rating points`
+- `farm` (reference, optional): the farm this field belongs to.
+- `owner` (reference, optional): the organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `owner` without a `farm`.
+- `soil`(object, optional): 
+  - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), 
+  - `ratingPoints` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
 - `topography`(number, optional): slope, gradient like 7°
-- `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundaries) as a GeoJSON
+  - 👷‍♂️ _to be refined_
+- `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
 - `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
 - `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. Participants MUST preserve metadata they do not understand and MUST relay it unchanged.
 
-## FieldBoundaries
+## FieldBoundary
 
 A geometry that identifies the geo-spatial coordinates of a field.
 The boundary can be used to define the area for a particular operation, a particular crop or crops, or for legal purposes.
@@ -277,7 +344,7 @@ Canonical attributes:
   - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
   - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
   - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown (Based on [ADAPT Data Type: BoundaryCreationMethod](https://adaptstandard.org/dtd.html)
-- `harvestPeriod` (object): see [Harvest period](#harvest-period).
+- `harvestPeriod` (object): see [Harvest period](#harvest-period). If the field that references this boundary also defines a `harvestPeriod`, the boundary's period MUST fall within it: `validFrom` no earlier than the field's `validFrom`, and `validTo` no later than the field's `validTo` (an absent field `validTo` imposes no upper bound).
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose properties carry an obstacle `kind`.
 - `regulatoryRequirements` (string, optional): Enum value like:
 
@@ -287,10 +354,12 @@ Canonical attributes:
 
 ### Entity dependencies
 
-A field MAY reference a customer and a farm; a farm MAY reference a customer.
-These dependencies are significant for routing and seeding: a participant that is
-to receive fields MUST also be enabled for the customers and farms those fields
-depend on, so that references can be resolved on the receiving side (see
+A field references a farm and MAY reference a party as its owner, a farm
+references the party that owns it and MAY reference further parties as partners,
+and a person MAY reference the organizations it belongs to. These dependencies
+are significant for routing and seeding: a participant that is to receive fields
+MUST also be enabled for the farms and parties those fields depend on, so that
+references can be resolved on the receiving side (see
 [Routing and opt-in](#routing-and-opt-in)).
 
 ## Harvest period
@@ -334,6 +403,29 @@ Regardless of the finalized encoding, the following rules are normative:
 - agrirouter MUST validate every incoming `masterdata:*` message against the defined subset. If validation fails, the message MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Messages are not silently repaired.
 - Validation and rejection apply only to the `masterdata:*` message types; they do not change the handling of other, pre-existing agrirouter message types.
 
+## Extensible enumerations
+
+Agricultural vocabularies grow: a new boundary creation method or a new regulatory
+zone appears long after an implementation has shipped. A JSON Schema `enum` is by
+definition a closed set, so every such addition would be an incompatible change
+requiring alignment with every deployed participant.
+
+This protocol therefore adopts the Zalando RESTful API Guidelines convention for
+open-ended value lists ([rule 112](https://opensource.zalando.com/restful-api-guidelines/#112)).
+Where a value set is not fully under this protocol's control, or cannot be
+considered complete for any imaginable future feature, the attribute is typed as a
+plain string, the currently known values are given as `examples`, and its
+description in [openapi.yaml](./openapi.yaml) is prefixed with `[Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations)`.
+`enum` is reserved for sets this protocol itself fixes and considers complete.
+
+The values listed for an extensible enum are those known at the time of writing,
+not an exhaustive set. Normatively:
+
+- A value outside the listed set MUST NOT be a validation failure (see [Hard validation](#hard-validation)) and MUST NOT cause the entity to be rejected, dropped, or altered.
+- Receivers MUST tolerate unknown values: relay them unchanged, and where the value drives behaviour, fall back to the handling they apply to an unknown value.
+- Values are `UPPER_SNAKE_CASE`.
+- Adding a value is a compatible change and MAY happen in a minor revision of this document. Removing or renaming a value is breaking and MUST NOT.
+
 ## Identifier mapping
 
 agrirouter maintains, per canonical object, a mapping between its `agrirouterId`
@@ -365,8 +457,9 @@ Therefore:
 
 - Master-data routes MUST NOT be created by the machine→software default-route logic. A participant takes part in master-data exchange only through explicit **opt-in**.
 - Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
-- Opt-in carries a **direction** (read, write, or both) per entity type. agrirouter MUST make each endpoint's read/write configuration discoverable to the other participants so that a system can adapt its behaviour — for instance, presenting an entity as read-only when it is not permitted to write it back.
-- Because of entity dependencies (see [Field](#field)), enabling an endpoint to receive fields SHOULD also enable the customers and farms those fields reference. Implementations SHOULD surface these dependencies to the user rather than silently enabling additional data.
+- Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
+- Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST reject a configuration that is not dependency-closed rather than silently enabling the missing types. Implementations SHOULD surface the dependency to the user.
+- Opting an entity type **out** removes it from the configuration, and with it that entity type's initial-load state. Opting it back in starts a full initial load again: agrirouter cannot enumerate what the endpoint missed while the type was opted out.
 - The opt-in decision SHOULD be offered to the user at endpoint onboarding, and MUST remain changeable afterwards.
 
 The concrete configuration resource is described in `openapi.yaml`.
@@ -378,8 +471,8 @@ reconciles that existing data with the SSOT. Each endpoint has, per entity type,
 seeding state. The defined progression is:
 
 1. **Connected.** The endpoint is created and the user opts it into master-data exchange for one or more entity types (see [Routing and opt-in](#routing-and-opt-in)).
-2. **Seeding from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive.
-3. **Seeding to agrirouter.** After the endpoint has confirmed receipt of those objects, it sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts.
+2. **Seeding from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive, over the ordinary event stream, closing each type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends.
+3. **Seeding to agrirouter.** After the endpoint has reconciled those objects against its own data - which includes resolving conflicts with its user, and so takes as long as that takes - it confirms, and sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts.
 4. **Completed.** Steady-state (day-2) synchronization applies from here on.
 
 Conflict detection during seeding, and its resolution, are the responsibility of
@@ -403,7 +496,7 @@ participating systems, which is the intended behaviour for this version.
 ### Differing required/optional attributes
 
 Systems disagree on which attributes are mandatory (one system may require a
-customer on every field where another treats it as optional). The **stricter
+farm on every field where another treats it as optional). The **stricter
 recipient** is responsible for handling data that does not meet its own
 requirements — for example by asking the user to assign a fallback value.
 agrirouter neither enforces one system's requirements on another nor drops data to
@@ -477,14 +570,16 @@ access-controlled channels as other agrirouter traffic, and the HTTP surface in
 
 Beyond transport, two protocol-level concerns are relevant. First, the routing
 opt-in of [Routing and opt-in](#routing-and-opt-in) is itself a security control: because attaching an endpoint to
-a master-data network can expose a user's customers, farms, and field boundaries to
+a master-data network can expose a user's parties, farms, and field boundaries to
 that endpoint, master-data routes MUST be created only through explicit,
-per-endpoint, per-entity opt-in, never by default routing. Second, agrirouter's
-read/write configuration per endpoint governs which participants may modify shared
-entities; endpoints MUST respect the read/write status communicated for an entity
-type and MUST NOT rely on other participants to enforce it on their behalf.
+per-endpoint, per-entity opt-in, never by default routing. Second, opt-in is the
+**only** filter on what an endpoint receives: an endpoint opted into an entity
+type receives every canonical object of that type in the exchange, and no
+attribute inside a synchronized object narrows that (see [Farm](#farm)). The set
+of entity types a user opts an endpoint into therefore defines exactly what that
+endpoint is exposed to.
 
-Field boundaries and customer contact details are personal and commercially
+Field boundaries and party contact details are personal and commercially
 sensitive data. Participants SHOULD expose only the data necessary for
 synchronization and SHOULD honour deactivation promptly.
 
@@ -494,7 +589,7 @@ The following items are still under discussion and affect provisional parts of
 this document:
 
 - **Unambiguous EFDI subset & hard validation** — the exact validated subset of [Encoding and canonicity](#encoding-and-canonicity).
-- **Routing model** — the concrete default-route policy, opt-in switches, and read/write propagation of [Routing and opt-in](#routing-and-opt-in).
+- **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
 - **Initial load** — formalizing the initial-load state machine, conflict-resolution responsibilities, and downtime/resume semantics of [Initial load and seeding](#initial-load-and-seeding).
 - **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).

@@ -10,7 +10,7 @@ info:
   description: >
     HTTP surface for the Agriculture Masterdata Sync Protocol (AMSP). It lets a
     connected participant send, deactivate, request, and read the master-data
-    entities (organizations, customers, farms, fields, field boundaries) that
+    entities (organizations, persons, farms, fields, field boundaries) that
     agrirouter synchronizes across an n:m network of systems, and configure
     per-entity opt-in for an endpoint.
 
@@ -20,6 +20,16 @@ info:
 
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
     every entity plus a mapping to each participant's own identifier.
+
+    Attributes whose value set is expected to grow follow the Zalando RESTful
+    API Guidelines convention for open-ended value lists
+    (https://opensource.zalando.com/restful-api-guidelines/#112): instead of a
+    closed `enum`, the currently known values are given as `examples` and the
+    description carries the `[Extensible enum]` prefix. Values may be added to
+    such an attribute without breaking deployed clients, so clients MUST accept
+    unknown values, relay them unchanged, and fall back to their unknown-value
+    handling. `enum` is reserved for sets this API fully controls and considers
+    complete. See "Extensible enumerations" in specification.md.
   contact:
     name: DKE-Data Masterdata Sync Working Group
 
@@ -29,8 +39,8 @@ security:
 tags:
   - name: Organizations
     description: Sending, deactivating, requesting, and reading organizations.
-  - name: Customers
-    description: Sending, deactivating, requesting, and reading customers.
+  - name: Persons
+    description: Sending, deactivating, requesting, and reading persons.
   - name: Farms
     description: Sending, deactivating, requesting, and reading farms.
   - name: Fields
@@ -131,40 +141,40 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  # ----------------------------------------------------------------- customers
+  # ------------------------------------------------------------------- persons
 
-  /masterdata/customers/{localId}:
+  /masterdata/persons/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
     put:
-      tags: [Customers]
-      summary: Send (create or update) a customer
+      tags: [Persons]
+      summary: Send (create or update) a person
       description: >
-        Submits a `masterdata:customer` object from the calling endpoint. If the
+        Submits a `masterdata:person` object from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
-      operationId: putCustomer
+      operationId: putPerson
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Customer'
+              $ref: '#/components/schemas/Person'
       responses:
         '200':
-          description: Customer accepted; the resulting canonical object is returned.
+          description: Person accepted; the resulting canonical object is returned.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Customer'
+                $ref: '#/components/schemas/Person'
         '201':
           description: A new canonical object was created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Customer'
+                $ref: '#/components/schemas/Person'
         '400':
           $ref: '#/components/responses/ValidationError'
         '403':
@@ -172,41 +182,41 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
-  /masterdata/customers/{localId}/deactivation:
+  /masterdata/persons/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
     post:
-      tags: [Customers]
-      summary: Deactivate a customer
+      tags: [Persons]
+      summary: Deactivate a person
       description: >
-        Signals that the customer was deactivated in the source system (archival,
+        Signals that the person was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification.
-      operationId: deactivateCustomer
+      operationId: deactivatePerson
       responses:
         '200':
-          description: Customer is inactive (either newly deactivated or already inactive).
+          description: Person is inactive (either newly deactivated or already inactive).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Customer'
+                $ref: '#/components/schemas/Person'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/customers/requests:
+  /masterdata/persons/requests:
     post:
-      tags: [Customers]
-      summary: Request a customer (lazy loading)
+      tags: [Persons]
+      summary: Request a person (lazy loading)
       description: >
-        Actively requests a customer the caller does not currently hold — for
+        Actively requests a person the caller does not currently hold — for
         example a predecessor referenced through `previousVersions`, or a
         dependency not yet loaded. If the caller is entitled to the entity, it is
         delivered asynchronously as a master-data change event (see
         `/masterdata/events`).
-      operationId: requestCustomer
+      operationId: requestPerson
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
       responses:
@@ -485,9 +495,14 @@ paths:
         A persistent SSE stream of master-data changes for the calling endpoint.
         agrirouter never echoes a change back to the endpoint it originated from.
         Because one stream carries every opted-in entity type, each event's `data`
-        is an `Entity` — an `Organization`, `Customer`, `Farm`, `Field`, or
+        is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
         `FieldBoundary` discriminated by its `type` property. Delivered objects
         carry this endpoint's own `localId` in `idMappings` when known.
+
+        Opting an entity type in enqueues its canonical set onto this same stream,
+        closed by a `CANONICAL_SET_END` frame. Initial load is therefore a block of
+        events in the ordinary sequence rather than a second delivery mechanism,
+        and `Last-Event-ID` is the only position the endpoint keeps.
       operationId: streamMasterdataEvents
       responses:
         '200':
@@ -495,10 +510,14 @@ paths:
           content:
             text/event-stream:
               schema:
-                $ref: '#/components/schemas/Entity'
                 description: >
                   The `data:` payload of each SSE frame. Frames carry an `event:`
-                  of either `MASTERDATA_CHANGED` or `MASTERDATA_DEACTIVATED`.
+                  of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`, or
+                  `CANONICAL_SET_END`; the first two carry an `Entity` and the
+                  last a `CanonicalSetEnd`.
+                oneOf:
+                  - $ref: '#/components/schemas/Entity'
+                  - $ref: '#/components/schemas/CanonicalSetEnd'
 
   # ------------------------------------------------------------ configuration
 
@@ -526,12 +545,19 @@ paths:
       description: >
         Configures per-entity opt-in. Master-data routes
         are created only through this explicit opt-in, never by default routing.
-        Enabling reception of fields SHOULD also enable the organizations,
-        customers, farms, and field boundaries those fields depend on.
+
+        The configuration MUST be dependency-closed: enabling fields requires
+        the farms those fields reference, and the organizations and persons
+        those farms reference, to be enabled as well. A configuration that is
+        not dependency-closed is rejected with `400`.
 
         Opting an entity type in also starts its initial load: that entity
         type enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
-        resource).
+        resource) and its canonical set is enqueued onto the endpoint's event
+        stream straight away, closed by a `CANONICAL_SET_END` frame — whether or
+        not the endpoint is connected at the time. Removing a toggle opts the
+        entity type out and discards its initial-load state, so opting it back in
+        runs a full initial load.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -560,11 +586,12 @@ paths:
       tags: [InitialLoad]
       summary: Get initial load status for all entity types
       description: >
-        Returns the per-entity-type initial load state for the endpoint.
-        The state machine per entity type is:
-        `NOT_STARTED` → `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` →
-        `COMPLETED`. Opting an entity type in (via the master-data configuration)
-        moves it to `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
+        Returns the per-entity-type initial load state for the endpoint. Only
+        entity types the endpoint is opted into are listed. The state machine per
+        entity type is:
+        `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` → `COMPLETED`.
+        Opting an entity type in (via the master-data configuration) starts it at
+        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
         by sending a PUT request to its per-entity-type `status` subresource.
       operationId: getInitialLoadStatus
       responses:
@@ -606,14 +633,20 @@ paths:
         valid; agrirouter rejects any other with `409`.
 
 
-        Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has received the full
-        "loading from agrirouter" set (optionally carrying a `checkpoint` marking
-        how far it consumed, for resume); from that point the endpoint sends the
-        objects it knows about via the ordinary PUT operations. Set `COMPLETED`
+        Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has *reconciled* the
+        canonical set, not merely received it: the `CANONICAL_SET_END` frame
+        already tells the endpoint it holds the whole set, and this operation
+        additionally asserts that the conflicts reconciling surfaced have been
+        resolved in the endpoint's own software. The gap between the two is
+        human-paced and unbounded, so an entity type may sit in
+        `LOADING_FROM_AGRIROUTER` for a long time without anything being wrong.
+        From that point the endpoint sends the objects it knows about via the
+        ordinary PUT operations. How far the endpoint has consumed is expressed by
+        its stream position (`Last-Event-ID`), not by this operation. Set `COMPLETED`
         once the endpoint has sent everything, after which steady-state (day-2)
-        synchronization applies. The initial
-        `NOT_STARTED → LOADING_FROM_AGRIROUTER` transition is driven by opting the
-        entity type in, not by this operation.
+        synchronization applies. An entity type enters the initial state,
+        `LOADING_FROM_AGRIROUTER`, when it is opted in - not through this
+        operation.
 
 
         Idempotent: setting the state the entity type is already in returns the
@@ -679,7 +712,9 @@ components:
       description: The master-data entity type.
       schema:
         type: string
-        enum: [organizations, customers, farms, fields, fieldBoundaries]
+        examples: [organizations, persons, farms, fields, fieldBoundaries]
+        description: >
+          [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
 
   requestBodies:
     EntityRequest:
@@ -760,7 +795,12 @@ components:
 
     EntityReference:
       type: object
-      description: A reference to another entity by canonical and/or local id.
+      description: >
+        A reference to another entity by canonical and/or local id. On send
+        either identifier suffices: a localId is resolved against the sender's
+        own mapping, and is rejected if the target has not been sent yet. On
+        delivery agrirouter populates agrirouterId, since the sender's localId
+        does not resolve in the receiver's namespace.
       properties:
         agrirouterId:
           type: string
@@ -770,6 +810,20 @@ components:
       anyOf:
         - required: [agrirouterId]
         - required: [localId]
+
+    PartyReference:
+      description: >
+        A reference to a party. The slot admits both organizations and persons,
+        so the entity type is required: a receiver that does not hold the target
+        must lazy-load it, and the request endpoints are per entity type. Typed
+        slots such as a field's farm need no discriminator.
+      allOf:
+        - $ref: '#/components/schemas/EntityReference'
+        - type: object
+          properties:
+            type:
+              enum: [organization, person]
+          required: [type]
 
     IdMapping:
       type: object
@@ -823,17 +877,6 @@ components:
             $ref: '#/components/schemas/EntityReference'
       required: [localId]
 
-    PersonName:
-      type: object
-      description: A person name.
-      properties:
-        title:
-          type: string
-        firstName:
-          type: string
-        lastName:
-          type: string
-      required: [lastName]
 
     Address:
       type: object
@@ -884,11 +927,12 @@ components:
 
     Organization:
       description: >
-        The structure of a farm or a group of several farms. Acts as the
-        contractor in a contractor scenario; identical to the farm when a farmer
-        has a single farm.
+        A legal entity that may hold land and to which persons may belong. It
+        plays no fixed role: whether it acts as a contractor or as a client
+        follows from the relations it stands in, not from an attribute.
       allOf:
         - $ref: '#/components/schemas/Envelope'
+        - $ref: '#/components/schemas/Party'
         - type: object
           properties:
             type:
@@ -898,92 +942,117 @@ components:
                 Discriminator, set by agrirouter. Implied by the path on send.
             name:
               type: string
-            address:
-              $ref: '#/components/schemas/Address'
-            contact:
-              $ref: '#/components/schemas/Contact'
-            billingAddress:
-              $ref: '#/components/schemas/Address'
-            taxNumber:
-              type: string
-              description: Identifier assigned by tax authorities.
-            taxId:
-              type: string
-              description: Numerical identifier assigned by tax authorities.
-            tradeId:
-              type: string
-              description: Numerical identifier assigned by public authorities.
             commercialRegistryNumber:
               type: string
               description: Identifier from the commercial register.
           required: [type, name]
 
-    Customer:
+    Party:
+      type: object
       description: >
-        An individual in charge of on-site farm operations — producing,
-        harvesting, transporting, and storing a commodity, and overseeing asset
-        and input usage.
+        Attributes common to every party, whether an organization or a natural
+        person. A farmer carries the fiscal identifiers as much as a company
+        does; only the commercial register entry is specific to organizations.
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        billingAddress:
+          $ref: '#/components/schemas/Address'
+        taxNumber:
+          type: string
+          description: Identifier assigned by tax authorities.
+        taxId:
+          type: string
+          description: Numerical identifier assigned by tax authorities.
+        tradeId:
+          type: string
+          description: Numerical identifier assigned by public authorities.
+
+    Person:
+      description: >
+        A natural person. A person may hold land, and may belong to one or more
+        organizations through `memberships`.
       allOf:
         - $ref: '#/components/schemas/Envelope'
+        - $ref: '#/components/schemas/Party'
         - type: object
           properties:
             type:
-              const: customer
+              const: person
               readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
-            name:
-              $ref: '#/components/schemas/PersonName'
-            address:
-              $ref: '#/components/schemas/Address'
-            contact:
-              $ref: '#/components/schemas/Contact'
-            billingAddress:
-              $ref: '#/components/schemas/Address'
-            taxNumber:
+            title:
               type: string
-              description: Identifier assigned by tax authorities.
-            taxId:
+            firstName:
               type: string
-              description: Numerical identifier assigned by tax authorities.
-            tradeId:
+            lastName:
               type: string
-              description: Numerical identifier assigned by public authorities.
-            commercialRegistryNumber:
-              type: string
-              description: Identifier from the commercial register.
-            specialisedUsageType:
-              type: string
+            memberships:
+              type: array
               description: >
-                Specialised usage type of the customer/grower (e.g. arable
-                farming, dairy, vineyard, orchard). See Agrovoc.
-            member:
-              $ref: '#/components/schemas/Member'
-          required: [type, name]
+                The organizations this person belongs to, each with the role
+                held there. A person carrying at least one entry is a member.
+              items:
+                $ref: '#/components/schemas/Membership'
+          required: [type, lastName]
 
-    Member:
+    Membership:
       type: object
-      description: A member associated with a customer.
+      description: A role held by a person in one organization.
       properties:
+        organizationId:
+          $ref: '#/components/schemas/EntityReference'
+          description: The organization the person belongs to.
         memberRole:
-          type: string
-          description: Based on the ADAPT Role data type.
-        name:
-          type: string
-        street:
-          type: string
-        poBox:
-          type: string
-        postalCode:
-          type: string
-        city:
-          type: string
-        state:
-          type: string
-        country:
-          type: string
-          description: ISO 3166-1 alpha-2 country code.
-          pattern: '^[A-Z]{2}$'
+          $ref: '#/components/schemas/Role'
+      required: [organizationId, memberRole]
+
+    Partner:
+      type: object
+      description: >
+        A party holding a role on a farm — the contractor that works it, the
+        advisor that reads it. Records a business relationship only. It does NOT
+        grant visibility of the farm: what an endpoint receives is decided by
+        opt-in and routing.
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartyReference'
+          description: The organization or person acting as partner.
+        partnerRole:
+          $ref: '#/components/schemas/Role'
+      required: [partnerId, partnerRole]
+
+    Role:
+      type: string
+      description: >
+        [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+        A role drawn from the ADAPT Role data type.
+      examples:
+        - UNKNOWN
+        - AUTHORIZER
+        - CROP_ADVISOR
+        - CUSTOMER
+        - CUSTOM_SERVICE_PROVIDER
+        - DATA_SERVICES_PROVIDER
+        - END_USER
+        - FARM_MANAGER
+        - FINANCIER
+        - STATIONARY_ASSET_SUPPLIER
+        - GOVERNMENT_AGENCY
+        - GROWER
+        - INPUT_SUPPLIER
+        - INSURANCE_AGENT
+        - IRRIGATION_MANAGER
+        - LABORER
+        - MARKET_ADVISOR
+        - MARKET_PROVIDER
+        - MOBILE_ASSET_SUPPLIER
+        - OPERATOR
+        - OWNER
+        - TRANSPORTER
 
     Farm:
       description: >
@@ -999,13 +1068,23 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
             owner:
-              $ref: '#/components/schemas/EntityReference'
-              description: >
-                The organization or customer the farm is assigned to. For a
-                single-branch farm this is the organization; in a contractor
-                scenario the farm equals the customer.
+              $ref: '#/components/schemas/PartyReference'
+              description: The organization or person that holds the farm.
             name:
               type: string
+            specialisedUsageType:
+              type: string
+              description: >
+                Production orientation of the farm (e.g. arable farming, dairy,
+                vineyard, orchard). Free-form, drawn from AGROVOC where a
+                matching concept exists.
+            partners:
+              type: array
+              description: >
+                Parties holding a role on this farm, such as the contractor that
+                works it or the advisor that reads it.
+              items:
+                $ref: '#/components/schemas/Partner'
             address:
               $ref: '#/components/schemas/Address'
             geoReference:
@@ -1019,7 +1098,10 @@ components:
       properties:
         type:
           type: string
-          enum:
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The soil classification.
+          examples:
             - SAND
             - LOAMY_SAND
             - HEAVY_LOAMY_SAND
@@ -1027,12 +1109,17 @@ components:
             - CLAYEY_LOAM
             - CLAY
         ratingPoints:
-          type: number
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: >
+            Soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined
+            by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
 
     Field:
       description: >
-        A named, customer-accepted physical space where production agriculture
-        takes place, used to partition and identify data.
+        A named physical space where production agriculture takes place, used
+        to partition and identify data.
       allOf:
         - $ref: '#/components/schemas/Envelope'
         - type: object
@@ -1047,10 +1134,17 @@ components:
             area:
               type: number
               description: Nominal area in square metres.
-            customer:
-              $ref: '#/components/schemas/EntityReference'
             farm:
               $ref: '#/components/schemas/EntityReference'
+              description: The farm this field belongs to.
+            owner:
+              $ref: '#/components/schemas/PartyReference'
+              description: >
+                The organization or person holding this field, for systems that
+                attribute fields to a party directly. When absent, the field is
+                held by its farm's owner. When present, it takes precedence for
+                this field, which is how a field held by one party but managed
+                under another's farm is expressed.
             soil:
               $ref: '#/components/schemas/SoilInfo'
             topography:
@@ -1109,15 +1203,20 @@ components:
               description: A GeoJSON Polygon or MultiPolygon.
             boundaryType:
               type: string
-              description: The boundary classification.
-              enum:
+              description: >
+                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+                The boundary classification.
+              examples:
                 - CONCEPTUAL
                 - OPERATIONAL
                 - ECONOMIC_DEFINED
                 - ADMINISTRATIVE_RECEIVED
             creationMethod:
               type: string
-              enum:
+              description: >
+                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+                How the boundary was produced.
+              examples:
                 - UNKNOWN
                 - MANUAL
                 - DRIVEN
@@ -1133,8 +1232,10 @@ components:
                 $ref: '#/components/schemas/Obstacle'
             regulatoryRequirements:
               type: string
-              description: A regulatory constraint applying to the boundary.
-              enum:
+              description: >
+                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+                A regulatory constraint applying to the boundary.
+              examples:
                 - RED_ZONE_NITROGEN
                 - WATER_PROTECTION_AREA
             metadata:
@@ -1152,7 +1253,7 @@ components:
         concrete schemas directly.
       oneOf:
         - $ref: '#/components/schemas/Organization'
-        - $ref: '#/components/schemas/Customer'
+        - $ref: '#/components/schemas/Person'
         - $ref: '#/components/schemas/Farm'
         - $ref: '#/components/schemas/Field'
         - $ref: '#/components/schemas/FieldBoundary'
@@ -1160,10 +1261,30 @@ components:
         propertyName: type
         mapping:
           organization: '#/components/schemas/Organization'
-          customer: '#/components/schemas/Customer'
+          person: '#/components/schemas/Person'
           farm: '#/components/schemas/Farm'
           field: '#/components/schemas/Field'
           fieldBoundary: '#/components/schemas/FieldBoundary'
+
+    CanonicalSetEnd:
+      type: object
+      description: >
+        Payload of a `CANONICAL_SET_END` frame. It closes the block of canonical
+        objects enqueued when an entity type was opted in, and it is what tells
+        the endpoint that the objects before it are the whole canonical set —
+        without it the block is indistinguishable from ordinary changes. It is an
+        ordinary event: it carries an `id` and is replayed on resume like any
+        other. It marks a boundary in the stream only. It does not assert that the
+        endpoint has reconciled the set; that is asserted by the endpoint itself,
+        by setting `LOADING_TO_AGRIROUTER` on the initial-load status subresource.
+      properties:
+        entityType:
+          type: string
+          examples: [organizations, persons, farms, fields, fieldBoundaries]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The entity type whose canonical set ends here.
+      required: [entityType]
 
     Geometry:
       type: object
@@ -1173,7 +1294,10 @@ components:
       properties:
         type:
           type: string
-          enum: [Point, LineString, Polygon, MultiPolygon]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The GeoJSON geometry type.
+          examples: [Point, LineString, Polygon, MultiPolygon]
         coordinates:
           description: Nesting depth depends on `type`.
       required: [type, coordinates]
@@ -1183,7 +1307,10 @@ components:
       properties:
         entityType:
           type: string
-          enum: [organizations, customers, farms, fields, fieldBoundaries]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The entity type this toggle applies to.
+          examples: [organizations, persons, farms, fields, fieldBoundaries]
       required: [entityType]
 
     MasterdataConfig:
@@ -1199,6 +1326,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EntityTypeToggle'
+        resolutionUrl:
+          type: string
+          format: uri
+          description: >
+            Where the user resolves initial-load conflicts in the endpoint's own
+            software. Optional, opaque to agrirouter, and not per conflict: it is
+            rendered as a link while an entity type has `awaitingUser` set.
+          examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
     InitialLoadState:
@@ -1209,7 +1344,6 @@ components:
         `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward by sending a
         PUT request to the entity type's `status` subresource.
       enum:
-        - NOT_STARTED
         - LOADING_FROM_AGRIROUTER
         - LOADING_TO_AGRIROUTER
         - COMPLETED
@@ -1219,16 +1353,35 @@ components:
       properties:
         entityType:
           type: string
-          enum: [organizations, customers, farms, fields, fieldBoundaries]
+          examples: [organizations, persons, farms, fields, fieldBoundaries]
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
         state:
           $ref: '#/components/schemas/InitialLoadState'
-        checkpoint:
+        awaitingUser:
+          type: boolean
+          readOnly: true
+          description: >
+            Whether the endpoint's own software is needing user action
+            for this entity type — a conflict, a missing required
+            attribute, a granularity mismatch. Raised by the endpoint, cleared
+            by agrirouter when the entity type advances to
+            `LOADING_TO_AGRIROUTER`. agrirouter renders it as "waiting for you in
+            <app>", together with `resolutionUrl` where one is configured.
+        canonicalSetEndEventId:
           type: string
           readOnly: true
           description: >
-            Opaque marker of how far the from-agrirouter set has been confirmed.
-            Echoed from the endpoint's confirmation; may be replayed to resume an
-            interrupted initial load or a post-downtime catch-up.
+            Id of the `CANONICAL_SET_END` event that closes this entity type's
+            canonical set on the event stream. agrirouter assigns it when it
+            enqueues the set, so it is present as soon as the entity type is
+            opted in — before the endpoint has read anything, and whether or not
+            it is connected. It is a position in the stream, not a statement
+            about the endpoint: an endpoint whose committed `Last-Event-ID` is at
+            or past this id holds the whole canonical set. Discarded together with
+            the initial-load state when the entity type is opted out; opting it
+            back in enqueues a new set and a new marker.
+          examples: ['evt-6001']
         updatedAt:
           type: string
           format: date-time
@@ -1237,7 +1390,10 @@ components:
 
     InitialLoadStatus:
       type: object
-      description: Initial-load state for every entity type of an endpoint.
+      description: >
+        Initial-load state for every entity type the endpoint is opted into.
+        Entity types that are not opted in have no initial-load state and are
+        not listed.
       properties:
         endpointId:
           type: string
@@ -1256,11 +1412,13 @@ components:
       properties:
         state:
           $ref: '#/components/schemas/InitialLoadState'
-        checkpoint:
-          type: string
+        awaitingUser:
+          type: boolean
           description: >
-            When setting `LOADING_TO_AGRIROUTER` (confirming receipt of the
-            from-agrirouter set), an opaque marker — e.g. the last cursor or
-            revision watermark the endpoint received — identifying how much of the
-            set was consumed. Used to resume an interrupted initial load.
+            Set to `true` when this entity type's reconciliation is requiring
+            user action, so agrirouter can show the endpoint as waiting
+            rather than as still loading. Endpoints SHOULD report it, and may do
+            so with the idempotent PUT that repeats the current state. It is not
+            cleared by the endpoint: advancing to `LOADING_TO_AGRIROUTER` clears
+            it. Omitting it leaves the current value untouched.
       required: [state]

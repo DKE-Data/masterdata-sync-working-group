@@ -21,10 +21,10 @@ Synchronization of master data should be happening **continuously** so that
 when users switch between systems, they would be able to see the same master
 data and continue working on the same entities.
 
-When system is disconected for awhile it should be able to reconnect and synchronize
+When a system is disconnected for a while, it should be able to reconnect and synchronize
 to the current state of master data without losing any changes made in the meantime.
 
-If system already holds its own version of master data, which users might have
+If a system already holds its own version of master data, which users might have
 entered into that system via other means, it should be able to reconcile its own data 
 with the canonical version of master data and not duplicate it.
 
@@ -39,27 +39,25 @@ Adopt an architecture where agrirouter sits in the middle and holds the
 **canonical** copy, while each partner keeps its own.
 
 ```mermaid
-flowchart LR
+flowchart TB
+    user(["User"])
     subgraph sub1 ["Partner A"]
-        Aplatform["Partner A Platform"]
+        Aplatform(["Partner A Platform"])
         Astore[("Partner A Local store<br/>own copy · own ids")]
-    end
-    subgraph sub2 ["Partner B"]
-        Bstore[("Partner B Local store<br/>own copy · own ids")]
-        Bplatform["Partner B Platform"]
     end
     subgraph sub3 ["agrirouter"]
         SSOT[("agrirouter SSOT store<br/><b>canonical</b> objects<br/>+ id mapping")]
     end
-    user(["User"])
+    subgraph sub2 ["Partner B"]
+        Bplatform(["Partner B Platform"])
+        Bstore[("Partner B Local store<br/>own copy · own ids")]
+    end
     user -->|"creates / edits / uses<br/>master data"| Aplatform
     user -->|"creates / edits / uses<br/>master data"| Bplatform
     Aplatform -->|"reads / writes<br/>master data"| Astore
     Bplatform -->|"reads / writes<br/>master data"| Bstore
-    SSOT -->|"synchronization"| Bstore
     SSOT -->|"synchronization"| Astore
-    Aplatform(["Partner A Platform"])
-    Bplatform(["Partner B Platform"])
+    SSOT -->|"synchronization"| Bstore
     %% ceasg:{"id":"1d1ti28h"} %%
     %% mermaid-flow:pos Aplatform=84,131 Astore=84,297 Bstore=830,297 Bplatform=833,145 SSOT=436,297 user=447,45
     %% mermaid-flow:gpos sub1=-27,65,223,292 sub2=719,79,223,278 sub3=309,205,255,160
@@ -105,7 +103,8 @@ mapping* recording what each partner calls that entity.
 
 The key property: **all three keep state, but only agrirouter's state is
 canonical.** The partners' copies are local projections that AMSP keeps in step
-with the canonical copy. Consistent with the read/write split of D1, changes
+with the canonical copy. Consistent with the
+[read/write split above](#each-system-keeps-its-own-store-and-its-own-identifiers), changes
 propagate through agrirouter, which keeps SSOT authoritative.
 The SSOT exists *only* to make synchronization tractable - it is explicitly
 [not a history store or a product](../specification.md#what-this-protocol-is-and-is-not).
@@ -153,7 +152,7 @@ sequenceDiagram
     Note over A: Store locally with A's own<br/>localId = field-9931
     A->>AR: masterdata:field { localId: field-9931,<br/>agrirouterId: (none) }
 
-    Note over AR: Validate against the EFDI subset
+    Note over AR: Validate against AMSP canonical model
     Note over AR: No mapping for (A, field-9931) →<br/>create canonical object,<br/>assign agrirouterId = 1f2e…4567,<br/>record mapping A→field-9931,<br/>revision = 1, source = A
 
     AR-->>A: return agrirouterId
