@@ -86,15 +86,15 @@ This is approximate example of how it might work (actual implementation could be
 ```mermaid
 flowchart TB
     subgraph sub1 ["PUT request"]
-        ClientBSentRepresentation["Client B<br/>Representation B"]
+        ClientBSentRepresentation["Client B:<br/>Representation B"]
         A("Reference to revision 8")
     end
-    BaseRevision["Base Revision<br/>revision 8"]
-    ClientASentRepresentation["Client A<br/>Representation A"]
+    BaseRevision["Base Revision:<br/>revision 8"]
+    ClientASentRepresentation["Client A:<br/>Representation A"]
     Revision9["Revision 9 <br/>after applying Client A changes"]
-    PatchA["Patch A<br/>Base -> Client A"]
-    PatchB["Patch B<br/>Base -> Client B"]
-    MergedRevision["Merged Revision<br/>revision 10"]
+    PatchA["`Patch A:<br/>Base -> Client A`"]
+    PatchB["Patch B:<br/>Base -> Client B"]
+    MergedRevision["Merged Revision:<br/>revision 10"]
     BaseRevision -->|"Client A changes"| Revision9
     ClientASentRepresentation -->|"Client A changes"| Revision9
     Revision9 -->|"diff"| PatchA
