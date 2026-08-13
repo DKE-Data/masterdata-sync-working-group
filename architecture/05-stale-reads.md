@@ -94,7 +94,7 @@ flowchart TB
     MergedRevision["Merged Revision<br/>revision 10"]
     BaseRevision -->|"Client A changes"| Revision9
     ClientASentRepresentation -->|"Client A changes"| Revision9
-    ClientASentRepresentation -->|"diff"| PatchA
+    Revision9 -->|"diff"| PatchA
     BaseRevision -->|"diff"| PatchA
     ClientBSentRepresentation -->|"diff"| PatchB
     BaseRevision -->|"diff"| PatchB
@@ -102,7 +102,7 @@ flowchart TB
     Revision9 --> MergedRevision
     PatchB -->|"when no conflict:<br/>apply Patch B to Revision 9"| MergedRevision
     %% ceasg:{"id":"2fpch1lu"} %%
-    %% mermaid-flow:pos BaseRevision=576,-66 ClientASentRepresentation=209,-4 ClientBSentRepresentation=827,248 Revision9=416,113 PatchA=333,378 PatchB=637,375 MergedRevision=571,583
+    %% mermaid-flow:pos BaseRevision=583,-32 ClientASentRepresentation=302,-6 ClientBSentRepresentation=827,248 Revision9=367,113 PatchA=333,378 PatchB=637,375 MergedRevision=571,583
 ```
 
 
