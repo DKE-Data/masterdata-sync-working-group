@@ -40,7 +40,71 @@ flowchart TB
 
 ### Automatic conflict Resolution
 
-<!-- TBD: explain this a bit -->
+
+Given f.e such two writes that were done at approximately same time:
+
+`PUT /masterdata/field-boundaries/123`
+
+```json
+{
+    "harvestPeriod": {
+        "validFrom": "2024-01-01",
+        "validTo": "2024-12-31"
+    },
+    ///... all other fields are same as in the current revision
+}
+```
+
+`PUT /masterdata/field-boundaries/123`
+
+```json
+{
+    "boundary": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [10.0, 50.0],
+                [10.0, 51.0],
+                [11.0, 51.0],
+                [11.0, 50.0],
+                [10.0, 50.0]
+            ]
+        ]
+    },
+    ///... all other fields are same as in the current revision
+}
+```
+
+, which might have been done concurrently by two different clients or semi-concurrently (f.e if one of systems lags on receiving the latest revision from sync stream or sync stream is down).
+
+One of changes might be rejected by CAS, which would potentially result in data loss in case if system that was rejected was unable to surface the conflict to the user (f.e change coming from outbound integration such as John Deere where we cannot control the path of user storing the data).
+
+However, in this example the two changes are technically not conflicting directly, they only conflict on the revision number and given that agrirouter sees the full object for all its revisions (at different times), it may be able to apply three way merge conflict resolution.
+
+This is approximate example of how it might work (actual implementation could be different):
+
+```mermaid
+flowchart TB
+    BaseRevision["Base Revision<br/>revision 8"]
+    ClientASentRepresentation["Client A<br/>Representation A"]
+    ClientBSentRepresentation["Client B<br/>Representation B"]
+    Revision9["Revision 9 <br/>after applying Client A changes"]
+    PatchA["Patch A<br/>Base -> Client A"]
+    PatchB["Patch B<br/>Base -> Client B"]
+    MergedRevision["Merged Revision<br/>revision 10"]
+    BaseRevision -->|"Client A changes"| Revision9
+    ClientASentRepresentation -->|"Client A changes"| Revision9
+    ClientASentRepresentation -->|"diff"| PatchA
+    BaseRevision -->|"diff"| PatchA
+    ClientBSentRepresentation -->|"diff"| PatchB
+    BaseRevision -->|"diff"| PatchB
+    PatchB <-->|"check for conflicts"| PatchA
+    Revision9 --> MergedRevision
+    PatchB -->|"when no conflict:<br/>apply Patch B to Revision 9"| MergedRevision
+    %% ceasg:{"id":"2fpch1lu"} %%
+    %% mermaid-flow:pos BaseRevision=576,-66 ClientASentRepresentation=209,-4 ClientBSentRepresentation=827,248 Revision9=416,113 PatchA=333,378 PatchB=637,375 MergedRevision=571,583
+```
+
 
 ## Rejected alternatives
 
