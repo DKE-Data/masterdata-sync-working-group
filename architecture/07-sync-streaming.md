@@ -1,4 +1,4 @@
-# ADR 06 - Sync streaming
+# ADR 07 - Sync streaming
 
 - **Status:** WIP
 - **Scope:** Synchronization of master data between agrirouter and partner platforms using streaming approach
