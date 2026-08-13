@@ -10,12 +10,12 @@ redrawn in one system is not reflected in the others, a new customer must be
 entered by hand everywhere, and RTK-surveyed boundaries or guidance lines are
 hard to move between products.
 
-This document specifies the *Agriculture Masterdata Sync Protocol* (AMSP): a set
+This document specifies the *Agriculture Masterdata Sync Protocol* (**AgmaSync**)<sup>1</sup>: a set
 of data formats and operations enabling connected systems
 exchange and continuously synchronize agricultural **master data** across the
 agrirouter platform, bidirectionally, over an n:m network of participants.
 
-_Alternative name suggestion: "**AgmaSync**", derives from **Ag**riculture **Ma**sterdata **Sync**hronization and echoes the ancient Greek word **agma** (ἆγμα), symbolizing the bringing together of distributed information into a unified dataset._
+<sup>1</sup>"**AgmaSync**", derives from **Ag**riculture **Ma**sterdata **Sync**hronization and echoes the ancient Greek word **agma** (ἆγμα), meaning "fragment", symbolizing the bringing together of distributed information into a unified dataset.
 
 ## Scope
 
