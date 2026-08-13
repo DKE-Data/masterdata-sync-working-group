@@ -91,9 +91,12 @@ Arrows below mean *holds a reference to*.
 
 ```mermaid
 flowchart LR
-    FI["Field<br/>Long Meadow"] -->|"fieldBoundaries"| B["FieldBoundary"]
-    FI -->|"farm"| F["Farm<br/>Manor Farm"]
-    F -->|"owner"| P["Person<br/>Sarah Ashcroft"]
+    FI["Field
+    Long Meadow"] -->|"fieldBoundaries"| B["FieldBoundary"]
+    FI -->|"farm"| F["Farm
+    Manor Farm"]
+    F -->|"owner"| P["Person
+    Sarah Ashcroft"]
 ```
 
 No organization, no membership, no partner. The person is the business, and
@@ -103,10 +106,15 @@ nothing has to be declared about what kind of party she is.
 
 ```mermaid
 flowchart LR
-    F1["Farm<br/>Manor Farm"] -->|"owner"| O["Organization<br/>Ashcroft Farms Ltd"]
-    F2["Farm<br/>Hill Farm"] -->|"owner"| O
-    P1["Person<br/>Sarah Ashcroft<br/>role: FARM_MANAGER"] -->|"organizationId"| O
-    P2["Person<br/>James Ashcroft<br/>role: OPERATOR"] -->|"organizationId"| O
+    F1["FarmManor Farm"] -->|"owner"| O["Organization\nAshcroft Farms Ltd"]
+    F2["Farm
+Hill Farm"] -->|"owner"| O
+    P1["Person
+Sarah Ashcroft
+role: FARM_MANAGER"] -->|"organizationId"| O
+    P2["Person
+James Ashcroft
+role: OPERATOR"] -->|"organizationId"| O
 ```
 
 Two farms, one owner, two people carrying their roles on themselves.
@@ -115,9 +123,13 @@ Two farms, one owner, two people carrying their roles on themselves.
 
 ```mermaid
 flowchart LR
-    F["Farm<br/>Manor Farm"] -->|"owner"| O["Organization<br/>Ashcroft Farms Ltd"]
-    F -->|"partner CUSTOM_SERVICE_PROVIDER"| M["Organization<br/>Brookfield Contracting Ltd"]
-    F -->|"partner CROP_ADVISOR"| S["Organization<br/>Wessex Agronomy"]
+    F["Farm
+Manor Farm"] -->|"owner"| O["Organization
+Ashcroft Farms Ltd"]
+    F -->|"partner CUSTOM_SERVICE_PROVIDER"| M["Organization
+Brookfield Contracting Ltd"]
+    F -->|"partner CROP_ADVISOR"| S["Organization
+Wessex Agronomy"]
 ```
 
 The contractor is directly reference by farm it works on.
@@ -126,9 +138,13 @@ The contractor is directly reference by farm it works on.
 
 ```mermaid
 flowchart LR
-    FM["Farm<br/>Brookfield Home Farm"] -->|"owner"| M["Organization<br/>Brookfield Contracting Ltd"]
-    FW["Farm<br/>Manor Farm"] -->|"partner CUSTOM_SERVICE_PROVIDER"| M
-    FM -->|"partner CUSTOM_SERVICE_PROVIDER"| S["Organization<br/>Fenland Harvesting Ltd"]
+    FM["Farm
+Brookfield Home Farm"] -->|"owner"| M["Organization
+Brookfield Contracting Ltd"]
+    FW["Farm
+Manor Farm"] -->|"partner CUSTOM_SERVICE_PROVIDER"| M
+    FM -->|"partner CUSTOM_SERVICE_PROVIDER"| S["Organization
+Fenland Harvesting Ltd"]
 ```
 
 Brookfield owns land, works Ashcroft's land, and hires Fenland for its own harvest. All
