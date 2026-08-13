@@ -27,21 +27,23 @@ The revision which agrirouter determined to be the current one for the object wi
 A partner's primary store often has nowhere to put the agrirouter revision - this is typical of outbound integrations, where the revision cannot be propagated down to the actual data store. Such clients are still expected to keep the last known revision per object, alongside their primary store rather than inside it.
 
 ```mermaid
-flowchart TB
-    A["Client A<br/>last known revision 8"]
-    B["Client B<br/>last known revision 8"]
-    C["agrirouter<br/>current revision 8->9"]
-    A -->|"writes with revision 8"| C
-    B -->|"writes with revision 8"| C
-    C -->|"rejects B's write<br/>with conflict error"| B
-    %% ceasg:{"id":"h0g1x7i7"} %%
-    %% mermaid-flow:pos A=102,59 B=389,62 C=239,-97
+sequenceDiagram
+    participant A as Client A
+    participant AR as agrirouter
+    participant B as Client B
+    AR->>A: pushes revision 8
+    AR->>B: pushes revision 8
+    A->>AR: writes with revision 8
+    AR-->>A: accepted, now at revision 9
+    B->>AR: writes with revision 8
+    AR-->>B: conflict error, current revision is 9
+    AR->>B: pushes revision 9
 ```
 
 ### Automatic conflict Resolution
 
 
-Given f.e such two writes that were done at approximately same time:
+Example - two writes are done at approximately same time:
 
 `PUT /masterdata/field-boundaries/123`
 
@@ -75,13 +77,13 @@ Given f.e such two writes that were done at approximately same time:
 }
 ```
 
-, which might have been done concurrently by two different clients or semi-concurrently (f.e if one of systems lags on receiving the latest revision from sync stream or sync stream is down).
+Let's assume they have been done concurrently or semi-concurrently (e.g. if one of systems lags on receiving the latest revision from sync stream or sync stream is down) by two different clients .
 
-One of changes might be rejected by CAS, which would potentially result in data loss in case if system that was rejected was unable to surface the conflict to the user (f.e change coming from outbound integration such as John Deere where we cannot control the path of user storing the data).
+One of the changes might be rejected by CAS, which would potentially result in data loss in case the system that was rejected was unable to surface the conflict to the user (e.g. change coming from outbound integration such as John Deere, where we cannot control the path of user storing the data).
 
-However, in this example the two changes are technically not conflicting directly, they only conflict on the revision number and given that agrirouter sees the full object for all its revisions (at different times), it may be able to apply three way merge conflict resolution.
+However, the two changes are technically not conflicting directly, they only conflict on the revision number. Given that agrirouter sees the full object for all its revisions (at different times), it may be able to apply **three-way-merge** conflict resolution.
 
-This is approximate example of how it might work (actual implementation could be different):
+This is how it might work (actual implementation could vary):
 
 ```mermaid
 flowchart TB
