@@ -18,12 +18,29 @@ We shall require CAS for write operations except following cases:
 - object does not exist yet (_create_ operation)
 - object is being or is already deactivated (for deactivation idempotency)
 - requested value for the object is exactly the same as the current value (there is no need to force client to resolve any conflicts, as the resulting value is expected to be the same)
+- agrirouter was able to resolve the conflict automatically via three-way merge [see Automatic conflict resolution](#automatic-conflict-resolution)
 
 We would use revision number as the CAS value, since it is already a monotonically increasing positive integer assigned solely by agrirouter and has the properties of total order and uniqueness within the object.
 
 The revision which agrirouter determined to be the current one for the object will be returned to the client in the response of every write operation. Note that in situations when there was a mismatch on previous revision (see exceptions above), but the write operation is still considered successful, the response might contain a revision that is NOT simply the previous revision + 1, which means clients MUST always use the revision that is returned in the response.
 
 A partner's primary store often has nowhere to put the agrirouter revision - this is typical of outbound integrations, where the revision cannot be propagated down to the actual data store. Such clients are still expected to keep the last known revision per object, alongside their primary store rather than inside it.
+
+```mermaid
+flowchart TB
+    A["Client A<br/>last known revision 8"]
+    B["Client B<br/>last known revision 8"]
+    C["agrirouter<br/>current revision 8->9"]
+    A -->|"writes with revision 8"| C
+    B -->|"writes with revision 8"| C
+    C -->|"rejects B's write<br/>with conflict error"| B
+    %% ceasg:{"id":"h0g1x7i7"} %%
+    %% mermaid-flow:pos A=102,59 B=389,62 C=239,-97
+```
+
+### Automatic conflict Resolution
+
+<!-- TBD: explain this a bit -->
 
 ## Rejected alternatives
 
