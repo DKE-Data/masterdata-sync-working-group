@@ -28,9 +28,9 @@ Despite these examples the terminology and approaches used in ISOXML and EFDI ar
 
 ## Decision
 
-AMSP aims to support the same terminology and overall semantics as ISOXML and EFDI, however it is not a strict copy of either of them. 
-AMSP defines its own canonical data model that is used for the purpose of Masterdata Sync.
+AgmaSync aims to support the same terminology and overall semantics as ISOXML and EFDI, however it is not a strict copy of either of them. 
+AgmaSync defines its own canonical data model that is used for the purpose of Masterdata Sync.
 
-AMSP also defines a set of validation rules and corresponding error responses that are used to enforce a canonical representation of all entities and their relationships.
+AgmaSync also defines a set of validation rules and corresponding error responses that are used to enforce a canonical representation of all entities and their relationships.
 
 See exact data model definitions in [openapi.yaml](../openapi.yaml) and explanatory [specification.md](../specification.md).

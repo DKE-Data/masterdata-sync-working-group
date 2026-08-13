@@ -8,7 +8,7 @@ info:
   title: Agriculture Masterdata Sync API
   version: 0.1.0-alpha1
   description: >
-    HTTP surface for the Agriculture Masterdata Sync Protocol (AMSP). It lets a
+    HTTP surface for the Agriculture Masterdata Sync protocol (AgmaSync). It lets a
     connected participant send, deactivate, request, and read the master-data
     entities (organizations, persons, farms, fields, field boundaries) that
     agrirouter synchronizes across an n:m network of systems, and configure
