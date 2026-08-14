@@ -78,8 +78,13 @@ naturally, and there it is permitted as a non-normative implementation aid:
 `revision` versions **one canonical object**. It is not, by itself, sufficient for
 [resume](../specification.md#initial-load-and-seeding): a returning partner needs to
 know what changed across *all* objects it is entitled to, not to walk each one. That
-calls for a **monotonic delivery sequence / checkpoint per endpoint**, so a partner
-resumes from "the last position I confirmed."
+calls for a second, separate ordering - a **monotonic delivery sequence held per
+application**, so a partner resumes from "the last position I confirmed."
+
+The two are independent and MUST NOT be conflated: `revision` answers "is this
+copy newer than mine" for one object, the delivery sequence answers "what have I
+not seen yet" across all of them. [ADR 07](./07-sync-streaming.md) defines the
+latter.
 
 ## Summary
 

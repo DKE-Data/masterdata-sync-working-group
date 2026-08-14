@@ -112,6 +112,21 @@ flowchart TB
     %% mermaid-flow:gpos sub1=718,71,207,227
 ```
 
+#### A merged revision MUST NOT be origin-suppressed
+
+[Loop prevention](../specification.md#loop-prevention) says agrirouter never
+echoes a change back to the endpoint that made it. That rule is safe only because
+a write carries the whole object: whoever wrote the current value necessarily
+wrote all of it, so withholding it withholds nothing the writer does not already
+hold.
+
+A three-way merge is the one case where that premise fails. The merged revision's
+source is B, but its content includes A's change, which B never sent and - if the
+merge is suppressed as B's own echo - never learns about.
+
+agrirouter MUST therefore mark a revision it synthesised and deliver it to its
+source endpoint as well. The exemption is narrow: it applies to revisions
+agrirouter produced by merging, never to a revision a client wrote as sent.
 
 ## Rejected alternatives
 
@@ -133,4 +148,8 @@ partner's own store remains a fine implementation choice.
 Special cases:
 - when two clients attempt to create the same object concurrently, only one of them will succeed, and the other will receive a conflict error. The client that received the conflict error will have to fetch the latest version of the object and apply their changes or decide to discard the update. Even though this is not a CAS operation per se, it still constitutes a conflict.
 - when a client attempts to deactivate an object simultaneously with another client attempting to modify it, this is considered a conflict and only one of the clients will succeed. Even though further deactivations are idempotent and their prior revision is ignored when the object is already deactivated, for the first deactivation attempt, CAS mechanism must be applied.
+
+Consequences of automatic merge:
+- a revision can exist that no client sent, which means `sourceEndpointId` stops being a complete answer to "who wrote this". agrirouter MUST record that a revision was merged, and MUST NOT origin-suppress it.
+- the merging client receives a revision back on the same object it just wrote successfully. Since apply is idempotent and the returned revision is authoritative anyway, this needs nothing new on the client beyond the usual "adopt the revision agrirouter returns".
 

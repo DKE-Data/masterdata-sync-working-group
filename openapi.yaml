@@ -492,17 +492,21 @@ paths:
       tags: [Events]
       summary: Receive master-data changes (Server-Sent Events)
       description: >
-        A persistent SSE stream of master-data changes for the calling endpoint.
-        agrirouter never echoes a change back to the endpoint it originated from.
-        Because one stream carries every opted-in entity type, each event's `data`
-        is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
-        `FieldBoundary` discriminated by its `type` property. Delivered objects
-        carry this endpoint's own `localId` in `idMappings` when known.
+        A persistent SSE stream of master-data changes for the calling
+        application, carrying every tenant it is routed to and every entity type
+        it is opted into. agrirouter never echoes a change back to the endpoint it
+        originated from. Each event's `data` is an `Entity` — an `Organization`,
+        `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type`
+        property. Delivered objects carry the receiving endpoint's own `localId`
+        in `idMappings` when known.
 
-        Opting an entity type in enqueues its canonical set onto this same stream,
-        closed by a `CANONICAL_SET_END` frame. Initial load is therefore a block of
-        events in the ordinary sequence rather than a second delivery mechanism,
-        and `Last-Event-ID` is the only position the endpoint keeps.
+        Opting an entity type in, or routing a new tenant to the hub, schedules a
+        sweep of the corresponding canonical objects onto this same stream, each
+        sweep closed by a `CANONICAL_SET_END` frame. Initial load is therefore not
+        a second delivery mechanism, and `Last-Event-ID` remains the only position
+        the application keeps — though while a sweep is in progress that value is
+        an opaque composite rather than a single event id, and it MUST be sent
+        back verbatim. Positions do not expire.
       operationId: streamMasterdataEvents
       responses:
         '200':
@@ -553,11 +557,12 @@ paths:
 
         Opting an entity type in also starts its initial load: that entity
         type enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
-        resource) and its canonical set is enqueued onto the endpoint's event
-        stream straight away, closed by a `CANONICAL_SET_END` frame — whether or
-        not the endpoint is connected at the time. Removing a toggle opts the
-        entity type out and discards its initial-load state, so opting it back in
-        runs a full initial load.
+        resource) and a sweep of its canonical set is scheduled onto the
+        application's event stream, closed by a `CANONICAL_SET_END` frame. The
+        sweep runs when the application connects and is not lost if it is
+        disconnected at the time. Removing a toggle opts the entity type out and
+        discards its initial-load state, so opting it back in runs a full initial
+        load.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -1269,14 +1274,16 @@ components:
     CanonicalSetEnd:
       type: object
       description: >
-        Payload of a `CANONICAL_SET_END` frame. It closes the block of canonical
-        objects enqueued when an entity type was opted in, and it is what tells
+        Payload of a `CANONICAL_SET_END` frame. It closes the sweep of canonical
+        objects that runs when an entity type is opted in, and it is what tells
         the endpoint that the objects before it are the whole canonical set —
-        without it the block is indistinguishable from ordinary changes. It is an
-        ordinary event: it carries an `id` and is replayed on resume like any
-        other. It marks a boundary in the stream only. It does not assert that the
-        endpoint has reconciled the set; that is asserted by the endpoint itself,
-        by setting `LOADING_TO_AGRIROUTER` on the initial-load status subresource.
+        without it the sweep is indistinguishable from ordinary changes. It marks
+        a boundary in the delivery only. It does not assert that the endpoint has
+        reconciled the set; that is asserted by the endpoint itself, by setting
+        `LOADING_TO_AGRIROUTER` on the initial-load status subresource. An
+        endpoint that restarts and did not record the frame can equally read the
+        answer off its own cursor, in which the entity type's sweep is either
+        still present or is not.
       properties:
         entityType:
           type: string
@@ -1368,20 +1375,6 @@ components:
             by agrirouter when the entity type advances to
             `LOADING_TO_AGRIROUTER`. agrirouter renders it as "waiting for you in
             <app>", together with `resolutionUrl` where one is configured.
-        canonicalSetEndEventId:
-          type: string
-          readOnly: true
-          description: >
-            Id of the `CANONICAL_SET_END` event that closes this entity type's
-            canonical set on the event stream. agrirouter assigns it when it
-            enqueues the set, so it is present as soon as the entity type is
-            opted in — before the endpoint has read anything, and whether or not
-            it is connected. It is a position in the stream, not a statement
-            about the endpoint: an endpoint whose committed `Last-Event-ID` is at
-            or past this id holds the whole canonical set. Discarded together with
-            the initial-load state when the entity type is opted out; opting it
-            back in enqueues a new set and a new marker.
-          examples: ['evt-6001']
         updatedAt:
           type: string
           format: date-time

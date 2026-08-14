@@ -1,169 +1,357 @@
 # ADR 07 - Sync streaming
 
 - **Status:** WIP
-- **Scope:** Synchronization of master data between agrirouter and partner platforms using streaming approach
+- **Scope:** Delivery of canonical master data to partner applications - the store
+  that backs delivery, the connection unit, catch-up, and resume
 
 ## Context
 
-<!-- TODO: explain streaming and resumability -->
-https://html.spec.whatwg.org/multipage/server-sent-events.html#the-last-event-id-header
+Delivery has to do two things without either being a special case: hand a
+returning application everything that changed while it was away, and hand a new
+application everything there is. [ADR 06](./06-initial-load.md) describes the
+state machine around the second of those. This ADR describes the mechanism under
+both.
+
+An earlier version of this ADR did it with a persisted per-endpoint queue: opting
+an entity type in wrote the canonical set into that endpoint's queue as ordinary
+events, and `Last-Event-ID` was the only position an endpoint ever kept. That
+construction has two failures, and both are structural rather than tuning
+problems.
+
+**The retention cliff.** A queue accumulates, so it has to be trimmed; trimming
+evicts positions, and an application offline long enough has to reload from
+scratch. Worse, the reload is itself written into the queue, so a set large enough
+to outlive its own retention triggers a reload that materializes the set again -
+a loop with no fixed point.
+
+**Write amplification.** A queue holds a copy per recipient. Every change to a
+canonical object was written once into each entitled endpoint's queue, and each
+tenant's canonical set was copied again whenever one of that tenant's endpoints
+was opted into a type. Storage therefore scaled with changes multiplied by
+recipients, for data that exists once. A partner application holding 100k endpoints held 100k queues, each with its own retention to
+trim and its own position to track.
 
 ## Decision
 
-### Resuming a stream
+### Delivery reads a compacted index, not a log
 
-Every event carries an `id`. On reconnect the endpoint sends the id of the last
-event it processed back in the `Last-Event-ID` header, and agrirouter continues
-from the event *after* it. This only works while that id is still in the
-persisted queue: the queue has a finite retention, so an endpoint that was down
-long enough falls off the tail. In that case agrirouter cannot enumerate what
-the endpoint missed, and the only way back to agreement is a full replay -
-i.e. re-entering [initial load](./06-initial-load.md).
+agrirouter maintains one row per canonical object, carrying a globally ordered
+number that is rewritten every time the object changes:
 
-"Processed" means durably applied, not merely received: an endpoint MUST resume on
-the last event it committed to its own store, and it derives that id from that
-store rather than from whatever its stream client last read. Delivery is therefore
-at-least-once - everything after the committed position is sent again on reconnect,
-so a connection dropping mid-batch costs a redelivery rather than a silent gap.
-Redelivery arrives in the original order, so an endpoint needs its apply to be
-idempotent, but it does not need to reason about ordering.
+```
+last_update_event
+  tenant_id       the tenant the object belongs to
+  type            farm / field / organization / person / fieldBoundary
+  id              the object's agrirouterId
+  tier            its position in the dependency graph (see below)
+  source_endpoint the endpoint whose change produced the current value
+  last_event_id   globally ordered, rewritten on every change
+```
+
+There is one row per object, never one per change. The table is therefore
+proportional to the amount of master data in existence, not to how much of it has
+ever been edited, and rows are **not evicted**. The system cannot be in a state
+which is too far behind to resume: an application away for 5 minutes and one
+away for 5 weeks run the same query, and the second merely gets more rows
+back (assuming more changes happened in the meantime).
+
+This means we do not support intermediate states. An object edited three times while an
+application was disconnected is delivered once, carrying its current value; the
+application never learns that the two earlier edits happened. That is consistent
+with what this protocol
+[declares itself not to be](../specification.md#what-this-protocol-is-and-is-not) -
+a history store - and it is cheaper than replaying the intermediate
+values only to overwrite them.
+
+It also supports deletion at no additional cost. Because agrirouter
+[deactivates rather than removes](../specification.md#deactivation), a deleted
+object keeps its row, sets `active` to false and takes a new `last_event_id`, so
+deletions ride the same query as everything else. A design built on hard deletes
+would need a second retention clock for tombstones purely so that catch-up could
+express what had disappeared. This one does not.
+
+### One stream per app, tenant in the envelope
+
+The connection unit is the **application**, not the endpoint. Tenant identity
+travels in the event envelope, so a partner serving 100k farmers holds one
+connection and one position rather than 100k of each, and server-side delivery
+state is proportional to the number of applications.
+
+Which tenants an application may read is decided by the hub
+routes the user created ([ADR 04](./04-routing.md)), and is applied as a predicate on
+the query rather than as a property of the connection.
+
+Opt-in per entity type is not a second predicate alongside it. Opt-in is held per
+endpoint ([Routing and opt-in](../specification.md#routing-and-opt-in)), and each
+of an application's endpoints belongs to a different tenant, so two tenants on the
+same stream routinely differ - one exchanging farms and fields, the other only
+farms. The filter is therefore per tenant and type, read from each tenant's own
+`masterdata-config`. An application MUST NOT assume the types it receives for one
+tenant are the types it receives for another.
+
+### Catch-up sweeps by tier, the live tail follows it
+
+Ordering by `last_event_id` alone is wrong, and not in a rare case. Each row
+carries the number of its *most recent* change, so an object whose parent was
+edited more recently than itself sorts ahead of that parent:
+
+```
+farm  Manor Farm    created at 20, renamed at 60   → row reads 60
+field Long Meadow   created at 30                  → row reads 30
+```
+
+Sorted by `last_event_id`, Long Meadow arrives before the farm it references.
+Over time this is the normal case rather than the exception, and it would break
+the dependency ordering that [ADR 06](./06-initial-load.md) needs in order to
+reconcile a field against a farm the application already holds.
+
+Delivery therefore runs in two phases. Each entity type has a **tier** reflecting
+the dependency graph - parties before farms, farms before fields, fields before
+boundaries.
 
 ```mermaid
 flowchart TB
-    CONNECT["app opens stream"]
-    HASID{"Last-Event-ID<br/>present?"}
-    INQUEUE{"id still in<br/>persisted queue?"}
-    REPLAY["replay queued events<br/>after that id"]
-    FULL["reset to LOADING_FROM_AGRIROUTER<br/>(full replay)"]
-    LIVE["stream live events"]
-    CONNECT --> HASID
-    HASID -->|"yes"| INQUEUE
-    INQUEUE -->|"yes - within retention"| REPLAY
-    REPLAY --> LIVE
-    HASID -->|"no - new subscription"| FULL
-    INQUEUE -->|"no - evicted or unknown"| FULL
-    FULL --> LIVE
-    %% ceasg:{"id":"h96o8i7i"} %%
-    %% mermaid-flow:pos CONNECT=308,99 HASID=212,268 INQUEUE=536,344 REPLAY=537,539 LIVE=307,641 FULL=210,485
+    PIN["pin cutoff = highest last_event_id right now \n fixed for the rest of this sweep"]
+    SWEEP["sweep tier by tier, ascending \n last_event_id &gt; cursor AND &lt;= cutoff"]
+    MARK["emit end-of-set marker per tier"]
+    TAIL["tail live \n last_event_id &gt; cutoff"]
+    PIN --> SWEEP
+    SWEEP --> MARK
+    MARK --> TAIL
 ```
 
-1. **No `Last-Event-ID`.** The endpoint has no position to resume from, so it is
-   treated as a fresh subscription and goes through initial load.
-2. **Known id.** The id is still within the retention window: agrirouter sends
-   the queued events that follow it, then switches to live delivery. The
-   endpoint is caught up without a full replay.
-3. **Unknown or evicted id.** The endpoint was offline longer than retention, or
-   presents an id agrirouter never issued. agrirouter MUST NOT silently continue
-   from the current head - that would leave a gap the endpoint cannot detect.
-   Instead it signals the endpoint that the resume point is gone and moves the
-   affected entity types back to `LOADING_FROM_AGRIROUTER`, so the canonical set
-   is handed over again and reconciled as in [ADR 06](./06-initial-load.md).
+The **sweep** walks tiers in ascending order, and within a tier orders by
+`last_event_id`:
 
-### Replay is materialized when the entity type is opted in
-
-Opting an entity type in enqueues its canonical set into the endpoint's persisted
-queue immediately, at the tail, with ordinary event ids. Initial load is therefore
-not a separate delivery mode - it is a block of events,
-sitting in the same queue as everything else, and `Last-Event-ID` remains the only
-position an endpoint ever needs to keep.
-
-**Example.** Endpoint E has processed up to `evt-1000` and is offline. The user
-opts `fields` in on a tenant holding 5000 of them, and farm changes keep arriving
-in the meantime.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as User
-    participant AR as agrirouter
-    participant Q as E queue
-    participant E as Endpoint E
-
-    Note over E: offline, last processed evt-1000
-    U->>AR: opt fields in
-    AR->>Q: enqueue 5000 field objects<br/>evt-1001 ... evt-6000
-    AR->>Q: CANONICAL_SET_END (fields)<br/>evt-6001
-    AR->>Q: live farm changes<br/>evt-6002 ... evt-6201
-    E->>AR: GET /masterdata/events<br/>Last-Event-ID: evt-1000
-    Q-->>E: evt-1001 ... evt-6201, one ordered run
-    Note over E: initial load and missed live changes<br/>arrive as one sequence, one cursor
+```sql
+SELECT * FROM last_update_event
+WHERE  last_event_id > :cursor
+  AND  last_event_id <= :cutoff
+  AND  tier = :k
+  AND  tenant_id IN (:granted)
+ORDER BY last_event_id ASC
 ```
 
-The ids are assigned when the toggle happens, not when E shows up, so the canonical
-set occupies `evt-1001` to `evt-6000` and everything that happens afterwards sits
-behind it. E's stored position is still `evt-1000` and still means what it did
-before - it resumes the way it would from any other disconnect. The load and the
-changes it missed arrive as one contiguous run, so there is no phase to switch
-between and no second request to make. Reading the stream therefore needs no
-knowledge that a load began while E was away; what E does learn, in band, is where
-the block ends, because that is what licenses the confirmation.
+The **tail** then delivers everything above the cutoff in change order, emitting
+parents before children within a single change.
 
-Two properties follow from that. Dependency order is free: opting farms and fields
-in together enqueues farms first, so they arrive first, which is what
-[ADR 06](./06-initial-load.md) needs in order to reconcile a field against a farm
-the endpoint already holds. And a drop mid-load is not a special case - an endpoint
-that stops at `evt-4000` reconnects with that id and carries on, using the same
-mechanism as a reconnect in steady state.
+The cutoff is not chosen, it is observed: the highest `last_event_id` in existence
+when the sweep begins. It matters as much as the lower bound, because the two
+phases divide the table exactly between them - the sweep owns everything at or
+below the cutoff, the tail owns everything after, and no row belongs to neither.
+Three things that happen during a sweep long enough to matter:
 
-### The end of a block is marked in band
+- **An object already swept is edited.** Its row moves above the cutoff, so the
+  tail delivers it after the sweep ends. It is applied twice and the later value
+  wins, which is why apply MUST be idempotent.
+- **An object in a tier not yet reached is edited.** Its row moves above the
+  cutoff, so the sweep's filter skips it and the tail delivers it. It arrives
+  once, current.
+- **A new parent and a new child are both created.** Both are above the cutoff, so
+  both are skipped by the sweep and delivered by the tail, which orders the parent
+  first within that change. The reference resolves.
 
-Materializing the set is what makes the block invisible: `evt-1001 ... evt-6000`
-and everything behind it are all `MASTERDATA_CHANGED`, so nothing in the run tells
-E it now holds the whole canonical set. agrirouter therefore closes each block with
-a `CANONICAL_SET_END { entityType }` event at its tail, enqueued at toggle time
-like the objects before it. It is an ordinary event: it carries an id, it is
-replayed on resume, and a block per entity type means farms' marker precedes
-fields' objects, which is the order [ADR 06](./06-initial-load.md) reconciles in.
+### The position is composite for as long as a sweep is running
 
-The marker is a **boundary in the queue, not a claim about either side**. It says
-the objects before it are the whole canonical set, so E that has consumed past it
-is reconciling against a complete one. It does not say the user has worked through
-the conflicts that reconciling surfaced. The confirmation E sends afterwards,
-`PUT .../masterdata-initial-load/{entityType}/status`, is the one that claims that,
-and the gap between the two is human-paced and unbounded.
+A row's number says when that object last changed, not how far the application has
+read. The sweep orders those numbers within a tier and then starts the next tier
+over, so the numbers increase through a tier and drop back at every tier change:
 
-E MUST NOT stall the stream across that gap. Live changes for the type sit behind
-the marker on the same cursor, and waiting for a user is exactly what pushes a
-position out of retention, so E keeps consuming and reconciles against a canonical
-view that is still moving. Redelivery and later changes both land on an idempotent
-apply, which is what makes that safe.
+```
+tier 2 (farms)   40, 50, 60
+tier 3 (fields)  30, 70, 80
+                 ↑ lower than the farm before it
+```
 
-Across a restart, "has the set finished arriving" is not a question agrirouter's
-state answers - it retunrs `LOADING_FROM_AGRIROUTER` on both sides of the marker.
-The marker's id answers it, and agrirouter knows that id because it minted it:
-enqueueing the block assigns it, in the same operation that puts the entity type
-into `LOADING_FROM_AGRIROUTER`. It is published as `canonicalSetEndEventId` on the
-status subresource, populated from that moment - before E has read anything, and
-whether or not E is even connected. The field is a position in the queue, not a
-statement about E, which is why agrirouter can fill it in without observing E at
-all. Opting the type out discards the state and the id with it; opting back in
-mints a new block and a new marker.
+For an application that reconnects it is not sufficient to report `60`: agrirouter
+cannot tell whether it finished farms or is part-way through fields, and
+"everything after 60" would skip Long Meadow at 30. The position must therefore
+carry the tier and the offset within it. It must also carry the cutoff, because
+every tier has to be swept against the *same* one - recomputing it on reconnect
+would leave changes to an already-swept tier below the new cutoff and above the
+finished sweep, delivered by neither phase.
 
-E derives the rest by comparing that id against its own committed position: at or
-past it means the whole set is held. This is the one place in this ADR where an
-event id is ordered rather than opaque, and it holds because the delivery sequence
-is monotonic per endpoint ([ADR 03](./03-revision-model.md)). An endpoint may
-instead record a durable bit when it commits the marker - a local shortcut, not a
-second source of truth. Either way E keeps no state machine, only the answer.
+Most sweeps are scoped to one tenant, so the entry names it. An application can
+have several running at once - one farmer connected last week and is still
+loading, another was routed to the hub this morning:
+
+```
+{ "position": 90,
+  "sweeps": [
+    { "tenant": "t-ashcroft",   "tier": 3, "cursor": 30, "cutoff": 80 },
+    { "tenant": "t-brookfield", "tier": 2, "cursor": 40, "cutoff": 90 }
+  ] }
+```
+
+`cursor` and `cutoff` are the two bounds of that sweep's query. Each sweep carries its own cutoff, because each was
+pinned when that sweep began. Once the list is empty the position is a single
+number again, and stays one for the whole of steady state.
+
+This does not disturb SSE: `Last-Event-ID` is opaque to the protocol, so the
+encoded value rides in it and reconnects work unchanged. What it does mean is that
+two positions can no longer be compared, and that agrirouter MUST be able to
+validate what comes back - the cursor SHOULD be signed and MUST be versioned. The
+stakes are low, though, because the fallback for a cursor agrirouter cannot read
+is a fresh sweep, which here is an ordinary supported operation rather than an
+incident.
+
+### A new tenant or a new entity type is swept, not tailed
+
+Both arrive **behind** the application's position, which is why neither can be a
+predicate on the ordinary query.
+
+A farmer who grants access today has data created months ago, so those rows carry
+old numbers. An application sitting at 90 that simply asked for everything above
+90 would receive none of it and would show the farmer an empty account. The same
+holds when that farmer later opts their endpoint into a further entity type: their
+rows of that type are already below the position too.
+
+Each is therefore its own bounded sweep, running alongside the tail with its own
+entry in the cursor - the same machinery as initial load, differing only in its
+predicate:
+
+| Trigger | Sweep predicate |
+|---|---|
+| First connection | (none beyond grants and opt-in) |
+| A tenant routes one of its endpoints to the hub | `tenant_id = :t` |
+| That endpoint is opted into a further entity type | `tenant_id = :t AND type = :type` |
+| Application-requested resync | `tenant_id = :t` |
+
+Every one of these is scoped to a single tenant, because every one of them is an
+act by that tenant's user on their own endpoint. An application cannot opt itself
+into a type across its tenants, and agrirouter never sweeps more than one tenant
+on any trigger except a first connection.
+
+### The cursor belongs to the application, not to agrirouter
+
+agrirouter stores no position. It encodes the cursor into each frame's `id:`, the
+application persists it, and on reconnect hands it back as `Last-Event-ID`.
+Delivery is stateless in that respect: nothing on our side records where any
+application has got to, which is what keeps a partner with 100k endpoints from
+costing us 100k pieces of delivery state.
+
+An application MUST persist a cursor only for rows it has **durably applied**<sup>1</sup>,
+never for rows it has merely received, and MUST derive it from its own store
+rather than from whatever its stream client last read. Delivery is at-least-once:
+everything after the committed position is sent again on reconnect, so a
+connection dropping mid-sweep costs a redelivery rather than a gap.
+
+<sup>1</sup> _TBD whether this has consequences for load balancing on client side._
+
+**A new sweep has to reach a cursor that predates it.** A cursor written last week
+knows nothing about a tenant routed to the hub this morning, and the cursor is all
+the application sends - so agrirouter cannot learn from it that a sweep is owed.
+It works that out instead from state it holds anyway: on each connection it
+compares the application's hub routes and per-tenant opt-in against what the
+cursor has already swept, and adds a sweep entry for anything granted but not yet
+delivered.
+
+That comparison needs a stored answer to "has this tenant's farms been handed
+over", and [ADR 06](./06-initial-load.md)'s state machine is the natural holder of
+it - with one caveat. `LOADING_FROM_AGRIROUTER` spans both "the sweep is still
+running" and "the sweep finished, the user is still working through the conflicts
+it surfaced", and only the first of those owes a sweep. agrirouter MUST therefore
+record that the sweep completed at the moment it emits `CANONICAL_SET_END`,
+separately from the confirmation the endpoint sends later. Without that, every
+reconnect during a slow human resolution would start the sweep again.
+
+### The end of a set is answered by the cursor
+
+An application asks "do I hold the whole canonical set for this type" by reading
+its own cursor: the tier is either still listed in `sweeps` or it is not. No call
+to agrirouter, no id to compare against, and nothing that depends on the
+comparability the composite cursor gave up.
+
+agrirouter MUST still emit an in-band `CANONICAL_SET_END { entityType }` frame
+when a tier's sweep is exhausted, so that an application can act at the boundary
+as it streams rather than by inspecting its cursor after the fact. _The frame no
+longer needs an id that is knowable in advance, which is what the previous
+`canonicalSetEndEventId` on the initial-load status subresource existed to
+provide. That field is removed._
+
+The marker is an **upper limit in the delivery, not a claim about either
+side**: it says the objects before it are the whole canonical set, not that the
+user has worked through the conflicts. The confirmation in
+[ADR 06](./06-initial-load.md) is what claims that, and the gap between the two is
+human-paced and unbounded. An application MUST NOT stall delivery across that gap.
+
+### `last_event_id` MUST be assigned at commit
+
+_to review_
+
+A plain `bigserial` is **not safe** here. Sequence values are handed out before
+commit, so a reader can observe 80 while 70 is still in flight, save 80 as its
+position, and never be offered 70 again.
+
+Against a log this is survivable - the event is still in the log, and any full
+re-read finds it. Against a compacted index it is permanent silent divergence: the
+row's number will not change again until somebody happens to edit that object,
+which for master data may be years. The object is simply wrong on that
+application until then, with no error anywhere.
+
+agrirouter MUST therefore either assign `last_event_id` at commit under a single
+writer, or serve only rows below the oldest in-flight transaction
+(`pg_snapshot_xmin(pg_current_snapshot())`). This is a correctness requirement of
+the design, not an optimisation.
+
+### Origin suppression moves to read time
+
+With a queue per endpoint, [loop prevention](../specification.md#loop-prevention)
+filtered at enqueue. With one shared row per object there is nothing to filter at
+write time, so `source_endpoint` is carried on the row and suppression is applied
+as the row is read: a row whose source is the reading application's own endpoint
+for that tenant is not delivered to it.
+
+Compaction makes this coarser and it remains correct, because canonical objects
+are whole documents rather than deltas. If the application wrote the most recent
+change, it already holds that value, and any earlier change by somebody else is
+superseded by it. Suppressing the row therefore never withholds anything the
+application does not already have.
+
+### Rejected alternative: materializing the canonical set into a queue
+
+Described in [Context](#context). It buys one thing the current design pays for
+elsewhere: because agrirouter mints fresh sequential numbers as it writes the
+block, those numbers *are* a position, they never descend, and a single integer
+resumes correctly from anywhere including mid-load. The composite cursor above is
+the price of not writing those copies. It is worth paying, because the copies are
+what create both the retention cliff and the per-endpoint amplification, and
+neither has a fix that keeps the queue.
 
 ## Consequences
 
-- **Enqueueing happens whether or not anyone is listening.** A tenant with 5000
-  fields writes 5000 events into every endpoint opted into fields, at the moment of
-  the toggle, and an endpoint that never reconnects never reads them. Opting the
-  type back out before the first connection leaves them to be suppressed at
-  delivery.
-- **A large initial load can outlive its own retention.** If materializing pushes
-  an offline endpoint past the retention window, its resume point is evicted, which
-  triggers a full reload, which materializes the set again - a loop that never
-  converges. Initial-load events therefore MUST NOT be evicted before they have
-  been delivered once, or materialization MUST be deferred for endpoints with no
-  recent live stream.
-- **Conflict resolution runs while the stream keeps moving.** `LOADING_FROM_AGRIROUTER`
-  and ordinary delivery overlap for as long as the user takes, so an endpoint cannot
-  treat initial load as a quiet window in which the canonical set holds still.
-- **Losing the position during resolution costs the resolution.** An endpoint evicted
-  while a user is halfway through conflicts reloads the set and reconciles again.
-  The mappings already committed make most of the second pass a no-op, but the
-  unresolved remainder is presented to the user afresh.
-
+- **Initial load, catch-up, resume, re-seed and type backfill are one query.**
+  They differ in predicate and in starting cursor, not in mechanism. There is no
+  separate delivery mode to build, document, or fall back to.
+- **Nothing expires, so nothing has to be recovered.** The `LOADING_FROM_AGRIROUTER`
+  reset that an evicted position used to force does not arise, and neither does the
+  reload loop that a set larger than its own retention used to create. Rate
+  limiting a large sweep is a throughput concern rather than a correctness one.
+- **Applications lose intermediate states.** An application MUST NOT infer that it
+  observed every change to an object, and MUST NOT derive anything from the number
+  of times an object was delivered.
+- **Idempotent apply is key in two places**: redelivery on
+  reconnect, and the overlap between a long sweep and the tail behind it.
+- **Dependency-closed opt-in is structural.** An application opted into fields
+  but not farms gets an empty tier-2 sweep and then every field with an
+  unresolvable reference. [The rule](../specification.md#routing-and-opt-in) is what holds the sweep together.
+- **The table grows with objects ever created**, since deactivated rows are
+  retained. Growth is modest for master data, but purging deactivated rows would
+  reintroduce exactly the horizon this design removes, and MUST NOT be done
+  casually.
+- **A live tail can be served by polling the same table**, which would remove the
+  change log, its partitioning and its retention jobs entirely. The cost is a
+  latency floor and the collapsing of rapid successive edits, neither of which
+  matters for data this static. Not decided here.
+- **Delivery state is per application, but initial-load state is not.** The state
+  machine in [ADR 06](./06-initial-load.md) is per tenant and entity type while
+  the cursor is per application, _so the two are not keyed alike._
+- **agrirouter holds no position, but does hold what is owed.** Where an
+  application has got to is entirely in the cursor it sends; whether a sweep is
+  outstanding is ours, derived from routes and opt-in. A partner that loses its
+  cursor loses only its place, not its entitlement, and recovers by sweeping again.
+- **`LOADING_FROM_AGRIROUTER` needs an internal sub-state.** agrirouter has to
+  distinguish a sweep still running from a sweep delivered and awaiting the
+  endpoint's confirmation, or a reconnect during a slow resolution restarts the
+  sweep. This is internal - the endpoint reads the answer off its own cursor and
+  needs nothing new on the status subresource.

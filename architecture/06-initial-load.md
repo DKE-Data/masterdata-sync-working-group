@@ -103,10 +103,10 @@ Points worth noting about the calls themselves:
 
 - **There is no bulk "give me everything" endpoint.** The from-agrirouter
   direction reuses the ordinary event stream (`GET /masterdata/events`); initial
-  load is a replay over the same channel rather than a second delivery mechanism,
-  which is what lets [resume](#resume-is-the-same-machinery-not-a-special-case)
-  share the machinery. Stream position and reconnect are handled by
-  [ADR 07](./07-sync-streaming.md).
+  load is a sweep delivered over the same channel rather than a second delivery
+  mechanism, which is what lets
+  [resume](#resume-is-the-same-machinery-not-a-special-case) share the machinery.
+  Stream position and reconnect are handled by [ADR 07](./07-sync-streaming.md).
 - **Opting in is what starts the load.** The endpoint never sets
   `LOADING_FROM_AGRIROUTER` itself; `PUT .../masterdata-config` does. The two
   transitions the endpoint drives are the confirmation and the completion, both
@@ -116,27 +116,31 @@ Points worth noting about the calls themselves:
   configuration discards its state, from whichever state it was in, and opting it
   back in starts the load again. This is not a transition the endpoint can drive 
   by changing state, but by opting-out via masterdata-config resource,
-  and it is not an exception to the forward-only rule above: agrirouter cannot
-  enumerate the changes that happened while the type was opted out, so a full load
-  is the only way back to agreement - the same reasoning as an evicted resume point
-  in [ADR 07](./07-sync-streaming.md).
-- **The stream position is the only cursor.** The canonical set is enqueued as
-  ordinary events when the entity type is opted in, so how far the endpoint has
-  consumed is already expressed by `Last-Event-ID` - there is no second checkpoint
-  to carry on the confirmation. See [ADR 07](./07-sync-streaming.md).
+  and it is not an exception to the forward-only rule above: the endpoint's
+  position kept advancing on the types it stayed opted into, so objects of the
+  opted-out type that changed in the meantime now sit *behind* that position and
+  no ordinary catch-up would reach them. A full sweep of the type is the only way
+  back to agreement - the same shape as any other backfill in
+  [ADR 07](./07-sync-streaming.md).
+- **The stream position is the only cursor.** Opting an entity type in starts a
+  sweep of that type's canonical set on the application's ordinary stream, so how
+  far the endpoint has consumed is already expressed by its position - there is no
+  second checkpoint to carry on the confirmation. See
+  [ADR 07](./07-sync-streaming.md).
 - **The endpoint reads the state machine, it does not keep one.** agrirouter is
   authoritative for the phase, and `GET /endpoints/{eid}/masterdata-initial-load`
   is how an endpoint that restarted mid-flow finds out it still owes a push. The
-  one thing that resource cannot answer is whether the canonical set finished
+  one thing that resource does not answer is whether the canonical set finished
   arriving, since the state is `LOADING_FROM_AGRIROUTER` on both sides of the
-  marker - so it also carries `canonicalSetEndEventId`, the id agrirouter assigned
-  the marker when it enqueued the block, which the endpoint compares against its
-  own position.
+  marker - the endpoint answers that from its own cursor, in which the entity
+  type's sweep is either still listed or is not
+  ([ADR 07](./07-sync-streaming.md)).
 - **Waiting for the user does not pause the stream.** Delivery continues while
   conflicts are being resolved, so `LOADING_FROM_AGRIROUTER` is not a quiet window
-  and reconciliation runs against a set that keeps changing under it. Stalling the
-  stream instead risks eviction, and eviction during resolution means loading the
-  set again - [ADR 07](./07-sync-streaming.md).
+  and reconciliation runs against a set that keeps changing under it. One stream
+  carries every tenant ([ADR 07](./07-sync-streaming.md)), so an endpoint that
+  stalled it while one user deliberated would stop delivery for every other tenant
+  the application serves.
 - **The to-agrirouter direction uses the ordinary send operation.**  There is no
   special initial-load write path - `PUT /masterdata/farms/{localId}` is the same
   call the endpoint uses in steady state, and the same `409` signals a
@@ -186,7 +190,7 @@ The flag is independent of the fact that the whole canonical set has been receiv
 - **Drawn in the agrirouter canvas.** The user is in agrirouter and the work is elsewhere. This is the case the label and the link exist for.
 - **Created automatically.** Does not arise: default routing never creates a `HubRoute`. Opting into master data stays an explicit act by a user, for the reason [ADR 04](./04-routing.md) gives - connecting an application unintentionally can overwrite a lot of data - so an endpoint created by a partner that supports master data is not silently opted in, and no initial load starts with nobody to tell.
 
-**Waiting is not free**, which is why the partner should not rely on the user wandering back. A position evicted while resolution is half done costs a reload of the canonical set and a second pass over the same conflicts ([ADR 07](./07-sync-streaming.md)), so pending resolution SHOULD be surfaced in the partner's own UI rather than only on the screen the user happened to be on.
+**Waiting is not free**, which is why the partner should not rely on the user wandering back. Delivery does not expire, so a resolution left half done does not cost a reload of the canonical set ([ADR 07](./07-sync-streaming.md)) - but the set keeps moving underneath it, so the longer a conflict sits the likelier it is that the object the user is deciding about has changed again since it was surfaced. Pending resolution SHOULD therefore be surfaced in the partner's own UI rather than only on the screen the user happened to be on.
 
 ### Granularity mismatches and differing requirements
 
@@ -197,22 +201,26 @@ Two problems surface at initial load that agrirouter deliberately does **not** t
 
 ### Resume is the same machinery, not a special case
 
-A connection can drop mid-load, or an already-`COMPLETED` endpoint can go offline while changes accumulate on both sides. Rather than re-running initial load from scratch, the endpoint resumes from the last stream position it processed. That position is the **per-endpoint delivery sequence** [ADR 03](./03-revision-model.md) calls for rather than the per-object `revision`, and it is carried as `Last-Event-ID` - the catch-up semantics, including what happens once it has been evicted, are [ADR 07](./07-sync-streaming.md).
+A connection can drop mid-load, or an already-`COMPLETED` endpoint can go offline while changes accumulate on both sides. Rather than re-running initial load from scratch, the endpoint resumes from the last delivery position it processed. That position is the **delivery cursor** [ADR 03](./03-revision-model.md) calls for rather than the per-object `revision`, and it is carried as `Last-Event-ID` - its shape, and the fact that it can not expire, are described in [ADR 07](./07-sync-streaming.md).
+
+A dropped connection mid-load is therefore not a distinct case: the cursor still names the tier and offset the sweep had reached, and delivery continues from there rather than from the beginning of the set.
 
 Here is approximate lifecycle that we are expected to support:
 
 ```mermaid
 flowchart TB
-    START(( ))
+    START((""))
     INITIAL_LOAD["INITIAL_LOAD<br/> (see states above)"]
     OPERATING["OPERATING"]
     DOWN["DOWN"]
+    CATCHING_UP["CATCHING_UP"]
     START -->|"opted into the hub"| INITIAL_LOAD
     INITIAL_LOAD -->|"loaded"| OPERATING
     OPERATING -->|"application goes offline"| DOWN
-    DOWN -->|"application comes back online"| INITIAL_LOAD
+    DOWN -->|"comes back online"| CATCHING_UP
+    CATCHING_UP -->|"caught up from its cursor"| OPERATING
     %% ceasg:{"id":"un5r0wx1"} %%
-    %% mermaid-flow:pos START=424,105 INITIAL_LOAD=134,176 OPERATING=410,277 DOWN=135,368
+    %% mermaid-flow:pos START=270,60 INITIAL_LOAD=270,165 OPERATING=270,275 DOWN=110,395 CATCHING_UP=430,395
 ```
 
 ## Consequences
@@ -225,4 +233,7 @@ flowchart TB
 - The bit is advisory. Endpoints that omit it cost only label precision, and nothing in the flow branches on it.
 - `masterdata-config` gains an optional `resolutionUrl`, which is the only thing a partner has to supply for agrirouter to point a user at the right screen, and default routing never opts an endpoint into the hub.
 - Either endpoint-driven transition *may* wait on a human - the confirmation on reconciliation, the completion on a rejected push - and neither necessarily does: an endpoint with no conflicts, or one whose conflicts its own rules settle, advances straight through. What agrirouter cannot tell is which case it is in, since it sees only when it finished sending. So an entity type can sit in either loading state for days without anything being wrong, and no timeout on them would be meaningful.
-- Several details remain open: downtime / pause-resume semantics, and best-practice guidance for implementors on conflicts and differing requirements.
+- `LOADING_FROM_AGRIROUTER` needs an internal sub-state that the API does not expose: whether the canonical set has finished being delivered, as distinct from whether the endpoint has confirmed reconciling it. agrirouter records the first when it emits `CANONICAL_SET_END`, and needs it in order to decide on the next connection whether a sweep is still owed ([ADR 07](./07-sync-streaming.md)). The endpoint is unaffected - it reads the same answer off its own cursor.
+- Initial-load state is keyed per endpoint and entity type, while the delivery cursor is keyed per application ([ADR 07](./07-sync-streaming.md)). One connection therefore carries the loads of many tenants at once, each at its own phase, and an application MUST NOT treat "my stream is in initial load" as a single condition.
+- Because event delivery does not expire, an entity type can sit in either loading state indefinitely without putting the endpoint's position at risk. The only cost of a slow user is a canonical set that has moved on.
+- Several details remain open: best-practice guidance for implementors on conflicts and differing requirements.

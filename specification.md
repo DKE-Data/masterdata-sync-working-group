@@ -505,10 +505,16 @@ satisfy them.
 ### Downtime and resume
 
 A connection may be lost while changes accumulate on both sides. On reconnection,
-an endpoint resumes from its last known state rather than re-running a full seeding
-from scratch; the `revision` counter (see [Loop prevention](#loop-prevention)) lets both sides determine what
-has changed. The precise catch-up/resume semantics are tracked as an open item
-(see [Open issues](#open-issues)).
+a participant resumes from the delivery position it last committed rather than
+re-running a full initial load. That position is carried as `Last-Event-ID`, is
+distinct from the per-object `revision`, and MUST be derived from what the
+participant has durably applied rather than from what its stream client last read.
+
+A resume position does **not** expire: agrirouter serves catch-up from the current
+state of each entity rather than from a retained log of changes, so an arbitrarily
+long absence is a larger catch-up rather than a failed one. The consequence is that
+a participant receives each changed entity once, carrying its current value, and
+MUST NOT assume it observed every intermediate change to that entity.
 
 ## Loop prevention
 
@@ -590,7 +596,7 @@ this document:
 
 - **Unambiguous EFDI subset & hard validation** — the exact validated subset of [Encoding and canonicity](#encoding-and-canonicity).
 - **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
-- **Initial load** — formalizing the initial-load state machine, conflict-resolution responsibilities, and downtime/resume semantics of [Initial load and seeding](#initial-load-and-seeding).
+- **Initial load** — formalizing the initial-load state machine and conflict-resolution responsibilities of [Initial load and seeding](#initial-load-and-seeding). Downtime and resume semantics are settled; the remaining open part is conflict resolution.
 - **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
