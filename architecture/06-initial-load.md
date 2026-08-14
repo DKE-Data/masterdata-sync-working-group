@@ -222,8 +222,8 @@ Here is approximate lifecycle that we are expected to support:
 
 ```mermaid
 flowchart TB
-    START((""))
-    INITIAL_LOAD["INITIAL_LOAD \n  (see states above)"]
+    START(( ))
+    INITIAL_LOAD["INITIAL_LOAD \n (see states above)"]
     OPERATING["OPERATING"]
     DOWN["DOWN"]
     CATCHING_UP["CATCHING_UP"]
