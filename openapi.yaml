@@ -594,10 +594,12 @@ paths:
         Returns the per-entity-type initial load state for the endpoint. Only
         entity types the endpoint is opted into are listed. The state machine per
         entity type is:
-        `LOADING_FROM_AGRIROUTER` → `LOADING_TO_AGRIROUTER` → `COMPLETED`.
-        Opting an entity type in (via the master-data configuration) starts it at
-        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward
-        by sending a PUT request to its per-entity-type `status` subresource.
+        `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
+        `COMPLETED`. Opting an entity type in (via the master-data configuration)
+        starts it at `LOADING_FROM_AGRIROUTER`, and agrirouter itself advances it
+        to `RECONCILING` once the whole canonical set has been sent; the endpoint
+        drives the remaining two transitions by sending a PUT request to its
+        per-entity-type `status` subresource.
       operationId: getInitialLoadStatus
       responses:
         '200':
@@ -639,19 +641,22 @@ paths:
 
 
         Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has *reconciled* the
-        canonical set, not merely received it: the `CANONICAL_SET_END` frame
-        already tells the endpoint it holds the whole set, and this operation
-        additionally asserts that the conflicts reconciling surfaced have been
-        resolved in the endpoint's own software. The gap between the two is
-        human-paced and unbounded, so an entity type may sit in
-        `LOADING_FROM_AGRIROUTER` for a long time without anything being wrong.
-        From that point the endpoint sends the objects it knows about via the
-        ordinary PUT operations. How far the endpoint has consumed is expressed by
-        its stream position (`Last-Event-ID`), not by this operation. Set `COMPLETED`
+        canonical set, not merely received it. Receipt is already recorded:
+        agrirouter moved the entity type to `RECONCILING` when it finished sending,
+        so this operation asserts only that the conflicts reconciling surfaced have
+        been resolved in the endpoint's own software. That is human-paced and
+        unbounded, so an entity type may sit in `RECONCILING` for a long time
+        without anything being wrong. From that point the endpoint sends the
+        objects it knows about via the ordinary PUT operations. Set `COMPLETED`
         once the endpoint has sent everything, after which steady-state (day-2)
-        synchronization applies. An entity type enters the initial state,
-        `LOADING_FROM_AGRIROUTER`, when it is opted in - not through this
-        operation.
+        synchronization applies.
+
+
+        Setting `LOADING_TO_AGRIROUTER` while the entity type is still
+        `LOADING_FROM_AGRIROUTER` is rejected with `409`: the endpoint cannot have
+        reconciled a set it has not finished receiving. An entity type enters
+        `LOADING_FROM_AGRIROUTER` when it is opted in, and leaves it when
+        agrirouter has sent the set - neither happens through this operation.
 
 
         Idempotent: setting the state the entity type is already in returns the
@@ -1280,10 +1285,10 @@ components:
         without it the sweep is indistinguishable from ordinary changes. It marks
         a boundary in the delivery only. It does not assert that the endpoint has
         reconciled the set; that is asserted by the endpoint itself, by setting
-        `LOADING_TO_AGRIROUTER` on the initial-load status subresource. An
-        endpoint that restarts and did not record the frame can equally read the
-        answer off its own cursor, in which the entity type's sweep is either
-        still present or is not.
+        `LOADING_TO_AGRIROUTER` on the initial-load status subresource. Emitting
+        this frame is what moves the entity type to `RECONCILING`, so an endpoint
+        that restarts and did not record the frame can read the answer from the
+        initial-load status resource, or off its own cursor without a round trip.
       properties:
         entityType:
           type: string
@@ -1346,12 +1351,34 @@ components:
     InitialLoadState:
       type: string
       description: >
-        Per-endpoint, per-entity-type initial-load state. Opting an entity type
-        in (via the master-data configuration) starts it at
-        `LOADING_FROM_AGRIROUTER`; the endpoint then drives it forward by sending a
-        PUT request to the entity type's `status` subresource.
+        Per-endpoint, per-entity-type initial-load state.
+
+
+        `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set.
+        Entered by opting the entity type in via the master-data configuration,
+        never through the `status` subresource.
+
+
+        `RECONCILING` — the whole canonical set has been delivered, closed by a
+        `CANONICAL_SET_END` frame. agrirouter moves the entity type here itself,
+        because it is the side that knows it has finished sending. The endpoint is
+        now working through whatever conflicts reconciling surfaced, which may take
+        as long as a user takes.
+
+
+        `LOADING_TO_AGRIROUTER` — the endpoint has confirmed it reconciled, and is
+        sending the objects it holds that the canonical set did not contain.
+
+
+        `COMPLETED` — steady-state synchronization applies.
+
+
+        The endpoint drives two of these transitions, both through the entity
+        type's `status` subresource: `RECONCILING` → `LOADING_TO_AGRIROUTER` and
+        `LOADING_TO_AGRIROUTER` → `COMPLETED`.
       enum:
         - LOADING_FROM_AGRIROUTER
+        - RECONCILING
         - LOADING_TO_AGRIROUTER
         - COMPLETED
 
@@ -1371,10 +1398,14 @@ components:
           description: >
             Whether the endpoint's own software is needing user action
             for this entity type — a conflict, a missing required
-            attribute, a granularity mismatch. Raised by the endpoint, cleared
-            by agrirouter when the entity type advances to
-            `LOADING_TO_AGRIROUTER`. agrirouter renders it as "waiting for you in
-            <app>", together with `resolutionUrl` where one is configured.
+            attribute, a granularity mismatch. Raised by the endpoint and cleared
+            by agrirouter, on the two endpoint-driven transitions only: advancing
+            to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to
+            `COMPLETED`. The step to `RECONCILING` does not, since that is
+            agrirouter reporting it has finished sending and says nothing about
+            whether the user has finished deciding. agrirouter renders the flag as
+            "waiting for you in <app>", together with `resolutionUrl` where one is
+            configured.
         updatedAt:
           type: string
           format: date-time
@@ -1410,8 +1441,11 @@ components:
           description: >
             Set to `true` when this entity type's reconciliation is requiring
             user action, so agrirouter can show the endpoint as waiting
-            rather than as still loading. Endpoints SHOULD report it, and may do
-            so with the idempotent PUT that repeats the current state. It is not
-            cleared by the endpoint: advancing to `LOADING_TO_AGRIROUTER` clears
-            it. Omitting it leaves the current value untouched.
+            rather than as still working. May be set from any state before
+            `COMPLETED`, including while the canonical set is still arriving,
+            since conflicts surface object by object. Endpoints SHOULD report it,
+            and may do so with the idempotent PUT that repeats the current state.
+            It is not cleared by the endpoint: advancing to
+            `LOADING_TO_AGRIROUTER` or `COMPLETED` clears it. Omitting it leaves
+            the current value untouched.
       required: [state]

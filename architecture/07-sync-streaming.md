@@ -247,13 +247,16 @@ cursor has already swept, and adds a sweep entry for anything granted but not ye
 delivered.
 
 That comparison needs a stored answer to "has this tenant's farms been handed
-over", and [ADR 06](./06-initial-load.md)'s state machine is the natural holder of
-it - with one caveat. `LOADING_FROM_AGRIROUTER` spans both "the sweep is still
-running" and "the sweep finished, the user is still working through the conflicts
-it surfaced", and only the first of those owes a sweep. agrirouter MUST therefore
-record that the sweep completed at the moment it emits `CANONICAL_SET_END`,
-separately from the confirmation the endpoint sends later. Without that, every
-reconnect during a slow human resolution would start the sweep again.
+over", and [ADR 06](./06-initial-load.md)'s state machine holds it directly:
+`LOADING_FROM_AGRIROUTER` means the set is still owed, `RECONCILING` and beyond
+mean it has been delivered. agrirouter moves the entity type across that edge when
+it emits `CANONICAL_SET_END`, which is precisely the moment the debt is settled.
+
+So the rule is: **add a sweep entry for any (tenant, entity type) that is
+`LOADING_FROM_AGRIROUTER` and has no entry in the cursor already.** The second
+clause is what stops a reconnect mid-sweep from starting a second one, and the
+first is what stops a reconnect during a slow human resolution from starting the
+sweep over - the state has moved on even though the endpoint has not confirmed.
 
 ### The end of a set is answered by the cursor
 
@@ -350,8 +353,8 @@ neither has a fix that keeps the queue.
   application has got to is entirely in the cursor it sends; whether a sweep is
   outstanding is ours, derived from routes and opt-in. A partner that loses its
   cursor loses only its place, not its entitlement, and recovers by sweeping again.
-- **`LOADING_FROM_AGRIROUTER` needs an internal sub-state.** agrirouter has to
-  distinguish a sweep still running from a sweep delivered and awaiting the
-  endpoint's confirmation, or a reconnect during a slow resolution restarts the
-  sweep. This is internal - the endpoint reads the answer off its own cursor and
-  needs nothing new on the status subresource.
+- **This ADR is what forced `RECONCILING` into [ADR 06](./06-initial-load.md).**
+  Deciding on reconnect whether a sweep is owed requires distinguishing a set still
+  being delivered from one delivered and awaiting a human, which the old
+  `LOADING_FROM_AGRIROUTER` conflated. The endpoint gains a state it can read but
+  no obligation it would not have without it.
