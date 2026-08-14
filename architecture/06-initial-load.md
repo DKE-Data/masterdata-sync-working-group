@@ -32,10 +32,10 @@ flowchart TB
     LT["LOADING_TO_AGRIROUTER"]
     C["COMPLETED"]
     START -->|"entity type opted into the hub"| LF
-    LF -->|"agrirouter has sent<br/>the whole canonical set"| R
-    R -->|"endpoint confirms<br/>it has reconciled"| LT
+    LF -->|"agrirouter has sent \n the whole canonical set"| R
+    R -->|"endpoint confirms \n it has reconciled"| LT
     LT -->|"endpoint has sent everything it holds"| C
-    C -->|"entity type opted out<br/>(possible from any state)"| START
+    C -->|"entity type opted out \n (possible from any state)"| START
     %% ceasg:{"id":"6kuwmm6w"} %%
     %% mermaid-flow:pos START=119,100 LF=276,230 R=280,354 LT=259,477 C=119,590
 ```
@@ -68,41 +68,41 @@ sequenceDiagram
     participant AR as agrirouter (SSOT)
 
     U->>P: opt this endpoint into farms
-    P->>AR: PUT /endpoints/{eid}/masterdata-config<br/>{ toggles: [{ entityType: "farms" }] }
+    P->>AR: PUT /endpoints/{eid}/masterdata-config \n { toggles: [{ entityType: "farms" }] }
     AR-->>P: 200 MasterdataConfig
     Note over AR: farms → LOADING_FROM_AGRIROUTER
 
     P->>AR: GET /masterdata/events (SSE)
     AR-->>P: 200 text/event-stream
     loop every canonical farm the endpoint is entitled to
-        AR-->>P: event: MASTERDATA_CHANGED<br/>id: evt-8842<br/>data: { type: "farm", agrirouterId: 1f2e…4567,<br/>revision: 3, idMappings: [...] }
-        Note over P: reconcile against own store<br/>(id mapping, user decides on conflicts)
+        AR-->>P: event: MASTERDATA_CHANGED \n id: evt-8842 \n data: { type: "farm", agrirouterId: 1f2e…4567, \n revision: 3, idMappings: [...] }
+        Note over P: reconcile against own store \n (id mapping, user decides on conflicts)
     end
-    AR-->>P: event: CANONICAL_SET_END<br/>data: { entityType: "farms" }
-    Note over AR: farms → RECONCILING<br/>(agrirouter drives this - it knows it has sent everything)
-    Note over P: whole set held - user works through<br/>what is left, on their own schedule.<br/>live changes keep arriving meanwhile
+    AR-->>P: event: CANONICAL_SET_END \n data: { entityType: "farms" }
+    Note over AR: farms → RECONCILING \n (agrirouter drives this - it knows it has sent everything)
+    Note over P: whole set held - user works through \n what is left, on their own schedule. \n live changes keep arriving meanwhile
     opt referenced object not held yet
-        P->>AR: POST /masterdata/organizations/requests<br/>{ agrirouterId: 9ab0…1234 }
+        P->>AR: POST /masterdata/organizations/requests \n { agrirouterId: 9ab0…1234 }
         AR-->>P: 202 Accepted
         AR-->>P: event: MASTERDATA_CHANGED (organization)
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ state: "LOADING_TO_AGRIROUTER" }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status \n { state: "LOADING_TO_AGRIROUTER" }
     AR-->>P: 200 EntityInitialLoadStatus { state: "LOADING_TO_AGRIROUTER" }
 
     loop every local farm that is new or was changed while resolving a conflict
-        P->>AR: PUT /masterdata/farms/{localId}<br/>{ type: "farm", owner: {...}, name: "Hof Nord" }
+        P->>AR: PUT /masterdata/farms/{localId} \n { type: "farm", owner: {...}, name: "Hof Nord" }
         alt genuinely new to the network
             AR-->>P: 201 Farm { agrirouterId: 7c1d…8899, revision: 1 }
         else localId already mapped to a different canonical object
             AR-->>P: 409 Error (mapping conflict - resolved in the partner)
-            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ awaitingUser: true }
+            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status \n { awaitingUser: true }
         end
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status<br/>{ state: "COMPLETED" }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status \n { state: "COMPLETED" }
     AR-->>P: 200 EntityInitialLoadStatus { state: "COMPLETED" }
-    Note over P,AR: steady-state synchronization from here on,<br/>over the same event stream
+    Note over P,AR: steady-state synchronization from here on, \n over the same event stream
 ```
 
 Points worth noting about the calls themselves:
@@ -223,7 +223,7 @@ Here is approximate lifecycle that we are expected to support:
 ```mermaid
 flowchart TB
     START((""))
-    INITIAL_LOAD["INITIAL_LOAD<br/> (see states above)"]
+    INITIAL_LOAD["INITIAL_LOAD \n  (see states above)"]
     OPERATING["OPERATING"]
     DOWN["DOWN"]
     CATCHING_UP["CATCHING_UP"]

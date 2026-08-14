@@ -88,15 +88,15 @@ This is how it might work (actual implementation could vary):
 ```mermaid
 flowchart TB
     subgraph sub1 ["PUT request"]
-        ClientBSentRepresentation["Client B:<br/>Representation B"]
+        ClientBSentRepresentation["Client B: \n Representation B"]
         A("Reference to revision 8")
     end
-    BaseRevision["Base Revision:<br/>revision 8"]
-    ClientASentRepresentation["Client A:<br/>Representation A"]
-    Revision9["Revision 9 <br/>after applying Client A changes"]
-    PatchA["`Patch A:<br/>Base -> Client A`"]
-    PatchB["Patch B:<br/>Base -> Client B"]
-    MergedRevision["Merged Revision:<br/>revision 10"]
+    BaseRevision["Base Revision: \n revision 8"]
+    ClientASentRepresentation["Client A: \n Representation A"]
+    Revision9["Revision 9  \n after applying Client A changes"]
+    PatchA["`Patch A: \n Base -> Client A`"]
+    PatchB["Patch B: \n Base -> Client B"]
+    MergedRevision["Merged Revision: \n revision 10"]
     BaseRevision -->|"Client A changes"| Revision9
     ClientASentRepresentation -->|"Client A changes"| Revision9
     Revision9 -->|"diff"| PatchA
@@ -105,7 +105,7 @@ flowchart TB
     BaseRevision -->|"diff"| PatchB
     PatchB <-->|"check for conflicts"| PatchA
     Revision9 --> MergedRevision
-    PatchB -->|"when no conflict:<br/>apply Patch B to Revision 9"| MergedRevision
+    PatchB -->|"when no conflict: \n apply Patch B to Revision 9"| MergedRevision
     A --> BaseRevision
     %% ceasg:{"id":"2fpch1lu"} %%
     %% mermaid-flow:pos BaseRevision=583,-32 ClientASentRepresentation=302,-6 ClientBSentRepresentation=827,248 Revision9=367,113 PatchA=333,378 PatchB=637,375 MergedRevision=571,583 A=759,162

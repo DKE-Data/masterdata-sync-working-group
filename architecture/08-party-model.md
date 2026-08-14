@@ -1,7 +1,7 @@
 # ADR 08 - Parties, membership, and partners
 
 - **Status:** WIP
-- **Scope:** How AgmaSync models the people and businesses behind farms - who holds
+- **Scope:** How AMSP models the people and businesses behind farms - who holds
   land, who belongs to an organization, and who works a farm for someone else
 
 ## Context
@@ -91,12 +91,9 @@ Arrows below mean *holds a reference to*.
 
 ```mermaid
 flowchart LR
-    FI["Field
-    Long Meadow"] -->|"fieldBoundaries"| B["FieldBoundary"]
-    FI -->|"farm"| F["Farm
-    Manor Farm"]
-    F -->|"owner"| P["Person
-    Sarah Ashcroft"]
+    FI["Field \n Long Meadow"] -->|"fieldBoundaries"| B["FieldBoundary"]
+    FI -->|"farm"| F["Farm \n Manor Farm"]
+    F -->|"owner"| P["Person \n Sarah Ashcroft"]
 ```
 
 No organization, no membership, no partner. The person is the business, and
@@ -106,15 +103,10 @@ nothing has to be declared about what kind of party she is.
 
 ```mermaid
 flowchart LR
-    F1["FarmManor Farm"] -->|"owner"| O["Organization\nAshcroft Farms Ltd"]
-    F2["Farm
-Hill Farm"] -->|"owner"| O
-    P1["Person
-Sarah Ashcroft
-role: FARM_MANAGER"] -->|"organizationId"| O
-    P2["Person
-James Ashcroft
-role: OPERATOR"] -->|"organizationId"| O
+    F1["Farm \n Manor Farm"] -->|"owner"| O["Organization \n Ashcroft Farms Ltd"]
+    F2["Farm \n Hill Farm"] -->|"owner"| O
+    P1["Person \n Sarah Ashcroft \n role: FARM_MANAGER"] -->|"organizationId"| O
+    P2["Person \n James Ashcroft \n role: OPERATOR"] -->|"organizationId"| O
 ```
 
 Two farms, one owner, two people carrying their roles on themselves.
@@ -123,13 +115,9 @@ Two farms, one owner, two people carrying their roles on themselves.
 
 ```mermaid
 flowchart LR
-    F["Farm
-Manor Farm"] -->|"owner"| O["Organization
-Ashcroft Farms Ltd"]
-    F -->|"partner CUSTOM_SERVICE_PROVIDER"| M["Organization
-Brookfield Contracting Ltd"]
-    F -->|"partner CROP_ADVISOR"| S["Organization
-Wessex Agronomy"]
+    F["Farm \n Manor Farm"] -->|"owner"| O["Organization \n Ashcroft Farms Ltd"]
+    F -->|"partner CUSTOM_SERVICE_PROVIDER"| M["Organization \n Brookfield Contracting Ltd"]
+    F -->|"partner CROP_ADVISOR"| S["Organization \n Wessex Agronomy"]
 ```
 
 The contractor is directly reference by farm it works on.
@@ -138,13 +126,9 @@ The contractor is directly reference by farm it works on.
 
 ```mermaid
 flowchart LR
-    FM["Farm
-Brookfield Home Farm"] -->|"owner"| M["Organization
-Brookfield Contracting Ltd"]
-    FW["Farm
-Manor Farm"] -->|"partner CUSTOM_SERVICE_PROVIDER"| M
-    FM -->|"partner CUSTOM_SERVICE_PROVIDER"| S["Organization
-Fenland Harvesting Ltd"]
+    FM["Farm \n Brookfield Home Farm"] -->|"owner"| M["Organization \n Brookfield Contracting Ltd"]
+    FW["Farm \n Manor Farm"] -->|"partner CUSTOM_SERVICE_PROVIDER"| M
+    FM -->|"partner CUSTOM_SERVICE_PROVIDER"| S["Organization \n Fenland Harvesting Ltd"]
 ```
 
 Brookfield owns land, works Ashcroft's land, and hires Fenland for its own harvest. All
@@ -171,10 +155,10 @@ three hold simultaneously. No single attribute on Brookfield could have carried 
 ## Notes on naming and placement
 
 **`Party` is ADAPT's term.** ADAPT defines a party as a business entity or an
-individual, carrying a required party type code that tells the two apart. AgmaSync
+individual, carrying a required party type code that tells the two apart. AMSP
 takes both the concept and the name, with two departures: it says **person**
 where ADAPT says *individual*, and it draws the distinction from the envelope
-`type` rather than a separate code, since every AgmaSync entity already carries one.
+`type` rather than a separate code, since every AMSP entity already carries one.
 The role vocabulary on memberships and partners is ADAPT's as well.
 
 **`specialisedUsageType` sits on the farm.** FarmSPT places it on Customer/Grower.
