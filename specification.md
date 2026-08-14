@@ -157,13 +157,13 @@ Every `masterdata:<type>` object shares a common envelope. Example
   "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
   "localId": "PFD-00042",
   "idMappings": [
-    { "endpointId": "urn:endpoint:jd:abc", "localId": "field-9931" },
-    { "endpointId": "urn:endpoint:cci:xyz", "localId": "b1e7..." }
+    { "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210", "localId": "field-9931" },
+    { "endpointId": "2a3b4c5d-6e7f-8091-a2b3-c4d5e6f70819", "localId": "b1e7..." }
   ],
   "active": true,
   "revision": 7,
   "modifiedAt": "2026-07-14T09:20:00Z",
-  "sourceEndpointId": "urn:endpoint:jd:abc",
+  "sourceEndpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
   "previousVersions": []
 }
 ~~~
@@ -173,7 +173,7 @@ Envelope fields:
 - `type` (string, required): the entity type; one of `organization`, `person`, `farm`, `field`, `fieldBoundary`.
 - `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
 - `localId` (string, required on send): the sending participant's own identifier for the entity. See [Identifier mapping](#identifier-mapping) for how it is interpreted.
-- `idMappings` (array): the identifier mapping maintained by agrirouter. Each element pairs an `endpointId` with that endpoint's `localId`. This field is populated by agrirouter on the objects it delivers and is ignored on send.
+- `idMappings` (array): the identifier mapping maintained by agrirouter. Each element pairs an `endpointId` — the agrirouter identifier of the endpoint ({{?RFC4122}}), not the participant's own `externalEndpointId` for it — with that endpoint's `localId`. This field is populated by agrirouter on the objects it delivers and is ignored on send.
 - `active` (boolean): whether the entity is currently active. Deactivation is expressed through the `:deactivate` message (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
@@ -438,6 +438,18 @@ and each participant's `localId` for that object.
 - When agrirouter delivers a canonical object to endpoint E, it SHOULD include E's own `localId` (if known) so the receiver can reconcile against its local data without a lookup.
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to task-data-based tooling.
 
+A mapping also comes into existence the other way round, when an endpoint
+recognises a delivered canonical object as one it already holds. The endpoint
+MUST declare that by **binding** its own identifier to the object; agrirouter
+never infers a mapping from the content of an object. Binding is not a change to
+the entity: it creates no revision, does not alter `sourceEndpointId`, and is
+delivered to nobody. Until it has bound, an endpoint MUST NOT send that object as
+a `masterdata:<type>`, because the send does not resolve and creates a second
+canonical object for the same entity. During
+[initial load](#initial-load-and-seeding) the bindings for a whole set are
+carried on the confirmation that ends reconciliation. The concrete operations are
+described in `openapi.yaml`.
+
 An endpoint MUST NOT reuse one of its own local identifiers for two distinct
 canonical objects. If an endpoint sends a `localId` that is already mapped to a
 *different* canonical object than the one implied by the message, agrirouter MUST
@@ -556,17 +568,25 @@ Rather than distinguishing "split" from "merge" as separate operations, the
 protocol represents both uniformly through lineage:
 
 - A newly created entity that supersedes one or more prior entities carries references to them in `previousVersions` (see [Common envelope](#common-envelope)). A split produces several new entities that each reference the original; a merge produces one new entity that references several originals. No operation-specific message is required.
-- A system that receives such an entity receives the *identifiers* of the referenced predecessors, and MAY retrieve their full data on demand using `masterdata:<type>:request` (see [Requesting objects](#requesting-objects-lazy-loading)).
-- Systems that do not retain historical data may ignore `previousVersions`; the information is advisory lineage, not a required processing step.
+- A system that receives such an entity receives the *identifiers* of the referenced predecessors, nothing more. It MAY dereference one with `masterdata:<type>:request`, and what it gets back is that entity's **current** state: a request carries no revision, and agrirouter keeps no past states of anything ([What this protocol is, and is not](#what-this-protocol-is-and-is-not)). Lineage therefore records *which* entities preceded this one, never *what they looked like* when they were superseded.
+- Nor is a predecessor guaranteed to still exist; the reference may dangle. Systems that do not retain historical data may ignore `previousVersions` entirely. It is advisory lineage, not a required processing step, and a participant that needs the prior state of a field has to have kept it itself.
 
 ## Requesting objects (lazy loading)
 
-`masterdata:<type>:request` lets a participant actively pull an entity it does not
-currently hold — for example a predecessor referenced through `previousVersions`,
-or a dependency (a field's farm) it has not yet been seeded with. A request
-identifies the wanted entity by `agrirouterId`, and agrirouter responds by
-delivering the corresponding `masterdata:<type>` object if the requester is
-entitled to it under its opt-in configuration (see [Routing and opt-in](#routing-and-opt-in)).
+`masterdata:<type>:request` lets a participant pull a single entity by
+`agrirouterId` rather than wait for it to arrive. agrirouter delivers the
+corresponding `masterdata:<type>` object if the requester is entitled to it under
+its opt-in configuration (see [Routing and opt-in](#routing-and-opt-in)).
+
+A request never widens what a participant can see. Opt-in is the only filter on
+delivery, so every object a request can return is one agrirouter would deliver
+anyway. What it addresses is that *delivered* is not *held*:
+
+- a participant that lost an object locally refetches that object, rather than opting the entity type out and back in and taking a full initial load;
+- during [initial load](#initial-load-and-seeding) a live change may reference an object whose own entity type has not been swept yet.
+
+A request is per entity type, which is why a reference to a party carries a `type`
+discriminator (see [References](#references)).
 
 # Security considerations
 

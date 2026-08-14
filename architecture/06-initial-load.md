@@ -32,10 +32,10 @@ flowchart TB
     LT["LOADING_TO_AGRIROUTER"]
     C["COMPLETED"]
     START -->|"entity type opted into the hub"| LF
-    LF -->|"agrirouter has sent \n the whole canonical set"| R
-    R -->|"endpoint confirms \n it has reconciled"| LT
+    LF -->|"agrirouter has sent the whole canonical set"| R
+    R -->|"endpoint confirms it has reconciled"| LT
     LT -->|"endpoint has sent everything it holds"| C
-    C -->|"entity type opted out \n (possible from any state)"| START
+    C -->|"entity type opted out (possible from any state)"| START
     %% ceasg:{"id":"6kuwmm6w"} %%
     %% mermaid-flow:pos START=119,100 LF=276,230 R=280,354 LT=259,477 C=119,590
 ```
@@ -61,6 +61,7 @@ send response on SSE rather than on same instance (pod) that god /requests.
 Also /requests might need to be part of initial load? -->
 
 ```mermaid
+%% ceasg:{"id":"8xpvwi5e"} %%
 sequenceDiagram
     autonumber
     actor U as User
@@ -68,45 +69,55 @@ sequenceDiagram
     participant AR as agrirouter (SSOT)
 
     U->>P: opt this endpoint into farms
-    P->>AR: PUT /endpoints/{eid}/masterdata-config \n { toggles: [{ entityType: "farms" }] }
+    P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "farms" }] }
     AR-->>P: 200 MasterdataConfig
     Note over AR: farms → LOADING_FROM_AGRIROUTER
 
     P->>AR: GET /masterdata/events (SSE)
     AR-->>P: 200 text/event-stream
     loop every canonical farm the endpoint is entitled to
-        AR-->>P: event: MASTERDATA_CHANGED \n id: evt-8842 \n data: { type: "farm", agrirouterId: 1f2e…4567, \n revision: 3, idMappings: [...] }
-        Note over P: reconcile against own store \n (id mapping, user decides on conflicts)
+        AR-->>P: event: MASTERDATA_CHANGED id: evt-8842 data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, idMappings: [...] }
+        Note over P: reconcile against own store (id mapping, user decides on conflicts)
     end
-    AR-->>P: event: CANONICAL_SET_END \n data: { entityType: "farms" }
-    Note over AR: farms → RECONCILING \n (agrirouter drives this - it knows it has sent everything)
-    Note over P: whole set held - user works through \n what is left, on their own schedule. \n live changes keep arriving meanwhile
+    AR-->>P: event: CANONICAL_SET_END data: { entityType: "farms" }
+    Note over AR: farms → RECONCILING (agrirouter drives this - it knows it has sent everything)
+    Note over P: whole set held - user works through what is left, on their own schedule. live changes keep arriving meanwhile
     opt referenced object not held yet
-        P->>AR: POST /masterdata/organizations/requests \n { agrirouterId: 9ab0…1234 }
+        P->>AR: POST /masterdata/organizations/requests { agrirouterId: 9ab0…1234 }
         AR-->>P: 202 Accepted
         AR-->>P: event: MASTERDATA_CHANGED (organization)
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status \n { state: "LOADING_TO_AGRIROUTER" }
-    AR-->>P: 200 EntityInitialLoadStatus { state: "LOADING_TO_AGRIROUTER" }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status { state: "LOADING_TO_AGRIROUTER", idMappings: [{ agrirouterId: 1f2e…4567, localId: b1e7… }] }
+    AR-->>P: 200 EntityInitialLoadStatus { state: "LOADING_TO_AGRIROUTER", rejectedIdMappings: [] }
 
     loop every local farm that is new or was changed while resolving a conflict
-        P->>AR: PUT /masterdata/farms/{localId} \n { type: "farm", owner: {...}, name: "Hof Nord" }
-        alt genuinely new to the network
+        P->>AR: PUT /masterdata/farms/{localId} { type: "farm", owner: {...}, name: "Hof Nord" }
+        alt matched during reconciliation, bound above
+            AR-->>P: 200 Farm { agrirouterId: 1f2e…4567, revision: 8 }
+        else genuinely new to the network
             AR-->>P: 201 Farm { agrirouterId: 7c1d…8899, revision: 1 }
         else localId already mapped to a different canonical object
             AR-->>P: 409 Error (mapping conflict - resolved in the partner)
-            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status \n { awaitingUser: true }
+            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status { awaitingUser: true }
         end
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status \n { state: "COMPLETED" }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status { state: "COMPLETED" }
     AR-->>P: 200 EntityInitialLoadStatus { state: "COMPLETED" }
-    Note over P,AR: steady-state synchronization from here on, \n over the same event stream
+    Note over P,AR: steady-state synchronization from here on, over the same event stream
 ```
 
 Points worth noting about the calls themselves:
 
+- **The confirmation carries what reconciliation decided.** Matching a canonical
+  object to one the endpoint already holds is a fact only the endpoint has, and
+  it has to reach agrirouter or the object is sent back as new and duplicated.
+  The bindings ride on the confirmation rather than one call per object, because
+  matching happens over a whole set - see
+  [ADR 10](./10-identifier-binding.md). It is also why the loop above has a `200`
+  branch at all: an object matched and then edited during conflict resolution is
+  an update to a canonical object, not a creation.
 - **There is no bulk "give me everything" endpoint.** The from-agrirouter
   direction reuses the ordinary event stream (`GET /masterdata/events`); initial
   load is a sweep delivered over the same channel rather than a second delivery

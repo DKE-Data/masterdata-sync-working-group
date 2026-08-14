@@ -160,7 +160,7 @@ sequenceDiagram
 
     AR->>B: masterdata:field { agrirouterId: 1f2e…4567,<br/>revision: 1, source: A }
     Note over B: No local object for this agrirouterId →<br/>create it, assign B's own<br/>localId = b1e7…
-    B-->>AR: report localId
+    B->>AR: PUT /masterdata/fields/b1e7…<br/>/id-mapping/1f2e…4567
     Note over AR: Record mapping B→b1e7…
 ```
 
@@ -185,7 +185,8 @@ Step by step:
 5. **agrirouter syncs the change to Partner B.** Because B has opted into `field`,
    agrirouter delivers the canonical object to B. B has no local object for this
    `agrirouterId`, so it creates one under *its own* `localId` (`b1e7…`) and
-   reports it back, completing the id mapping. Partner B's user now sees "North 40".
+   [binds](./10-identifier-binding.md) it, completing the id mapping. Partner B's
+   user now sees "North 40".
 6. **agrirouter does not echo the change back to A.** A was the source of this
    revision, so agrirouter [does not deliver it back to A](../specification.md#loop-prevention).
    This is what stops the change from ricocheting A → B → A forever.
@@ -198,8 +199,9 @@ the point where they become canonical and fan out to the others.
 ### A subsequent edit, and why loops don't form
 
 Once the field exists everywhere, edits follow the same shape, with one addition:
-the change now carries a known `agrirouterId`, so agrirouter *updates* the existing
-canonical object instead of creating one, and bumps `revision`.
+the sender's own mapping now resolves, so agrirouter *updates* the existing
+canonical object instead of creating one, and bumps `revision`. B sends under its
+own `localId` throughout - the canonical id stays off its write path.
 
 ```mermaid
 sequenceDiagram
@@ -210,8 +212,8 @@ sequenceDiagram
     participant A as Partner A
 
     U->>B: Edit boundary of the field
-    B->>AR: masterdata:field { agrirouterId: 1f2e…4567, … }
-    Note over AR: Mapping resolves → update canonical object,<br/>revision 7 → 8, source = B
+    B->>AR: masterdata:field { localId: b1e7…, … }
+    Note over AR: Mapping (B, b1e7…) resolves →<br/>update canonical object,<br/>revision 7 → 8, source = B
     AR->>A: masterdata:field { agrirouterId: 1f2e…4567, revision: 8 }
     Note over A: Reconcile against local copy via id mapping
     Note over AR,B: Not echoed back to B (B is the source)

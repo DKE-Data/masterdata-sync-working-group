@@ -35,24 +35,19 @@ trim and its own position to track.
 
 ### Delivery reads a compacted index, not a log
 
-agrirouter maintains one row per canonical object, carrying a globally ordered
-number that is rewritten every time the object changes:
+agrirouter maintains one record per canonical object, never one per change. Each
+carries the object's identity, its position in the dependency graph, the endpoint
+whose change produced the current value, and a globally ordered `last_event_id`
+that is rewritten every time the object changes.
 
-```
-last_update_event
-  tenant_id       the tenant the object belongs to
-  type            farm / field / organization / person / fieldBoundary
-  id              the object's agrirouterId
-  tier            its position in the dependency graph (see below)
-  source_endpoint the endpoint whose change produced the current value
-  last_event_id   globally ordered, rewritten on every change
-```
+That ordering agrees with commit order and advances per record, so a cursor may
+stop anywhere and nothing committed below it is ever skipped.
 
-There is one row per object, never one per change. The table is therefore
-proportional to the amount of master data in existence, not to how much of it has
-ever been edited, and rows are **not evicted**. The system cannot be in a state
+Because there is one record per object rather than one per change, what agrirouter
+holds is proportional to the amount of master data in existence, not to how much
+of it has ever been edited, and records are **not evicted**. The system cannot be in a state
 which is too far behind to resume: an application away for 5 minutes and one
-away for 5 weeks run the same query, and the second merely gets more rows
+away for 5 weeks are served the same way, and the second merely gets more
 back (assuming more changes happened in the meantime).
 
 This means we do not support intermediate states. An object edited three times while an
@@ -65,8 +60,8 @@ values only to overwrite them.
 
 It also supports deletion at no additional cost. Because agrirouter
 [deactivates rather than removes](../specification.md#deactivation), a deleted
-object keeps its row, sets `active` to false and takes a new `last_event_id`, so
-deletions ride the same query as everything else. A design built on hard deletes
+object keeps its record, is marked inactive and takes a new `last_event_id`, so
+deletions ride the same path as everything else. A design built on hard deletes
 would need a second retention clock for tombstones purely so that catch-up could
 express what had disappeared. This one does not.
 
@@ -91,13 +86,13 @@ tenant are the types it receives for another.
 
 ### Catch-up sweeps by tier, the live tail follows it
 
-Ordering by `last_event_id` alone is wrong, and not in a rare case. Each row
+Ordering by `last_event_id` alone is wrong, and not in a rare case. Each record
 carries the number of its *most recent* change, so an object whose parent was
 edited more recently than itself sorts ahead of that parent:
 
 ```
-farm  Manor Farm    created at 20, renamed at 60   → row reads 60
-field Long Meadow   created at 30                  → row reads 30
+farm  Manor Farm    created at 20, renamed at 60   → reads 60
+field Long Meadow   created at 30                  → reads 30
 ```
 
 Sorted by `last_event_id`, Long Meadow arrives before the farm it references.
@@ -111,7 +106,7 @@ boundaries.
 
 ```mermaid
 flowchart TB
-    PIN["pin cutoff = highest last_event_id right now \n fixed for the rest of this sweep"]
+    PIN["pin cutoff = the current position \n fixed for the rest of this sweep"]
     SWEEP["sweep tier by tier, ascending \n last_event_id &gt; cursor AND &lt;= cutoff"]
     MARK["emit end-of-set marker per tier"]
     TAIL["tail live \n last_event_id &gt; cutoff"]
@@ -120,32 +115,24 @@ flowchart TB
     MARK --> TAIL
 ```
 
-The **sweep** walks tiers in ascending order, and within a tier orders by
-`last_event_id`:
-
-```sql
-SELECT * FROM last_update_event
-WHERE  last_event_id > :cursor
-  AND  last_event_id <= :cutoff
-  AND  tier = :k
-  AND  tenant_id IN (:granted)
-ORDER BY last_event_id ASC
-```
+The **sweep** walks tiers in ascending order and, within a tier, delivers in
+ascending `last_event_id` - bounded below by the application's cursor, above by
+the cutoff, and restricted to the tenants it is entitled to read.
 
 The **tail** then delivers everything above the cutoff in change order, emitting
 parents before children within a single change.
 
-The cutoff is not chosen, it is observed: the highest `last_event_id` in existence
-when the sweep begins. It matters as much as the lower bound, because the two
-phases divide the table exactly between them - the sweep owns everything at or
-below the cutoff, the tail owns everything after, and no row belongs to neither.
-Three things that happen during a sweep long enough to matter:
+The cutoff is not chosen, it is observed: the position at the moment the sweep
+begins, then fixed for its duration. It matters as much as the lower bound,
+because the two phases divide the data exactly between them - the sweep owns
+everything at or below the cutoff, the tail owns everything after, and nothing
+belongs to neither. Three things that happen during a sweep long enough to matter:
 
-- **An object already swept is edited.** Its row moves above the cutoff, so the
+- **An object already swept is edited.** It moves above the cutoff, so the
   tail delivers it after the sweep ends. It is applied twice and the later value
   wins, which is why apply MUST be idempotent.
-- **An object in a tier not yet reached is edited.** Its row moves above the
-  cutoff, so the sweep's filter skips it and the tail delivers it. It arrives
+- **An object in a tier not yet reached is edited.** It moves above the
+  cutoff, so the sweep skips it and the tail delivers it. It arrives
   once, current.
 - **A new parent and a new child are both created.** Both are above the cutoff, so
   both are skipped by the sweep and delivered by the tail, which orders the parent
@@ -153,7 +140,7 @@ Three things that happen during a sweep long enough to matter:
 
 ### The position is composite for as long as a sweep is running
 
-A row's number says when that object last changed, not how far the application has
+A record's number says when that object last changed, not how far the application has
 read. The sweep orders those numbers within a tier and then starts the next tier
 over, so the numbers increase through a tier and drop back at every tier change:
 
@@ -183,7 +170,7 @@ loading, another was routed to the hub this morning:
   ] }
 ```
 
-`cursor` and `cutoff` are the two bounds of that sweep's query. Each sweep carries its own cutoff, because each was
+`cursor` and `cutoff` are that sweep's two bounds. Each sweep carries its own cutoff, because each was
 pinned when that sweep began. Once the list is empty the position is a single
 number again, and stays one for the whole of steady state.
 
@@ -200,22 +187,22 @@ incident.
 Both arrive **behind** the application's position, which is why neither can be a
 predicate on the ordinary query.
 
-A farmer who grants access today has data created months ago, so those rows carry
+A farmer who grants access today has data created months ago, so it carries
 old numbers. An application sitting at 90 that simply asked for everything above
 90 would receive none of it and would show the farmer an empty account. The same
 holds when that farmer later opts their endpoint into a further entity type: their
-rows of that type are already below the position too.
+objects of that type are already below the position too.
 
 Each is therefore its own bounded sweep, running alongside the tail with its own
-entry in the cursor - the same machinery as initial load, differing only in its
-predicate:
+entry in the cursor - the same machinery as initial load, differing only in what
+it is scoped to:
 
-| Trigger | Sweep predicate |
+| Trigger | Sweep covers |
 |---|---|
-| First connection | (none beyond grants and opt-in) |
-| A tenant routes one of its endpoints to the hub | `tenant_id = :t` |
-| That endpoint is opted into a further entity type | `tenant_id = :t AND type = :type` |
-| Application-requested resync | `tenant_id = :t` |
+| First connection | everything granted and opted in |
+| A tenant routes one of its endpoints to the hub | that tenant |
+| That endpoint is opted into a further entity type | that tenant & entity type |
+| Application-requested resync | that tenant |
 
 Every one of these is scoped to a single tenant, because every one of them is an
 act by that tenant's user on their own endpoint. An application cannot opt itself
@@ -230,8 +217,8 @@ Delivery is stateless in that respect: nothing on our side records where any
 application has got to, which is what keeps a partner with 100k endpoints from
 costing us 100k pieces of delivery state.
 
-An application MUST persist a cursor only for rows it has **durably applied**<sup>1</sup>,
-never for rows it has merely received, and MUST derive it from its own store
+An application MUST persist a cursor only for objects it has **durably applied**<sup>1</sup>,
+never for objects it has merely received, and MUST derive it from its own store
 rather than from whatever its stream client last read. Delivery is at-least-once:
 everything after the committed position is sent again on reconnect, so a
 connection dropping mid-sweep costs a redelivery rather than a gap.
@@ -278,37 +265,18 @@ user has worked through the conflicts. The confirmation in
 [ADR 06](./06-initial-load.md) is what claims that, and the gap between the two is
 human-paced and unbounded. An application MUST NOT stall delivery across that gap.
 
-### `last_event_id` MUST be assigned at commit
-
-_to review_
-
-A plain `bigserial` is **not safe** here. Sequence values are handed out before
-commit, so a reader can observe 80 while 70 is still in flight, save 80 as its
-position, and never be offered 70 again.
-
-Against a log this is survivable - the event is still in the log, and any full
-re-read finds it. Against a compacted index it is permanent silent divergence: the
-row's number will not change again until somebody happens to edit that object,
-which for master data may be years. The object is simply wrong on that
-application until then, with no error anywhere.
-
-agrirouter MUST therefore either assign `last_event_id` at commit under a single
-writer, or serve only rows below the oldest in-flight transaction
-(`pg_snapshot_xmin(pg_current_snapshot())`). This is a correctness requirement of
-the design, not an optimisation.
-
 ### Origin suppression moves to read time
 
 With a queue per endpoint, [loop prevention](../specification.md#loop-prevention)
-filtered at enqueue. With one shared row per object there is nothing to filter at
-write time, so `source_endpoint` is carried on the row and suppression is applied
-as the row is read: a row whose source is the reading application's own endpoint
-for that tenant is not delivered to it.
+filtered at enqueue. With one shared record per object there is nothing to filter
+at write time, so the source endpoint is carried on the record and suppression is
+applied as it is read: an object whose most recent change came from the reading
+application's own endpoint for that tenant is not delivered back to it.
 
 Compaction makes this coarser and it remains correct, because canonical objects
 are whole documents rather than deltas. If the application wrote the most recent
 change, it already holds that value, and any earlier change by somebody else is
-superseded by it. Suppressing the row therefore never withholds anything the
+superseded by it. Suppressing it therefore never withholds anything the
 application does not already have.
 
 ### Rejected alternative: materializing the canonical set into a queue
@@ -323,9 +291,9 @@ neither has a fix that keeps the queue.
 
 ## Consequences
 
-- **Initial load, catch-up, resume, re-seed and type backfill are one query.**
-  They differ in predicate and in starting cursor, not in mechanism. There is no
-  separate delivery mode to build, document, or fall back to.
+- **Initial load, catch-up, resume, re-seed and type backfill are one mechanism.**
+  They differ in what they are scoped to and in their starting cursor, not in kind.
+  There is no separate delivery mode to build, document, or fall back to.
 - **Nothing expires, so nothing has to be recovered.** The `LOADING_FROM_AGRIROUTER`
   reset that an evicted position used to force does not arise, and neither does the
   reload loop that a set larger than its own retention used to create. Rate
@@ -338,14 +306,9 @@ neither has a fix that keeps the queue.
 - **Dependency-closed opt-in is structural.** An application opted into fields
   but not farms gets an empty tier-2 sweep and then every field with an
   unresolvable reference. [The rule](../specification.md#routing-and-opt-in) is what holds the sweep together.
-- **The table grows with objects ever created**, since deactivated rows are
-  retained. Growth is modest for master data, but purging deactivated rows would
-  reintroduce exactly the horizon this design removes, and MUST NOT be done
-  casually.
-- **A live tail can be served by polling the same table**, which would remove the
-  change log, its partitioning and its retention jobs entirely. The cost is a
-  latency floor and the collapsing of rapid successive edits, neither of which
-  matters for data this static. Not decided here.
+- **Deactivated objects are retained indefinitely**, which is what makes a
+  deletion deliverable at any distance rather than only within a retention
+  window. Purging them would reintroduce exactly the horizon this design removes.
 - **Delivery state is per application, but initial-load state is not.** The state
   machine in [ADR 06](./06-initial-load.md) is per tenant and entity type while
   the cursor is per application, _so the two are not keyed alike._

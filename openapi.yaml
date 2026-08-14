@@ -60,6 +60,7 @@ paths:
   /masterdata/organizations/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     put:
       tags: [Organizations]
       summary: Send (create or update) an organization
@@ -96,9 +97,42 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
+  /masterdata/organizations/{localId}/id-mapping/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/IdMappingAgrirouterId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+    put:
+      tags: [Organizations]
+      summary: Bind a local identifier to an existing organization
+      description: >
+        Declares that the canonical organization in the path is the one this endpoint
+        knows as `localId` — used when the endpoint recognises a delivered object
+        as one it already holds. Binding is not a data write: it creates no
+        revision, does not change `sourceEndpointId`, and is delivered to nobody.
+        Afterwards the ordinary PUT under that `localId` resolves to this object
+        and updates it. An endpoint MUST bind before sending an object it
+        received: an unbound send does not resolve and creates a duplicate.
+
+
+        A local identifier denotes exactly one canonical object, so this is a
+        singleton: binding a second one is the `409`. The request has no body,
+        both ends of the mapping being in the path, and is idempotent.
+      operationId: bindOrganizationMapping
+      responses:
+        '204':
+          description: The mapping is recorded.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+
   /masterdata/organizations/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Organizations]
       summary: Deactivate an organization
@@ -121,15 +155,18 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /masterdata/organizations/requests:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Organizations]
       summary: Request an organization (lazy loading)
       description: >
-        Actively requests an organization the caller does not currently hold — for
-        example a predecessor referenced through `previousVersions`, or a
-        dependency not yet loaded. If the caller is entitled to the entity, it is
-        delivered asynchronously as a master-data change event (see
-        `/masterdata/events`).
+        Refetches an organization the caller is entitled to but does not currently hold —
+        an object lost locally, or one referenced by a change that arrived before its
+        own entity type was swept.
+        Opt-in remains the only filter on delivery, so a request never returns
+        anything the stream would not also deliver. The object arrives
+        asynchronously as a master-data change event (see `/masterdata/events`).
       operationId: requestOrganization
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -146,6 +183,7 @@ paths:
   /masterdata/persons/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     put:
       tags: [Persons]
       summary: Send (create or update) a person
@@ -182,9 +220,42 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
+  /masterdata/persons/{localId}/id-mapping/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/IdMappingAgrirouterId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+    put:
+      tags: [Persons]
+      summary: Bind a local identifier to an existing person
+      description: >
+        Declares that the canonical person in the path is the one this endpoint
+        knows as `localId` — used when the endpoint recognises a delivered object
+        as one it already holds. Binding is not a data write: it creates no
+        revision, does not change `sourceEndpointId`, and is delivered to nobody.
+        Afterwards the ordinary PUT under that `localId` resolves to this object
+        and updates it. An endpoint MUST bind before sending an object it
+        received: an unbound send does not resolve and creates a duplicate.
+
+
+        A local identifier denotes exactly one canonical object, so this is a
+        singleton: binding a second one is the `409`. The request has no body,
+        both ends of the mapping being in the path, and is idempotent.
+      operationId: bindPersonMapping
+      responses:
+        '204':
+          description: The mapping is recorded.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+
   /masterdata/persons/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Persons]
       summary: Deactivate a person
@@ -207,15 +278,18 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /masterdata/persons/requests:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Persons]
       summary: Request a person (lazy loading)
       description: >
-        Actively requests a person the caller does not currently hold — for
-        example a predecessor referenced through `previousVersions`, or a
-        dependency not yet loaded. If the caller is entitled to the entity, it is
-        delivered asynchronously as a master-data change event (see
-        `/masterdata/events`).
+        Refetches a person the caller is entitled to but does not currently hold —
+        an object lost locally, or one referenced by a change that arrived before its
+        own entity type was swept.
+        Opt-in remains the only filter on delivery, so a request never returns
+        anything the stream would not also deliver. The object arrives
+        asynchronously as a master-data change event (see `/masterdata/events`).
       operationId: requestPerson
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -232,6 +306,7 @@ paths:
   /masterdata/farms/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     put:
       tags: [Farms]
       summary: Send (create or update) a farm
@@ -268,9 +343,42 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
+  /masterdata/farms/{localId}/id-mapping/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/IdMappingAgrirouterId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+    put:
+      tags: [Farms]
+      summary: Bind a local identifier to an existing farm
+      description: >
+        Declares that the canonical farm in the path is the one this endpoint
+        knows as `localId` — used when the endpoint recognises a delivered object
+        as one it already holds. Binding is not a data write: it creates no
+        revision, does not change `sourceEndpointId`, and is delivered to nobody.
+        Afterwards the ordinary PUT under that `localId` resolves to this object
+        and updates it. An endpoint MUST bind before sending an object it
+        received: an unbound send does not resolve and creates a duplicate.
+
+
+        A local identifier denotes exactly one canonical object, so this is a
+        singleton: binding a second one is the `409`. The request has no body,
+        both ends of the mapping being in the path, and is idempotent.
+      operationId: bindFarmMapping
+      responses:
+        '204':
+          description: The mapping is recorded.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+
   /masterdata/farms/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Farms]
       summary: Deactivate a farm
@@ -293,15 +401,18 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /masterdata/farms/requests:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Farms]
       summary: Request a farm (lazy loading)
       description: >
-        Actively requests a farm the caller does not currently hold — for
-        example a predecessor referenced through `previousVersions`, or a
-        dependency not yet loaded. If the caller is entitled to the entity, it is
-        delivered asynchronously as a master-data change event (see
-        `/masterdata/events`).
+        Refetches a farm the caller is entitled to but does not currently hold —
+        an object lost locally, or one referenced by a change that arrived before its
+        own entity type was swept.
+        Opt-in remains the only filter on delivery, so a request never returns
+        anything the stream would not also deliver. The object arrives
+        asynchronously as a master-data change event (see `/masterdata/events`).
       operationId: requestFarm
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -318,6 +429,7 @@ paths:
   /masterdata/fields/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     put:
       tags: [Fields]
       summary: Send (create or update) a field
@@ -354,9 +466,42 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
+  /masterdata/fields/{localId}/id-mapping/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/IdMappingAgrirouterId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+    put:
+      tags: [Fields]
+      summary: Bind a local identifier to an existing field
+      description: >
+        Declares that the canonical field in the path is the one this endpoint
+        knows as `localId` — used when the endpoint recognises a delivered object
+        as one it already holds. Binding is not a data write: it creates no
+        revision, does not change `sourceEndpointId`, and is delivered to nobody.
+        Afterwards the ordinary PUT under that `localId` resolves to this object
+        and updates it. An endpoint MUST bind before sending an object it
+        received: an unbound send does not resolve and creates a duplicate.
+
+
+        A local identifier denotes exactly one canonical object, so this is a
+        singleton: binding a second one is the `409`. The request has no body,
+        both ends of the mapping being in the path, and is idempotent.
+      operationId: bindFieldMapping
+      responses:
+        '204':
+          description: The mapping is recorded.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+
   /masterdata/fields/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Fields]
       summary: Deactivate a field
@@ -379,15 +524,18 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /masterdata/fields/requests:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [Fields]
       summary: Request a field (lazy loading)
       description: >
-        Actively requests a field the caller does not currently hold — for
-        example a predecessor referenced through `previousVersions`, or a
-        dependency not yet loaded. If the caller is entitled to the entity, it is
-        delivered asynchronously as a master-data change event (see
-        `/masterdata/events`).
+        Refetches a field the caller is entitled to but does not currently hold —
+        an object lost locally, or one referenced by a change that arrived before its
+        own entity type was swept.
+        Opt-in remains the only filter on delivery, so a request never returns
+        anything the stream would not also deliver. The object arrives
+        asynchronously as a master-data change event (see `/masterdata/events`).
       operationId: requestField
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -404,6 +552,7 @@ paths:
   /masterdata/field-boundaries/{localId}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     put:
       tags: [FieldBoundaries]
       summary: Send (create or update) a field boundary
@@ -440,9 +589,42 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
 
+  /masterdata/field-boundaries/{localId}/id-mapping/{agrirouterId}:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/IdMappingAgrirouterId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+    put:
+      tags: [FieldBoundaries]
+      summary: Bind a local identifier to an existing field boundary
+      description: >
+        Declares that the canonical field boundary in the path is the one this endpoint
+        knows as `localId` — used when the endpoint recognises a delivered object
+        as one it already holds. Binding is not a data write: it creates no
+        revision, does not change `sourceEndpointId`, and is delivered to nobody.
+        Afterwards the ordinary PUT under that `localId` resolves to this object
+        and updates it. An endpoint MUST bind before sending an object it
+        received: an unbound send does not resolve and creates a duplicate.
+
+
+        A local identifier denotes exactly one canonical object, so this is a
+        singleton: binding a second one is the `409`. The request has no body,
+        both ends of the mapping being in the path, and is idempotent.
+      operationId: bindFieldBoundaryMapping
+      responses:
+        '204':
+          description: The mapping is recorded.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
+
   /masterdata/field-boundaries/{localId}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [FieldBoundaries]
       summary: Deactivate a field boundary
@@ -465,15 +647,18 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   /masterdata/field-boundaries/requests:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
     post:
       tags: [FieldBoundaries]
       summary: Request a field boundary (lazy loading)
       description: >
-        Actively requests a field boundary the caller does not currently hold — for
-        example a predecessor referenced through `previousVersions`, or a
-        dependency not yet loaded. If the caller is entitled to the entity, it is
-        delivered asynchronously as a master-data change event (see
-        `/masterdata/events`).
+        Refetches a field boundary the caller is entitled to but does not currently hold —
+        an object lost locally, or one referenced by a change that arrived before its
+        own entity type was swept.
+        Opt-in remains the only filter on delivery, so a request never returns
+        anything the stream would not also deliver. The object arrives
+        asynchronously as a master-data change event (see `/masterdata/events`).
       operationId: requestFieldBoundary
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -646,10 +831,12 @@ paths:
         so this operation asserts only that the conflicts reconciling surfaced have
         been resolved in the endpoint's own software. That is human-paced and
         unbounded, so an entity type may sit in `RECONCILING` for a long time
-        without anything being wrong. From that point the endpoint sends the
-        objects it knows about via the ordinary PUT operations. Set `COMPLETED`
-        once the endpoint has sent everything, after which steady-state (day-2)
-        synchronization applies.
+        without anything being wrong. Carry the bindings reconciliation produced
+        in `idMappings`, so the objects the endpoint matched resolve to the
+        canonical objects they were matched to. From that point the endpoint sends
+        the objects it knows about via the ordinary PUT operations. Set
+        `COMPLETED` once the endpoint has sent everything, after which
+        steady-state (day-2) synchronization applies.
 
 
         Setting `LOADING_TO_AGRIROUTER` while the entity type is still
@@ -708,6 +895,30 @@ components:
         "Identifier mapping").
       schema:
         type: string
+    AgrirouterEndpointId:
+      name: x-agrirouter-endpoint-id
+      in: header
+      required: true
+      description: >
+        The endpoint acting — the sender of an entity, the caller of a request,
+        the holder of a binding. The token authorizes an *application*, which
+        holds many endpoints across many tenants, so the acting one is named per
+        request rather than derived; `localId` resolves in its namespace and it
+        becomes the `sourceEndpointId` of any revision produced.
+      schema:
+        type: string
+        format: uuid
+    IdMappingAgrirouterId:
+      name: agrirouterId
+      in: path
+      required: true
+      description: >
+        The canonical object the local identifier in the path denotes. The
+        endpoint at the other end of the mapping is scoped exactly as the entity
+        path it hangs off, so it is not a segment here.
+      schema:
+        type: string
+        format: uuid
     ExternalEndpointId:
       name: externalEndpointId
       in: path
@@ -764,7 +975,9 @@ components:
     MappingConflict:
       description: >
         The supplied local identifier is already mapped to a different canonical
-        object (an asymmetric / n:1 mapping the caller must resolve).
+        object, or — when binding — the canonical object is already bound to a
+        different local identifier of this endpoint. Either way an asymmetric /
+        n:1 mapping the caller must resolve.
       content:
         application/json:
           schema:
@@ -835,12 +1048,32 @@ components:
               enum: [organization, person]
           required: [type]
 
+    IdMappingBinding:
+      type: object
+      description: >
+        One binding of a local identifier to a canonical object, as carried in
+        bulk on the initial-load confirmation. The same identifier mapping as
+        `IdMapping`, seen from the other side: here the endpoint is the caller
+        and the canonical object is named, where on a delivered entity the object
+        is the one carrying the field and the endpoints are named.
+      properties:
+        agrirouterId:
+          type: string
+          format: uuid
+        localId:
+          type: string
+      required: [agrirouterId, localId]
+
     IdMapping:
       type: object
       description: One participant's local identifier for a canonical object.
       properties:
         endpointId:
           type: string
+          format: uuid
+          description: >
+            The agrirouter identifier of the endpoint, not the participant's own
+            `externalEndpointId` for it.
         localId:
           type: string
       required: [endpointId, localId]
@@ -879,7 +1112,11 @@ components:
           readOnly: true
         sourceEndpointId:
           type: string
+          format: uuid
           readOnly: true
+          description: >
+            The agrirouter identifier of the endpoint whose change produced this
+            revision.
         previousVersions:
           type: array
           description: References to entities this one supersedes (split / merge lineage).
@@ -1333,7 +1570,11 @@ components:
       properties:
         endpointId:
           type: string
+          format: uuid
           readOnly: true
+          description: >
+            The agrirouter identifier of the endpoint this resource belongs to.
+            The path addresses it by the participant's own `externalEndpointId`.
         toggles:
           type: array
           items:
@@ -1406,6 +1647,17 @@ components:
             whether the user has finished deciding. agrirouter renders the flag as
             "waiting for you in <app>", together with `resolutionUrl` where one is
             configured.
+        rejectedIdMappings:
+          type: array
+          readOnly: true
+          description: >
+            Bindings supplied on this request that could not be recorded, because
+            the local identifier or the canonical object is already bound
+            otherwise (n:1). They do not fail the transition; the endpoint
+            resolves them as it resolves a `409` on send, and rebinds through the
+            per-entity `id-mapping` operation.
+          items:
+            $ref: '#/components/schemas/IdMappingBinding'
         updatedAt:
           type: string
           format: date-time
@@ -1421,7 +1673,11 @@ components:
       properties:
         endpointId:
           type: string
+          format: uuid
           readOnly: true
+          description: >
+            The agrirouter identifier of the endpoint this resource belongs to.
+            The path addresses it by the participant's own `externalEndpointId`.
         entities:
           type: array
           items:
@@ -1448,4 +1704,17 @@ components:
             It is not cleared by the endpoint: advancing to
             `LOADING_TO_AGRIROUTER` or `COMPLETED` clears it. Omitting it leaves
             the current value untouched.
+        idMappings:
+          type: array
+          description: >
+            The bindings reconciliation produced: one entry per canonical object
+            the endpoint matched to something it already held. Carried here
+            because matching happens over a whole set, and the semantics are those
+            of the per-entity `id-mapping` operation applied to each pair. Meaningful
+            only on the transition to `LOADING_TO_AGRIROUTER`, which is where
+            reconciliation is asserted to be done. Pairs are applied
+            independently: any that conflict come back in `rejectedIdMappings`
+            rather than failing the transition.
+          items:
+            $ref: '#/components/schemas/IdMappingBinding'
       required: [state]
