@@ -1140,11 +1140,13 @@ components:
         The supplied local identifier is already mapped to a different canonical
         object, or — when binding — the canonical object is already bound to a
         different local identifier of this endpoint. Either way an asymmetric /
-        n:1 mapping the caller must resolve.
+        n:1 mapping the caller must resolve. The body names which of the two
+        identifiers is taken, and the mapping that holds it, since that is what
+        the resolving side has to show its user.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/MappingConflictError'
     InitialLoadConflict:
       description: >
         The requested transition is not valid from the entity type's current
@@ -1159,15 +1161,74 @@ components:
     Error:
       type: object
       properties:
-        code:
-          type: string
         message:
           type: string
-        details:
-          type: array
-          items:
-            type: string
-      required: [code, message]
+      required: [message]
+
+    MappingConflictError:
+      description: >
+        The `409` of a binding: an `Error` carrying the rejection that caused it.
+        The same shape the bulk path returns per pair, so an endpoint resolves a
+        conflict identically whichever path raised it. As there, the outcome is
+        carried by `rejection.reason`; the `message` of the `Error` is diagnostic
+        and MUST NOT be branched on.
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            rejection:
+              $ref: '#/components/schemas/IdMappingRejection'
+          required: [rejection]
+
+    IdMappingRejectionReason:
+      type: string
+      description: >
+        [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+        Why a binding could not be recorded.
+
+
+        `LOCAL_ID_ALREADY_BOUND` — this endpoint already knows a different
+        canonical object by that `localId`. `existingMapping` names it.
+
+
+        `AGRIROUTER_ID_ALREADY_BOUND` — this endpoint already knows that
+        canonical object by a different `localId`. `existingMapping` names it.
+
+
+        `UNKNOWN_OBJECT` — no such canonical object, or the endpoint is not
+        entitled to it. On the per-entity operation this is the `404` instead.
+
+
+        `DUPLICATE_IN_REQUEST` — the same `localId` or the same `agrirouterId`
+        appears in more than one pair of this request, which would make the
+        outcome depend on the order pairs were applied in. Every pair involved is
+        rejected and none is applied. Bulk path only.
+      examples:
+        - LOCAL_ID_ALREADY_BOUND
+        - AGRIROUTER_ID_ALREADY_BOUND
+        - UNKNOWN_OBJECT
+        - DUPLICATE_IN_REQUEST
+
+    IdMappingRejection:
+      description: >
+        A binding that could not be recorded: the pair as submitted, why, and
+        the mapping standing in its way.
+      allOf:
+        - $ref: '#/components/schemas/IdMappingBinding'
+        - type: object
+          properties:
+            reason:
+              $ref: '#/components/schemas/IdMappingRejectionReason'
+            existingMapping:
+              $ref: '#/components/schemas/IdMappingBinding'
+              description: >
+                The mapping that already holds the taken identifier. Both of its
+                ends belong to the rejected endpoint itself, so naming it
+                discloses nothing the endpoint does not already hold, and it is
+                what the endpoint shows the user resolving the conflict. Present
+                for `LOCAL_ID_ALREADY_BOUND` and `AGRIROUTER_ID_ALREADY_BOUND`,
+                absent for the other reasons, where no mapping is in the way.
+          required: [reason]
 
     EntityRequest:
       type: object
@@ -1828,13 +1889,14 @@ components:
           type: array
           readOnly: true
           description: >
-            Bindings supplied on this request that could not be recorded, because
-            the local identifier or the canonical object is already bound
-            otherwise (n:1). They do not fail the transition; the endpoint
-            resolves them as it resolves a `409` on send, and rebinds through the
-            per-entity `id-mapping` operation.
+            Bindings supplied on this request that could not be recorded, each
+            with its `reason` and, where one exists, the mapping that stands in
+            its way. They do not fail the transition: one unresolvable pair
+            should not block the load of a set. The endpoint resolves them as it
+            resolves a `409` on the per-entity operation, and rebinds through
+            that operation once it has.
           items:
-            $ref: '#/components/schemas/IdMappingBinding'
+            $ref: '#/components/schemas/IdMappingRejection'
         updatedAt:
           type: string
           format: date-time
@@ -1890,8 +1952,10 @@ components:
             of the per-entity `id-mapping` operation applied to each pair. Meaningful
             only on the transition to `LOADING_TO_AGRIROUTER`, which is where
             reconciliation is asserted to be done. Pairs are applied
-            independently: any that conflict come back in `rejectedIdMappings`
-            rather than failing the transition.
+            independently: any that cannot be recorded — because an identifier is
+            already bound, because the canonical object is unknown to the
+            endpoint, or because the request names the same identifier twice —
+            come back in `rejectedIdMappings` rather than failing the transition.
           items:
             $ref: '#/components/schemas/IdMappingBinding'
       required: [state]

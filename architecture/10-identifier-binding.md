@@ -37,7 +37,7 @@ x-agrirouter-endpoint-id: <the endpoint binding>
 ```
 
 - **`204`** - the mapping is recorded. Idempotent: re-binding the same pair changes nothing.
-- **`409`** - `(endpoint, localId)` is already bound to a different canonical object, or this endpoint already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint.
+- **`409`** - `(endpoint, localId)` is already bound to a different canonical object, or this endpoint already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names what is in the way](#a-rejection-names-what-is-in-the-way)).
 - **`404`** - no such canonical object, or the endpoint is not entitled to it.
 
 The mapping is an association, and both of its ends are in the path, so the
@@ -113,10 +113,41 @@ PUT /endpoints/{eid}/masterdata-initial-load/farms/status
 }
 ```
 
-Same semantics as the singular operation, applied per pair. A conflicting pair
-comes back in `rejectedIdMappings` rather than failing the transition - one unresolvable n:1
-should not block the load of a set - and the endpoint handles it as it handles a
-`409` on send, by raising `awaitingUser` if it cannot reconcile automatically.
+Same semantics as the singular operation, applied per pair. A pair that cannot be
+recorded comes back in `rejectedIdMappings` rather than failing the transition -
+one unresolvable n:1 should not block the load of a set - and the endpoint
+handles it as it handles a `409` on the singular operation, by raising
+`awaitingUser` if it cannot reconcile automatically.
+
+### A rejection names the reason
+
+A rejected pair carries a `reason` and, where there is one, the mapping that
+holds the taken identifier:
+
+```
+"rejectedIdMappings": [
+  { "agrirouterId": "1f2e...4567", "localId": "b1e7",
+    "reason": "AGRIROUTER_ID_ALREADY_BOUND",
+    "existingMapping": { "agrirouterId": "1f2e...4567", "localId": "a039" } }
+]
+```
+
+The two n:1 causes are not the same problem for the endpoint. *Your `localId` is
+taken* means it is about to attach a second canonical object to a row it already
+has; *this object is taken* means the object arrived twice under different local
+identifiers.
+
+The same shape carries the singular `409`, so the endpoint has one rejection
+handler rather than two.
+
+Two rejections carry no `existingMapping`, nothing being in the way. An
+`agrirouterId` the endpoint is not entitled
+to, or that does not exist, is `UNKNOWN_OBJECT` - the `404` of the singular
+operation, which on a bulk path cannot be a status code. And a request naming the
+same `localId` or the same `agrirouterId` in two pairs is `DUPLICATE_IN_REQUEST`
+for every pair involved, none applied: "applied independently" would otherwise
+make the result depend on the order agrirouter happened to walk the list in, and
+the endpoint is asserting something it contradicts within one request.
 
 The state machine needs no new state for this. Binding is what "reconciled"
 *means*, so it belongs on the transition that already asserts it.
@@ -130,9 +161,6 @@ and a wrong bind is tenant-wide, with an inverse that recovers the identity but
 not the revisions written through it. The endpoint is also the only
 side that knows: it is the one that reconciled, with its user where its own rules
 could not settle it.
-
-agrirouter MAY offer candidates as a hint for the endpoint to confirm. It MUST
-NOT act on one.
 
 ### Rejected alternatives
 

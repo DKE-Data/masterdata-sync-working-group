@@ -533,6 +533,19 @@ associated with a *different* object; agrirouter rejects the offending message (
 [Identifier mapping](#identifier-mapping)). This pushes resolution of a genuine n:1 situation to the
 participating systems, which is the intended behaviour for this version.
 
+Because resolution happens there, a rejection MUST carry what resolving it
+requires. agrirouter MUST report, for each rejected binding:
+
+- **which identifier is taken** — the endpoint's `localId`, already denoting a different canonical object, or the canonical object, already known to that endpoint under a different `localId`. The two are different problems in the endpoint's store and are not interchangeable;
+- **the mapping that holds it** — the pair that stands. Both of its ends belong to the rejected endpoint itself, so naming it discloses nothing the endpoint does not already hold, and it is what lets the endpoint tell its user *which* of their records is in the way rather than only that something is.
+
+Both MUST be machine-readable: the endpoint's handling differs by cause — some
+rejections belong in front of a user, others must never reach one.
+
+The same applies whether the binding was rejected singly or as one pair of an
+[initial-load](#initial-load-and-seeding) confirmation; agrirouter MUST report a
+bulk rejection per pair, since the endpoint has to resolve each on its own terms.
+
 ### Differing required/optional attributes
 
 Systems disagree on which attributes are mandatory (one system may require a
