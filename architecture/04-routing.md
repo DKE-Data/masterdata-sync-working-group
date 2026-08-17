@@ -50,7 +50,7 @@ Note that the name `hub` implies a central point that fans out data to all conne
 The hub also requires a new type of route: `HubRoute(endpointId, 'masterdata')`, connecting an endpoint to the hub. It differs from the normal `route(sourceEndpointId, recipientEndpointId)` used between endpoints:
 - it is not directional - an endpoint is either connected to the hub or not
 
-If a user disconnects an endpoint from the masterdata hub after data from that endpoint has already been written to the SSOT, it might be tempting to clean out the data owned by that endpoint. This would be complex and potentially not what the user expects, so the data should remain.
+If a user disconnects an endpoint from the masterdata hub after data from that endpoint has already been written to the SSOT, it might be tempting to clean out the data owned by that endpoint. This would be complex and potentially not what the user expects, so the data should remain. The endpoint's identifier mapping remains with it, so that reconnecting is a matched re-load rather than a fresh reconciliation ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
 
 ### Not in MVP: "read only" routes
 

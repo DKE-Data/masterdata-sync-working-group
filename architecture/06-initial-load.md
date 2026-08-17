@@ -49,6 +49,13 @@ The flow, per entity type:
 5. **Load to agrirouter.** The endpoint now sends the objects it holds that the canonical set did not contain, plus any it changed while resolving conflicts. Because it reconciled first, it sends genuinely new objects instead of duplicates of ones it just received.
 6. **Complete.** When the endpoint has sent everything, the entity type enters `COMPLETED`, and ordinary steady-state synchronization ([ADR 01](./01-reference-architecture.md)) applies from then on.
 
+The same six steps run again if the entity type is opted out and back in, but the
+second time the endpoint's identifier mapping is still there, so step 2 delivers
+objects the endpoint recognises and steps 4 and 5 have little to do
+([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
+`previousLoadCompletedAt` on the initial-load resource is what tells the endpoint
+which of the two it is in, and an endpoint that ignores it duplicates its own data.
+
 The `RECONCILING` state enables differentiating between 3 and 4. In its absence, agrirouter would be unable to say whether it still owed the endpoint data or was waiting on a partner app - a distinction it needs for its own scheduling ([ADR 07](./07-sync-streaming.md)), and one the user-facing label wants too.
 
 ### The flow in concrete calls

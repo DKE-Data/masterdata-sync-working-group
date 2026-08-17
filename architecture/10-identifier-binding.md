@@ -2,7 +2,7 @@
 
 - **Status:** WIP
 - **Scope:** How an endpoint's `localId` becomes attached to a canonical object
-  it did not create
+  it did not create, and how it is detached when the endpoint no longer holds it
 
 ## Context
 
@@ -50,11 +50,6 @@ name the concept already has in this API - `idMappings` on every delivered
 entity, [Identifier mapping](../specification.md#identifier-mapping) in the
 specification - rather than a second word for it.
 
-No `DELETE`. Unbinding would leave a canonical object that the endpoint holds
-under an identifier agrirouter no longer knows, which is the state this ADR
-exists to prevent. An endpoint that bound the wrong object resolves it the way it
-resolves any other n:1 - in its own software, against its user.
-
 Binding creates no revision, does not touch `sourceEndpointId`, and is delivered
 to nobody. Nothing about the canonical object changes - only agrirouter's
 knowledge of what this endpoint calls it. Afterwards the ordinary
@@ -63,6 +58,46 @@ knowledge of what this endpoint calls it. Afterwards the ordinary
 **An endpoint MUST bind before sending an object it received.** An unbound send
 is not an error agrirouter can detect - it is a well-formed create, and it is
 the duplicate above.
+
+### The endpoint can also declare that it no longer holds an object
+
+```
+DELETE /masterdata/{type}/{localId}/id-mapping/{agrirouterId}
+x-agrirouter-endpoint-id: <the endpoint binding>
+```
+
+`204` whether or not the pair was bound, so a retry after a lost response is
+safe. `404` only for no such canonical object, or no entitlement. Same
+properties as the bind: no revision, no `sourceEndpointId`, delivered to nobody.
+
+The operation states *"I no longer hold this object"*. It is a claim about the
+endpoint's own store, of the same kind as the bind and recorded the same way - at
+face value, never inferred
+([agrirouter never infers a mapping](#agrirouter-never-infers-a-mapping)). It is
+not a `:deactivate`, which says the entity is inactive in the world and is
+delivered to everyone, where this concerns one endpoint's copy.
+
+Two situations produce it:
+
+- the endpoint discarded its data while it was not a participant, and the mapping
+  outlived the absence
+  ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection))
+- its user deleted the object in its own system while the rest of the network
+  kept it
+
+In both the endpoint recreates the object under a *new* local identifier, since
+most systems cannot choose their own primary keys, and binding that identifier
+collides with the stale pair. Unbinding is what clears it.
+
+Unbinding is not an instruction to stop sending. Opt-in is the only filter on
+what an endpoint receives, so the object's next change is delivered again,
+carrying no `localId`, and the endpoint treats it as new. An endpoint that wants
+it back at once requests it by `agrirouterId` instead of waiting.
+
+A wrong bind is recoverable through the same operation, within a limit: it
+corrects identity, not data. Revisions a mis-bound endpoint already merged into
+the canonical object stand and were fanned out. The `409` at bind time is where
+the mistake is cheap to catch.
 
 ### Initial load binds in bulk
 
@@ -91,7 +126,8 @@ The state machine needs no new state for this. Binding is what "reconciled"
 Identity is declared by the endpoint, never derived by agrirouter from the
 content of an object. Two fields with the same name on the same farm are
 ordinary, boundaries differ between systems by simplification and projection,
-and a wrong bind is tenant-wide and has no inverse. The endpoint is also the only
+and a wrong bind is tenant-wide, with an inverse that recovers the identity but
+not the revisions written through it. The endpoint is also the only
 side that knows: it is the one that reconciled, with its user where its own rules
 could not settle it.
 
@@ -106,6 +142,7 @@ NOT act on one.
 | A second path keyed by `agrirouterId` | Costs a path per entity type, the same as this decision, to buy the semantics of the row above, and breaks the uniform `/{localId}` keying of the rest of the API. |
 | agrirouter matches on content | Above. |
 | The endpoint keeps the correspondence privately | It already must, to reconcile deliveries against its own store. But a private table cannot be used on the write path, which is keyed by identifiers agrirouter knows. Nothing changes and the duplicates continue. |
+| The confirmation's `idMappings` is authoritative for the set - pairs it omits are unbound | Covers the mass case in one call with no new verb. But an accidentally omitted pair then unbinds silently, it says nothing about an object deleted locally in ordinary operation, and it turns a list of assertions into a list plus an implied negation of everything else. |
 
 ## Consequences
 
@@ -124,4 +161,8 @@ NOT act on one.
 - **`409` at bind time is the earliest the n:1 conflict can surface**, while the
   endpoint is reconciling and has a user in front of it, rather than later on an
   edit with the duplicate already created.
+- **An endpoint's mapping tracks its own store in both directions.** What it
+  holds it binds, what it loses it unbinds, and neither is a change to the
+  entity. A stale pair - mapped to an object the endpoint no longer has - is
+  recoverable rather than terminal.
 

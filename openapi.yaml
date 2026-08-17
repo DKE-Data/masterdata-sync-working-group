@@ -128,6 +128,38 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
+    delete:
+      tags: [Organizations]
+      summary: Declare that this endpoint no longer holds an organization
+      description: >
+        Declares that the endpoint no longer holds the canonical organization in the
+        path under `localId` — deleted locally, or discarded while the endpoint
+        was not a participant. It is the counterpart of the binding above and,
+        like it, a declaration about the endpoint's own store, which agrirouter
+        takes at face value and never infers. It is not the correction of a
+        mistaken binding, and it is not a statement that the entity is inactive
+        in the world — for the latter, use the deactivation operation, which is
+        about the entity rather than about this endpoint's copy of it.
+
+
+        Unbinding removes no canonical object, touches no other endpoint's
+        mapping, creates no revision, and reaches nobody. The object stays one
+        this endpoint is entitled to, so its next change is delivered again,
+        carrying no `localId`, and the endpoint MUST then treat it as new:
+        opt-in is the only filter on what an endpoint receives, and unbinding is
+        not an instruction to stop sending. An endpoint that wants the object
+        back at once requests it by `agrirouterId` rather than waiting for a
+        change.
+      operationId: unbindOrganizationMapping
+      responses:
+        '204':
+          description: >
+            The endpoint holds no mapping for this pair. Returned whether or not
+            one existed, so a retry after a lost response is safe.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /masterdata/organizations/{localId}/deactivation:
     parameters:
@@ -251,6 +283,38 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
+    delete:
+      tags: [Persons]
+      summary: Declare that this endpoint no longer holds a person
+      description: >
+        Declares that the endpoint no longer holds the canonical person in the
+        path under `localId` — deleted locally, or discarded while the endpoint
+        was not a participant. It is the counterpart of the binding above and,
+        like it, a declaration about the endpoint's own store, which agrirouter
+        takes at face value and never infers. It is not the correction of a
+        mistaken binding, and it is not a statement that the entity is inactive
+        in the world — for the latter, use the deactivation operation, which is
+        about the entity rather than about this endpoint's copy of it.
+
+
+        Unbinding removes no canonical object, touches no other endpoint's
+        mapping, creates no revision, and reaches nobody. The object stays one
+        this endpoint is entitled to, so its next change is delivered again,
+        carrying no `localId`, and the endpoint MUST then treat it as new:
+        opt-in is the only filter on what an endpoint receives, and unbinding is
+        not an instruction to stop sending. An endpoint that wants the object
+        back at once requests it by `agrirouterId` rather than waiting for a
+        change.
+      operationId: unbindPersonMapping
+      responses:
+        '204':
+          description: >
+            The endpoint holds no mapping for this pair. Returned whether or not
+            one existed, so a retry after a lost response is safe.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /masterdata/persons/{localId}/deactivation:
     parameters:
@@ -374,6 +438,38 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
+    delete:
+      tags: [Farms]
+      summary: Declare that this endpoint no longer holds a farm
+      description: >
+        Declares that the endpoint no longer holds the canonical farm in the
+        path under `localId` — deleted locally, or discarded while the endpoint
+        was not a participant. It is the counterpart of the binding above and,
+        like it, a declaration about the endpoint's own store, which agrirouter
+        takes at face value and never infers. It is not the correction of a
+        mistaken binding, and it is not a statement that the entity is inactive
+        in the world — for the latter, use the deactivation operation, which is
+        about the entity rather than about this endpoint's copy of it.
+
+
+        Unbinding removes no canonical object, touches no other endpoint's
+        mapping, creates no revision, and reaches nobody. The object stays one
+        this endpoint is entitled to, so its next change is delivered again,
+        carrying no `localId`, and the endpoint MUST then treat it as new:
+        opt-in is the only filter on what an endpoint receives, and unbinding is
+        not an instruction to stop sending. An endpoint that wants the object
+        back at once requests it by `agrirouterId` rather than waiting for a
+        change.
+      operationId: unbindFarmMapping
+      responses:
+        '204':
+          description: >
+            The endpoint holds no mapping for this pair. Returned whether or not
+            one existed, so a retry after a lost response is safe.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /masterdata/farms/{localId}/deactivation:
     parameters:
@@ -497,6 +593,38 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
+    delete:
+      tags: [Fields]
+      summary: Declare that this endpoint no longer holds a field
+      description: >
+        Declares that the endpoint no longer holds the canonical field in the
+        path under `localId` — deleted locally, or discarded while the endpoint
+        was not a participant. It is the counterpart of the binding above and,
+        like it, a declaration about the endpoint's own store, which agrirouter
+        takes at face value and never infers. It is not the correction of a
+        mistaken binding, and it is not a statement that the entity is inactive
+        in the world — for the latter, use the deactivation operation, which is
+        about the entity rather than about this endpoint's copy of it.
+
+
+        Unbinding removes no canonical object, touches no other endpoint's
+        mapping, creates no revision, and reaches nobody. The object stays one
+        this endpoint is entitled to, so its next change is delivered again,
+        carrying no `localId`, and the endpoint MUST then treat it as new:
+        opt-in is the only filter on what an endpoint receives, and unbinding is
+        not an instruction to stop sending. An endpoint that wants the object
+        back at once requests it by `agrirouterId` rather than waiting for a
+        change.
+      operationId: unbindFieldMapping
+      responses:
+        '204':
+          description: >
+            The endpoint holds no mapping for this pair. Returned whether or not
+            one existed, so a retry after a lost response is safe.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /masterdata/fields/{localId}/deactivation:
     parameters:
@@ -620,6 +748,38 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
+    delete:
+      tags: [FieldBoundaries]
+      summary: Declare that this endpoint no longer holds a field boundary
+      description: >
+        Declares that the endpoint no longer holds the canonical field boundary in the
+        path under `localId` — deleted locally, or discarded while the endpoint
+        was not a participant. It is the counterpart of the binding above and,
+        like it, a declaration about the endpoint's own store, which agrirouter
+        takes at face value and never infers. It is not the correction of a
+        mistaken binding, and it is not a statement that the entity is inactive
+        in the world — for the latter, use the deactivation operation, which is
+        about the entity rather than about this endpoint's copy of it.
+
+
+        Unbinding removes no canonical object, touches no other endpoint's
+        mapping, creates no revision, and reaches nobody. The object stays one
+        this endpoint is entitled to, so its next change is delivered again,
+        carrying no `localId`, and the endpoint MUST then treat it as new:
+        opt-in is the only filter on what an endpoint receives, and unbinding is
+        not an instruction to stop sending. An endpoint that wants the object
+        back at once requests it by `agrirouterId` rather than waiting for a
+        change.
+      operationId: unbindFieldBoundaryMapping
+      responses:
+        '204':
+          description: >
+            The endpoint holds no mapping for this pair. Returned whether or not
+            one existed, so a retry after a lost response is safe.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /masterdata/field-boundaries/{localId}/deactivation:
     parameters:
@@ -747,7 +907,10 @@ paths:
         sweep runs when the application connects and is not lost if it is
         disconnected at the time. Removing a toggle opts the entity type out and
         discards its initial-load state, so opting it back in runs a full initial
-        load.
+        load. Opting out discards neither the canonical objects nor the
+        endpoint's identifier mapping, so that repeat load arrives matched —
+        `previousLoadCompletedAt` on the Initial Load resource marks it as a
+        repeat.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -1647,6 +1810,20 @@ components:
             whether the user has finished deciding. agrirouter renders the flag as
             "waiting for you in <app>", together with `resolutionUrl` where one is
             configured.
+        previousLoadCompletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: >
+            When this entity type last reached `COMPLETED`, present only if it
+            has. Its presence means the canonical set now arriving is a repeat
+            load — the endpoint was a participant before, was opted out or
+            disconnected from the hub, and has returned. The identifier mapping
+            survived, so the objects arrive carrying the endpoint's own
+            `localId` and match rather than reconcile. An endpoint MUST NOT take
+            the arrival of a canonical set as evidence of a first connection:
+            without this check it creates local duplicates of data it already
+            holds.
         rejectedIdMappings:
           type: array
           readOnly: true

@@ -40,8 +40,9 @@ carries the object's identity, its position in the dependency graph, the endpoin
 whose change produced the current value, and a globally ordered `last_event_id`
 that is rewritten every time the object changes.
 
-That ordering agrees with commit order and advances per record, so a cursor may
-stop anywhere and nothing committed below it is ever skipped.
+No change is ever given a number below one the application has already received,
+and the number advances per record, so a cursor may stop anywhere and nothing is
+silently skipped.
 
 Because there is one record per object rather than one per change, what agrirouter
 holds is proportional to the amount of master data in existence, not to how much

@@ -450,6 +450,33 @@ canonical object for the same entity. During
 carried on the confirmation that ends reconciliation. The concrete operations are
 described in `openapi.yaml`.
 
+Symmetrically, an endpoint that no longer holds an object — its user deleted it
+locally, or it discarded its data while it was not a participant — MAY **unbind**
+its identifier from the canonical object. Binding and unbinding are the same kind
+of claim: a declaration about the endpoint's own store, which agrirouter records
+and never infers. Unbinding is not the correction of a mistaken binding, and it
+is not a `masterdata:<type>:deactivate`, which states that the entity is inactive
+in the world and is delivered to every participant. It removes no canonical
+object, affects no other endpoint's mapping, and reaches nobody.
+
+Unbinding does not narrow what the endpoint receives: opt-in is the only such
+filter (see [Security considerations](#security-considerations)). The object's
+next change is therefore delivered again, carrying no `localId` for that
+endpoint, and the endpoint MUST treat it as a canonical object it does not hold
+— creating it locally and binding the identifier it then issues. An endpoint that
+wants the object back sooner requests it (see
+[Requesting objects (lazy loading)](#requesting-objects-lazy-loading)) rather
+than waiting for a change.
+
+Without unbinding these situations have no exit: the endpoint recreates the
+object under a new local identifier, because most systems cannot choose their own
+primary keys, and binding that identifier collides with the stale pair.
+
+A mapping otherwise outlives the connection that created it: it is discarded only
+with the endpoint itself, not when an entity type is opted out or the endpoint is
+disconnected from the hub (see
+[Disconnection and re-connection](#disconnection-and-re-connection)).
+
 An endpoint MUST NOT reuse one of its own local identifiers for two distinct
 canonical objects. If an endpoint sends a `localId` that is already mapped to a
 *different* canonical object than the one implied by the message, agrirouter MUST
@@ -471,7 +498,7 @@ Therefore:
 - Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
 - Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
 - Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST reject a configuration that is not dependency-closed rather than silently enabling the missing types. Implementations SHOULD surface the dependency to the user.
-- Opting an entity type **out** removes it from the configuration, and with it that entity type's initial-load state. Opting it back in starts a full initial load again: agrirouter cannot enumerate what the endpoint missed while the type was opted out.
+- Opting an entity type **out** removes it from the configuration, and with it that entity type's initial-load state. Opting it back in starts a full initial load again: agrirouter cannot enumerate what the endpoint missed while the type was opted out. Neither the canonical objects nor the endpoint's identifier mapping are discarded, so the repeat load is matched rather than reconciled (see [Disconnection and re-connection](#disconnection-and-re-connection)).
 - The opt-in decision SHOULD be offered to the user at endpoint onboarding, and MUST remain changeable afterwards.
 
 The concrete configuration resource is described in `openapi.yaml`.
@@ -528,6 +555,79 @@ state of each entity rather than from a retained log of changes, so an arbitrari
 long absence is a larger catch-up rather than a failed one. The consequence is that
 a participant receives each changed entity once, carrying its current value, and
 MUST NOT assume it observed every intermediate change to that entity.
+
+## Disconnection and re-connection
+
+[Downtime and resume](#downtime-and-resume) covers an endpoint that is still a
+participant and merely offline. This section covers an endpoint whose
+participation itself ends, and what it finds if it comes back.
+
+Three distinct events end participation, at different scopes:
+
+| Event | Scope |
+|---|---|
+| **Type opt-out** — an entity type removed from the endpoint's opt-in configuration | one entity type |
+| **Hub disconnection** — the endpoint's route to the master-data hub removed | every entity type of that endpoint |
+| **Endpoint removal** — the endpoint itself deleted from the tenant | the endpoint |
+
+What each discards:
+
+| | Canonical objects | Identifier mapping | Initial-load state |
+|---|---|---|---|
+| Type opt-out | retained | **retained** | discarded |
+| Hub disconnection | retained | **retained** | discarded |
+| Endpoint removal | retained | discarded | discarded |
+
+Canonical objects contributed by the endpoint are retained in every case: they
+are the tenant's data, held on the tenant's behalf, and other endpoints are
+synchronizing against them.
+
+The identifier mapping is retained for the same reason it is retained across
+[deactivation](#deactivation) — it is a property of the canonical object, not of
+the connection. Discarding it would not withhold anything: `agrirouterId` is
+stable, so a participant that kept its own correspondence table simply re-declares
+the same bindings on return. It would only degrade the returning participant,
+whose own data comes back unrecognizable.
+
+### Re-connection
+
+Opting a type back in, or re-routing the endpoint to the hub, runs a full
+[initial load](#initial-load-and-seeding): agrirouter cannot enumerate what the
+endpoint missed while it was not a participant, so it re-sends the canonical set
+rather than a delta.
+
+Because the mapping survived, that set is delivered with each object carrying the
+endpoint's own `localId` (see [Identifier mapping](#identifier-mapping)), so
+matching is mechanical and a participant that still holds its data has nothing to
+reconcile and nothing to bind. Reconciliation is only as large as the divergence
+that accumulated while the endpoint was away.
+
+A participant that discarded its local copies in the meantime is in the opposite
+position: the objects arrive carrying identifiers it no longer recognises. It
+**unbinds** those (see [Identifier mapping](#identifier-mapping)) and takes them
+as new, rather than reusing identifiers its own store has forgotten.
+
+agrirouter marks a repeat load as such: an entity type re-entering
+`LOADING_FROM_AGRIROUTER` having previously reached `COMPLETED` carries the time
+at which it did, on the initial-load resource. A participant MUST NOT infer from
+the arrival of a canonical set that it is a first connection — without the marker
+it would blind-create local objects for data it already holds. The marker is on
+the initial-load resource rather than on the stream because it is read once, when
+a set starts arriving, and the delivery channel carries entities.
+
+On return a participant may assume only that it receives the **current** value of
+each canonical object it is entitled to. Objects deactivated while it was away
+arrive inactive. Changes made by others while it was away are not enumerable: as
+in [Downtime and resume](#downtime-and-resume), agrirouter keeps no log, so a
+participant that wants to show its user what changed in its absence must diff
+against its own retained copy.
+
+Endpoint identity is what the mapping hangs from, so the retention above holds
+only for as long as the endpoint does. Whether re-onboarding a participant
+reaches the same agrirouter endpoint is a platform behaviour outside this
+specification; where it does not, the returning participant is a new endpoint,
+its predecessor's mapping is unreachable, and the re-connection is a first
+connection in every respect described here.
 
 ## Loop prevention
 
@@ -619,6 +719,9 @@ this document:
 - **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
 - **Initial load** — formalizing the initial-load state machine and conflict-resolution responsibilities of [Initial load and seeding](#initial-load-and-seeding). Downtime and resume semantics are settled; the remaining open part is conflict resolution.
 - **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
+- **Endpoint identity across re-onboarding** — whether a participant re-onboarding reaches the same agrirouter endpoint, which decides whether the mapping retention of [Disconnection and re-connection](#disconnection-and-re-connection) is reachable in the most common return path. A platform question, settled outside this document.
+- **Learning of disconnection** — a participant is not told that a user opted a type out or disconnected the endpoint from the hub; it observes the absence on the initial-load resource. Whether that warrants a signal on the delivery channel is open.
+- **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
 - **`:deactivate` idempotency** — duplicate deactivations in [Deactivation](#deactivation).
