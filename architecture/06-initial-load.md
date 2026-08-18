@@ -83,7 +83,7 @@ sequenceDiagram
     P->>AR: GET /masterdata/events (SSE)
     AR-->>P: 200 text/event-stream
     loop every canonical farm the endpoint is entitled to
-        AR-->>P: event: MASTERDATA_CHANGED id: evt-8842 data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, idMappings: [...] }
+        AR-->>P: event: MASTERDATA_CHANGED id: evt-8842 data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, localId: P's own or absent }
         Note over P: reconcile against own store (id mapping, user decides on conflicts)
     end
     AR-->>P: event: CANONICAL_SET_END data: { entityType: "farms" }

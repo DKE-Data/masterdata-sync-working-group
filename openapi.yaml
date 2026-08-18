@@ -842,8 +842,9 @@ paths:
         it is opted into. agrirouter never echoes a change back to the endpoint it
         originated from. Each event's `data` is an `Entity` — an `Organization`,
         `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type`
-        property. Delivered objects carry the receiving endpoint's own `localId`
-        in `idMappings` when known.
+        property. A delivered object carries the receiving endpoint's own
+        identifier in `localId` when agrirouter holds one, and no `localId` at
+        all when it does not.
 
         Opting an entity type in, or routing a new tenant to the hub, schedules a
         sweep of the corresponding canonical objects onto this same stream, each
@@ -1276,10 +1277,12 @@ components:
       type: object
       description: >
         One binding of a local identifier to a canonical object, as carried in
-        bulk on the initial-load confirmation. The same identifier mapping as
-        `IdMapping`, seen from the other side: here the endpoint is the caller
-        and the canonical object is named, where on a delivered entity the object
-        is the one carrying the field and the endpoints are named.
+        bulk on the initial-load confirmation.
+
+
+        Both ends belong to the calling endpoint's own store: the object it
+        matched, and what it calls that object. A mapping only ever travels from
+        an endpoint to agrirouter.
       properties:
         agrirouterId:
           type: string
@@ -1287,20 +1290,6 @@ components:
         localId:
           type: string
       required: [agrirouterId, localId]
-
-    IdMapping:
-      type: object
-      description: One participant's local identifier for a canonical object.
-      properties:
-        endpointId:
-          type: string
-          format: uuid
-          description: >
-            The agrirouter identifier of the endpoint, not the participant's own
-            `externalEndpointId` for it.
-        localId:
-          type: string
-      required: [endpointId, localId]
 
     Envelope:
       type: object
@@ -1316,13 +1305,17 @@ components:
           description: Canonical identifier, assigned by agrirouter. Absent on first send.
         localId:
           type: string
-          description: The sending participant's own identifier for the entity.
-        idMappings:
-          type: array
-          readOnly: true
-          description: Maintained by agrirouter; ignored on send.
-          items:
-            $ref: '#/components/schemas/IdMapping'
+          description: >
+            Always the *calling* endpoint's own identifier for the entity, in
+            both directions: on send the sender's, on delivery the receiving
+            endpoint's. It never carries another endpoint's identifier.
+
+
+            Required on send. On delivery it is present when agrirouter holds a
+            mapping for the receiving endpoint, and absent when it does not —
+            an object the endpoint has not bound, or has unbound. An absent
+            `localId` means "you do not hold this object": create it locally and
+            bind the identifier you issue.
         active:
           type: boolean
           default: true
@@ -1346,7 +1339,6 @@ components:
           description: References to entities this one supersedes (split / merge lineage).
           items:
             $ref: '#/components/schemas/EntityReference'
-      required: [localId]
 
 
     Address:

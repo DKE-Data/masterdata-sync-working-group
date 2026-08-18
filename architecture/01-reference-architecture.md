@@ -124,9 +124,12 @@ meaningful `agrirouterId` and the mapping from it back to each partner's `localI
 | Revision | (local) | `revision` = 7 (authoritative) | (local) |
 | Data | name, boundary, … | canonical name, boundary, … | name, boundary, … |
 
-The `idMappings` on the canonical object are what let a change originating in A be
-delivered to B as *the same field B already knows*, rather than a duplicate. See
-[Identifier mapping](../specification.md#identifier-mapping).
+The id mapping held on the canonical object is what lets a change originating in A
+be delivered to B as *the same field B already knows*, rather than a duplicate. It
+is held whole by agrirouter and delivered in slices: B's copy of the field carries
+B's `localId` and never A's. See
+[Identifier mapping](../specification.md#identifier-mapping) and
+[ADR 11](./11-identifier-disclosure.md).
 
 We suggest to keep identity mapping for these main reasons:
 - as mentioned before access patterns are different for each partner and pre-existing schema of identifying entities could vary between different implementations. Therefore, it is not possible to have a single identifier for each entity that would be used by all partners at the same time.

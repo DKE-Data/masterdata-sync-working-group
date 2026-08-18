@@ -156,10 +156,6 @@ Every `masterdata:<type>` object shares a common envelope. Example
   "type": "field",
   "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
   "localId": "PFD-00042",
-  "idMappings": [
-    { "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210", "localId": "field-9931" },
-    { "endpointId": "2a3b4c5d-6e7f-8091-a2b3-c4d5e6f70819", "localId": "b1e7..." }
-  ],
   "active": true,
   "revision": 7,
   "modifiedAt": "2026-07-14T09:20:00Z",
@@ -172,8 +168,7 @@ Envelope fields:
 
 - `type` (string, required): the entity type; one of `organization`, `person`, `farm`, `field`, `fieldBoundary`.
 - `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
-- `localId` (string, required on send): the sending participant's own identifier for the entity. See [Identifier mapping](#identifier-mapping) for how it is interpreted.
-- `idMappings` (array): the identifier mapping maintained by agrirouter. Each element pairs an `endpointId` — the agrirouter identifier of the endpoint ({{?RFC4122}}), not the participant's own `externalEndpointId` for it — with that endpoint's `localId`. This field is populated by agrirouter on the objects it delivers and is ignored on send.
+- `localId` (string): **always the identifier of the participant at the near end of the transfer, never of any other.** On send it is the sender's own identifier for the entity, and is required. On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
 - `active` (boolean): whether the entity is currently active. Deactivation is expressed through the `:deactivate` message (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
@@ -212,10 +207,13 @@ interchangeable in both directions:
   [identifier mapping](#identifier-mapping). If it does not resolve — the target has
   not been sent yet — the message MUST be rejected, and the participant MUST send the
   target before the object referencing it.
-- **On delivery**, agrirouter MUST populate `agrirouterId`, and SHOULD replace the
-  `localId` with the receiving endpoint's own identifier for the target when known. A
-  receiving endpoint resolves the target through `agrirouterId`: the sender's `localId`
-  carries no meaning in the receiver's namespace.
+- **On delivery**, agrirouter MUST populate `agrirouterId`, and MUST replace the
+  `localId` with the receiving endpoint's own identifier for the target, omitting it
+  when there is none. It MUST NOT be left as the sender's: a receiving endpoint
+  resolves the target through `agrirouterId`, so the sender's `localId` carries no
+  meaning in the receiver's namespace, and passing it through would disclose the
+  sender's internal key for the target. This is the same rule the envelope's own
+  `localId` follows (see [Common envelope](#common-envelope)).
 
 A reference to a party MUST additionally carry `type` (`organization` or `person`).
 A receiving endpoint that does not hold the target has to retrieve it through
@@ -435,7 +433,8 @@ and each participant's `localId` for that object.
 
   - if the mapping already resolves (E, X) to a canonical object, that object is updated;
   - otherwise a new canonical object is created, `agrirouterId` is assigned, and (E, X) is recorded in its mapping.
-- When agrirouter delivers a canonical object to endpoint E, it SHOULD include E's own `localId` (if known) so the receiver can reconcile against its local data without a lookup.
+- When agrirouter delivers a canonical object to endpoint E, it MUST set `localId` to E's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit `localId` when it holds none. An absent `localId` is meaningful: it states that agrirouter does not believe E holds this object, which is what makes an unbound or unbound-again object recognisable as one E must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
+- **The mapping is delivered one endpoint at a time, and only to that endpoint.** A canonical object holds every participant's `localId`, but a delivered copy carries at most the recipient's own. agrirouter MUST NOT disclose one participant's local identifiers to another: nothing in synchronization consumes them — a receiver resolves through `agrirouterId` — and they are a participant's internal keys for a user's data. See [Security considerations](#security-considerations).
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to task-data-based tooling.
 
 A mapping also comes into existence the other way round, when an endpoint
@@ -716,8 +715,25 @@ per-endpoint, per-entity opt-in, never by default routing. Second, opt-in is the
 **only** filter on what an endpoint receives: an endpoint opted into an entity
 type receives every canonical object of that type in the exchange, and no
 attribute inside a synchronized object narrows that (see [Farm](#farm)). The set
-of entity types a user opts an endpoint into therefore defines exactly what that
-endpoint is exposed to.
+of entity types a user opts an endpoint into therefore defines exactly what
+master data that endpoint is exposed to.
+
+That statement is about master data, and is deliberately not a claim about the
+platform. An application that holds an endpoint in a tenant can already enumerate
+that tenant's other endpoints — their names, types, owning applications, and
+capabilities — through ordinary agrirouter platform APIs, whether or not it takes
+part in master-data exchange. This protocol neither widens nor narrows that.
+
+What it does add, and therefore must bound, is per-object identifiers. A
+participant's `localId` is its internal primary key for one of the user's
+records; disclosing it to a peer is finer-grained than anything the platform
+exposes, scales with the size of the dataset rather than with the number of
+endpoints, and lets one participant correlate another's records across the
+tenant. It buys synchronization nothing, since receivers resolve through
+`agrirouterId`. Hence the rule in
+[Identifier mapping](#identifier-mapping): **a delivered object carries the
+receiving endpoint's own local identifiers and no other endpoint's**, in the
+envelope and in every reference within it.
 
 Field boundaries and party contact details are personal and commercially
 sensitive data. Participants SHOULD expose only the data necessary for
@@ -735,6 +751,7 @@ this document:
 - **Endpoint identity across re-onboarding** — whether a participant re-onboarding reaches the same agrirouter endpoint, which decides whether the mapping retention of [Disconnection and re-connection](#disconnection-and-re-connection) is reachable in the most common return path. A platform question, settled outside this document.
 - **Learning of disconnection** — a participant is not told that a user opted a type out or disconnected the endpoint from the hub; it observes the absence on the initial-load resource. Whether that warrants a signal on the delivery channel is open.
 - **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.
+- **`sourceEndpointId` on delivery** — [Identifier mapping](#identifier-mapping) settles that a delivered object carries no other endpoint's *local* identifiers. `sourceEndpointId` still names another endpoint, which the platform's own endpoint listing would disclose anyway, and which a receiver may want for a conflict UI. Whether it is needed on the delivered object at all — loop prevention is server-side — or should be reduced, is open.
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
 - **`:deactivate` idempotency** — duplicate deactivations in [Deactivation](#deactivation).

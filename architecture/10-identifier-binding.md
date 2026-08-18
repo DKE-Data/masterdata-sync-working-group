@@ -46,8 +46,8 @@ and a retry after a lost response is trivially the same request. The endpoint at
 the other end is not a segment because it is not one on the entity path either -
 the binding is scoped exactly as the object it binds (see
 [Which endpoint is acting](#which-endpoint-is-acting)). The segment carries the
-name the concept already has in this API - `idMappings` on every delivered
-entity, [Identifier mapping](../specification.md#identifier-mapping) in the
+name the concept already has - `idMappings` on the initial-load confirmation,
+[Identifier mapping](../specification.md#identifier-mapping) in the
 specification - rather than a second word for it.
 
 Binding creates no revision, does not touch `sourceEndpointId`, and is delivered
@@ -177,10 +177,12 @@ could not settle it.
 - **The day-2 receive path gains a step.** An endpoint creating a local object
   for a delivered canonical one binds it in the same unit of work. Deferring is
   legal and costs nothing until that object is edited.
-- **`idMappings` becomes complete.** The delivery clause that includes an
-  endpoint's own `localId` when known starts to fire for objects it did not
-  create, and the ISOXML LinkList correspondence the specification requires can
-  actually be expressed.
+- **Delivery can carry a `localId` for objects the endpoint did not create.**
+  That clause sets it to the recipient's own identifier wherever a mapping
+  exists, and binding is what creates one for a received object. Without it such
+  an object would arrive anonymous to the very endpoint holding it, every time,
+  and the ISOXML LinkList correspondence the specification requires could not be
+  expressed.
 - **References by `localId` keep working for received objects.**
   [References](../specification.md#references) resolve through the sender's own
   mapping, so an unbound endpoint could not refer to a farm it received but never
