@@ -203,12 +203,21 @@ it is scoped to:
 | First connection | everything granted and opted in |
 | A tenant routes one of its endpoints to the hub | that tenant |
 | That endpoint is opted into a further entity type | that tenant & entity type |
-| Application-requested resync | that tenant |
+| A connection carrying no cursor, or one we cannot read | everything granted and opted in |
 
-Every one of these is scoped to a single tenant, because every one of them is an
-act by that tenant's user on their own endpoint. An application cannot opt itself
-into a type across its tenants, and agrirouter never sweeps more than one tenant
-on any trigger except a first connection.
+The middle two are scoped to a single tenant because each is an act by that
+tenant's user on their own endpoint: an application cannot opt itself into a type
+across its tenants, and agrirouter never sweeps more than one tenant on either.
+
+The others are not triggered by a user, and are therefore not scoped to a tenant.
+
+### A cursor we cannot read is a first connection
+
+An application that presents no `Last-Event-ID`, or one that fails validation,
+is swept in full. 
+
+Discarding the cursor is therefore how an application can ask for every entity to
+be delivered again.
 
 ### The cursor belongs to the application, not to agrirouter
 
@@ -245,6 +254,12 @@ So the rule is: **add a sweep entry for any (tenant, entity type) that is
 clause is what stops a reconnect mid-sweep from starting a second one, and the
 first is what stops a reconnect during a slow human resolution from starting the
 sweep over - the state has moved on even though the endpoint has not confirmed.
+
+Where there is no cursor to compare against, the comparison has no lower bound
+and every entitled (tenant, entity type) gets an entry, per
+[A cursor we cannot read is a first connection](#a-cursor-we-cannot-read-is-a-first-connection).
+That is the only case in which the rule above is not the whole answer, and it is
+still derived from routes and opt-in rather than from anything we stored.
 
 ### The end of a set is answered by the cursor
 
@@ -313,10 +328,16 @@ neither has a fix that keeps the queue.
 - **Delivery state is per application, but initial-load state is not.** The state
   machine in [ADR 06](./06-initial-load.md) is per tenant and entity type while
   the cursor is per application, _so the two are not keyed alike._
-- **agrirouter holds no position, but does hold what is owed.** Where an
-  application has got to is entirely in the cursor it sends; whether a sweep is
-  outstanding is ours, derived from routes and opt-in. A partner that loses its
-  cursor loses only its place, not its entitlement, and recovers by sweeping again.
+- **agrirouter holds no position, and holds no re-delivery requests either.**
+  Where an application has got to is entirely in the cursor it sends; whether a
+  sweep is owed is ours, derived from routes, opt-in, and the initial-load state
+  the endpoint can set. A partner that loses its cursor loses only its place, not
+  its entitlement, and recovers by sweeping again.
+- **A partner's own data loss is recoverable at two scales.** One entity type of
+  one endpoint, by re-entering `LOADING_FROM_AGRIROUTER`
+  ([ADR 06](./06-initial-load.md#the-endpoint-can-ask-for-the-set-again)); every
+  tenant at once, by discarding the cursor. Neither touches opt-in configuration,
+  which is a control over exposure rather than a maintenance lever.
 - **This ADR is what forced `RECONCILING` into [ADR 06](./06-initial-load.md).**
   Deciding on reconnect whether a sweep is owed requires distinguishing a set still
   being delivered from one delivered and awaiting a human, which the old

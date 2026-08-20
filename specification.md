@@ -471,6 +471,16 @@ Without unbinding these situations have no exit: the endpoint recreates the
 object under a new local identifier, because most systems cannot choose their own
 primary keys, and binding that identifier collides with the stale pair.
 
+Every operation above is keyed by an identifier the endpoint is assumed to hold:
+unbinding names a pair, [requesting](#requesting-objects-lazy-loading) names an
+`agrirouterId`, and an ordinary send resolves through a `localId` already mapped.
+An endpoint whose own store was restored from a backup or migrated may hold none
+of them, and agrirouter does not disclose the mapping on demand — a participant's
+correspondence table is its own to keep. Such an endpoint recovers by asking for
+the canonical set again (see [Initial load and seeding](#initial-load-and-seeding)),
+which delivers every object it is entitled to carrying that endpoint's own
+`localId`, and so restores the correspondence and the data together.
+
 A mapping otherwise outlives the connection that created it: it is discarded only
 with the endpoint itself, not when an entity type is opted out or the endpoint is
 disconnected from the hub (see
@@ -513,6 +523,26 @@ seeding state. The defined progression is:
 3. **Reconciling.** Emitting that event moves the entity type on, because agrirouter knows it has sent everything and needs nothing reported back. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and so takes as long as that takes.
 4. **Loading to agrirouter.** The endpoint confirms it has reconciled, and sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts. Confirming before the whole set has been received MUST be rejected.
 5. **Completed.** Steady-state (day-2) synchronization applies from here on.
+
+An endpoint MAY re-enter **loading from agrirouter** from any of these states, which
+asks agrirouter to send the canonical set again. The state asserts that the set is
+owed to the endpoint, and that becomes true a second time when the endpoint's own
+store is restored from a backup, migrated, or otherwise loses the correspondence
+between its records and the canonical objects — a loss agrirouter cannot observe
+and MUST therefore take on the endpoint's word. agrirouter MUST then re-send the
+set as it does for a first load, and MUST mark it a repeat, the identifier mapping
+being unaffected (see [Re-connection](#re-connection)). Re-entry matters as much
+from **reconciling** and **loading to agrirouter** as from **completed**:
+agrirouter has already sent the set by then, so an endpoint that loses its store
+during reconciliation — a window that is human-paced and unbounded — could
+otherwise neither advance nor return.
+
+A participant SHOULD use this rather than opting the entity type out and back in.
+Both reach the same state, but opting out and in is two writes to the opt-in
+configuration rather than one transition: it is not atomic, so a failure between
+them leaves the endpoint opted out with delivery stopped, and it records a
+participant's own maintenance in the configuration that expresses what a user
+agreed to share (see [Routing and opt-in](#routing-and-opt-in)).
 
 Conflict detection during seeding, and its resolution, are the responsibility of
 the **endpoint's own software**, which presents conflicts to the user. agrirouter
@@ -568,6 +598,25 @@ long absence is a larger catch-up rather than a failed one. The consequence is t
 a participant receives each changed entity once, carrying its current value, and
 MUST NOT assume it observed every intermediate change to that entity.
 
+A participant that connects **without sending `Last-Event-ID`**, or sends one
+agrirouter cannot validate, is served as a first connection: agrirouter delivers
+everything it is entitled to, in dependency order, closing each entity type with
+`CANONICAL_SET_END`. Losing the delivery position therefore costs a participant
+its place in the stream and not its entitlement, at the price of receiving the
+whole set again. Because the identifier mapping is unaffected, those objects
+arrive carrying the participant's own `localId` (see
+[Identifier mapping](#identifier-mapping)) and match rather than reconcile. The
+initial-load state of each entity type is unaffected too: a delivery position
+records how much a participant has *received*, and says nothing about what it has
+reconciled, so an entity type at **completed** stays there.
+
+Omitting `Last-Event-ID` is consequently the widest way a participant can ask for
+data again: it re-delivers every entity type for every endpoint
+the application holds. A participant that needs less asks one entity type of one
+endpoint for its canonical set (see
+[Initial load and seeding](#initial-load-and-seeding)), or refetches objects
+individually (see [Requesting objects (lazy loading)](#requesting-objects-lazy-loading)).
+
 ## Disconnection and re-connection
 
 [Downtime and resume](#downtime-and-resume) covers an endpoint that is still a
@@ -598,8 +647,8 @@ The identifier mapping is retained for the same reason it is retained across
 [deactivation](#deactivation) — it is a property of the canonical object, not of
 the connection. Discarding it would not withhold anything: `agrirouterId` is
 stable, so a participant that kept its own correspondence table simply re-declares
-the same bindings on return. It would only degrade the returning participant,
-whose own data comes back unrecognizable.
+the same bindings on return. It would only degrade the returning participant, whose
+own data comes back unrecognizable.
 
 ### Re-connection
 
@@ -700,6 +749,13 @@ anyway. What it addresses is that *delivered* is not *held*:
 A request is per entity type, which is why a reference to a party carries a `type`
 discriminator (see [References](#references)).
 
+A request is the right shape only when the participant knows which objects it
+wants. One that has lost enough of them that naming each is impractical asks for
+the whole canonical set of that entity type again instead (see
+[Initial load and seeding](#initial-load-and-seeding)), and one that has lost its
+delivery position as well takes everything (see
+[Downtime and resume](#downtime-and-resume)).
+
 # Security considerations
 
 Transport authentication, authorization, and confidentiality are provided by the
@@ -751,6 +807,7 @@ this document:
 - **Endpoint identity across re-onboarding** — whether a participant re-onboarding reaches the same agrirouter endpoint, which decides whether the mapping retention of [Disconnection and re-connection](#disconnection-and-re-connection) is reachable in the most common return path. A platform question, settled outside this document.
 - **Learning of disconnection** — a participant is not told that a user opted a type out or disconnected the endpoint from the hub; it observes the absence on the initial-load resource. Whether that warrants a signal on the delivery channel is open.
 - **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.
+- **Auditing the mapping** — a participant that suspects a few of its pairs are stale, rather than knowing its table is lost, has no cheap way to check: agrirouter does not disclose the mapping, so the choices are a full re-load of the entity type or waiting for each object's next change. Open: whether that case is common enough to warrant reading the correspondence back, which is the one recovery the [initial-load](#initial-load-and-seeding) re-entry does not make proportionate.
 - **`sourceEndpointId` on delivery** — [Identifier mapping](#identifier-mapping) settles that a delivered object carries no other endpoint's *local* identifiers. `sourceEndpointId` still names another endpoint, which the platform's own endpoint listing would disclose anyway, and which a receiver may want for a conflict UI. Whether it is needed on the delivered object at all — loop prevention is server-side — or should be reduced, is open.
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).

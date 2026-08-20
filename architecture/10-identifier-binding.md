@@ -37,7 +37,7 @@ x-agrirouter-endpoint-id: <the endpoint binding>
 ```
 
 - **`204`** - the mapping is recorded. Idempotent: re-binding the same pair changes nothing.
-- **`409`** - `(endpoint, localId)` is already bound to a different canonical object, or this endpoint already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names what is in the way](#a-rejection-names-what-is-in-the-way)).
+- **`409`** - `(endpoint, localId)` is already bound to a different canonical object, or this endpoint already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
 - **`404`** - no such canonical object, or the endpoint is not entitled to it.
 
 The mapping is an association, and both of its ends are in the path, so the
@@ -98,6 +98,31 @@ A wrong bind is recoverable through the same operation, within a limit: it
 corrects identity, not data. Revisions a mis-bound endpoint already merged into
 the canonical object stand and were fanned out. The `409` at bind time is where
 the mistake is cheap to catch.
+
+### An endpoint that lost its own table re-loads
+
+Both operations above are writes against a table only agrirouter can see. That is
+survivable while the endpoint's own copy is intact, and the endpoint must keep one
+anyway to reconcile deliveries. It stops being survivable when that copy is lost -
+a restored backup, a migration between stores - because every recovery the design
+offers is keyed by an identifier the loss took with it. The request of
+[Requesting objects](../specification.md#requesting-objects-lazy-loading) names an
+`agrirouterId`. The unbind names a pair. An endpoint holding objects it can no
+longer name to agrirouter can reach none of them, and its own next send does not
+resolve and duplicates.
+
+The exit is not a read of the mapping but a re-load: the endpoint asks for the
+canonical set again
+([ADR 06](./06-initial-load.md#the-endpoint-can-ask-for-the-set-again)), and each
+delivered object carries that endpoint's own `localId` wherever agrirouter holds
+one. The correspondence comes back attached to the objects, which is where this
+design puts it anyway - it is the same delivery that makes a repeat load *match*
+rather than reconcile.
+
+That costs the whole entity type in bandwidth to recover two identifiers per
+object, and it is the deliberate trade: agrirouter does not hand a participant its
+correspondence table on demand, so there is one path back rather than two, and the
+mapping stays something a participant keeps rather than something it can fetch.
 
 ### Initial load binds in bulk
 
@@ -171,6 +196,8 @@ could not settle it.
 | agrirouter matches on content | Above. |
 | The endpoint keeps the correspondence privately | It already must, to reconcile deliveries against its own store. But a private table cannot be used on the write path, which is keyed by identifiers agrirouter knows. Nothing changes and the duplicates continue. |
 | The confirmation's `idMappings` is authoritative for the set - pairs it omits are unbound | Covers the mass case in one call with no new verb. But an accidentally omitted pair then unbinds silently, it says nothing about an object deleted locally in ordinary operation, and it turns a list of assertions into a list plus an implied negation of everything else. |
+| A read operation for the endpoint's own mapping, `GET /masterdata/{type}/id-mappings` | Proportionate to the failure: it returns two identifiers per object rather than the object, so an endpoint that lost only its table pays only for what it lost, and it is the sole way to *audit* a mapping rather than assume the worst about it. It discloses nothing either - both ends of every pair were asserted by the caller. Rejected on surface rather than on principle: it is five paths and a paged collection in a specification partners must implement, for a failure the [re-load](#an-endpoint-that-lost-its-own-table-re-loads) already resolves, and it makes the correspondence something agrirouter serves rather than something a participant keeps. The audit case survives as an open issue. |
+| An endpoint that lost its table opts the type out and back in | Reaches the same place as the re-load with no new rule at all. But it is two writes to the opt-in configuration instead of one transition: not atomic, so a failure between them leaves the endpoint opted out with delivery stopped, and it puts a partner's maintenance in the record of what a user agreed to share. |
 
 ## Consequences
 
@@ -195,4 +222,14 @@ could not settle it.
   holds it binds, what it loses it unbinds, and neither is a change to the
   entity. A stale pair - mapped to an object the endpoint no longer has - is
   recoverable rather than terminal.
+- **Losing the local table has an exit, and it is a delivery.** Every operation
+  keyed by an identifier the endpoint might have lost - unbind, request, and the
+  ordinary send - is reachable again once the set has been re-delivered with the
+  endpoint's own `localId` on it.
+- **The correspondence stays something a participant keeps.** agrirouter holds
+  the mapping and uses it on delivery, but never serves it. A participant that
+  wants to know what agrirouter calls its records has to have kept the answer, or
+  ask for the set again - which also means the ISOXML LinkList correspondence the
+  [specification requires](../specification.md#identifier-mapping) is expressed
+  from the participant's own table, not exported from ours.
 

@@ -35,7 +35,7 @@ flowchart TB
     LF -->|"agrirouter has sent the whole canonical set"| R
     R -->|"endpoint confirms it has reconciled"| LT
     LT -->|"endpoint has sent everything it holds"| C
-    C -->|"entity type opted out (possible from any state)"| START
+    C -->|"opted out, or the endpoint asks for the set again (from any state)"| START
     %% ceasg:{"id":"6kuwmm6w"} %%
     %% mermaid-flow:pos START=119,100 LF=276,230 R=280,354 LT=259,477 C=119,590
 ```
@@ -57,6 +57,50 @@ objects the endpoint recognises and steps 4 and 5 have little to do
 which of the two it is in, and an endpoint that ignores it duplicates its own data.
 
 The `RECONCILING` state enables differentiating between 3 and 4. In its absence, agrirouter would be unable to say whether it still owed the endpoint data or was waiting on a partner app - a distinction it needs for its own scheduling ([ADR 07](./07-sync-streaming.md)), and one the user-facing label wants too.
+
+### The endpoint can ask for the set again
+
+```
+PUT /endpoints/{eid}/masterdata-initial-load/farms/status
+{ "state": "LOADING_FROM_AGRIROUTER" }
+```
+
+**Any state to `LOADING_FROM_AGRIROUTER`, driven by the endpoint.** The state
+means *the canonical set is owed to me*, and that can become true again: a partner
+restores a backup, migrates stores, or loses the correspondence between its own
+records and the canonical objects. Without this the endpoint's only routes back
+are opting the type out and in, or discarding its stream position - the first
+drives a control over what a user exposes as if it were a maintenance lever, and
+the second re-delivers every tenant the application holds to repair one.
+
+The transition is one write rather than the two an opt-out and opt-in take. That
+matters more than it looks: those two are not atomic, and a repair script that
+fails between them leaves the user opted out, delivery stopped and initial-load
+state discarded, from what was meant to be maintenance. It also keeps the opt-in
+record meaning what it says. `masterdata-config` is where a user's decision to
+share is expressed, and a partner's incidents do not belong in it.
+
+It is not a new phase. agrirouter re-adds the sweep on the next connection by the
+rule it already applies - the type is `LOADING_FROM_AGRIROUTER` and has no entry
+in the cursor ([ADR 07](./07-sync-streaming.md)) - and the endpoint walks the same
+four states out again.
+
+Allowed from every state, and idempotent from `LOADING_FROM_AGRIROUTER` itself.
+`RECONCILING` is the case that matters most: agrirouter has already emitted
+`CANONICAL_SET_END` and considers the set handed over, so an endpoint that loses
+its store during that window - the longest and most explicitly unbounded in the
+machine - can neither go forward, having nothing left to reconcile, nor back.
+`LOADING_TO_AGRIROUTER` is the same story mid-push.
+
+`previousLoadCompletedAt` is set, so the arriving set is marked a repeat and the
+endpoint matches rather than reconciles - the mapping is untouched by any of this,
+so the objects come back carrying the endpoint's own `localId`.
+
+One limit: re-asserting the state while a sweep for that tenant is already live
+does not restart that sweep. [ADR 07](./07-sync-streaming.md) skips adding an
+entry when the cursor already has one, and an application cannot drop a single
+entry from an opaque cursor. Restarting a sweep already in flight is only
+expressible by discarding the whole cursor.
 
 ### The flow in concrete calls
 
@@ -131,23 +175,25 @@ Points worth noting about the calls themselves:
   mechanism, which is what lets
   [resume](#resume-is-the-same-machinery-not-a-special-case) share the machinery.
   Stream position and reconnect are handled by [ADR 07](./07-sync-streaming.md).
-- **Opting in is what starts the load.** The endpoint never sets
-  `LOADING_FROM_AGRIROUTER` itself; `PUT .../masterdata-config` does. agrirouter
-  also drives the step to `RECONCILING`, for the same reason - it is the side that
-  knows the set has been sent. The two transitions the endpoint drives are the
-  confirmation and the completion, both through
-  `PUT .../masterdata-initial-load/{entityType}/status`. Only forward transitions
-  are accepted - anything else is a `409`.
-- **Opting out is the one way back.** Removing an entity type from the
-  configuration discards its state, from whichever state it was in, and opting it
-  back in starts the load again. This is not a transition the endpoint can drive 
-  by changing state, but by opting-out via masterdata-config resource,
-  and it is not an exception to the forward-only rule above: the endpoint's
-  position kept advancing on the types it stayed opted into, so objects of the
-  opted-out type that changed in the meantime now sit *behind* that position and
-  no ordinary catch-up would reach them. A full sweep of the type is the only way
-  back to agreement - the same shape as any other backfill in
-  [ADR 07](./07-sync-streaming.md).
+- **Opting in is what starts the first load.** `PUT .../masterdata-config` does
+  it, not the endpoint. agrirouter also drives the step to `RECONCILING`, for the
+  same reason - it is the side that knows the set has been sent. The endpoint
+  drives the confirmation, the completion, and the return to
+  `LOADING_FROM_AGRIROUTER`, all through
+  `PUT .../masterdata-initial-load/{entityType}/status`. Every other transition is
+  a `409`: the states advance in order, and the only way out of that order is back
+  to the start.
+- **Opting out is a second way back, and the wrong one for a partner.** Removing
+  an entity type from the configuration also discards its state, from whichever
+  state it was in, and opting it back in starts the load again. It reaches the
+  same place as the transition above and costs more - two writes instead of one,
+  on the resource that records what the user agreed to share. It remains what
+  happens when a user genuinely opts out; it is not how a partner repairs itself.
+- **Either way back needs a sweep, not a catch-up.** The endpoint's position kept
+  advancing on the types it stayed opted into, so objects of the type it lost
+  track of now sit *behind* that position and no ordinary catch-up would reach
+  them. A full sweep of the type is the only way back to agreement - the same
+  shape as any other backfill in [ADR 07](./07-sync-streaming.md).
 - **The stream position is the only cursor.** Opting an entity type in starts a
   sweep of that type's canonical set on the application's ordinary stream, so how
   far the endpoint has consumed is already expressed by its position - there is no
@@ -265,7 +311,8 @@ flowchart TB
 - `masterdata-config` gains an optional `resolutionUrl`, which is the only thing a partner has to supply for agrirouter to point a user at the right screen, and default routing never opts an endpoint into the hub.
 - Either endpoint-driven transition *may* wait on a human - the confirmation on reconciliation, the completion on a rejected push - and neither necessarily does: an endpoint with no conflicts, or one whose conflicts its own rules settle, advances straight through. What agrirouter cannot tell is which case it is in, since it sees only when it finished sending. So an entity type can sit in either loading state for days without anything being wrong, and no timeout on them would be meaningful.
 - `RECONCILING` separates "agrirouter still owes data" from "the endpoint still owes a decision". agrirouter needs that distinction for its own scheduling - on a reconnect it must know whether a sweep is outstanding ([ADR 07](./07-sync-streaming.md)) - and publishing it rather than hiding it keeps a single representation of the phase, consistent with there being no "not started" state.
-- The state machine has agrirouter-driven and endpoint-driven edges. Opt-in and the step to `RECONCILING` are agrirouter's; the confirmation and the completion are the endpoint's.
+- The state machine has agrirouter-driven and endpoint-driven edges. Opt-in and the step to `RECONCILING` are agrirouter's; the confirmation, the completion, and the return to `LOADING_FROM_AGRIROUTER` are the endpoint's.
+- **A partner can re-seed itself, so the state is not evidence of a user's intent.** An entity type back in `LOADING_FROM_AGRIROUTER` means the endpoint asked for the set, which is not the same as a user opting in, and a UI that reports it as "connecting for the first time" will be wrong sooner or later.
 - Confirming from `LOADING_FROM_AGRIROUTER` is a `409`. An endpoint cannot have reconciled a set it has not finished receiving.
 - Initial-load state is keyed per endpoint and entity type, while the delivery cursor is keyed per application ([ADR 07](./07-sync-streaming.md)). One connection therefore carries the loads of many tenants at once, each at its own phase, and an application MUST NOT treat "my stream is in initial load" as a single condition.
 - Because event delivery does not expire, an entity type can sit in either loading state indefinitely without putting the endpoint's position at risk. The only cost of a slow user is a canonical set that has moved on.

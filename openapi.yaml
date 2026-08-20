@@ -944,10 +944,12 @@ paths:
         entity types the endpoint is opted into are listed. The state machine per
         entity type is:
         `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
-        `COMPLETED`. Opting an entity type in (via the master-data configuration)
+        `COMPLETED`, with a return to `LOADING_FROM_AGRIROUTER` available from any
+        state for an endpoint that needs the canonical set again. Opting an entity
+        type in (via the master-data configuration)
         starts it at `LOADING_FROM_AGRIROUTER`, and agrirouter itself advances it
         to `RECONCILING` once the whole canonical set has been sent; the endpoint
-        drives the remaining two transitions by sending a PUT request to its
+        drives the remaining transitions by sending a PUT request to its
         per-entity-type `status` subresource.
       operationId: getInitialLoadStatus
       responses:
@@ -985,8 +987,10 @@ paths:
       tags: [InitialLoad]
       summary: Set the initial load state for one entity type
       description: >
-        Sets this entity type's initial-load `state`. Only forward transitions are
-        valid; agrirouter rejects any other with `409`.
+        Sets this entity type's initial-load `state`. The states advance in order
+        and agrirouter rejects any other transition with `409`, with one exception:
+        `LOADING_FROM_AGRIROUTER` may be set from any state, which asks for the
+        canonical set again.
 
 
         Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has *reconciled* the
@@ -1005,9 +1009,31 @@ paths:
 
         Setting `LOADING_TO_AGRIROUTER` while the entity type is still
         `LOADING_FROM_AGRIROUTER` is rejected with `409`: the endpoint cannot have
-        reconciled a set it has not finished receiving. An entity type enters
+        reconciled a set it has not finished receiving. An entity type first enters
         `LOADING_FROM_AGRIROUTER` when it is opted in, and leaves it when
-        agrirouter has sent the set - neither happens through this operation.
+        agrirouter has sent the set — neither happens through this operation.
+
+
+        Set `LOADING_FROM_AGRIROUTER` to ask for the canonical set again. The state
+        means the set is owed to this endpoint, and that becomes true a second time
+        when the endpoint's own store is restored from a backup, migrated, or
+        otherwise loses the correspondence between its records and the canonical
+        objects. agrirouter schedules the sweep on the application's next
+        connection, exactly as it does for a first load, and the endpoint then
+        walks the same states out again. Use this rather than opting the entity
+        type out and back in: that reaches the same place, but it takes two writes
+        to the opt-in configuration — not atomic, so a failure between them leaves
+        the user opted out with delivery stopped — and it records a partner's
+        maintenance in the resource that says what a user agreed to share.
+
+
+        Allowed from any state. `RECONCILING` and `LOADING_TO_AGRIROUTER` matter
+        as much as `COMPLETED`: agrirouter has already sent the set by then, so an
+        endpoint that loses its store while reconciling can otherwise neither
+        advance nor go back. The identifier mapping is unaffected, so the set
+        arrives carrying the endpoint's own `localId` and `previousLoadCompletedAt`
+        marks it a repeat. Asking again while that entity type's sweep is already
+        in flight does not restart it.
 
 
         Idempotent: setting the state the entity type is already in returns the
@@ -1069,6 +1095,13 @@ components:
         holds many endpoints across many tenants, so the acting one is named per
         request rather than derived; `localId` resolves in its namespace and it
         becomes the `sourceEndpointId` of any revision produced.
+
+
+        This is the agrirouter endpoint ID — the `id` of the endpoint, not the
+        `external_id` the application chose for it. An application already holds
+        it: it is returned when the endpoint is created or updated, listed with
+        the tenant's endpoints, and carried on the endpoint events. The same
+        header identifies the sending endpoint when posting messages.
       schema:
         type: string
         format: uuid
@@ -1087,7 +1120,12 @@ components:
       name: externalEndpointId
       in: path
       required: true
-      description: The endpoint's external identifier.
+      description: >
+        The application's own identifier for the endpoint — the `external_id` it
+        supplied when creating it, and the same key the endpoint resource itself
+        is addressed by. Configuration and initial-load state are addressed this
+        way, as endpoint management is; the entity operations name the acting
+        endpoint by its agrirouter ID in a header instead, as sending does.
       schema:
         type: string
     InitialLoadEntityType:
@@ -1870,13 +1908,13 @@ components:
           description: >
             When this entity type last reached `COMPLETED`, present only if it
             has. Its presence means the canonical set now arriving is a repeat
-            load — the endpoint was a participant before, was opted out or
-            disconnected from the hub, and has returned. The identifier mapping
-            survived, so the objects arrive carrying the endpoint's own
-            `localId` and match rather than reconcile. An endpoint MUST NOT take
-            the arrival of a canonical set as evidence of a first connection:
-            without this check it creates local duplicates of data it already
-            holds.
+            load — the endpoint was a participant before and has returned, having
+            been opted out, disconnected from the hub, or having asked for the set
+            again itself. The identifier mapping survived all three, so the objects
+            arrive carrying the endpoint's own `localId` and match rather than
+            reconcile. An endpoint MUST NOT take the arrival of a canonical set as
+            evidence of a first connection: without this check it creates local
+            duplicates of data it already holds.
         rejectedIdMappings:
           type: array
           readOnly: true
@@ -1918,8 +1956,9 @@ components:
     InitialLoadStateUpdate:
       type: object
       description: >
-        The target initial-load `state` for an entity type. Only forward
-        transitions are accepted.
+        The target initial-load `state` for an entity type. The states are
+        accepted in order, plus `LOADING_FROM_AGRIROUTER` from any state, which
+        asks for the canonical set again.
       properties:
         state:
           $ref: '#/components/schemas/InitialLoadState'
