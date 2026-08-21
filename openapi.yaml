@@ -1413,11 +1413,6 @@ components:
           description: >
             The agrirouter identifier of the endpoint whose change produced this
             revision.
-        previousVersions:
-          type: array
-          description: References to entities this one supersedes (split / merge lineage).
-          items:
-            $ref: '#/components/schemas/EntityReference'
 
 
     Address:

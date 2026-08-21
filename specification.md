@@ -30,7 +30,8 @@ throughout as the **MVP entities**:
 
 Further entity types (points of interest, guidance/AB lines, inputs, crops, work
 orders, and work records) are out of scope for this version and are expected to
-be added later without breaking the mechanisms defined here.
+be added later without breaking the mechanisms defined here. Split and merge
+lineage is deferred with them (see [Split and merge](#split-and-merge)).
 
 ## What this protocol is, and is not
 
@@ -166,8 +167,7 @@ Every entity shares a common envelope. Example
   "active": true,
   "revision": 7,
   "modifiedAt": "2026-07-14T09:20:00Z",
-  "sourceEndpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-  "previousVersions": []
+  "sourceEndpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
 }
 ~~~
 
@@ -180,7 +180,6 @@ Envelope fields:
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
 - `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision.
-- `previousVersions` (array of references): references to prior entities that this entity supersedes, used for split and merge (see [Split and merge](#split-and-merge)). Empty for entities with no such lineage.
 
 ### References
 
@@ -743,7 +742,7 @@ deactivated in its source system. "Deactivation" is intentionally generic: it co
 any state in which the source no longer considers the entity active. It is a
 lifecycle transition of the canonical object (`active` becomes `false`), **not** a
 hard removal from the SSOT — the canonical object and its identifier mapping are
-retained so that synchronization, references, and lineage remain intact.
+retained so that synchronization and references remain intact.
 
 Deactivation MUST be **idempotent**. The same entity may be deactivated more than
 once (for example because several systems independently archive it, or a request
@@ -753,16 +752,19 @@ error and MUST NOT produce a new revision or a new outgoing notification.
 ## Split and merge
 
 Splitting a field into several, and merging several back into one, is a common
-process — more so in Europe than in North America, and dependent on crop type. The
-result is not merely a set of new entities: the new entities remain related to the
-old ones. Some systems do not model this as an explicit operation at all.
+process — more so in Europe than in North America, and dependent on crop type.
+This version carries no representation of it. A split is exchanged as a
+[deactivation](#deactivation) of the original and the creation of the new
+entities, a merge as the reverse, and participants converge on the correct
+current set from those alone.
 
-Rather than distinguishing "split" from "merge" as separate operations, the
-protocol represents both uniformly through lineage:
-
-- A newly created entity that supersedes one or more prior entities carries references to them in `previousVersions` (see [Common envelope](#common-envelope)). A split produces several new entities that each reference the original; a merge produces one new entity that references several originals. No dedicated split or merge operation is required.
-- A system that receives such an entity receives the *identifiers* of the referenced predecessors, nothing more. It MAY dereference one by [requesting it](#requesting-objects-lazy-loading), and what it gets back is that entity's **current** state: a request carries no revision, and agrirouter keeps no past states of anything ([What this protocol is, and is not](#what-this-protocol-is-and-is-not)). Lineage therefore records *which* entities preceded this one, never *what they looked like* when they were superseded.
-- Nor is a predecessor guaranteed to still exist; the reference may dangle. Systems that do not retain historical data may ignore `previousVersions` entirely. It is advisory lineage, not a required processing step, and a participant that needs the prior state of a field has to have kept it itself.
+What is deliberately not exchanged is the *lineage*: which entities preceded
+which. Recording it would serve continuity of data derived from a field — task
+history, yield records, crop plans — and those entity types are
+[out of scope for this version](#scope). It is deferred to the version that
+carries them, where the questions it raises (whether a predecessor MUST be
+deactivated, and whether the writes forming one split are related to each other)
+can be settled against a concrete consumer. See [Open issues](#open-issues).
 
 ## Requesting objects (lazy loading)
 
@@ -842,6 +844,6 @@ this document:
 - **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.
 - **Auditing the mapping** — a participant that suspects a few of its pairs are stale, rather than knowing its table is lost, has no cheap way to check: agrirouter does not disclose the mapping, so the choices are a full re-load of the entity type or waiting for each object's next change. Open: whether that case is common enough to warrant reading the correspondence back, which is the one recovery the [initial-load](#initial-load-and-seeding) re-entry does not make proportionate.
 - **`sourceEndpointId` on delivery** — [Identifier mapping](#identifier-mapping) settles that a delivered object carries no other endpoint's *local* identifiers. `sourceEndpointId` still names another endpoint, which the platform's own endpoint listing would disclose anyway, and which a receiver may want for a conflict UI. Whether it is needed on the delivered object at all — loop prevention is server-side — or should be reduced, is open.
-- **Split / merge** — the lineage model of [Split and merge](#split-and-merge).
+- **Split / merge lineage** — deferred rather than open, see [Split and merge](#split-and-merge). It is reopened by the entity types that would consume it, and settling it then means deciding the predecessor's fate on a split and whether the writes forming one are related on the wire. An earlier draft carried an advisory `previousVersions` array on the envelope, which no participant could rely on: an empty value did not distinguish "no predecessors" from "this producer does not track them".
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
 - **Deactivation idempotency** — duplicate deactivations in [Deactivation](#deactivation).
