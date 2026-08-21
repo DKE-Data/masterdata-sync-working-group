@@ -67,7 +67,7 @@ It also supports deletion at no additional cost. Because agrirouter
 object keeps its record, is marked inactive and takes a new `last_change_number`, so
 deletions ride the same path as everything else. A design built on hard deletes
 would need a second retention clock for tombstones purely so that catch-up could
-express what had disappeared. This one does not.
+express what had disappeared.
 
 ### One stream per app, tenant in the envelope
 
