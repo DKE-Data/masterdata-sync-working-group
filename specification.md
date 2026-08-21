@@ -522,15 +522,23 @@ The concrete configuration resource is described in `openapi.yaml`.
 
 A newly connected system usually **already holds its own master data**. Seeding
 reconciles that existing data with the SSOT. Each endpoint has, per entity type, a
-seeding state. The defined progression is:
+seeding state, held by agrirouter on the initial-load resource and read there by
+the endpoint. The defined progression is:
 
-1. **Connected.** The endpoint is created and the user opts it into master-data exchange for one or more entity types (see [Routing and opt-in](#routing-and-opt-in)).
-2. **Loading from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive, over the ordinary event stream, closing each type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends. The set includes objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
-3. **Reconciling.** Emitting that event moves the entity type on, because agrirouter knows it has sent everything and needs nothing reported back. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and so takes as long as that takes.
-4. **Loading to agrirouter.** The endpoint confirms it has reconciled, and sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts. Confirming before the whole set has been received MUST be rejected.
-5. **Completed.** Steady-state (day-2) synchronization applies from here on.
+1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user opts the endpoint into the entity type (see [Routing and opt-in](#routing-and-opt-in)), or when the endpoint asks for the set again (below), and by no other means. agrirouter sends the endpoint every canonical object of that type it is entitled to receive, over the ordinary event stream, closing the type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends. The set includes objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
+2. **`RECONCILING`.** Emitting that event moves the entity type on, because agrirouter knows it has sent everything and needs nothing reported back. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and so takes as long as that takes.
+3. **`LOADING_TO_AGRIROUTER`.** Set by the endpoint to confirm it has *reconciled* the set rather than merely received it, carrying the bindings reconciliation produced (see [Identifier mapping](#identifier-mapping)). It then sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts. Confirming from `LOADING_FROM_AGRIROUTER` MUST be rejected: an endpoint cannot have reconciled a set it has not finished receiving.
+4. **`COMPLETED`.** Set by the endpoint once it has sent everything. Steady-state (day-2) synchronization applies from here on.
 
-An endpoint MAY re-enter **loading from agrirouter** from any of these states, which
+Two of these transitions are agrirouter's and two are the endpoint's, and the
+split follows what each side can observe: agrirouter starts the load and declares
+the set sent, the endpoint declares reconciliation done and the push finished. The
+states advance in that order, and agrirouter MUST reject any other transition —
+the re-entry below being the one exception. An entity type has an initial-load
+state only while it is opted in; there is no state for one that never was, the
+absence of a toggle already saying that it does not participate.
+
+An endpoint MAY re-enter `LOADING_FROM_AGRIROUTER` from any of these states, which
 asks agrirouter to send the canonical set again. The state asserts that the set is
 owed to the endpoint, and that becomes true a second time when the endpoint's own
 store is restored from a backup, migrated, or otherwise loses the correspondence
@@ -538,7 +546,7 @@ between its records and the canonical objects — a loss agrirouter cannot obser
 and MUST therefore take on the endpoint's word. agrirouter MUST then re-send the
 set as it does for a first load, and MUST mark it a repeat, the identifier mapping
 being unaffected (see [Re-connection](#re-connection)). Re-entry matters as much
-from **reconciling** and **loading to agrirouter** as from **completed**:
+from `RECONCILING` and `LOADING_TO_AGRIROUTER` as from `COMPLETED`:
 agrirouter has already sent the set by then, so an endpoint that loses its store
 during reconciliation — a window that is human-paced and unbounded — could
 otherwise neither advance nor return.
@@ -554,6 +562,33 @@ Conflict detection during seeding, and its resolution, are the responsibility of
 the **endpoint's own software**, which presents conflicts to the user. agrirouter
 provides the canonical set to reconcile against; it does not adjudicate field-level
 conflicts.
+
+### Reporting that a user is needed
+
+Resolution happens on a screen agrirouter cannot see, while the user who connected
+the endpoint may well be looking at agrirouter. So an endpoint SHOULD report, per
+entity type, that this type's reconciliation is waiting on a person — `awaitingUser`
+on the initial-load resource — which agrirouter shows in place of its own "this
+application is working through your data". agrirouter learns *that* a person is
+needed and never what for: it is one bit, not a conflict list.
+
+- **The endpoint raises it and agrirouter clears it**, on the two transitions the endpoint drives — the confirmation and the completion. The step to `RECONCILING` MUST NOT clear it: that is agrirouter reporting it has finished sending, which asserts nothing about whether the user has finished deciding.
+- **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same.
+- **Unset says nothing about the user.** It is ambiguous between having nothing to raise and not reporting at all, so it only ever upgrades what agrirouter shows, and an endpoint that omits it costs precision rather than correctness. Nothing in the protocol branches on it.
+
+A participant MAY also declare, as a `resolutionUrl` in its opt-in configuration,
+where in its own software the user resolves this endpoint's initial load.
+agrirouter treats it as opaque, links to it while a user is awaited, and where
+none is declared can only name the application. It is per endpoint rather than per
+conflict: at the moment the route is created there is nothing to resolve yet, and
+a location that is right only once the first conflict exists would have to be
+declared then, which is exactly when nobody is there to declare it.
+
+Reconciliation does not pause delivery. The stream belongs to the application and
+carries every endpoint it serves (see [Downtime and resume](#downtime-and-resume)),
+so one user's deliberation MUST NOT stall it. The consequence for the endpoint is
+that it reconciles against a set that keeps changing under it, and the longer a
+conflict sits the likelier the object it concerns has moved on.
 
 ### Deactivated objects are part of the set
 
@@ -874,7 +909,7 @@ this document:
 
 - **Unambiguous EFDI subset & hard validation** — the exact validated subset of [Encoding and canonicity](#encoding-and-canonicity).
 - **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
-- **Initial load** — formalizing the initial-load state machine and conflict-resolution responsibilities of [Initial load and seeding](#initial-load-and-seeding). Downtime and resume semantics are settled; the remaining open part is conflict resolution.
+- **Conflict resolution** — that the endpoint's own software resolves field-level conflicts with its user, and that agrirouter provides the canonical set to reconcile against and does not adjudicate, is settled in [Initial load and seeding](#initial-load-and-seeding), as are the two mechanical cases: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) and a [stricter recipient's](#differing-requiredoptional-attributes) own requirements. What is open is implementor guidance for the rest: how a partner presents a disagreement it cannot settle by its own rules, and how it reconciles against a set that keeps changing under it, delivery not being paused while a user deliberates. Two conflict outcomes are undefined rather than unguided and are tracked separately below: **Reactivation** and **Split / merge lineage**.
 - **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
 - **Concurrency control** — writes carry the client's prior `revision` as a compare-and-swap precondition, and agrirouter may resolve a stale-base write by three-way merge instead of rejecting it. Both are settled in the architecture record but are not yet written into this document; only their delivery consequence is, in [Applying what agrirouter returns](#applying-what-agrirouter-returns).
 - **Endpoint identity across re-onboarding** — whether a participant re-onboarding reaches the same agrirouter endpoint, which decides whether the mapping retention of [Disconnection and re-connection](#disconnection-and-re-connection) is reachable in the most common return path. A platform question, settled outside this document.
