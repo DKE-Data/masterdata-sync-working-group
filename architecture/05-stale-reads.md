@@ -112,23 +112,55 @@ flowchart TB
     %% mermaid-flow:gpos sub1=718,71,207,227
 ```
 
-#### A merged revision MUST NOT be origin-suppressed
+#### A merged revision is returned, not streamed
 
 [Loop prevention](../specification.md#loop-prevention) says agrirouter never
-echoes a change back to the endpoint that made it. That rule is safe only because
-a write carries the whole object: whoever wrote the current value necessarily
-wrote all of it, so withholding it withholds nothing the writer does not already
-hold.
+echoes a change back to the endpoint that made it. A three-way merge looks like a
+case for an exemption: the merged revision's source is B, but its content includes
+A's change, which B never sent.
 
-A three-way merge is the one case where that premise fails. The merged revision's
-source is B, but its content includes A's change, which B never sent and - if the
-merge is suppressed as B's own echo - never learns about.
+It is not, because **a merged revision only ever comes into existence inside a
+write request.** The merge is triggered by B's stale-base write, so at the moment
+agrirouter synthesises it there is always an open response to hand it back on. B
+therefore receives the merged object synchronously, as the resulting canonical
+object in its own write response, and the stream is never the only way to reach
+it. This is the same channel through which a client already learns an
+`agrirouterId` it did not author.
 
-agrirouter MUST therefore mark a revision it synthesised and deliver it to its
-source endpoint as well. The exemption is narrow: it applies to revisions
-agrirouter produced by merging, never to a revision a client wrote as sent.
+The requirement this puts on participants is that **a write response is applied
+exactly as a delivered object is** - it is not merely an acknowledgement carrying
+a revision. Detecting a merge needs no diff against what was sent: the response
+carries a revision that is not the client's precondition + 1.
+
+The alternative - treat the response as an acknowledgement only and stream the
+merged revision back to its source - is
+[rejected below](#streaming-the-merged-revision-to-its-source).
 
 ## Rejected alternatives
+
+### Streaming the merged revision to its source
+
+Keep the local store a pure projection of the event stream: a write response
+carries only the revision, and agrirouter marks a revision it synthesised and
+exempts it from origin suppression so the merged content arrives on the stream.
+
+It is the more appealing of the two at first sight - one channel carries content,
+so a participant applies frames blindly in stream order and needs no comparison -
+and it is rejected because it loses A's change in the case it exists to protect.
+
+**The split channel breaks CAS.** The writer must take the revision from the
+response, since its own ordinary writes are origin-suppressed and would otherwise
+never yield a fresh precondition. After a merge it therefore holds revision 10 as
+its token while its content is still the pre-merge value it sent. Its next write
+passes CAS, and A's merged-in change is overwritten with no conflict, no error and
+no trace.
+
+Closing that requires the writer to notice the merge - the same response check
+this alternative was meant to avoid - and then hold its write path until its
+stream consumer has caught up, coupling the two. The client burden ends up larger
+than the one it avoids, on top of a `merged` flag that has to be carried on the
+delivery record, branched on in the suppression predicate, and kept correct
+through compaction.
 
 ### Conflict-free replicated data types (CRDTs)
 
@@ -150,6 +182,9 @@ Special cases:
 - when a client attempts to deactivate an object simultaneously with another client attempting to modify it, this is considered a conflict and only one of the clients will succeed. Even though further deactivations are idempotent and their prior revision is ignored when the object is already deactivated, for the first deactivation attempt, CAS mechanism must be applied.
 
 Consequences of automatic merge:
-- a revision can exist that no client sent, which means `sourceEndpointId` stops being a complete answer to "who wrote this". agrirouter MUST record that a revision was merged, and MUST NOT origin-suppress it.
-- the merging client receives a revision back on the same object it just wrote successfully. Since apply is idempotent and the returned revision is authoritative anyway, this needs nothing new on the client beyond the usual "adopt the revision agrirouter returns".
+- a revision can exist that no client sent, which means `sourceEndpointId` stops being a complete answer to "who wrote this". Whether agrirouter records that a revision was merged is an internal matter: it does not affect what is delivered to whom.
+- **a write response is a delivery, not an acknowledgement.** The merging client gets back content it did not send, so adopting the returned revision is not enough - the response body goes through the same apply path a stream frame does. That is a second entrance to apply, and the reason for the two rules below.
+- **apply MUST be revision-guarded.** With a second channel, "later in the stream" stops meaning "newer": a response carrying revision 10 can land after the stream consumer has applied 11. A participant MUST NOT apply an object whose `revision` is lower than the one it holds. The comparison is what [ADR 03](./03-revision-model.md) built a totally ordered integer for.
+- **an unobserved outcome means the object is unknown.** A participant whose write neither succeeds nor fails visibly - a dropped connection after agrirouter committed - MUST NOT assume its own value stands. It re-requests the object ([lazy loading](../specification.md#requesting-objects-lazy-loading)) or retries the write, which returns the current revision either way. Under a merge-and-stream design the stream covered this silently.
+- origin suppression stays unconditional, so [ADR 07](./07-sync-streaming.md) needs no exception and the delivery record needs no marker.
 

@@ -131,11 +131,16 @@ the collection of one supported entity type (`organizations`, `persons`, `farms`
 | `POST /masterdata/<types>/{localId}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
 | `PUT`/`DELETE /masterdata/<types>/{localId}/id-mapping/{agrirouterId}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
 
-Everything agrirouter sends back travels on one stream, `GET /masterdata/events`:
-canonical objects, deactivations, and the `CANONICAL_SET_END` markers that close
-an [initial load](#initial-load-and-seeding). The stream belongs to the
-application rather than to a single endpoint, and the position within it is
-carried as `Last-Event-ID` (see [Downtime and resume](#downtime-and-resume)).
+What agrirouter sends *unprompted* travels on one stream,
+`GET /masterdata/events`: canonical objects, deactivations, and the
+`CANONICAL_SET_END` markers that close an
+[initial load](#initial-load-and-seeding). The stream belongs to the application
+rather than to a single endpoint, and the position within it is carried as
+`Last-Event-ID` (see [Downtime and resume](#downtime-and-resume)).
+
+A write operation answers with the resulting canonical object, which is the
+second channel and is not merely an acknowledgement — see
+[Applying what agrirouter returns](#applying-what-agrirouter-returns).
 
 Which entity types an endpoint takes part in is opt-in rather than a
 declared capability, and is not directional in the MVP: an opted-in entity type
@@ -714,6 +719,23 @@ The protocol relies on the SSOT to break these loops:
 - agrirouter maintains the `revision` counter per canonical object. An incoming entity that does not actually change the canonical object (it is equal to the current canonical revision) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
 - Participants SHOULD avoid re-emitting an object they have just received without a genuine local change. Because some systems cannot guarantee this, agrirouter's origin-suppression and no-op detection are the authoritative safeguards and do not depend on well-behaved participants.
 
+## Applying what agrirouter returns
+
+Canonical objects reach a participant on two channels: the event stream, and the
+response to the participant's own write. Both carry the same thing — the
+resulting canonical object — and a participant MUST apply both the same way. A
+write response is not merely an acknowledgement. It is the only channel on which
+the writing endpoint learns anything about the revision it just produced, since
+[origin suppression](#loop-prevention) keeps that revision off its own stream,
+and it carries state the participant did not send: the `agrirouterId` assigned to
+a newly created object, and the resulting object where agrirouter reconciled the
+write against a concurrent change rather than rejecting it.
+
+Two rules follow:
+
+- **Apply is guarded by `revision`.** Within the stream, order suffices: a later frame supersedes an earlier one. Across the two channels it does not, because a response may be processed after a later stream frame has already been applied. A participant MUST NOT apply an object whose `revision` is lower than the one it already holds for that object.
+- **An unobserved outcome means the object is unknown.** A participant whose write neither succeeded nor failed visibly — typically a connection lost after agrirouter had committed — MUST NOT assume the value it sent is the canonical one. It retries the write or [requests the object](#requesting-objects-lazy-loading); both answer with the current canonical state.
+
 ## Deactivation
 
 `POST /masterdata/<types>/{localId}/deactivation` signals that an entity was
@@ -814,6 +836,7 @@ this document:
 - **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
 - **Initial load** — formalizing the initial-load state machine and conflict-resolution responsibilities of [Initial load and seeding](#initial-load-and-seeding). Downtime and resume semantics are settled; the remaining open part is conflict resolution.
 - **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
+- **Concurrency control** — writes carry the client's prior `revision` as a compare-and-swap precondition, and agrirouter may resolve a stale-base write by three-way merge instead of rejecting it. Both are settled in the architecture record but are not yet written into this document; only their delivery consequence is, in [Applying what agrirouter returns](#applying-what-agrirouter-returns).
 - **Endpoint identity across re-onboarding** — whether a participant re-onboarding reaches the same agrirouter endpoint, which decides whether the mapping retention of [Disconnection and re-connection](#disconnection-and-re-connection) is reachable in the most common return path. A platform question, settled outside this document.
 - **Learning of disconnection** — a participant is not told that a user opted a type out or disconnected the endpoint from the hub; it observes the absence on the initial-load resource. Whether that warrants a signal on the delivery channel is open.
 - **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.

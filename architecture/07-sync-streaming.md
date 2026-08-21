@@ -300,10 +300,17 @@ applied as it is read: an object whose most recent change came from the reading
 application's own endpoint for that tenant is not delivered back to it.
 
 Compaction makes this coarser and it remains correct, because canonical objects
-are whole documents rather than deltas. If the application wrote the most recent
-change, it already holds that value, and any earlier change by somebody else is
-superseded by it. Suppressing it therefore never withholds anything the
-application does not already have.
+are whole documents rather than deltas. Whoever produced the current value was
+handed that value synchronously - either it wrote the whole document, or
+agrirouter [merged](./05-stale-reads.md#a-merged-revision-is-returned-not-streamed)
+it and returned the result in the write response - and any earlier change by
+somebody else is superseded by it. Suppressing it therefore never withholds
+anything the application does not already have.
+
+The premise is that a write response is applied rather than merely acknowledged.
+That is what keeps this predicate unconditional: agrirouter needs no notion of a
+revision it synthesised, and the delivery record carries no flag exempting one
+from suppression.
 
 ### Rejected alternative: materializing the canonical set into a queue
 
@@ -328,7 +335,10 @@ neither has a fix that keeps the queue.
   observed every change to an object, and MUST NOT derive anything from the number
   of times an object was delivered.
 - **Idempotent apply is key in two places**: redelivery on
-  reconnect, and the overlap between a long sweep and the tail behind it.
+  reconnect, and the overlap between a long sweep and the tail behind it. Within
+  the stream, order is enough to make the later value win; across the stream and
+  a write response it is not, so apply is additionally guarded by `revision`
+  ([ADR 05](./05-stale-reads.md#consequences)).
 - **Dependency-closed opt-in is structural.** An application opted into fields
   but not farms gets an empty tier-2 sweep and then every field with an
   unresolvable reference. [The rule](../specification.md#routing-and-opt-in) is what holds the sweep together.

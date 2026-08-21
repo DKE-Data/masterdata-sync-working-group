@@ -21,6 +21,14 @@ info:
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
     every entity plus a mapping to each participant's own identifier.
 
+    A write answers with the resulting canonical object, and that response is a
+    delivery rather than an acknowledgement: it is the only place the writing
+    endpoint sees the revision it just produced, since agrirouter does not echo a
+    change back to its source. Clients MUST apply it as they apply an event from
+    the stream, and MUST NOT apply any object whose `revision` is lower than the
+    one they already hold. See "Applying what agrirouter returns" in
+    specification.md.
+
     Attributes whose value set is expected to grow follow the Zalando RESTful
     API Guidelines convention for open-ended value lists
     (https://opensource.zalando.com/restful-api-guidelines/#112): instead of a
