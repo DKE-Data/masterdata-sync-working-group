@@ -65,7 +65,7 @@ paths:
       tags: [Organizations]
       summary: Send (create or update) an organization
       description: >
-        Submits a `masterdata:organization` object from the calling endpoint. If the
+        Submits an organization from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
@@ -220,7 +220,7 @@ paths:
       tags: [Persons]
       summary: Send (create or update) a person
       description: >
-        Submits a `masterdata:person` object from the calling endpoint. If the
+        Submits a person from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
@@ -375,7 +375,7 @@ paths:
       tags: [Farms]
       summary: Send (create or update) a farm
       description: >
-        Submits a `masterdata:farm` object from the calling endpoint. If the
+        Submits a farm from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
@@ -530,7 +530,7 @@ paths:
       tags: [Fields]
       summary: Send (create or update) a field
       description: >
-        Submits a `masterdata:field` object from the calling endpoint. If the
+        Submits a field from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
@@ -685,7 +685,7 @@ paths:
       tags: [FieldBoundaries]
       summary: Send (create or update) a field boundary
       description: >
-        Submits a `masterdata:fieldboundary` object from the calling endpoint. If the
+        Submits a field boundary from the calling endpoint. If the
         (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouterId` is assigned. No-op updates (equal to the current canonical
@@ -1105,7 +1105,7 @@ components:
         `external_id` the application chose for it. An application already holds
         it: it is returned when the endpoint is created or updated, listed with
         the tenant's endpoints, and carried on the endpoint events. The same
-        header identifies the sending endpoint when posting messages.
+        header identifies the sending endpoint on every master-data write.
       schema:
         type: string
         format: uuid
@@ -1187,7 +1187,7 @@ components:
         the caller is entitled to it.
     ValidationError:
       description: >
-        The message failed hard validation against the master-data subset and was
+        The payload failed hard validation against the master-data subset and was
         rejected without being applied or forwarded.
       content:
         application/json:

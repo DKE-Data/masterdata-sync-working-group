@@ -102,7 +102,7 @@ for every synchronized entity, the *canonical* version plus an *identifier
 mapping* recording what each partner calls that entity.
 
 The key property: **all three keep state, but only agrirouter's state is
-canonical.** The partners' copies are local projections that AMSP keeps in step
+canonical.** The partners' copies are local projections that AgmaSync keeps in step
 with the canonical copy. Consistent with the
 [read/write split above](#each-system-keeps-its-own-store-and-its-own-identifiers), changes
 propagate through agrirouter, which keeps SSOT authoritative.
@@ -153,15 +153,15 @@ sequenceDiagram
 
     U->>A: "Create field 'North 40'"
     Note over A: Store locally with A's own<br/>localId = field-9931
-    A->>AR: masterdata:field { localId: field-9931,<br/>agrirouterId: (none) }
+    A->>AR: PUT /masterdata/fields/field-9931<br/>field { agrirouterId: (none) }
 
-    Note over AR: Validate against AMSP canonical model
+    Note over AR: Validate against AgmaSync canonical model
     Note over AR: No mapping for (A, field-9931) →<br/>create canonical object,<br/>assign agrirouterId = 1f2e…4567,<br/>record mapping A→field-9931,<br/>revision = 1, source = A
 
-    AR-->>A: return agrirouterId
+    AR-->>A: 201 with the canonical object<br/>{ agrirouterId: 1f2e…4567 }
     Note over A: Store agrirouterId alongside<br/>its own localId
 
-    AR->>B: masterdata:field { agrirouterId: 1f2e…4567,<br/>revision: 1, source: A }
+    AR->>B: event MASTERDATA_CHANGED on /masterdata/events<br/>field { agrirouterId: 1f2e…4567,<br/>revision: 1, source: A }
     Note over B: No local object for this agrirouterId →<br/>create it, assign B's own<br/>localId = b1e7…
     B->>AR: PUT /masterdata/fields/b1e7…<br/>/id-mapping/1f2e…4567
     Note over AR: Record mapping B→b1e7…
@@ -172,21 +172,21 @@ Step by step:
 1. **The command lands in Partner A.** The user creates the field; Partner A
    writes it to its own store under its own identifier (`field-9931`). At this
    moment only A knows about it.
-2. **A tells agrirouter.** A sends a
-   [`masterdata:field`](../specification.md#message-types) message carrying its
-   `localId` and *no* `agrirouterId` (the entity is new to the network).
+2. **A tells agrirouter.** A [sends the field](../specification.md#operations)
+   with `PUT /masterdata/fields/field-9931` — its own `localId` in the path, and
+   *no* `agrirouterId` in the body (the entity is new to the network).
 3. **agrirouter validates and makes it canonical.** agrirouter
-   [validates the message](../specification.md#hard-validation) against the
+   [validates the request](../specification.md#hard-validation) against the
    defined format and rejects it outright if it does not conform. On success it
    sees no existing mapping for `(A, field-9931)`, so it **creates a new canonical
    object**, assigns a stable `agrirouterId`, sets `revision` to its first value,
    records the source endpoint, and stores the mapping `A → field-9931`.
    **agrirouter's state has now changed** - this is the pivot of the whole flow.
-4. **A learns the canonical id.** Through the delivery confirmation, A records the
-   `agrirouterId` next to its own `localId`, so future updates to this field are
-   recognized as the same object.
+4. **A learns the canonical id.** The response carries the canonical object, so A
+   records the `agrirouterId` next to its own `localId`, and future updates to this
+   field are recognized as the same object.
 5. **agrirouter syncs the change to Partner B.** Because B has opted into `field`,
-   agrirouter delivers the canonical object to B. B has no local object for this
+   agrirouter delivers the canonical object on B's event stream. B has no local object for this
    `agrirouterId`, so it creates one under *its own* `localId` (`b1e7…`) and
    [binds](./10-identifier-binding.md) it, completing the id mapping. Partner B's
    user now sees "North 40".
@@ -215,9 +215,9 @@ sequenceDiagram
     participant A as Partner A
 
     U->>B: Edit boundary of the field
-    B->>AR: masterdata:field { localId: b1e7…, … }
+    B->>AR: PUT /masterdata/fields/b1e7…<br/>field { … }
     Note over AR: Mapping (B, b1e7…) resolves →<br/>update canonical object,<br/>revision 7 → 8, source = B
-    AR->>A: masterdata:field { agrirouterId: 1f2e…4567, revision: 8 }
+    AR->>A: event MASTERDATA_CHANGED on /masterdata/events<br/>field { agrirouterId: 1f2e…4567, revision: 8 }
     Note over A: Reconcile against local copy via id mapping
     Note over AR,B: Not echoed back to B (B is the source)
 ```
@@ -227,7 +227,7 @@ Two mechanisms in the SSOT keep this from looping, both described in
 
 - **Origin suppression.** A revision is never delivered back to the endpoint that
   produced it (tracked by `sourceEndpointId`).
-- **No-op detection.** If an incoming message does not actually change the
+- **No-op detection.** If an incoming entity does not actually change the
   canonical object - some systems emit a notification even when nothing changed -
   agrirouter creates no new `revision` and forwards nothing.
 

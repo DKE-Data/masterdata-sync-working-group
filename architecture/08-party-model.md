@@ -1,7 +1,7 @@
 # ADR 08 - Parties, membership, and partners
 
 - **Status:** WIP
-- **Scope:** How AMSP models the people and businesses behind farms - who holds
+- **Scope:** How AgmaSync models the people and businesses behind farms - who holds
   land, who belongs to an organization, and who works a farm for someone else
 
 ## Context
@@ -155,10 +155,10 @@ three hold simultaneously. No single attribute on Brookfield could have carried 
 ## Notes on naming and placement
 
 **`Party` is ADAPT's term.** ADAPT defines a party as a business entity or an
-individual, carrying a required party type code that tells the two apart. AMSP
+individual, carrying a required party type code that tells the two apart. AgmaSync
 takes both the concept and the name, with two departures: it says **person**
 where ADAPT says *individual*, and it draws the distinction from the envelope
-`type` rather than a separate code, since every AMSP entity already carries one.
+`type` rather than a separate code, since every AgmaSync entity already carries one.
 The role vocabulary on memberships and partners is ADAPT's as well.
 
 **`specialisedUsageType` sits on the farm.** FarmSPT places it on Customer/Grower.

@@ -5,7 +5,7 @@
 coding: utf-8
 
 title: Agriculture masterdata sync protocol
-abbrev: AMSP
+abbrev: AgmaSync
 cat: exp
 area: art
 

@@ -63,8 +63,8 @@ a software product or machine platform connected to agrirouter that takes part
 
 Endpoint:
 an agrirouter endpoint as defined by the agrirouter platform. A participant may
-  operate one or more endpoints. Capabilities and subscriptions for the
-  `masterdata:*` message types are configured per endpoint.
+  operate one or more endpoints. Master-data opt-in is configured per endpoint
+  (see [Routing and opt-in](#routing-and-opt-in)).
 
 Entity:
 a single master-data object of one of the supported types (an organization, a person, a farm,
@@ -114,30 +114,32 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
 
 - **n:m exchange.** Any reasonable number of connected systems can exchange the same master data with each other.
 - **agrirouter is the SSOT.** A canonical version of every entity plus a mapping to each participant's own identifier reduces drift and prevents update loops.
-- **Hard validation and canonicity.** The exchange format MUST be unambiguous: every logical value has exactly one valid encoding, and non-conforming messages are rejected rather than repaired (see [Encoding and canonicity](#encoding-and-canonicity)).
+- **Hard validation and canonicity.** The exchange format MUST be unambiguous: every logical value has exactly one valid encoding, and non-conforming payloads are rejected rather than repaired (see [Encoding and canonicity](#encoding-and-canonicity)).
 - **Facilitation, not a product.** The canonical store exists only to enable synchronization; it is not exposed or marketed as a standalone data product.
 
-## Message types
+## Operations
 
-Synchronization is carried by a family of `masterdata:*` agrirouter message
-types. For each supported entity `<type>` (one of `organization`, `person`, `farm`, `field`, `fieldBoundary`):
+Synchronization is carried by the HTTP operations of the companion OpenAPI
+document (`openapi.yaml`). Each entity type has its own paths; `<types>` below is
+the collection of one supported entity type (`organizations`, `persons`, `farms`,
+`fields`, `field-boundaries`):
 
-| Message type                    | Purpose                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------- |
-| `masterdata:<type>`             | Carries the entity itself (creation or update).                                             |
-| `masterdata:<type>:request`     | Actively requests an entity from the network ("lazy loading"), by identifier or reference.  |
-| `masterdata:<type>:deactivate`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
+| Operation                                          | Purpose                                                                                        |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `PUT /masterdata/<types>/{localId}`                | Sends the entity itself (creation or update).                                                  |
+| `POST /masterdata/<types>/requests`                | Actively requests an entity ("lazy loading"), see [Requesting objects](#requesting-objects-lazy-loading). |
+| `POST /masterdata/<types>/{localId}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
+| `PUT`/`DELETE /masterdata/<types>/{localId}/id-mapping/{agrirouterId}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
 
-These message types are transported using the ordinary agrirouter mechanisms for
-sending data and for receiving delivery events. A participant declares support for
-a given message type<sup>1</sup> through its endpoint capabilities, and receives
-objects for the types it is subscribed to. Support is not directional in the MVP:
-an opted-in entity type is exchanged in both directions (see
-[Routing and opt-in](#routing-and-opt-in)). The concrete HTTP surface that a
-participant uses to send, request, receive, and configure these messages is
-described by the companion OpenAPI document (`openapi.yaml`).
+Everything agrirouter sends back travels on one stream, `GET /masterdata/events`:
+canonical objects, deactivations, and the `CANONICAL_SET_END` markers that close
+an [initial load](#initial-load-and-seeding). The stream belongs to the
+application rather than to a single endpoint, and the position within it is
+carried as `Last-Event-ID` (see [Downtime and resume](#downtime-and-resume)).
 
-<sup>1</sup> We are still to decide whether we just send every type to a participant and let them deal with filtering.
+Which entity types an endpoint takes part in is opt-in rather than a
+declared capability, and is not directional in the MVP: an opted-in entity type
+is exchanged in both directions (see [Routing and opt-in](#routing-and-opt-in)).
 
 # Data model
 
@@ -148,7 +150,7 @@ being expressed here in an encoding-independent way.
 
 ## Common envelope
 
-Every `masterdata:<type>` object shares a common envelope. Example
+Every entity shares a common envelope. Example
 (non-normative):
 
 ~~~ json
@@ -169,7 +171,7 @@ Envelope fields:
 - `type` (string, required): the entity type; one of `organization`, `person`, `farm`, `field`, `fieldBoundary`.
 - `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
 - `localId` (string): **always the identifier of the participant at the near end of the transfer, never of any other.** On send it is the sender's own identifier for the entity, and is required. On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
-- `active` (boolean): whether the entity is currently active. Deactivation is expressed through the `:deactivate` message (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
+- `active` (boolean): whether the entity is currently active. Deactivation is expressed through the deactivation operation (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
 - `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision.
@@ -205,7 +207,7 @@ interchangeable in both directions:
 - **On send**, a participant MAY use either. A reference carrying only a `localId`
   is resolved by agrirouter against the sender's own
   [identifier mapping](#identifier-mapping). If it does not resolve — the target has
-  not been sent yet — the message MUST be rejected, and the participant MUST send the
+  not been sent yet — the request MUST be rejected, and the participant MUST send the
   target before the object referencing it.
 - **On delivery**, agrirouter MUST populate `agrirouterId`, and MUST replace the
   `localId` with the receiving endpoint's own identifier for the target, omitting it
@@ -216,8 +218,8 @@ interchangeable in both directions:
   `localId` follows (see [Common envelope](#common-envelope)).
 
 A reference to a party MUST additionally carry `type` (`organization` or `person`).
-A receiving endpoint that does not hold the target has to retrieve it through
-[`masterdata:<type>:request`](#requesting-objects-lazy-loading), which is per entity
+A receiving endpoint that does not hold the target has to
+[request it](#requesting-objects-lazy-loading), which is per entity
 type; the `agrirouterId` alone does not tell it which type to request. Slots whose
 entity type is fixed — a field's farm — need no discriminator.
 
@@ -386,7 +388,7 @@ and MAY use `label` to round-trip its own presentation.
 
 ## Encoding
 
-The normative wire encoding for `masterdata:*` payloads is a constrained subset of
+The normative wire encoding for master-data payloads is a constrained subset of
 the EFDI / ISOXML (ISO 11783-10) representation of the corresponding entities
 (partfield, farm, customer). The exact subset and its Protobuf/EFDI form are being
 finalized together with the FarmSPT alignment (see [Open issues](#open-issues)); the JSON shown
@@ -398,8 +400,8 @@ binding format.
 Regardless of the finalized encoding, the following rules are normative:
 
 - The format MUST be **canonical**: every logical value has exactly one valid encoding. Producers MUST emit the canonical form; there is no "tolerant" reading of equivalent-but-different encodings.
-- agrirouter MUST validate every incoming `masterdata:*` message against the defined subset. If validation fails, the message MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Messages are not silently repaired.
-- Validation and rejection apply only to the `masterdata:*` message types; they do not change the handling of other, pre-existing agrirouter message types.
+- agrirouter MUST validate every incoming master-data payload against the defined subset. If validation fails, the request MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Payloads are not silently repaired.
+- Validation and rejection apply only to the operations defined here; they do not change the handling of other, pre-existing agrirouter traffic.
 
 ## Extensible enumerations
 
@@ -429,7 +431,7 @@ not an exhaustive set. Normatively:
 agrirouter maintains, per canonical object, a mapping between its `agrirouterId`
 and each participant's `localId` for that object.
 
-- On receiving a `masterdata:<type>` from endpoint E carrying `localId` X:
+- On receiving an entity sent by endpoint E under `localId` X:
 
   - if the mapping already resolves (E, X) to a canonical object, that object is updated;
   - otherwise a new canonical object is created, `agrirouterId` is assigned, and (E, X) is recorded in its mapping.
@@ -442,9 +444,9 @@ recognises a delivered canonical object as one it already holds. The endpoint
 MUST declare that by **binding** its own identifier to the object; agrirouter
 never infers a mapping from the content of an object. Binding is not a change to
 the entity: it creates no revision, does not alter `sourceEndpointId`, and is
-delivered to nobody. Until it has bound, an endpoint MUST NOT send that object as
-a `masterdata:<type>`, because the send does not resolve and creates a second
-canonical object for the same entity. During
+delivered to nobody. Until it has bound, an endpoint MUST NOT send that object,
+because the send does not resolve and creates a second canonical object for the
+same entity. During
 [initial load](#initial-load-and-seeding) the bindings for a whole set are
 carried on the confirmation that ends reconciliation. The concrete operations are
 described in `openapi.yaml`.
@@ -454,7 +456,7 @@ locally, or it discarded its data while it was not a participant — MAY **unbin
 its identifier from the canonical object. Binding and unbinding are the same kind
 of claim: a declaration about the endpoint's own store, which agrirouter records
 and never infers. Unbinding is not the correction of a mistaken binding, and it
-is not a `masterdata:<type>:deactivate`, which states that the entity is inactive
+is not a [deactivation](#deactivation), which states that the entity is inactive
 in the world and is delivered to every participant. It removes no canonical
 object, affects no other endpoint's mapping, and reaches nobody.
 
@@ -488,8 +490,8 @@ disconnected from the hub (see
 
 An endpoint MUST NOT reuse one of its own local identifiers for two distinct
 canonical objects. If an endpoint sends a `localId` that is already mapped to a
-*different* canonical object than the one implied by the message, agrirouter MUST
-reject the message (see [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)).
+*different* canonical object than the one implied by the request, agrirouter MUST
+reject it (see [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)).
 
 # Synchronization processes
 
@@ -558,7 +560,7 @@ agrirouter in the loop.
 
 The protocol therefore does not attempt to merge such objects automatically.
 Instead, an endpoint MUST NOT send back one of its own local identifiers already
-associated with a *different* object; agrirouter rejects the offending message (see
+associated with a *different* object; agrirouter rejects the offending request (see
 [Identifier mapping](#identifier-mapping)). This pushes resolution of a genuine n:1 situation to the
 participating systems, which is the intended behaviour for this version.
 
@@ -709,23 +711,22 @@ when nothing actually changed.
 The protocol relies on the SSOT to break these loops:
 
 - agrirouter MUST NOT echo a change back to the endpoint it originated from. The originating endpoint is identified by `sourceEndpointId` for the produced revision.
-- agrirouter maintains the `revision` counter per canonical object. An incoming `masterdata:<type>` that does not actually change the canonical object (it is equal to the current canonical revision) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
+- agrirouter maintains the `revision` counter per canonical object. An incoming entity that does not actually change the canonical object (it is equal to the current canonical revision) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
 - Participants SHOULD avoid re-emitting an object they have just received without a genuine local change. Because some systems cannot guarantee this, agrirouter's origin-suppression and no-op detection are the authoritative safeguards and do not depend on well-behaved participants.
 
 ## Deactivation
 
-`masterdata:<type>:deactivate` signals that an entity was deactivated in its source
-system. "Deactivation" is intentionally generic: it covers archival, deletion, or
+`POST /masterdata/<types>/{localId}/deactivation` signals that an entity was
+deactivated in its source system. "Deactivation" is intentionally generic: it covers archival, deletion, or
 any state in which the source no longer considers the entity active. It is a
 lifecycle transition of the canonical object (`active` becomes `false`), **not** a
 hard removal from the SSOT — the canonical object and its identifier mapping are
 retained so that synchronization, references, and lineage remain intact.
 
-Deactivation MUST be **idempotent**. The same entity may be the subject of more
-than one `:deactivate` message (for example because several systems independently
-archive it, or a message is retried). Receiving a `:deactivate` for an entity that
-is already inactive MUST succeed without error and MUST NOT produce a new revision
-or a new outgoing notification.
+Deactivation MUST be **idempotent**. The same entity may be deactivated more than
+once (for example because several systems independently archive it, or a request
+is retried). Deactivating an entity that is already inactive MUST succeed without
+error and MUST NOT produce a new revision or a new outgoing notification.
 
 ## Split and merge
 
@@ -737,15 +738,15 @@ old ones. Some systems do not model this as an explicit operation at all.
 Rather than distinguishing "split" from "merge" as separate operations, the
 protocol represents both uniformly through lineage:
 
-- A newly created entity that supersedes one or more prior entities carries references to them in `previousVersions` (see [Common envelope](#common-envelope)). A split produces several new entities that each reference the original; a merge produces one new entity that references several originals. No operation-specific message is required.
-- A system that receives such an entity receives the *identifiers* of the referenced predecessors, nothing more. It MAY dereference one with `masterdata:<type>:request`, and what it gets back is that entity's **current** state: a request carries no revision, and agrirouter keeps no past states of anything ([What this protocol is, and is not](#what-this-protocol-is-and-is-not)). Lineage therefore records *which* entities preceded this one, never *what they looked like* when they were superseded.
+- A newly created entity that supersedes one or more prior entities carries references to them in `previousVersions` (see [Common envelope](#common-envelope)). A split produces several new entities that each reference the original; a merge produces one new entity that references several originals. No dedicated split or merge operation is required.
+- A system that receives such an entity receives the *identifiers* of the referenced predecessors, nothing more. It MAY dereference one by [requesting it](#requesting-objects-lazy-loading), and what it gets back is that entity's **current** state: a request carries no revision, and agrirouter keeps no past states of anything ([What this protocol is, and is not](#what-this-protocol-is-and-is-not)). Lineage therefore records *which* entities preceded this one, never *what they looked like* when they were superseded.
 - Nor is a predecessor guaranteed to still exist; the reference may dangle. Systems that do not retain historical data may ignore `previousVersions` entirely. It is advisory lineage, not a required processing step, and a participant that needs the prior state of a field has to have kept it itself.
 
 ## Requesting objects (lazy loading)
 
-`masterdata:<type>:request` lets a participant pull a single entity by
+`POST /masterdata/<types>/requests` lets a participant pull a single entity by
 `agrirouterId` rather than wait for it to arrive. agrirouter delivers the
-corresponding `masterdata:<type>` object if the requester is entitled to it under
+corresponding object on the event stream if the requester is entitled to it under
 its opt-in configuration (see [Routing and opt-in](#routing-and-opt-in)).
 
 A request never widens what a participant can see. Opt-in is the only filter on
@@ -768,7 +769,7 @@ delivery position as well takes everything (see
 # Security considerations
 
 Transport authentication, authorization, and confidentiality are provided by the
-agrirouter platform: `masterdata:*` messages travel over the same authenticated,
+agrirouter platform: master-data traffic travels over the same authenticated,
 access-controlled channels as other agrirouter traffic, and the HTTP surface in
 `openapi.yaml` is protected by OAuth 2.0 {{?RFC6749}} bearer tokens.
 
@@ -820,4 +821,4 @@ this document:
 - **`sourceEndpointId` on delivery** — [Identifier mapping](#identifier-mapping) settles that a delivered object carries no other endpoint's *local* identifiers. `sourceEndpointId` still names another endpoint, which the platform's own endpoint listing would disclose anyway, and which a receiver may want for a conflict UI. Whether it is needed on the delivered object at all — loop prevention is server-side — or should be reduced, is open.
 - **Split / merge** — the lineage model of [Split and merge](#split-and-merge).
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
-- **`:deactivate` idempotency** — duplicate deactivations in [Deactivation](#deactivation).
+- **Deactivation idempotency** — duplicate deactivations in [Deactivation](#deactivation).
