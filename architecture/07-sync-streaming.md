@@ -245,13 +245,10 @@ Delivery is stateless in that respect: nothing on our side records where any
 application has got to, which is what keeps a partner with 100k endpoints from
 costing us 100k pieces of delivery state.
 
-An application MUST persist a cursor only for objects it has **durably applied**<sup>1</sup>,
-never for objects it has merely received, and MUST derive it from its own store
-rather than from whatever its stream client last read. Delivery is at-least-once:
-everything after the committed position is sent again on reconnect, so a
-connection dropping mid-sweep costs a redelivery rather than a gap.
-
-<sup>1</sup> _TBD whether this has consequences for load balancing on client side._
+An application MUST persist a cursor only for objects it has **durably applied**,
+never for objects it has merely received. Delivery is at-least-once: everything
+after the committed position is sent again on reconnect, so a connection dropping
+mid-sweep costs a redelivery rather than a gap.
 
 **A new sweep has to reach a cursor that predates it.** A cursor written last week
 knows nothing about a tenant routed to the hub this morning, and the cursor is all
@@ -278,6 +275,22 @@ and every entitled (tenant, entity type) gets an entry, per
 [A cursor we cannot read is a first connection](#a-cursor-we-cannot-read-is-a-first-connection).
 That is the only case in which the rule above is not the whole answer, and it is
 still derived from routes and opt-in rather than from anything we stored.
+
+### Parallel apply is fanned out behind the one socket
+
+Entitlement is a predicate on the query rather than a property of the connection,
+and the stream carries no scoping parameter, so a second connection would receive
+the same frames as the first. An application that needs more throughput than one
+consumer gives it therefore fans frames out to its own workers behind the single
+socket, and that is the shape we support. Applying in parallel is allowed; letting
+the cursor run ahead of the apply is not.
+
+A cursor that moves **backwards** costs a redelivery, which idempotent apply absorbs. A cursor that
+moves **forwards** past an object not yet applied is a permanent gap: the record's
+number is below the `after` it is handed, so it is never sent again, and nothing on
+either side detects the omission. Where the two are in tension an application MUST
+prefer the older cursor.
+
 
 ### The end of a set is a frame
 
@@ -352,6 +365,15 @@ neither has a fix that keeps the queue.
   A first load is usually taken by a participant that already holds its own data,
   so withholding a deactivated object leads it to send that object back as new -
   duplicating the canonical object and resurrecting what a user archived.
+- **The cursor is the application's coordination point.** Delivery being stateless
+  on our side does not remove the state, it relocates it: an application that
+  spreads apply across instances shares one cursor between them, and gains an
+  ordering obligation it would not have with a position we held. That is the price
+  of one connection and one piece of state per application rather than per endpoint.
+- **A forward cursor is unrecoverable at the object level.** An application that
+  suspects it skipped records cannot ask for them - it discards the cursor and
+  sweeps everything again, or re-enters `LOADING_FROM_AGRIROUTER` for the one
+  entity type ([ADR 06](./06-initial-load.md#the-endpoint-can-ask-for-the-set-again)).
 - **Delivery state is per application, but initial-load state is not.** The state
   machine in [ADR 06](./06-initial-load.md) is per tenant and entity type while
   the cursor is per application, _so the two are not keyed alike._

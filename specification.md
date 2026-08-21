@@ -620,6 +620,15 @@ re-running a full initial load. That position is carried as `Last-Event-ID`, is
 distinct from the per-object `revision`, and MUST be derived from what the
 participant has durably applied rather than from what its stream client last read.
 
+A participant MAY apply events in parallel. Where it does, applies complete out of
+order, and the position it commits MUST be the one carried by the last event with
+no unapplied event before it - tracked in the order the events arrived, since two
+positions cannot be compared. That position MUST be committed in the same
+transaction as the objects it accounts for, or after them where the participant's
+stores make that impossible. A position that lags what a participant holds costs a
+redelivery, which idempotent apply absorbs; one that runs ahead is a gap agrirouter
+neither detects nor resends.
+
 A delivery position is **opaque**. It MUST be returned exactly as agrirouter
 issued it in the `id:` field of an event, and a participant MUST NOT parse,
 construct, modify or increment one, nor compare two of them for order: its
