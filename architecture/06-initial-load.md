@@ -278,7 +278,7 @@ Two problems surface at initial load that agrirouter deliberately does **not** t
 
 A connection can drop mid-load, or an already-`COMPLETED` endpoint can go offline while changes accumulate on both sides. Rather than re-running initial load from scratch, the endpoint resumes from the last delivery position it processed. That position is the **delivery cursor** [ADR 03](./03-revision-model.md) calls for rather than the per-object `revision`, and it is carried as `Last-Event-ID` - its shape, and the fact that it can not expire, are described in [ADR 07](./07-sync-streaming.md).
 
-A dropped connection mid-load is therefore not a distinct case: the cursor still names the tier - the entity type's position in the dependency graph, swept in ascending order ([ADR 07](./07-sync-streaming.md#catch-up-sweeps-by-tier-the-live-tail-follows-it)) - and the offset the sweep had reached, and delivery continues from there rather than from the beginning of the set.
+A dropped connection mid-load is therefore not a distinct case: the cursor still names the entity type being swept - types are swept one at a time, in dependency order ([ADR 07](./07-sync-streaming.md#catch-up-sweeps-by-entity-type-the-live-tail-follows-it)) - and the offset the sweep had reached, and delivery continues from there rather than from the beginning of the set.
 
 Here is approximate lifecycle that we are expected to support:
 

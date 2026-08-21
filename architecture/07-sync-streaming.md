@@ -36,9 +36,9 @@ trim and its own position to track.
 ### Delivery reads a compacted index, not a log
 
 agrirouter maintains one record per canonical object, never one per change. Each
-carries the object's identity, its position in the dependency graph, the endpoint
-whose change produced the current value, and a globally ordered `last_event_id`
-that is rewritten every time the object changes.
+carries the object's identity, its entity type, the endpoint whose change produced
+the current value, and a globally ordered `last_event_id` that is rewritten every
+time the object changes.
 
 No change is ever given a number below one the application has already received,
 and the number advances per record, so a cursor may stop anywhere and nothing is
@@ -85,7 +85,7 @@ farms. The filter is therefore per tenant and type, read from each tenant's own
 `masterdata-config`. An application MUST NOT assume the types it receives for one
 tenant are the types it receives for another.
 
-### Catch-up sweeps by tier, the live tail follows it
+### Catch-up sweeps by entity type, the live tail follows it
 
 Ordering by `last_event_id` alone is wrong, and not in a rare case. Each record
 carries the number of its *most recent* change, so an object whose parent was
@@ -103,22 +103,26 @@ reconcile a field against a farm the application already holds.
 
 Delivery therefore runs in two phases. Each entity type has a **tier** reflecting
 the dependency graph - parties before farms, farms before fields, fields before
-boundaries.
+boundaries. A tier is a property of the *type*, not of an object: it is derived
+wherever it is needed and never stored, so the graph can be changed without
+touching a row.
 
 ```mermaid
 flowchart TB
     PIN["pin cutoff = the current position \n fixed for the rest of this sweep"]
-    SWEEP["sweep tier by tier, ascending \n last_event_id &gt; after AND &lt;= cutoff"]
-    MARK["emit end-of-set marker per tier"]
+    SWEEP["sweep type by type, in dependency order \n last_event_id &gt; after AND &lt;= cutoff"]
+    MARK["emit end-of-set marker per type"]
     TAIL["tail live \n last_event_id &gt; cutoff"]
     PIN --> SWEEP
     SWEEP --> MARK
     MARK --> TAIL
 ```
 
-The **sweep** walks tiers in ascending order and, within a tier, delivers in
-ascending `last_event_id` - bounded below by the sweep's `after`, above by
-its `cutoff`, and restricted to the tenants it is entitled to read.
+The **sweep** takes one entity type at a time, in any order consistent with the
+tiers - types sharing a tier have no dependency between them, so their order is
+free. Within a type it delivers in ascending `last_event_id`, bounded below by
+the sweep's `after`, above by its `cutoff`, and restricted to the tenants it is
+entitled to read.
 
 The **tail** then delivers everything above the cutoff in change order, emitting
 parents before children within a single change.
@@ -132,7 +136,7 @@ belongs to neither. Three things that happen during a sweep long enough to matte
 - **An object already swept is edited.** It moves above the cutoff, so the
   tail delivers it after the sweep ends. It is applied twice and the later value
   wins, which is why apply MUST be idempotent.
-- **An object in a tier not yet reached is edited.** It moves above the
+- **An object of a type not yet swept is edited.** It moves above the
   cutoff, so the sweep skips it and the tail delivers it. It arrives
   once, current.
 - **A new parent and a new child are both created.** Both are above the cutoff, so
@@ -142,22 +146,22 @@ belongs to neither. Three things that happen during a sweep long enough to matte
 ### The position is composite for as long as a sweep is running
 
 A record's number says when that object last changed, not how far the application has
-read. The sweep orders those numbers within a tier and then starts the next tier
-over, so the numbers increase through a tier and drop back at every tier change:
+read. The sweep orders those numbers within one type and then starts the next type
+over, so the numbers increase through a type and drop back at every change of type:
 
 ```
-tier 2 (farms)   40, 50, 60
-tier 3 (fields)  30, 70, 80
-                 ↑ lower than the farm before it
+farms    40, 50, 60
+fields   30, 70, 80
+         ↑ lower than the farm before it
 ```
 
 For an application that reconnects it is not sufficient to report `60`: agrirouter
 cannot tell whether it finished farms or is part-way through fields, and
 "everything after 60" would skip Long Meadow at 30. The position must therefore
-carry the tier and the offset within it. It must also carry the cutoff, because
-every tier has to be swept against the *same* one - recomputing it on reconnect
-would leave changes to an already-swept tier below the new cutoff and above the
-finished sweep, delivered by neither phase.
+carry the entity type and the offset within it. It must also carry the cutoff,
+because every type has to be swept against the *same* one - recomputing it on
+reconnect would leave changes to an already-swept type below the new cutoff and
+above the finished sweep, delivered by neither phase.
 
 Most sweeps are scoped to one tenant, so the entry names it. An application can
 have several running at once - one farmer connected last week and is still
@@ -166,8 +170,8 @@ loading, another was routed to the hub this morning:
 ```
 { "position": 90,
   "sweeps": [
-    { "tenant": "t-ashcroft",   "tier": 3, "after": 30, "cutoff": 80 },
-    { "tenant": "t-brookfield", "tier": 2, "after": 40, "cutoff": 90 }
+    { "tenant": "t-ashcroft",   "type": "fields", "after": 30, "cutoff": 80 },
+    { "tenant": "t-brookfield", "type": "farms",  "after": 40, "cutoff": 90 }
   ] }
 ```
 
@@ -278,10 +282,9 @@ still derived from routes and opt-in rather than from anything we stored.
 ### The end of a set is a frame
 
 agrirouter MUST emit an in-band `CANONICAL_SET_END { entityType }` frame when a
-tier's sweep is exhausted, and an application acts on it as it streams. The frame
-names an **entity type rather than a tier**, because a tier can carry more than
-one - organizations and persons have no dependency between them, so they sweep
-together - and "do I hold the whole set" is asked about a type.
+type's sweep is exhausted, and an application acts on it as it streams. It names
+the type the sweep covered, which is the granularity the question is asked at and
+the one [ADR 06](./06-initial-load.md) keys its state by.
 
 An application can also retrieve the information by calling `GET /endpoints/{eid}/masterdata-initial-load`.
 
@@ -340,7 +343,7 @@ neither has a fix that keeps the queue.
   a write response it is not, so apply is additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
 - **Dependency-closed opt-in is structural.** An application opted into fields
-  but not farms gets an empty tier-2 sweep and then every field with an
+  but not farms gets no farms sweep at all and then every field with an
   unresolvable reference. [The rule](../specification.md#routing-and-opt-in) is what holds the sweep together.
 - **Deactivated objects are retained indefinitely**, which is what makes a
   deletion deliverable at any distance rather than only within a retention
