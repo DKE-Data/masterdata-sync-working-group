@@ -9,10 +9,11 @@
 Delivery has to do two things without either being a special case: hand a
 returning application everything that changed while it was away, and hand a new
 application everything there is. [ADR 06](./06-initial-load.md) describes the
-state machine around the second of those. This ADR describes the mechanism under
-both.
+state machine around the second case. This ADR describes the mechanism implementing both.
 
-An earlier version of this ADR did it with a persisted per-endpoint queue: opting
+### Queue based alternative
+
+An alternative version considered is a persisted per-endpoint queue: opting
 an entity type in wrote the canonical set into that endpoint's queue as ordinary
 events, and `Last-Event-ID` was the only position an endpoint ever kept. That
 construction has two failures, and both are structural rather than tuning
