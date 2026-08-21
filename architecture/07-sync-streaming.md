@@ -191,15 +191,9 @@ both to detect damage rather than attackers:
 - **Versioned**, because positions never expire, so a value we wrote years ago can
   still arrive and parse into a valid but wrong position under a newer reader.
 - **Integrity-checked**, because truncation or re-encoding in a client's storage
-  fails the same silent way. A keyless checksum serves - detection is the
-  requirement, not unforgeability.
+  fails the same silent way.
 
-A wrong `after` skips records permanently, which is what both rules are for.
-Forgery is not: entitlement is a predicate on the query, so a made-up cursor only
-moves an application's own place. An implementation MUST NOT derive entitlement
-from the cursor.
-
-Given both rules the fallback for an unreadable cursor is a fresh sweep.
+The fallback for an unreadable cursor is a fresh sweep.
 
 ### A new tenant or a new entity type is swept, not tailed
 
