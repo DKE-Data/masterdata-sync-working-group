@@ -38,7 +38,7 @@ trim and its own position to track.
 
 agrirouter maintains one record per canonical object, never one per change. Each
 carries the object's identity, its entity type, the endpoint whose change produced
-the current value, and a globally ordered `last_event_id` that is rewritten every
+the current value, and a globally ordered `last_change_number` that is rewritten every
 time the object changes.
 
 No change is ever given a number below one the application has already received,
@@ -62,7 +62,7 @@ values only to overwrite them.
 
 It also supports deletion at no additional cost. Because agrirouter
 [deactivates rather than removes](../specification.md#deactivation), a deleted
-object keeps its record, is marked inactive and takes a new `last_event_id`, so
+object keeps its record, is marked inactive and takes a new `last_change_number`, so
 deletions ride the same path as everything else. A design built on hard deletes
 would need a second retention clock for tombstones purely so that catch-up could
 express what had disappeared. This one does not.
@@ -88,7 +88,7 @@ tenant are the types it receives for another.
 
 ### Catch-up sweeps by entity type, the live tail follows it
 
-Ordering by `last_event_id` alone is wrong, and not in a rare case. Each record
+Ordering by `last_change_number` alone is wrong, and not in a rare case. Each record
 carries the number of its *most recent* change, so an object whose parent was
 edited more recently than itself sorts ahead of that parent:
 
@@ -97,7 +97,7 @@ farm  Manor Farm    created at 20, renamed at 60   → reads 60
 field Long Meadow   created at 30                  → reads 30
 ```
 
-Sorted by `last_event_id`, Long Meadow arrives before the farm it references.
+Sorted by `last_change_number`, Long Meadow arrives before the farm it references.
 Over time this is the normal case rather than the exception, and it would break
 the dependency ordering that [ADR 06](./06-initial-load.md) needs in order to
 reconcile a field against a farm the application already holds.
@@ -111,9 +111,9 @@ touching a row.
 ```mermaid
 flowchart TB
     PIN["pin cutoff = the current position \n fixed for the rest of this sweep"]
-    SWEEP["sweep type by type, in dependency order \n last_event_id &gt; after AND &lt;= cutoff"]
+    SWEEP["sweep type by type, in dependency order \n last_change_number &gt; after AND &lt;= cutoff"]
     MARK["emit end-of-set marker per type"]
-    TAIL["tail live \n last_event_id &gt; cutoff"]
+    TAIL["tail live \n last_change_number &gt; cutoff"]
     PIN --> SWEEP
     SWEEP --> MARK
     MARK --> TAIL
@@ -121,7 +121,7 @@ flowchart TB
 
 The **sweep** takes one entity type at a time, in any order consistent with the
 tiers - types sharing a tier have no dependency between them, so their order is
-free. Within a type it delivers in ascending `last_event_id`, bounded below by
+free. Within a type it delivers in ascending `last_change_number`, bounded below by
 the sweep's `after`, above by its `cutoff`, and restricted to the tenants it is
 entitled to read.
 
@@ -176,7 +176,7 @@ loading, another was routed to the hub this morning:
   ] }
 ```
 
-`after` is exclusive and `cutoff` inclusive: they are a sweep's two bounds, both `last_event_id` values, as
+`after` is exclusive and `cutoff` inclusive: they are a sweep's two bounds, both `last_change_number` values, as
 is `position`. The whole encoded value is the **cursor**. Each sweep carries its own cutoff, because each was
 pinned when that sweep began. Once the list is empty the position is a single
 number again, and stays one for the whole of steady state.
