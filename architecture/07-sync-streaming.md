@@ -348,6 +348,10 @@ neither has a fix that keeps the queue.
 - **Deactivated objects are retained indefinitely**, which is what makes a
   deletion deliverable at any distance rather than only within a retention
   window. Purging them would reintroduce exactly the horizon this design removes.
+- **A sweep delivers them too**, and the absence of that filter is load-bearing.
+  A first load is usually taken by a participant that already holds its own data,
+  so withholding a deactivated object leads it to send that object back as new -
+  duplicating the canonical object and resurrecting what a user archived.
 - **Delivery state is per application, but initial-load state is not.** The state
   machine in [ADR 06](./06-initial-load.md) is per tenant and entity type while
   the cursor is per application, _so the two are not keyed alike._

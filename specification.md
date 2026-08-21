@@ -525,7 +525,7 @@ reconciles that existing data with the SSOT. Each endpoint has, per entity type,
 seeding state. The defined progression is:
 
 1. **Connected.** The endpoint is created and the user opts it into master-data exchange for one or more entity types (see [Routing and opt-in](#routing-and-opt-in)).
-2. **Loading from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive, over the ordinary event stream, closing each type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends.
+2. **Loading from agrirouter.** agrirouter sends the endpoint every canonical object of the opted-in types that the endpoint is entitled to receive, over the ordinary event stream, closing each type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends. The set includes objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 3. **Reconciling.** Emitting that event moves the entity type on, because agrirouter knows it has sent everything and needs nothing reported back. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and so takes as long as that takes.
 4. **Loading to agrirouter.** The endpoint confirms it has reconciled, and sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts. Confirming before the whole set has been received MUST be rejected.
 5. **Completed.** Steady-state (day-2) synchronization applies from here on.
@@ -554,6 +554,28 @@ Conflict detection during seeding, and its resolution, are the responsibility of
 the **endpoint's own software**, which presents conflicts to the user. agrirouter
 provides the canonical set to reconcile against; it does not adjudicate field-level
 conflicts.
+
+### Deactivated objects are part of the set
+
+The canonical set an endpoint receives includes objects that are inactive, each
+carrying `active: false`. They are current state — the present truth about the
+entity is that it was deactivated — not the history this protocol
+[does not keep](#what-this-protocol-is-and-is-not).
+
+Omitting them would corrupt data rather than merely withhold it. A seeding
+endpoint usually holds its own copy of the entity; receiving no canonical object
+for it, the endpoint reports it in **loading to agrirouter** as one not yet in
+the SSOT, and agrirouter creates a *second*, active canonical object for an
+entity that already exists. Every other participant then receives the
+resurrection of something their user archived. The risk is highest exactly where
+seeding matters most: an endpoint whose identifier mapping is gone, which no
+longer recognises the entity by any identifier it holds.
+
+An endpoint that receives an inactive object MUST NOT treat it as an ordinary
+delivery of an object it does not hold:
+
+- if it recognises the object in its own store, it [binds](#identifier-mapping) its identifier and marks its own copy inactive. Binding a dead object is worth doing: an unbound local copy is precisely what gets sent back as new later.
+- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `localId` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is inactive.
 
 ### Asymmetric and non-unique mappings
 
@@ -762,9 +784,16 @@ What is deliberately not exchanged is the *lineage*: which entities preceded
 which. Recording it would serve continuity of data derived from a field — task
 history, yield records, crop plans — and those entity types are
 [out of scope for this version](#scope). It is deferred to the version that
-carries them, where the questions it raises (whether a predecessor MUST be
-deactivated, and whether the writes forming one split are related to each other)
-can be settled against a concrete consumer. See [Open issues](#open-issues).
+carries them, so that it can be settled against a concrete consumer.
+
+Deferred is not undecided, and the shape it returns in is fixed by what this
+version already settles elsewhere:
+
+- **Operation-agnostic.** References to the entities a given entity supersedes, with nothing on the wire distinguishing a split from a merge — a split names one predecessor on each successor, a merge names several on one, and neither needs an operation of its own. A participant that does not model the distinction is unaffected by it.
+- **Held by agrirouter, read-only to participants.** Lineage is a property of the canonical object, like the [identifier mapping](#identifier-mapping), not an attribute a sender restates on every write. Carried in the envelope it would be erased by the next whole-object send from a participant that does not model it, and that erasure would be a change like any other — a new revision, delivered to everyone.
+- **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — inactive, if it was deactivated by the split — because agrirouter retains no past states of anything.
+
+What remains genuinely open is listed under [Open issues](#open-issues).
 
 ## Requesting objects (lazy loading)
 
@@ -844,6 +873,7 @@ this document:
 - **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.
 - **Auditing the mapping** — a participant that suspects a few of its pairs are stale, rather than knowing its table is lost, has no cheap way to check: agrirouter does not disclose the mapping, so the choices are a full re-load of the entity type or waiting for each object's next change. Open: whether that case is common enough to warrant reading the correspondence back, which is the one recovery the [initial-load](#initial-load-and-seeding) re-entry does not make proportionate.
 - **`sourceEndpointId` on delivery** — [Identifier mapping](#identifier-mapping) settles that a delivered object carries no other endpoint's *local* identifiers. `sourceEndpointId` still names another endpoint, which the platform's own endpoint listing would disclose anyway, and which a receiver may want for a conflict UI. Whether it is needed on the delivered object at all — loop prevention is server-side — or should be reduced, is open.
-- **Split / merge lineage** — deferred rather than open, see [Split and merge](#split-and-merge). It is reopened by the entity types that would consume it, and settling it then means deciding the predecessor's fate on a split and whether the writes forming one are related on the wire. An earlier draft carried an advisory `previousVersions` array on the envelope, which no participant could rely on: an empty value did not distinguish "no predecessors" from "this producer does not track them".
+- **Split / merge lineage** — deferred rather than open, and reopened by the entity types that would consume it. The shape is settled in [Split and merge](#split-and-merge); what is not, and needs a concrete consumer to settle, is: whether a predecessor MUST be deactivated by the split that supersedes it, or may stay active; whether the writes forming one split are related to each other on the wire, or arrive as unconnected changes; which endpoint may declare lineage, whether a declaration can be corrected or withdrawn, and what holds when two endpoints declare different predecessors for the same entity.
+- **Reactivation** — [Deactivation](#deactivation) defines the transition into inactive and no way back out. An endpoint that has bound a deactivated object and whose user later un-archives it sends under a `localId` that resolves to that canonical object; whether that revives the entity, or is rejected, is undefined. Reachable in ordinary use once [deactivated objects are part of a seeded set](#deactivated-objects-are-part-of-the-set).
 - **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
 - **Deactivation idempotency** — duplicate deactivations in [Deactivation](#deactivation).
