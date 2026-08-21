@@ -50,7 +50,9 @@ holds is proportional to the amount of master data in existence, not to how much
 of it has ever been edited, and records are **not evicted**. The system cannot be in a state
 which is too far behind to resume: an application away for 5 minutes and one
 away for 5 weeks are served the same way, and the second merely gets more
-back (assuming more changes happened in the meantime).
+back (assuming more objects changed in the meantime), while if an object has changed
+50 times in that period, only the last known state is delivered, which is all the
+application needs to know.
 
 This means we do not support intermediate states. An object edited three times while an
 application was disconnected is delivered once, carrying its current value; the
