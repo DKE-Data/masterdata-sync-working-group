@@ -205,9 +205,7 @@ Points worth noting about the calls themselves:
   `LOADING_FROM_AGRIROUTER` and `RECONCILING`). So
   `GET /endpoints/{eid}/masterdata-initial-load` answers both questions an
   endpoint that restarted mid-flow has: whether it still owes a push, and whether
-  it holds the whole set. Its own cursor answers the second too
-  ([ADR 07](./07-sync-streaming.md)), without a round trip, but the resource is
-  the authority.
+  it holds the whole set.
 - **Waiting for the user does not pause the stream.** Delivery continues while
   conflicts are being resolved, so `RECONCILING` is not a quiet window
   and reconciliation runs against a set that keeps changing under it. One stream

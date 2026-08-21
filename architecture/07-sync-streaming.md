@@ -108,7 +108,7 @@ boundaries.
 ```mermaid
 flowchart TB
     PIN["pin cutoff = the current position \n fixed for the rest of this sweep"]
-    SWEEP["sweep tier by tier, ascending \n last_event_id &gt; cursor AND &lt;= cutoff"]
+    SWEEP["sweep tier by tier, ascending \n last_event_id &gt; after AND &lt;= cutoff"]
     MARK["emit end-of-set marker per tier"]
     TAIL["tail live \n last_event_id &gt; cutoff"]
     PIN --> SWEEP
@@ -117,8 +117,8 @@ flowchart TB
 ```
 
 The **sweep** walks tiers in ascending order and, within a tier, delivers in
-ascending `last_event_id` - bounded below by the application's cursor, above by
-the cutoff, and restricted to the tenants it is entitled to read.
+ascending `last_event_id` - bounded below by the sweep's `after`, above by
+its `cutoff`, and restricted to the tenants it is entitled to read.
 
 The **tail** then delivers everything above the cutoff in change order, emitting
 parents before children within a single change.
@@ -166,22 +166,36 @@ loading, another was routed to the hub this morning:
 ```
 { "position": 90,
   "sweeps": [
-    { "tenant": "t-ashcroft",   "tier": 3, "cursor": 30, "cutoff": 80 },
-    { "tenant": "t-brookfield", "tier": 2, "cursor": 40, "cutoff": 90 }
+    { "tenant": "t-ashcroft",   "tier": 3, "after": 30, "cutoff": 80 },
+    { "tenant": "t-brookfield", "tier": 2, "after": 40, "cutoff": 90 }
   ] }
 ```
 
-`cursor` and `cutoff` are that sweep's two bounds. Each sweep carries its own cutoff, because each was
+`after` is exclusive and `cutoff` inclusive: they are a sweep's two bounds, both `last_event_id` values, as
+is `position`. The whole encoded value is the **cursor**. Each sweep carries its own cutoff, because each was
 pinned when that sweep began. Once the list is empty the position is a single
 number again, and stays one for the whole of steady state.
 
 This does not disturb SSE: `Last-Event-ID` is opaque to the protocol, so the
 encoded value rides in it and reconnects work unchanged. What it does mean is that
-two positions can no longer be compared, and that agrirouter MUST be able to
-validate what comes back - the cursor SHOULD be signed and MUST be versioned. The
-stakes are low, though, because the fallback for a cursor agrirouter cannot read
-is a fresh sweep, which here is an ordinary supported operation rather than an
-incident.
+two positions can no longer be compared, and that agrirouter MUST be able to tell
+a cursor it wrote from one it did not.
+
+The cursor MUST therefore be **versioned** and MUST carry an **integrity check**,
+both to detect damage rather than attackers:
+
+- **Versioned**, because positions never expire, so a value we wrote years ago can
+  still arrive and parse into a valid but wrong position under a newer reader.
+- **Integrity-checked**, because truncation or re-encoding in a client's storage
+  fails the same silent way. A keyless checksum serves - detection is the
+  requirement, not unforgeability.
+
+A wrong `after` skips records permanently, which is what both rules are for.
+Forgery is not: entitlement is a predicate on the query, so a made-up cursor only
+moves an application's own place. An implementation MUST NOT derive entitlement
+from the cursor.
+
+Given both rules the fallback for an unreadable cursor is a fresh sweep.
 
 ### A new tenant or a new entity type is swept, not tailed
 
@@ -261,19 +275,15 @@ and every entitled (tenant, entity type) gets an entry, per
 That is the only case in which the rule above is not the whole answer, and it is
 still derived from routes and opt-in rather than from anything we stored.
 
-### The end of a set is answered by the cursor
+### The end of a set is a frame
 
-An application asks "do I hold the whole canonical set for this type" by reading
-its own cursor: the tier is either still listed in `sweeps` or it is not. No call
-to agrirouter, no id to compare against, and nothing that depends on the
-comparability the composite cursor gave up.
+agrirouter MUST emit an in-band `CANONICAL_SET_END { entityType }` frame when a
+tier's sweep is exhausted, and an application acts on it as it streams. The frame
+names an **entity type rather than a tier**, because a tier can carry more than
+one - organizations and persons have no dependency between them, so they sweep
+together - and "do I hold the whole set" is asked about a type.
 
-agrirouter MUST still emit an in-band `CANONICAL_SET_END { entityType }` frame
-when a tier's sweep is exhausted, so that an application can act at the boundary
-as it streams rather than by inspecting its cursor after the fact. _The frame no
-longer needs an id that is knowable in advance, which is what the previous
-`canonicalSetEndEventId` on the initial-load status subresource existed to
-provide. That field is removed._
+An application can also retrieve the information by calling `GET /endpoints/{eid}/masterdata-initial-load`.
 
 The marker is an **upper limit in the delivery, not a claim about either
 side**: it says the objects before it are the whole canonical set, not that the

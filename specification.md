@@ -592,6 +592,15 @@ re-running a full initial load. That position is carried as `Last-Event-ID`, is
 distinct from the per-object `revision`, and MUST be derived from what the
 participant has durably applied rather than from what its stream client last read.
 
+A delivery position is **opaque**. It MUST be returned exactly as agrirouter
+issued it in the `id:` field of an event, and a participant MUST NOT parse,
+construct, modify or increment one, nor compare two of them for order: its
+structure is agrirouter's to change, it is not a single event identifier in every
+state, and it is integrity-protected so that a locally built one is rejected. A
+participant that needs to know whether it holds a complete canonical set uses
+`CANONICAL_SET_END` and the entity type's initial-load state (see
+[Initial load and seeding](#initial-load-and-seeding)) rather than the position.
+
 A resume position does **not** expire: agrirouter serves catch-up from the current
 state of each entity rather than from a retained log of changes, so an arbitrarily
 long absence is a larger catch-up rather than a failed one. The consequence is that

@@ -850,10 +850,11 @@ paths:
         sweep of the corresponding canonical objects onto this same stream, each
         sweep closed by a `CANONICAL_SET_END` frame. Initial load is therefore not
         a second delivery mechanism, and `Last-Event-ID` remains the only position
-        the application keeps — though while a sweep is in progress that value is
-        an opaque composite rather than a single event id, and it MUST be sent
-        back verbatim. Positions do not expire.
+        the application keeps. That value is opaque and MUST be sent back
+        verbatim — see the parameter below. Positions do not expire.
       operationId: streamMasterdataEvents
+      parameters:
+        - $ref: '#/components/parameters/LastEventId'
       responses:
         '200':
           description: An event stream.
@@ -864,7 +865,10 @@ paths:
                   The `data:` payload of each SSE frame. Frames carry an `event:`
                   of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`, or
                   `CANONICAL_SET_END`; the first two carry an `Entity` and the
-                  last a `CanonicalSetEnd`.
+                  last a `CanonicalSetEnd`. Every frame also carries an `id:`,
+                  which is the delivery position as of that frame — what the
+                  application persists once it has durably applied the frame, and
+                  returns as `Last-Event-ID` on reconnect.
                 oneOf:
                   - $ref: '#/components/schemas/Entity'
                   - $ref: '#/components/schemas/CanonicalSetEnd'
@@ -1138,6 +1142,35 @@ components:
         examples: [organizations, persons, farms, fields, fieldBoundaries]
         description: >
           [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+    LastEventId:
+      name: Last-Event-ID
+      in: header
+      required: false
+      description: >
+        The delivery position the application last committed, as agrirouter
+        issued it in the `id:` field of an SSE frame. It is **opaque**: the
+        application MUST send it back byte for byte and MUST NOT parse,
+        construct, modify or increment one, nor compare two of them for order.
+        Its internal shape is agrirouter's to change — a single position in
+        steady state, a composite carrying an entry per in-progress sweep while
+        one runs — and it is integrity-protected and versioned, so a locally
+        built one is rejected.
+
+
+        The application MUST derive it from what it has **durably applied**
+        rather than from whatever its stream client last read; delivery is
+        at-least-once, so everything after it is sent again on reconnect. It does
+        not expire, and agrirouter stores no copy of it.
+
+
+        Omitted, or present and unreadable, is served as a first connection:
+        everything the application is entitled to, in dependency order, each
+        entity type closed by `CANONICAL_SET_END`. That costs the application its
+        place in the stream and not its entitlement, and is how it asks for every
+        entity to be delivered again.
+      schema:
+        type: string
+      example: v1.eyJwb3NpdGlvbiI6OTB9.c2ln
 
   requestBodies:
     EntityRequest:
