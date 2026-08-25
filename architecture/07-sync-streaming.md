@@ -34,12 +34,28 @@ trim and its own position to track.
 
 ## Decision
 
+### Change number
+
+First of all we introduce a concept of change number which is simply monotonically
+increasing number that is assigned to every change to canonical masterdata store.
+It would have following properties:
+- **Uniqueness** - each change number is unique across all changes
+- **Monotonicity** - change number given to writes (creates AND updates) created "later" is always greater than change number given to events created "earlier", which creates a total order for all changes and corresponding notion of time
+- **Not Generally Linear** - change numbers are allowed to have gaps in the sequence.
+
+An important consequence of this design is that order over change number corresponding
+to creation of the object would always correspond with entity dependency graph, in that
+if object A (f.e field) depends on the object B (f.e farm), then change number for change
+that has created object B would always be less than change number for change that has
+created object A, even if there was change to object B after object A was created.
+
 ### Delivery reads a compacted index, not a log
 
 agrirouter maintains one record per canonical object, never one per change. Each
 carries the object's identity, its entity type, the endpoint whose change produced
 the current value, and a globally ordered `last_change_number` that is rewritten every
-time the object changes.
+time the object changes. However `create_change_number` is never rewritten and only assigned
+one time when the object is being created for the first time.
 
 No change is ever given a number below one the application has already received,
 and the number advances per record, so a cursor may stop anywhere and nothing is
@@ -88,151 +104,145 @@ farms. The filter is therefore per tenant and type, read from each tenant's own
 `masterdata-config`. An application MUST NOT assume the types it receives for one
 tenant are the types it receives for another.
 
-### Catch-up sweeps by entity type, the live tail follows it
+### The sweep delivers in creation order
 
-Ordering by `last_change_number` alone is wrong, and not in a rare case. Each record
-carries the number of its *most recent* change, so an object whose parent was
-edited more recently than itself sorts ahead of that parent:
+Creation order is dependency order. A field cannot be created before the farm it
+references, so the change that created the farm always carries the lower number.
+Delivering in ascending `create_change_number` therefore places every parent
+before every child, and needs to know nothing about entity types to do it.
 
-```
-farm  Manor Farm    created at 20, renamed at 60   → reads 60
-field Long Meadow   created at 30                  → reads 30
-```
+A connection runs exactly one sweep. It covers every object the application is
+entitled to read whose `last_change_number` is above `after` - the cursor the
+application presented, exclusive - delivered in ascending `create_change_number`.
+On a first connection `after` is zero and the sweep is the whole entitled set.
 
-Sorted by `last_change_number`, Long Meadow arrives before the farm it references.
-Over time this is the normal case rather than the exception, and it would break
-the dependency ordering that [ADR 06](./06-initial-load.md) needs in order to
-reconcile a field against a farm the application already holds.
+The filter and the ordering deliberately read different columns: `last_change_number`
+selects what the application is missing, `create_change_number` puts it in an order
+the application can apply as it arrives. Each object is delivered at its current
+value, because the compacted index holds only that one.
 
-Delivery therefore runs in two phases. Each entity type has a **tier** reflecting
-the dependency graph - parties before farms, farms before fields, fields before
-boundaries. A tier is a property of the *type*, not of an object: it is derived
-wherever it is needed and never stored, so the graph can be changed without
-touching a row.
+**The scan is stable under concurrent writes**, which is what lets it run without
+an upper bound. `create_change_number` is never rewritten, so no row moves under
+the scan; `last_change_number` only rises, so a row that satisfies the filter
+cannot stop satisfying it; and an object created while the sweep runs takes a
+higher creation number, so it lands ahead of the scan rather than behind it.
+Nothing is skipped, whatever happens during the pass. Where the sweep *stops* is
+set by the buffer, below.
+
+An object unchanged since `after` is outside the filter, so the sweep skips it even
+when it delivers that object's children. The reference still resolves: unchanged
+since the cursor means it was delivered before the cursor was written.
+
+### Live changes are buffered until the sweep ends
+
+A change landing while the sweep runs cannot go straight out. The sweep is walking
+creation order, so it has not yet reached objects sitting further along that order
+- and a new child of one of them would arrive before its parent.
+
+agrirouter therefore subscribes to live changes when the connection opens, holds
+them in a **buffer** for the duration of the sweep, and flushes them in change
+order once the sweep ends. The whole sweep precedes the whole flush, so a parent
+delivered by the sweep always precedes a child held in the buffer. After the flush
+the connection streams live changes directly.
 
 ```mermaid
 flowchart TB
-    PIN["pin cutoff = the current position \n fixed for the rest of this sweep"]
-    SWEEP["sweep type by type, in dependency order \n last_change_number &gt; after AND &lt;= cutoff"]
-    MARK["emit end-of-set marker per type"]
-    TAIL["tail live \n last_change_number &gt; cutoff"]
-    PIN --> SWEEP
+    SUB["subscribe to live changes \n buffer everything that arrives"]
+    SWEEP["sweep once, ascending create_change_number \n last_change_number &gt; after"]
+    MARK["emit SWEEP_END"]
+    FLUSH["flush the buffer in change order"]
+    LIVE["stream live"]
+    SUB --> SWEEP
     SWEEP --> MARK
-    MARK --> TAIL
+    MARK --> FLUSH
+    FLUSH --> LIVE
 ```
 
-The **sweep** takes one entity type at a time, in any order consistent with the
-tiers - types sharing a tier have no dependency between them, so their order is
-free. Within a type it delivers in ascending `last_change_number`, bounded below by
-the sweep's `after`, above by its `cutoff`, and restricted to the tenants it is
-entitled to read.
+The buffer also tells the sweep where to stop. Because the subscription opens
+first, every object created after it has its creating change in the buffer, so the
+first change the buffer receives - the **pin** - is the boundary: creation numbers
+below it belong to the sweep, at or above it are buffered already. The pin is
+observed rather than chosen, and costs no query of its own.
 
-The **tail** then delivers everything above the cutoff in change order, emitting
-parents before children within a single change.
+An idle system produces no pin and needs none: with nothing being written the scan
+reaches the end of the index and stops. There is no case in between, because
+appending to the index *is* a change - a system busy enough to keep the scan
+finding new rows is busy enough to fill the buffer.
 
-The cutoff is not chosen, it is observed: the position at the moment the sweep
-begins, then fixed for its duration. It matters as much as the lower bound,
-because the two phases divide the data exactly between them - the sweep owns
-everything at or below the cutoff, the tail owns everything after, and nothing
-belongs to neither. Three things that happen during a sweep long enough to matter:
+The buffer is **compacted like the index it shadows**: it is keyed by object
+identity and holds only the latest change per object, so an object edited fifty
+times during a sweep costs one entry. Two entries are dropped rather than sent:
 
-- **An object already swept is edited.** It moves above the cutoff, so the
-  tail delivers it after the sweep ends. It is applied twice and the later value
-  wins, which is why apply MUST be idempotent.
-- **An object of a type not yet swept is edited.** It moves above the
-  cutoff, so the sweep skips it and the tail delivers it. It arrives
-  once, current.
-- **A new parent and a new child are both created.** Both are above the cutoff, so
-  both are skipped by the sweep and delivered by the tail, which orders the parent
-  first within that change. The reference resolves.
+- one superseded by a later change to the same object, which the key replaces;
+- one for an object the sweep has already emitted at an equal or higher change
+  number, which the sweep drops as it goes.
 
-### The position is composite for as long as a sweep is running
+Both are the same rule - only the current value of any object is ever worth
+sending - and both are cheap, because the buffer is keyed for exactly this lookup.
 
-A record's number says when that object last changed, not how far the application has
-read. The sweep orders those numbers within one type and then starts the next type
-over, so the numbers increase through a type and drop back at every change of type:
+**The buffer is an optimization, never a correctness requirement.** Losing it, or
+overflowing it, is repaired by a second sweep covering everything changed at or
+after the pin: the same query, the same code path, and nothing that was buffered
+is unreachable. An implementation MAY therefore bound the buffer and fall back to
+a second sweep rather than growing without limit.
 
-```
-farms    40, 50, 60
-fields   30, 70, 80
-         ↑ lower than the farm before it
-```
+### The cursor is a single change number
 
-For an application that reconnects it is not sufficient to report `60`: agrirouter
-cannot tell whether it finished farms or is part-way through fields, and
-"everything after 60" would skip Long Meadow at 30. The position must therefore
-carry the entity type and the offset within it. It must also carry the cutoff,
-because every type has to be swept against the *same* one - recomputing it on
-reconnect would leave changes to an already-swept type below the new cutoff and
-above the finished sweep, delivered by neither phase.
+The cursor is the change number of the last frame the application durably applied.
+There is nothing else in it, in any state, and two cursors compare as the integers
+they are.
 
-Most sweeps are scoped to one tenant, so the entry names it. An application can
-have several running at once - one farmer connected last week and is still
-loading, another was routed to the hub this morning:
+**It does not advance while a sweep runs.** Sweep frames carry the change number
+the sweep started from, because objects arrive in creation order and their change
+numbers do not ascend with them - committing one would move the cursor by an
+arbitrary amount in either direction. It starts advancing when the sweep and its
+buffer flush are done, and from then on it tracks change order directly.
 
-```
-{ "position": 90,
-  "sweeps": [
-    { "tenant": "t-ashcroft",   "type": "fields", "after": 30, "cutoff": 80 },
-    { "tenant": "t-brookfield", "type": "farms",  "after": 40, "cutoff": 90 }
-  ] }
-```
+An interrupted sweep therefore starts again rather than resuming. It costs
+redelivery of what it had already sent, which idempotent apply absorbs, and it
+needs no second position to do it: `last_change_number > after` still selects every
+object the first attempt delivered. A sweep contributes no position of its own
+precisely so that it can be abandoned at any point.
 
-`after` is exclusive and `cutoff` inclusive: they are a sweep's two bounds, both `last_change_number` values, as
-is `position`. The whole encoded value is the **cursor**. Each sweep carries its own cutoff, because each was
-pinned when that sweep began. Once the list is empty the position is a single
-number again, and stays one for the whole of steady state.
+agrirouter MUST put that number in the `id:` of every sweep frame rather than
+omitting the field. SSE retains the last id it was given - the buffer is not reset
+between events - so an omitted `id:` says the same thing to a client that follows
+the spec. Sending it does not rely on that: a client that cleared its stored id
+instead would reconnect without `Last-Event-ID` and be served as a first
+connection, re-receiving everything it already holds.
 
-This does not disturb SSE: `Last-Event-ID` is opaque to the protocol, so the
-encoded value rides in it and reconnects work unchanged. What it does mean is that
-two positions can no longer be compared, and that agrirouter MUST be able to tell
-a cursor it wrote from one it did not.
+The id remains **opaque**, and an application MUST NOT depend on it holding still
+across a sweep. Carrying sweep progress in it is what would make an interrupted
+sweep resumable, and that option is deliberately left open.
 
-The cursor MUST therefore be **versioned** and MUST carry an **integrity check**,
-both to detect damage rather than attackers:
-
-- **Versioned**, because positions never expire, so a value we wrote years ago can
-  still arrive and parse into a valid but wrong position under a newer reader.
-- **Integrity-checked**, because truncation or re-encoding in a client's storage
-  fails the same silent way.
-
-The fallback for an unreadable cursor is a fresh sweep.
-
-### A new tenant or a new entity type is swept, not tailed
-
-Both arrive **behind** the application's position, which is why neither can be a
-predicate on the ordinary query.
-
-A farmer who grants access today has data created months ago, so it carries
-old numbers. An application sitting at 90 that simply asked for everything above
-90 would receive none of it and would show the farmer an empty account. The same
-holds when that farmer later opts their endpoint into a further entity type: their
-objects of that type are already below the position too.
-
-Each is therefore its own bounded sweep, running alongside the tail with its own
-entry in the cursor - the same machinery as initial load, differing only in what
-it is scoped to:
-
-| Trigger | Sweep covers |
-|---|---|
-| First connection | everything granted and opted in |
-| A tenant routes one of its endpoints to the hub | that tenant |
-| That endpoint is opted into a further entity type | that tenant & entity type |
-| A connection carrying no cursor, or one we cannot read | everything granted and opted in |
-
-The middle two are scoped to a single tenant because each is an act by that
-tenant's user on their own endpoint: an application cannot opt itself into a type
-across its tenants, and agrirouter never sweeps more than one tenant on either.
-
-The others are not triggered by a user, and are therefore not scoped to a tenant.
+The value rides in `Last-Event-ID`, which SSE treats as opaque. Damage to it is
+largely self-limiting - truncating or corrupting a decimal integer overwhelmingly
+yields a smaller one, which costs redelivery rather than a gap - so agrirouter need
+only reject a value above the current change number, and serve a rejected one as a
+first connection.
 
 ### A cursor we cannot read is a first connection
 
-An application that presents no `Last-Event-ID`, or one that fails validation,
-is swept in full. 
+An application that presents no `Last-Event-ID`, or one that fails validation, is
+swept from zero.
 
-Discarding the cursor is therefore how an application can ask for every entity to
-be delivered again.
+Discarding the cursor is therefore how an application asks for every object it is
+entitled to, again.
+
+### A cursor is a position, not a record of entitlement
+
+`after` says where in change order the application stopped. It does not say what
+the application was allowed to see when it got there, and nothing else in the
+cursor does either.
+
+Data that existed below `after` but was not granted at the time is therefore
+indistinguishable from data the application already holds. A tenant that grants
+access today has objects created months ago: their change numbers sit below
+`after`, so the filter excludes them, and they changed long ago, so the buffer
+never sees them. Delivery has no way to tell that they are owed.
+
+Recognising that they are owed, and getting them across, belongs to initial load
+([ADR 06](./06-initial-load.md)).
 
 ### The cursor belongs to the application, not to agrirouter
 
@@ -247,32 +257,6 @@ never for objects it has merely received. Delivery is at-least-once: everything
 after the committed position is sent again on reconnect, so a connection dropping
 mid-sweep costs a redelivery rather than a gap.
 
-**A new sweep has to reach a cursor that predates it.** A cursor written last week
-knows nothing about a tenant routed to the hub this morning, and the cursor is all
-the application sends - so agrirouter cannot learn from it that a sweep is owed.
-It works that out instead from state it holds anyway: on each connection it
-compares the application's hub routes and per-tenant opt-in against what the
-cursor has already swept, and adds a sweep entry for anything granted but not yet
-delivered.
-
-That comparison needs a stored answer to "has this tenant's farms been handed
-over", and [ADR 06](./06-initial-load.md)'s state machine holds it directly:
-`LOADING_FROM_AGRIROUTER` means the set is still owed, `RECONCILING` and beyond
-mean it has been delivered. agrirouter moves the entity type across that edge when
-it emits `CANONICAL_SET_END`, which is precisely the moment the debt is settled.
-
-So the rule is: **add a sweep entry for any (tenant, entity type) that is
-`LOADING_FROM_AGRIROUTER` and has no entry in the cursor already.** The second
-clause is what stops a reconnect mid-sweep from starting a second one, and the
-first is what stops a reconnect during a slow human resolution from starting the
-sweep over - the state has moved on even though the endpoint has not confirmed.
-
-Where there is no cursor to compare against, the comparison has no lower bound
-and every entitled (tenant, entity type) gets an entry, per
-[A cursor we cannot read is a first connection](#a-cursor-we-cannot-read-is-a-first-connection).
-That is the only case in which the rule above is not the whole answer, and it is
-still derived from routes and opt-in rather than from anything we stored.
-
 ### Parallel apply is fanned out behind the one socket
 
 Entitlement is a predicate on the query rather than a property of the connection,
@@ -283,26 +267,24 @@ socket, and that is the shape we support. Applying in parallel is allowed; letti
 the cursor run ahead of the apply is not.
 
 A cursor that moves **backwards** costs a redelivery, which idempotent apply absorbs. A cursor that
-moves **forwards** past an object not yet applied is a permanent gap: the record's
-number is below the `after` it is handed, so it is never sent again, and nothing on
+moves **forwards** past an object not yet applied is a permanent gap: the object is
+below the `after` the next sweep is handed, so it is never sent again, and nothing on
 either side detects the omission. Where the two are in tension an application MUST
 prefer the older cursor.
 
+### The end of the sweep is a frame
 
-### The end of a set is a frame
+agrirouter MUST emit an in-band `SWEEP_END` frame when the sweep is exhausted,
+before the buffer is flushed. It says that everything the application was missing
+when the sweep began has now been delivered.
 
-agrirouter MUST emit an in-band `CANONICAL_SET_END { entityType }` frame when a
-type's sweep is exhausted, and an application acts on it as it streams. It names
-the type the sweep covered, which is the granularity the question is asked at and
-the one [ADR 06](./06-initial-load.md) keys its state by.
+The frame is an **upper limit in the delivery, not a claim about the application**:
+it says the objects before it are everything owed, not that the application has
+worked through them.
 
-An application can also retrieve the information by calling `GET /endpoints/{eid}/masterdata-initial-load`.
-
-The marker is an **upper limit in the delivery, not a claim about either
-side**: it says the objects before it are the whole canonical set, not that the
-user has worked through the conflicts. The confirmation in
-[ADR 06](./06-initial-load.md) is what claims that, and the gap between the two is
-human-paced and unbounded. An application MUST NOT stall delivery across that gap.
+The sweep has no per-type boundary. Creation order interleaves entity types by
+construction, so no moment exists at which farms are finished and fields have not
+started.
 
 ### Origin suppression moves to read time
 
@@ -327,34 +309,57 @@ from suppression.
 
 ### Rejected alternative: materializing the canonical set into a queue
 
-Described in [Context](#context). It buys one thing the current design pays for
-elsewhere: because agrirouter mints fresh sequential numbers as it writes the
-block, those numbers *are* a position, they never descend, and a single integer
-resumes correctly from anywhere including mid-load. The composite cursor above is
-the price of not writing those copies. It is worth paying, because the copies are
-what create both the retention cliff and the per-endpoint amplification, and
-neither has a fix that keeps the queue.
+Described in [Context](#context). It buys one thing this design gives up: because
+agrirouter mints fresh sequential numbers as it writes the block, delivery order
+and position are the same axis, so a position advances during a load and an
+interrupted one resumes where it stopped instead of starting again. Restarting an
+interrupted sweep is the price of not writing those copies. It is worth paying,
+because the copies are what create both the retention cliff and the per-endpoint
+amplification, and neither has a fix that keeps the queue.
+
+### Rejected alternative: a live tail concurrent with the sweep
+
+Sending live changes as they arrive, rather than buffering them, removes the
+buffer and its bound. It also breaks the ordering the sweep exists to provide: a
+child created during the sweep goes out immediately, while its parent waits for
+the sweep to reach it in creation order. The reference does not resolve, and the
+window is as long as the sweep. Buffering costs memory bounded by the objects
+changed during one sweep, and that memory has a fallback; the ordering does not.
 
 ## Consequences
 
-- **Initial load, catch-up, resume, re-seed and type backfill are one mechanism.**
-  They differ in what they are scoped to and in their starting cursor, not in kind.
-  There is no separate delivery mode to build, document, or fall back to.
-- **Nothing expires, so nothing has to be recovered.** The `LOADING_FROM_AGRIROUTER`
-  reset that an evicted position used to force does not arise, and neither does the
-  reload loop that a set larger than its own retention used to create. Rate
-  limiting a large sweep is a throughput concern rather than a correctness one.
+- **First connection, catch-up and resume are one mechanism.** They differ in the
+  `after` they start from, not in kind. There is no separate delivery mode to
+  build, document, or fall back to.
+- **Nothing expires, so nothing has to be recovered.** An application away for any
+  length of time is a larger sweep rather than a failed one. Rate limiting a large
+  sweep is a throughput concern rather than a correctness one.
+- **Entity types are interleaved.** Anything keyed per entity type has to derive
+  its own completion; the delivery carries one boundary, `SWEEP_END`, and it
+  covers the sweep as a whole.
+- **An interrupted sweep is repeated, not resumed**, and the cost scales with how
+  far it got. A large first load over an unreliable connection is the case to
+  watch: a sweep that cannot finish between drops does not converge, so
+  throughput and connection stability bound how large a set can be delivered.
+- **Cursors are comparable integers.** An application applying in parallel commits
+  the lowest position it has not yet applied, rather than tracking the order
+  frames arrived in.
+- **Entitlement gained below the cursor is not reachable from here.** The filter
+  excludes it and the buffer never sees it. A cursor records a position, not what
+  the application was entitled to on reaching it, so delivery cannot tell data it
+  owes from data the application already holds.
 - **Applications lose intermediate states.** An application MUST NOT infer that it
   observed every change to an object, and MUST NOT derive anything from the number
   of times an object was delivered.
-- **Idempotent apply is key in two places**: redelivery on
-  reconnect, and the overlap between a long sweep and the tail behind it. Within
-  the stream, order is enough to make the later value win; across the stream and
-  a write response it is not, so apply is additionally guarded by `revision`
+- **Idempotent apply is key in two places**: redelivery on reconnect, and the
+  overlap between the sweep and the buffer behind it. Within the stream, order is
+  enough to make the later value win; across the stream and a write response it is
+  not, so apply is additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
-- **Dependency-closed opt-in is structural.** An application opted into fields
-  but not farms gets no farms sweep at all and then every field with an
-  unresolvable reference. [The rule](../specification.md#routing-and-opt-in) is what holds the sweep together.
+- **Dependency-closed opt-in is structural.** An application opted into fields but
+  not farms gets no farms at all and then every field with an unresolvable
+  reference. [The rule](../specification.md#routing-and-opt-in) is what holds the
+  sweep together.
 - **Deactivated objects are retained indefinitely**, which is what makes a
   deletion deliverable at any distance rather than only within a retention
   window. Purging them would reintroduce exactly the horizon this design removes.
@@ -362,30 +367,20 @@ neither has a fix that keeps the queue.
   A first load is usually taken by a participant that already holds its own data,
   so withholding a deactivated object leads it to send that object back as new -
   duplicating the canonical object and resurrecting what a user archived.
+- **The sweep sorts, and the sort is bounded by the delta.** Filtering on
+  `last_change_number` while ordering by `create_change_number` cannot be served by
+  one index. Only objects created at or below `after` need sorting, though - an
+  object created above it has necessarily changed above it too - so the sorted set
+  is the catch-up delta rather than the whole result, and everything newer streams
+  from an index in creation order.
 - **The cursor is the application's coordination point.** Delivery being stateless
   on our side does not remove the state, it relocates it: an application that
   spreads apply across instances shares one cursor between them, and gains an
   ordering obligation it would not have with a position we held. That is the price
   of one connection and one piece of state per application rather than per endpoint.
 - **A forward cursor is unrecoverable at the object level.** An application that
-  suspects it skipped records cannot ask for them - it discards the cursor and
-  sweeps everything again, or re-enters `LOADING_FROM_AGRIROUTER` for the one
-  entity type ([ADR 06](./06-initial-load.md#the-endpoint-can-ask-for-the-set-again)).
-- **Delivery state is per application, but initial-load state is not.** The state
-  machine in [ADR 06](./06-initial-load.md) is per tenant and entity type while
-  the cursor is per application, _so the two are not keyed alike._
-- **agrirouter holds no position, and holds no re-delivery requests either.**
-  Where an application has got to is entirely in the cursor it sends; whether a
-  sweep is owed is ours, derived from routes, opt-in, and the initial-load state
-  the endpoint can set. A partner that loses its cursor loses only its place, not
+  suspects it skipped objects cannot ask for them individually - it discards the
+  cursor and sweeps everything again.
+- **agrirouter holds no position.** Where an application has got to is entirely in
+  the cursor it sends. A partner that loses its cursor loses only its place, not
   its entitlement, and recovers by sweeping again.
-- **A partner's own data loss is recoverable at two scales.** One entity type of
-  one endpoint, by re-entering `LOADING_FROM_AGRIROUTER`
-  ([ADR 06](./06-initial-load.md#the-endpoint-can-ask-for-the-set-again)); every
-  tenant at once, by discarding the cursor. Neither touches opt-in configuration,
-  which is a control over exposure rather than a maintenance lever.
-- **This ADR is what forced `RECONCILING` into [ADR 06](./06-initial-load.md).**
-  Deciding on reconnect whether a sweep is owed requires distinguishing a set still
-  being delivered from one delivered and awaiting a human, which the old
-  `LOADING_FROM_AGRIROUTER` conflated. The endpoint gains a state it can read but
-  no obligation it would not have without it.
