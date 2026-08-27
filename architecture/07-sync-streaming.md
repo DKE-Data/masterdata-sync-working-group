@@ -180,12 +180,6 @@ times during a sweep costs one entry. Two entries are dropped rather than sent:
 Both are the same rule - only the current value of any object is ever worth
 sending - and both are cheap, because the buffer is keyed for exactly this lookup.
 
-**The buffer is an optimization, never a correctness requirement.** Losing it, or
-overflowing it, is repaired by a second sweep covering everything changed at or
-after the pin: the same query, the same code path, and nothing that was buffered
-is unreachable. An implementation MAY therefore bound the buffer and fall back to
-a second sweep rather than growing without limit.
-
 ### The cursor is a single change number
 
 The cursor is the change number of the last frame the application durably applied.
