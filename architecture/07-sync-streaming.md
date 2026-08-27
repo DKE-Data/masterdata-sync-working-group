@@ -284,14 +284,14 @@ started.
 
 With a queue per endpoint, [loop prevention](../specification.md#loop-prevention)
 filtered at enqueue. With one shared record per object there is nothing to filter
-at write time, so the source endpoint is carried on the record and suppression is
+at write time, so the source application is carried on the record and suppression is
 applied as it is read: an object whose most recent change came from the reading
-application's own endpoint for that tenant is not delivered back to it.
+application is not delivered back to it.
 
 Object that was [merged](./05-stale-reads.md#a-merged-revision-is-returned-not-streamed)
 should not be suppressed though, because no client actually saw the final
-merged value and in this case source endpoint either should not be recorded
-or ignored.
+merged value and in this case source application either should not be recorded
+or ignored at reading.
 
 ### Rejected alternative: materializing the canonical set into a queue
 
