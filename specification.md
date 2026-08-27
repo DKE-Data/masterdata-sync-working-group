@@ -147,8 +147,7 @@ than a sequence of changes and has no position at all.
 The two may run concurrently and are not deduplicated, so an
 object may potentially arrive on both if there was a change to object in the source system while an endpoint is loading corresponding set of objects. Since applying to local store should be idempotent
 and guarded by `revision` (see
-[Applying what agrirouter returns](#applying-what-agrirouter-returns)), so the
-overlap costs a repeated apply and nothing else.
+[Applying what agrirouter returns](#applying-what-agrirouter-returns)).
 
 A write operation answers with the resulting canonical object, which is the
 second channel and is not merely an acknowledgement — see
