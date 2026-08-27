@@ -288,18 +288,10 @@ at write time, so the source endpoint is carried on the record and suppression i
 applied as it is read: an object whose most recent change came from the reading
 application's own endpoint for that tenant is not delivered back to it.
 
-Compaction makes this coarser and it remains correct, because canonical objects
-are whole documents rather than deltas. Whoever produced the current value was
-handed that value synchronously - either it wrote the whole document, or
-agrirouter [merged](./05-stale-reads.md#a-merged-revision-is-returned-not-streamed)
-it and returned the result in the write response - and any earlier change by
-somebody else is superseded by it. Suppressing it therefore never withholds
-anything the application does not already have.
-
-The premise is that a write response is applied rather than merely acknowledged.
-That is what keeps this predicate unconditional: agrirouter needs no notion of a
-revision it synthesised, and the delivery record carries no flag exempting one
-from suppression.
+Object that was [merged](./05-stale-reads.md#a-merged-revision-is-returned-not-streamed)
+should not be suppressed though, because no client actually saw the final
+merged value and in this case source endpoint either should not be recorded
+or ignored.
 
 ### Rejected alternative: materializing the canonical set into a queue
 
