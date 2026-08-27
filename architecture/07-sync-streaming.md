@@ -355,12 +355,6 @@ changed during one sweep, and that memory has a fallback; the ordering does not.
   A first load is usually taken by a participant that already holds its own data,
   so withholding a deactivated object leads it to send that object back as new -
   duplicating the canonical object and resurrecting what a user archived.
-- **The sweep sorts, and the sort is bounded by the delta.** Filtering on
-  `last_change_number` while ordering by `create_change_number` cannot be served by
-  one index. Only objects created at or below `after` need sorting, though - an
-  object created above it has necessarily changed above it too - so the sorted set
-  is the catch-up delta rather than the whole result, and everything newer streams
-  from an index in creation order.
 - **The cursor is the application's coordination point.** Delivery being stateless
   on our side does not remove the state, it relocates it: an application that
   spreads apply across instances shares one cursor between them, and gains an
