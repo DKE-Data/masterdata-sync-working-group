@@ -160,9 +160,11 @@ flowchart TB
 
 The buffer also tells the sweep where to stop. Because the subscription opens
 first, every object created after it has its creating change in the buffer, so the
-first change the buffer receives - the **pin** - is the boundary: creation numbers
-below it belong to the sweep, at or above it are buffered already. The pin is
-observed rather than chosen, and costs no query of its own.
+first change the buffer receives - the **`buffer_change_start_pin`** - is the
+boundary: creation numbers below it belong to the sweep, at or above it are
+buffered already. That boundary is that change's own number, drawn from the same
+sequence as `create_change_number`, so the sweep stops once we know that
+remaining objects have creation (and last change) numbers above the pin.
 
 An idle system produces no pin and needs none: with nothing being written the scan
 reaches the end of the index and stops. There is no case in between, because
