@@ -703,8 +703,10 @@ MUST NOT assume it observed every intermediate change to that entity.
 Catch-up is ordered so that a referenced object precedes the objects that
 reference it, whatever the order in which they were last changed, and agrirouter
 marks its end with a `CAUGHT_UP` frame. That frame covers the catch-up as a whole
-and names no entity type: catch-up interleaves them, so there is no point at which
-one type is finished and another has not started.
+and names no entity type. The ordering guarantees only that references resolve as
+objects arrive: a participant SHOULD NOT read completeness of an entity type out of
+the order it receives objects in, and SHOULD NOT treat the arrival of one type as a
+statement about another.
 
 A participant that connects **without sending `Last-Event-ID`**, or sends one
 agrirouter cannot validate, is served as a first connection on this stream:
