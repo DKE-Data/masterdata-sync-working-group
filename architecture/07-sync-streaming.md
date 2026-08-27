@@ -149,7 +149,7 @@ the connection streams live changes directly.
 flowchart TB
     SUB["subscribe to live changes \n buffer everything that arrives"]
     SWEEP["sweep once, ascending create_change_number \n last_change_number &gt; after"]
-    MARK["emit SWEEP_END"]
+    MARK["emit CAUGHT_UP"]
     FLUSH["flush the buffer in change order"]
     LIVE["stream live"]
     SUB --> SWEEP
@@ -274,7 +274,7 @@ prefer the older cursor.
 
 ### The end of the sweep is a frame
 
-agrirouter MUST emit an in-band `SWEEP_END` frame when the sweep is exhausted,
+agrirouter MUST emit an in-band `CAUGHT_UP` frame when the sweep is exhausted,
 before the buffer is flushed. It says that everything the application was missing
 when the sweep began has now been delivered.
 
@@ -335,7 +335,7 @@ changed during one sweep, and that memory has a fallback; the ordering does not.
   length of time is a larger sweep rather than a failed one. Rate limiting a large
   sweep is a throughput concern rather than a correctness one.
 - **Entity types are interleaved.** Anything keyed per entity type has to derive
-  its own completion; the delivery carries one boundary, `SWEEP_END`, and it
+  its own completion; the delivery carries one boundary, `CAUGHT_UP`, and it
   covers the sweep as a whole.
 - **An interrupted sweep is repeated, not resumed**, and the cost scales with how
   far it got. A large first load over an unreliable connection is the case to

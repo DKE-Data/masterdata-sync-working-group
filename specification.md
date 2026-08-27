@@ -132,12 +132,23 @@ the collection of one supported entity type (`organizations`, `persons`, `farms`
 | `POST /masterdata/<types>/{localId}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
 | `PUT`/`DELETE /masterdata/<types>/{localId}/id-mapping/{agrirouterId}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
 
-What agrirouter sends *unprompted* travels on one stream,
-`GET /masterdata/events`: canonical objects, deactivations, and the
-`CANONICAL_SET_END` markers that close an
-[initial load](#initial-load-and-seeding). The stream belongs to the application
-rather than to a single endpoint, and the position within it is carried as
-`Last-Event-ID` (see [Downtime and resume](#downtime-and-resume)).
+What agrirouter sends would potentially travel on two streams, which serve different
+purposes and are independent of each other:
+
+| Stream | Scoped to | Carries |
+| --- | --- | --- |
+| `GET /masterdata/events` | the application | live changes: canonical objects and deactivations, for every tenant the application is routed to |
+| `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events` | one endpoint | the canonical set of that endpoint's [initial load](#initial-load-and-seeding), ending when the response closes |
+
+Only `/masterdata/events` carries a position, as `Last-Event-ID` (see
+[Downtime and resume](#downtime-and-resume)). The initial load stream delivers a fixed limited set rather
+than a sequence of changes and has no position at all.
+
+The two may run concurrently and are not deduplicated, so an
+object may potentially arrive on both if there was a change to object in the source system while an endpoint is loading corresponding set of objects. Since applying to local store should be idempotent
+and guarded by `revision` (see
+[Applying what agrirouter returns](#applying-what-agrirouter-returns)), so the
+overlap costs a repeated apply and nothing else.
 
 A write operation answers with the resulting canonical object, which is the
 second channel and is not merely an acknowledgement — see
@@ -525,10 +536,21 @@ reconciles that existing data with the SSOT. Each endpoint has, per entity type,
 seeding state, held by agrirouter on the initial-load resource and read there by
 the endpoint. The defined progression is:
 
-1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user opts the endpoint into the entity type (see [Routing and opt-in](#routing-and-opt-in)), or when the endpoint asks for the set again (below), and by no other means. agrirouter sends the endpoint every canonical object of that type it is entitled to receive, over the ordinary event stream, closing the type's set with a `CANONICAL_SET_END` event so the endpoint can tell where it ends. The set includes objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
-2. **`RECONCILING`.** Emitting that event moves the entity type on, because agrirouter knows it has sent everything and needs nothing reported back. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and so takes as long as that takes.
-3. **`LOADING_TO_AGRIROUTER`.** Set by the endpoint to confirm it has *reconciled* the set rather than merely received it, carrying the bindings reconciliation produced (see [Identifier mapping](#identifier-mapping)). It then sends agrirouter the objects it knows about, including any objects not yet in the SSOT and any objects it changed while resolving conflicts. Confirming from `LOADING_FROM_AGRIROUTER` MUST be rejected: an endpoint cannot have reconciled a set it has not finished receiving.
-4. **`COMPLETED`.** Set by the endpoint once it has sent everything. Steady-state (day-2) synchronization applies from here on.
+1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user opts the endpoint into the entity type (see [Routing and opt-in](#routing-and-opt-in)), or when the endpoint asks for the set again (below), and by no other means. The endpoint collects the set by connecting to its own initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object it is entitled to receive of every entity type currently in this state, in [dependency order](#entity-dependencies). The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
+2. **`RECONCILING`.** agrirouter closes the stream's HTTP response once it has sent the whole set an endpoint should access. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
+3. **`LOADING_TO_AGRIROUTER`.** Set by the endpoint to confirm it has finished reconciliation and is sending the bindings it has produced (see [Identifier mapping](#identifier-mapping)). It then sends agrirouter any objects not yet in the SSOT and objects it changed while resolving conflicts. This state cannot be reached without firstly being in `RECONCILING`.
+4. **`COMPLETED`.** Set by the endpoint once it has sent everything. From this point on, initial load is done and further changes are communicated on long-lived `/masterdata/events` stream.
+
+The initial-load stream carries **no delivery position**, because it delivers a
+fixed set rather than a sequence of changes. agrirouter MUST NOT accept `Last-Event-ID`
+on it, and a connection that drops before the set is complete is recovered by
+connecting again and taking the set from the beginning.
+
+An endpoint MUST NOT treat the response ending as proof that the set arrived: a
+dropped connection ends it the same way an orderly completion does. What the set
+having been sent is recorded in is the entity type's state — agrirouter advances
+it to `RECONCILING` only after sending everything — so an endpoint that finds it
+still at `LOADING_FROM_AGRIROUTER` connects again and takes the set once more.
 
 Two of these transitions are agrirouter's and two are the endpoint's, and the
 split follows what each side can observe: agrirouter starts the load and declares
@@ -584,11 +606,12 @@ conflict: at the moment the route is created there is nothing to resolve yet, an
 a location that is right only once the first conflict exists would have to be
 declared then, which is exactly when nobody is there to declare it.
 
-Reconciliation does not pause delivery. The stream belongs to the application and
-carries every endpoint it serves (see [Downtime and resume](#downtime-and-resume)),
-so one user's deliberation MUST NOT stall it. The consequence for the endpoint is
-that it reconciles against a set that keeps changing under it, and the longer a
-conflict sits the likelier the object it concerns has moved on.
+Reconciliation does not pause delivery. The application's live changes stream
+belongs to the application and carries every endpoint it serves (see
+[Downtime and resume](#downtime-and-resume)), so one user's deliberation MUST NOT
+stall it. The consequence for the endpoint is that it reconciles against a set
+that keeps changing under it, and the longer a conflict sits the likelier the
+object it concerns has moved on.
 
 ### Deactivated objects are part of the set
 
@@ -649,51 +672,48 @@ satisfy them.
 
 ### Downtime and resume
 
+This section concerns the application's live changes stream,
+`GET /masterdata/events`. The initial-load stream cannot be resumed.
+
 A connection may be lost while changes accumulate on both sides. On reconnection,
-a participant resumes from the delivery position it last committed rather than
-re-running a full initial load. That position is carried as `Last-Event-ID`, is
+a participant resumes from the last event it last received and applied rather than
+receiving everything again. That position is carried as `Last-Event-ID` header, is
 distinct from the per-object `revision`, and MUST be derived from what the
 participant has durably applied rather than from what its stream client last read.
 
-A participant MAY apply events in parallel. Where it does, applies complete out of
-order, and the position it commits MUST be the one carried by the last event with
-no unapplied event before it - tracked in the order the events arrived, since two
-positions cannot be compared. That position MUST be committed in the same
-transaction as the objects it accounts for, or after them where the participant's
-stores make that impossible. A position that lags what a participant holds costs a
-redelivery, which idempotent apply absorbs; one that runs ahead is a gap agrirouter
-neither detects nor resends.
+A participant MAY apply events in parallel. Where it does, it applies complete out of
+order, and the position it resends on resume MUST be the lowest one it has received and not
+yet applied. Participants should take care to store the event id for resuming correctly,
+otherwise they would risk potential data loss after resuming stream.
 
-A delivery position is **opaque**. It MUST be returned exactly as agrirouter
-issued it in the `id:` field of an event, and a participant MUST NOT parse,
-construct, modify or increment one, nor compare two of them for order: its
-structure is agrirouter's to change, it is not a single event identifier in every
-state, and it is integrity-protected so that a locally built one is rejected. A
-participant that needs to know whether it holds a complete canonical set uses
-`CANONICAL_SET_END` and the entity type's initial-load state (see
-[Initial load and seeding](#initial-load-and-seeding)) rather than the position.
+Event ids are opaque strings, which clients should not attempt to interpret and
+their specific structure may be subject to change in future implementations,
+current specification does not define any particular structure for them.
 
-A resume position does **not** expire: agrirouter serves catch-up from the current
+A participant MUST pass id via `Last-Event-ID` header exactly as agrirouter 
+issued it in the `id:` field of an event. Event id will not always advance on
+every change: while agrirouter is delivering catch-up the same value repeats across
+those frames.
+
+A resume position does not expire: agrirouter serves catch-up from the current
 state of each entity rather than from a retained log of changes, so an arbitrarily
 long absence is a larger catch-up rather than a failed one. The consequence is that
 a participant receives each changed entity once, carrying its current value, and
 MUST NOT assume it observed every intermediate change to that entity.
 
+Catch-up is ordered so that a referenced object precedes the objects that
+reference it, whatever the order in which they were last changed, and agrirouter
+marks its end with a `CAUGHT_UP` frame. That frame covers the catch-up as a whole
+and names no entity type: catch-up interleaves them, so there is no point at which
+one type is finished and another has not started.
+
 A participant that connects **without sending `Last-Event-ID`**, or sends one
-agrirouter cannot validate, is served as a first connection: agrirouter delivers
-everything it is entitled to, in dependency order, closing each entity type with
-`CANONICAL_SET_END`. Losing the delivery position therefore costs a participant
-its place in the stream and not its entitlement, at the price of receiving the
-whole set again. Because the identifier mapping is unaffected, those objects
-arrive carrying the participant's own `localId` (see
-[Identifier mapping](#identifier-mapping)) and match rather than reconcile. The
-initial-load state of each entity type is unaffected too: a delivery position
-records how much a participant has *received*, and says nothing about what it has
-reconciled, so an entity type at **completed** stays there.
+agrirouter cannot validate, is served as a first connection on this stream:
+agrirouter delivers everything it is entitled to.
 
 Omitting `Last-Event-ID` is consequently the widest way a participant can ask for
-data again: it re-delivers every entity type for every endpoint
-the application holds. A participant that needs less asks one entity type of one
+data again on this stream: it re-delivers every object for every endpoint the
+application holds. A participant that needs less asks one entity type of one
 endpoint for its canonical set (see
 [Initial load and seeding](#initial-load-and-seeding)), or refetches objects
 individually (see [Requesting objects (lazy loading)](#requesting-objects-lazy-loading)).
@@ -851,7 +871,7 @@ delivery, so every object a request can return is one agrirouter would deliver
 anyway. What it addresses is that *delivered* is not *held*:
 
 - a participant that lost an object locally refetches that object, rather than opting the entity type out and back in and taking a full initial load;
-- during [initial load](#initial-load-and-seeding) a live change may reference an object whose own entity type has not been swept yet.
+- during [initial load](#initial-load-and-seeding) a change arriving on live stream stream may reference an object the initial-load stream has not delivered yet, the two being independent of each other.
 
 A request is per entity type, which is why a reference to a party carries a `type`
 discriminator (see [References](#references)).
