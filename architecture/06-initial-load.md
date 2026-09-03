@@ -31,7 +31,7 @@ flowchart TB
         LT["LOADING_TO_AGRIROUTER"]
         C["COMPLETED"]
     end
-    START((""))
+    START(("start"))
     LF["LOADING_FROM_AGRIROUTER"]
     START -->|"agrirouter:\n entity type opted into the hub"| LF
     LF -->|"agrirouter:\n whole canonical set sent"| R
