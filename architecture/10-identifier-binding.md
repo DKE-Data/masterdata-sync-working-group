@@ -6,8 +6,10 @@
 
 ## Context
 
-The mapping is keyed `(endpoint, localId)`, and a send that does not resolve
-creates a canonical object
+The mapping is keyed `(application, localId)` - an application keeps one local
+store behind however many endpoints it operates, so a `localId` is unique across
+the whole application and denotes the same record whichever endpoint sends it -
+and a send that does not resolve creates a canonical object
 ([Identifier mapping](../specification.md#identifier-mapping)). That covers the
 endpoint introducing an entity to the network. It does not cover the opposite
 and more frequent direction: an endpoint receives a canonical object, recognises
@@ -37,7 +39,7 @@ x-agrirouter-endpoint-id: <the endpoint binding>
 ```
 
 - **`204`** - the mapping is recorded. Idempotent: re-binding the same pair changes nothing.
-- **`409`** - `(endpoint, localId)` is already bound to a different canonical object, or this endpoint already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
+- **`409`** - `(application, localId)` is already bound to a different canonical object, or this application already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
 - **`404`** - no such canonical object, or the endpoint is not entitled to it.
 
 The mapping is an association, and both of its ends are in the path, so the
@@ -143,6 +145,12 @@ recorded comes back in `rejectedIdMappings` rather than failing the transition -
 one unresolvable n:1 should not block the load of a set - and the endpoint
 handles it as it handles a `409` on the singular operation, by raising
 `awaitingUser` if it cannot reconcile automatically.
+
+A lost response is recovered by repeating the confirmation
+([ADR 06](./06-initial-load.md#repeating-a-transition-is-not-a-conflict)): the
+pairs are applied again, which changes nothing for those already recorded, and
+`rejectedIdMappings` comes back recomputed. Nothing else would do, since the
+mapping cannot be read back.
 
 ### A rejection names the reason
 

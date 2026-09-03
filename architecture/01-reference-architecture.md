@@ -129,7 +129,8 @@ be delivered to B as *the same field B already knows*, rather than a duplicate. 
 is held whole by agrirouter and delivered in slices: B's copy of the field carries
 B's `localId` and never A's. See
 [Identifier mapping](../specification.md#identifier-mapping) and
-[ADR 11](./11-identifier-disclosure.md).
+[Security considerations](../specification.md#security-considerations) for the
+rule, and [ADR 10](./10-identifier-binding.md) for the reasoning.
 
 We suggest to keep identity mapping for these main reasons:
 - as mentioned before access patterns are different for each partner and pre-existing schema of identifying entities could vary between different implementations. Therefore, it is not possible to have a single identifier for each entity that would be used by all partners at the same time.
@@ -225,8 +226,11 @@ sequenceDiagram
 Two mechanisms in the SSOT keep this from looping, both described in
 [Loop prevention](../specification.md#loop-prevention):
 
-- **Origin suppression.** A revision is never delivered back to the endpoint that
-  produced it (tracked by `sourceEndpointId`).
+- **Origin suppression.** A revision is never delivered back to the application
+  that produced it. The unit is the application because it is the unit holding a
+  store - agrirouter does not know what an endpoint represents, that being the
+  application's choice ([ADR 04](./04-routing.md)) - and the source application is
+  what the delivery record carries ([ADR 07](./07-sync-streaming.md)).
 - **No-op detection.** If an incoming entity does not actually change the
   canonical object - some systems emit a notification even when nothing changed -
   agrirouter creates no new `revision` and forwards nothing.

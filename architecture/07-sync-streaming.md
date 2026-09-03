@@ -48,8 +48,7 @@ It would have following properties:
 agrirouter maintains one record per canonical object, never one per change. Each
 carries the object's identity, its entity type, the endpoint whose change produced
 the current value, and a globally ordered `last_change_number` that is rewritten every
-time the object changes. However `create_change_number` is never rewritten and only assigned
-one time when the object is being created for the first time.
+time the object changes.
 
 No change is ever given a number below one the application has already received,
 and the number advances per record, so a cursor may stop anywhere and nothing is
@@ -120,29 +119,28 @@ as it arrives, because everything that object references is already there.
 
 A connection runs exactly one sweep. It covers every object the application is
 entitled to read whose `last_change_number` is above `after` - the cursor the
-application presented, exclusive - delivered in ascending `(tier, create_change_number)`.
+application presented, exclusive - delivered in ascending `(tier, last_change_number)`.
 On a first connection `after` is zero and the sweep is the whole entitled set.
 
-`create_change_number` orders objects *within* a tier. A reference between two
-objects of the same type - a field naming the field it was split from - stays inside
-a tier, and creation order resolves it as long as such a reference is set when the
-object is created: the ancestor exists first, so it carries the lower number. The
-column also gives the scan a key nothing rewrites, and it is what lets the buffer
-stop the scan (below).
+`last_change_number` orders objects *within* a tier, where it carries no dependency
+meaning and needs none. No entity type references another object of its own type,
+so objects of one tier never depend on each other and any total order over them
+serves. It is the filter column doing double duty, which makes each tier a single
+range scan rather than a scan on one column ordered by another.
 
-The filter and the ordering deliberately read different columns: `last_change_number`
-selects what the application is missing, `(tier, create_change_number)` puts it in
-an order the application can apply as it arrives. Each object is delivered at its
-current value, because the compacted index holds only that one.
+Lineage - a field naming the field it was split from - would be the first
+same-type reference, and it is
+[deferred out of this version](../specification.md#split-and-merge). Introducing it
+means giving its tier an order that resolves it, which change order does not: an
+ancestor edited after its descendant was created carries the higher number.
 
 **The scan is stable under concurrent writes**, which is what lets it run without
-an upper bound. Neither sort column is ever rewritten, so no row moves under the
-scan; `last_change_number` only rises, so a row that satisfies the filter cannot
-stop satisfying it; and an object created while the sweep runs either lands ahead
-of the scan within its own tier or falls in a tier the scan has already left - and
-in both cases its creating change is in the buffer, because the subscription opened
-first. Nothing is skipped, whatever happens during the pass. Where the sweep
-*stops* is set by the buffer, below.
+an upper bound. Every change made once the connection is open takes a number above
+the pin the buffer sets (below), so the sweep walks a closed range per tier -
+`after` exclusive, the pin exclusive - that concurrent writes cannot add to,
+reorder within, or move a row backwards out of. A row they *do* remove, by giving
+it a number above the pin, is a row the buffer now holds. Nothing is skipped,
+whatever happens during the pass.
 
 An object unchanged since `after` is outside the filter, so the sweep skips it even
 when it delivers that object's children. The reference still resolves: unchanged
@@ -163,7 +161,7 @@ live changes directly.
 ```mermaid
 flowchart TB
     SUB["subscribe to live changes \n buffer everything that arrives"]
-    SWEEP["sweep once, ascending (tier, create_change_number) \n last_change_number &gt; after"]
+    SWEEP["sweep once, ascending (tier, last_change_number) \n after &lt; last_change_number &lt; pin"]
     MARK["emit CAUGHT_UP"]
     FLUSH["flush the buffer, same order as the sweep"]
     LIVE["stream live"]
@@ -174,17 +172,16 @@ flowchart TB
 ```
 
 The buffer also tells the sweep where to stop. Because the subscription opens
-first, every object created after it has its creating change in the buffer, so the
-first change the buffer receives - the **`buffer_change_start_pin`** - is the
-boundary: creation numbers below it belong to the sweep, at or above it are
-buffered already. That boundary is that change's own number, drawn from the same
-sequence as `create_change_number`, so the scan stops once the remaining objects
-have creation numbers above the pin.
+first, every change from some point on is in the buffer, and the first change it
+receives - the **`buffer_change_start_pin`** - is that point. It is an ordinary
+change number, so it cuts the same axis the sweep filters and orders by: below the
+pin belongs to the sweep, at or above it is buffered already. The two sides are
+disjoint and together cover everything, which is the whole of the coordination
+between them.
 
-It bounds every tier rather than the sweep as a whole. Within a tier the scan runs
-ascending `create_change_number`, so it leaves that tier at the pin and starts the
-next one; an object created after the pin is skipped in whichever tier it belongs
-to, and the flush delivers it.
+The pin bounds every tier rather than the sweep as a whole. Within a tier the scan
+runs ascending `last_change_number`, so it leaves that tier at the pin and starts
+the next one.
 
 An idle system produces no pin and needs none: with nothing being written the scan
 reaches the end of each tier and stops. There is no case in between, because
@@ -193,22 +190,21 @@ finding new rows is busy enough to fill the buffer.
 
 The buffer is **compacted like the index it shadows**: it is keyed by object
 identity and holds only the latest change per object, so an object edited fifty
-times during a sweep costs one entry. Two entries are dropped rather than sent:
+times during a sweep costs one entry and the older ones are dropped rather than
+sent. Only the current value of any object is ever worth sending, and the drop is
+cheap because the buffer is keyed for exactly this lookup.
 
-- one superseded by a later change to the same object, which the key replaces;
-- one for an object the sweep has already emitted at an equal or higher change
-  number, which the sweep drops as it goes.
+An object the sweep already delivered can also be in the buffer, and that entry is
+kept: everything buffered is above the pin and everything swept is below it, so the
+buffered change is strictly the newer of the two and the flush is an update rather
+than a duplicate.
 
-Both are the same rule - only the current value of any object is ever worth
-sending - and both are cheap, because the buffer is keyed for exactly this lookup.
-
-**The flush uses the sweep's order**, `(tier, create_change_number)`, rather than
-change order. Change order is what compaction destroys: the buffer holds an object
-at its *latest* change, which can fall after the creation of something that
-references it. A farm created during the sweep, a field created against it, then a
-second edit to the farm leaves the field at the earlier change and the farm at the
-later one, so change order would flush the child first. The same happens a tier down,
-between two fields, where only creation order separates them.
+**The flush uses the sweep's order**, `(tier, last_change_number)`. Tier is the part
+that matters, because compaction destroys change order on its own: the buffer holds
+an object at its *latest* change, which can fall after the creation of something
+that references it. A farm created during the sweep, a field created against it,
+then a second edit to the farm leaves the field at the earlier change and the farm
+at the later one, so change order alone would flush the child first.
 
 The live tail after the flush needs none of this: it carries one frame per change
 rather than one per object, so a change that introduces a reference always follows
@@ -221,10 +217,22 @@ There is nothing else in it, in any state, and two cursors compare as the intege
 they are.
 
 **It does not advance while a sweep runs.** Sweep frames carry the change number
-the sweep started from, because objects arrive in tier order and their change
-numbers do not ascend with them - committing one would move the cursor by an
-arbitrary amount in either direction. It starts advancing when the sweep and its
+the sweep started from. Change numbers ascend within a tier and start over at the
+next, so a frame's own number says nothing about how far the sweep has got:
+committing one from an early tier would put the cursor ahead of objects in later
+tiers that have not been sent yet, and the next sweep's filter would exclude them
+for good. It starts advancing when the sweep and its
 buffer flush are done, and from then on it tracks change order directly.
+
+**A requested object does not advance it either.** An object delivered because
+the application [asked for it](../specification.md#requesting-objects-lazy-loading)
+is not a new change: its `last_change_number` is whatever it was, often far below
+the cursor. Stamping that number on the frame would move the cursor backwards,
+and the next reconnect would redeliver everything since, for the sake of one
+refetch. The frame therefore repeats the `id:` of the frame before it. There is
+always one - a connection opens with a sweep, and a sweep ends with `CAUGHT_UP`
+even when it delivered nothing - and repeating it says exactly what is true: the
+application's position has not moved.
 
 An interrupted sweep therefore starts again rather than resuming. It costs
 redelivery of what it had already sent, which idempotent apply absorbs, and it
@@ -323,11 +331,6 @@ at write time, so the source application is carried on the record and suppressio
 applied as it is read: an object whose most recent change came from the reading
 application is not delivered back to it.
 
-Object that was [merged](./05-stale-reads.md#a-merged-revision-is-returned-not-streamed)
-should not be suppressed though, because no client actually saw the final
-merged value and in this case source application either should not be recorded
-or ignored at reading.
-
 ### Rejected alternative: materializing the canonical set into a queue
 
 Described in [Context](#context). It buys one thing this design gives up: because
@@ -340,17 +343,18 @@ amplification, and neither has a fix that keeps the queue.
 
 ### Rejected alternative: delivering in creation order
 
-Ordering the sweep by `create_change_number` alone reads dependency order off the
-write history: nothing can reference an object that does not exist, so a parent's
-creating change always carries the lower number. It needs to know nothing about
-entity types, which is the whole of its appeal, and it holds only until a reference
-changes. A field moved to a farm created after it, a farm gaining a partner
-organization registered last week, a field's owner reassigned to a person created
-today - each leaves a child whose creating number is below its parent's, and the
-sweep emits it first. Re-pointing a reference is an ordinary edit rather than an
-edge case, so the invariant does not survive contact with the data. Tiers cost a
-declared acyclic type graph and buy an order that no sequence of edits can
-invalidate.
+Keeping a second number per record - the change that created the object, never
+rewritten - reads dependency order off the write history: nothing can reference an
+object that does not exist, so a parent's creating change always carries the lower
+number. It needs to know nothing about entity types, which is the whole of its
+appeal, and it holds only until a reference changes. A field moved to a farm created
+after it, a farm gaining a partner organization registered last week, a field's
+owner reassigned to a person created today - each leaves a child whose creating
+number is below its parent's, and the sweep emits it first. Re-pointing a reference
+is an ordinary edit rather than an edge case, so the invariant does not survive
+contact with the data. Tiers cost a declared acyclic type graph, buy an order that
+no sequence of edits can invalidate, and leave the record with one number rather
+than two.
 
 ### Rejected alternative: a live tail concurrent with the sweep
 
@@ -359,7 +363,7 @@ buffer and its bound. It also breaks the ordering the sweep exists to provide: a
 child created during the sweep goes out immediately, while its parent waits for
 the sweep to reach its tier. The reference does not resolve, and the
 window is as long as the sweep. Buffering costs memory bounded by the objects
-changed during one sweep, and that memory has a fallback; the ordering does not.
+changed during one sweep; the ordering has no substitute.
 
 ## Consequences
 
@@ -374,13 +378,12 @@ changed during one sweep, and that memory has a fallback; the ordering does not.
   can be delivered, and the type graph MUST stay acyclic. A cycle between two types
   has no tier assignment at all, and is the case that would force per-object
   dependency ordering.
-- **Same-type references are carried by creation order, and only while they are set
-  at creation.** A field naming the field it was split from, an organization naming
-  its parent, sit inside one tier, where `(tier, create_change_number)` puts the
-  ancestor first. A self-reference that can be re-pointed after creation is not
-  ordered by anything here - it is the creation-order failure again, one tier down,
-  with no coarser graph left to fall back on. Introducing one means ordering that
-  tier per object.
+- **A same-type reference has no order to rely on.** Objects inside a tier arrive in
+  change order, which says nothing about which of them references the other. No
+  entity type in this version references its own type, and the first that would -
+  split and merge lineage - is
+  [deferred](../specification.md#split-and-merge); adding one means giving its tier
+  an order of its own, not just a tier assignment.
 - **The order promises resolvable references, nothing else.** Tiers are how that is
   achieved rather than something an application reads: anything keyed per entity type
   has to derive its own completion, and the delivery carries one boundary,
@@ -399,10 +402,12 @@ changed during one sweep, and that memory has a fallback; the ordering does not.
 - **Applications lose intermediate states.** An application MUST NOT infer that it
   observed every change to an object, and MUST NOT derive anything from the number
   of times an object was delivered.
-- **Idempotent apply is key in two places**: redelivery on reconnect, and the
-  overlap between the sweep and the buffer behind it. Within the stream, order is
-  enough to make the later value win; across the stream and a write response it is
-  not, so apply is additionally guarded by `revision`
+- **Idempotent apply carries redelivery on reconnect**, including a restarted sweep
+  resending what its interrupted attempt already sent. The sweep and the buffer
+  behind it do not overlap: the pin separates them, so an object in both is simply
+  delivered twice in the right order. Within the stream, order is enough to make the
+  later value win; across the stream and a write response it is not, so apply is
+  additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
 - **Dependency-closed opt-in is structural.** An application opted into fields but
   not farms gets no farms at all and then every field with an unresolvable

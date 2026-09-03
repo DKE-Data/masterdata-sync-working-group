@@ -1,6 +1,3 @@
-<!-- TODO should review this entirely -->
-<!-- also in spec should probably be string -->
-
 # ADR 03 — Revision model: a monotonic integer assigned by agrirouter
 
 

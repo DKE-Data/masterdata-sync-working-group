@@ -1,7 +1,3 @@
-# To be reviewed: this file is entiry written by AI at this moment and MUST
-# be reviewed by the team before proceeding. This here is just a 'primer'
-# to get the repository setup.
-
 openapi: 3.1.0
 
 info:
@@ -69,14 +65,20 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Organizations]
       summary: Send (create or update) an organization
       description: >
         Submits an organization from the calling endpoint. If the
-        (endpoint, localId) pair is already mapped to a canonical object, that
+        (application, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        `agrirouterId` is assigned. The mapping is keyed by the application, not
+        the endpoint: a `localId` names the same record whichever of the
+        application's endpoints sends it. An update carries the revision it was
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
+        base where the changes do not overlap and rejects with `412` where they
+        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
       operationId: putOrganization
       requestBody:
@@ -104,6 +106,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/organizations/{localId}/id-mapping/{agrirouterId}:
     parameters:
@@ -173,6 +179,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Organizations]
       summary: Deactivate an organization
@@ -180,7 +187,11 @@ paths:
         Signals that the organization was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
-        succeeds without creating a new revision or notification.
+        succeeds without creating a new revision or notification. The first
+        deactivation is a write like any other and carries the revision it was
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
+        object is a conflict, and only one of the two succeeds. On an object
+        that is already inactive the header is ignored.
       operationId: deactivateOrganization
       responses:
         '200':
@@ -193,6 +204,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/organizations/requests:
     parameters:
@@ -202,11 +217,15 @@ paths:
       summary: Request an organization (lazy loading)
       description: >
         Refetches an organization the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by a change that arrived before its
-        own entity type was swept.
+        an object lost locally, or one referenced by an object that arrived
+        before its own entity type's initial-load stream delivered it.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
+        It is delivered even when the requesting application was the object's
+        last writer: origin suppression does not apply to a requested object,
+        since refetching something it wrote itself is exactly what an application
+        that lost the object needs.
       operationId: requestOrganization
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -224,14 +243,20 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Persons]
       summary: Send (create or update) a person
       description: >
         Submits a person from the calling endpoint. If the
-        (endpoint, localId) pair is already mapped to a canonical object, that
+        (application, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        `agrirouterId` is assigned. The mapping is keyed by the application, not
+        the endpoint: a `localId` names the same record whichever of the
+        application's endpoints sends it. An update carries the revision it was
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
+        base where the changes do not overlap and rejects with `412` where they
+        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
       operationId: putPerson
       requestBody:
@@ -259,6 +284,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/persons/{localId}/id-mapping/{agrirouterId}:
     parameters:
@@ -328,6 +357,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Persons]
       summary: Deactivate a person
@@ -335,7 +365,11 @@ paths:
         Signals that the person was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
-        succeeds without creating a new revision or notification.
+        succeeds without creating a new revision or notification. The first
+        deactivation is a write like any other and carries the revision it was
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
+        object is a conflict, and only one of the two succeeds. On an object
+        that is already inactive the header is ignored.
       operationId: deactivatePerson
       responses:
         '200':
@@ -348,6 +382,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/persons/requests:
     parameters:
@@ -357,11 +395,15 @@ paths:
       summary: Request a person (lazy loading)
       description: >
         Refetches a person the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by a change that arrived before its
-        own entity type was swept.
+        an object lost locally, or one referenced by an object that arrived
+        before its own entity type's initial-load stream delivered it.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
+        It is delivered even when the requesting application was the object's
+        last writer: origin suppression does not apply to a requested object,
+        since refetching something it wrote itself is exactly what an application
+        that lost the object needs.
       operationId: requestPerson
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -379,14 +421,20 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Farms]
       summary: Send (create or update) a farm
       description: >
         Submits a farm from the calling endpoint. If the
-        (endpoint, localId) pair is already mapped to a canonical object, that
+        (application, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        `agrirouterId` is assigned. The mapping is keyed by the application, not
+        the endpoint: a `localId` names the same record whichever of the
+        application's endpoints sends it. An update carries the revision it was
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
+        base where the changes do not overlap and rejects with `412` where they
+        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
       operationId: putFarm
       requestBody:
@@ -414,6 +462,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/farms/{localId}/id-mapping/{agrirouterId}:
     parameters:
@@ -483,6 +535,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Farms]
       summary: Deactivate a farm
@@ -490,7 +543,11 @@ paths:
         Signals that the farm was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
-        succeeds without creating a new revision or notification.
+        succeeds without creating a new revision or notification. The first
+        deactivation is a write like any other and carries the revision it was
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
+        object is a conflict, and only one of the two succeeds. On an object
+        that is already inactive the header is ignored.
       operationId: deactivateFarm
       responses:
         '200':
@@ -503,6 +560,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/farms/requests:
     parameters:
@@ -512,11 +573,15 @@ paths:
       summary: Request a farm (lazy loading)
       description: >
         Refetches a farm the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by a change that arrived before its
-        own entity type was swept.
+        an object lost locally, or one referenced by an object that arrived
+        before its own entity type's initial-load stream delivered it.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
+        It is delivered even when the requesting application was the object's
+        last writer: origin suppression does not apply to a requested object,
+        since refetching something it wrote itself is exactly what an application
+        that lost the object needs.
       operationId: requestFarm
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -534,14 +599,20 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Fields]
       summary: Send (create or update) a field
       description: >
         Submits a field from the calling endpoint. If the
-        (endpoint, localId) pair is already mapped to a canonical object, that
+        (application, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        `agrirouterId` is assigned. The mapping is keyed by the application, not
+        the endpoint: a `localId` names the same record whichever of the
+        application's endpoints sends it. An update carries the revision it was
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
+        base where the changes do not overlap and rejects with `412` where they
+        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
       operationId: putField
       requestBody:
@@ -569,6 +640,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/fields/{localId}/id-mapping/{agrirouterId}:
     parameters:
@@ -638,6 +713,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Fields]
       summary: Deactivate a field
@@ -645,7 +721,11 @@ paths:
         Signals that the field was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
-        succeeds without creating a new revision or notification.
+        succeeds without creating a new revision or notification. The first
+        deactivation is a write like any other and carries the revision it was
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
+        object is a conflict, and only one of the two succeeds. On an object
+        that is already inactive the header is ignored.
       operationId: deactivateField
       responses:
         '200':
@@ -658,6 +738,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/fields/requests:
     parameters:
@@ -667,11 +751,15 @@ paths:
       summary: Request a field (lazy loading)
       description: >
         Refetches a field the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by a change that arrived before its
-        own entity type was swept.
+        an object lost locally, or one referenced by an object that arrived
+        before its own entity type's initial-load stream delivered it.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
+        It is delivered even when the requesting application was the object's
+        last writer: origin suppression does not apply to a requested object,
+        since refetching something it wrote itself is exactly what an application
+        that lost the object needs.
       operationId: requestField
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -689,14 +777,20 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [FieldBoundaries]
       summary: Send (create or update) a field boundary
       description: >
         Submits a field boundary from the calling endpoint. If the
-        (endpoint, localId) pair is already mapped to a canonical object, that
+        (application, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. No-op updates (equal to the current canonical
+        `agrirouterId` is assigned. The mapping is keyed by the application, not
+        the endpoint: a `localId` names the same record whichever of the
+        application's endpoints sends it. An update carries the revision it was
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
+        base where the changes do not overlap and rejects with `412` where they
+        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
       operationId: putFieldBoundary
       requestBody:
@@ -724,6 +818,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MappingConflict'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/field-boundaries/{localId}/id-mapping/{agrirouterId}:
     parameters:
@@ -793,6 +891,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [FieldBoundaries]
       summary: Deactivate a field boundary
@@ -800,7 +899,11 @@ paths:
         Signals that the field boundary was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
-        succeeds without creating a new revision or notification.
+        succeeds without creating a new revision or notification. The first
+        deactivation is a write like any other and carries the revision it was
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
+        object is a conflict, and only one of the two succeeds. On an object
+        that is already inactive the header is ignored.
       operationId: deactivateFieldBoundary
       responses:
         '200':
@@ -813,6 +916,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
 
   /masterdata/field-boundaries/requests:
     parameters:
@@ -822,11 +929,15 @@ paths:
       summary: Request a field boundary (lazy loading)
       description: >
         Refetches a field boundary the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by a change that arrived before its
-        own entity type was swept.
+        an object lost locally, or one referenced by an object that arrived
+        before its own entity type's initial-load stream delivered it.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
+        It is delivered even when the requesting application was the object's
+        last writer: origin suppression does not apply to a requested object,
+        since refetching something it wrote itself is exactly what an application
+        that lost the object needs.
       operationId: requestFieldBoundary
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -847,18 +958,18 @@ paths:
       description: >
         A persistent SSE stream of master-data changes for the calling
         application, carrying every tenant it is routed to and every entity type
-        it is opted into. agrirouter never echoes a change back to the endpoint it
-        originated from. Each event's `data` is an `Entity` — an `Organization`,
-        `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type`
-        property. A delivered object carries the receiving endpoint's own
-        identifier in `localId` when agrirouter holds one, and no `localId` at
-        all when it does not.
+        it is opted into. agrirouter never echoes a change back to the application
+        it originated from, on any of that application's endpoints. Each event's
+        `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
+        `FieldBoundary` discriminated by its `type` property. A delivered object
+        carries the receiving application's own identifier in `localId` when
+        agrirouter holds one, and no `localId` at all when it does not.
 
         This stream carries steady-state synchronization only. Initial load is
         delivered separately, per endpoint, by
-        `/endpoints/{externalEndpointId}/masterdata-initial-load/events`; the two
-        are independent and are not deduplicated against each other, so an object
-        may arrive on both while an endpoint is loading.
+        `/endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/events`;
+        the two are independent and are not deduplicated against each other, so an
+        object may arrive on both while an endpoint is loading.
 
         An application reconnecting after an absence is served catch-up before
         live changes: everything it is entitled to that changed since its
@@ -888,6 +999,8 @@ paths:
                   `Last-Event-ID` on reconnect. `id` may repeat across some events
                   and application should not expect it would always advance or
                   attempt to parse it in any way, `id` must be treated as an opaque string.
+                  Whatever `id` a frame carries is safe to resume from once that
+                  frame and every frame before it have been applied.
                 $ref: '#/components/schemas/Entity'
 
   # ------------------------------------------------------------ configuration
@@ -918,19 +1031,19 @@ paths:
         are created only through this explicit opt-in, never by default routing.
 
         The configuration MUST be dependency-closed: enabling fields requires
-        the farms those fields reference, and the organizations and persons
-        those farms reference, to be enabled as well. A configuration that is
+        the farms and field boundaries those fields reference, and the
+        organizations and persons those farms reference, to be enabled as well. A configuration that is
         not dependency-closed is rejected with `400`.
 
         Opting an entity type in also starts its initial load: that entity type
         enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
         resource), and its canonical set is collected by the endpoint from
-        `/endpoints/{externalEndpointId}/masterdata-initial-load/events`. The set
+        `/endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/events`. The set
         waits there until the endpoint connects and is not lost if it is
         disconnected at the time. Removing a toggle opts the entity type out and
         discards its initial-load state, so opting it back in runs a full initial
         load. Opting out discards neither the canonical objects nor the
-        endpoint's identifier mapping, so that repeat load arrives matched —
+        application's identifier mapping, so that repeat load arrives matched —
         `previousLoadCompletedAt` on the Initial Load resource marks it as a
         repeat. An endpoint that needs the set again SHOULD set
         `LOADING_FROM_AGRIROUTER` on the Initial Load status subresource rather
@@ -956,22 +1069,38 @@ paths:
 
   # ----------------------------------------------------------------- initial load
 
-  /endpoints/{externalEndpointId}/masterdata-initial-load/events:
+  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/events:
     parameters:
       - $ref: '#/components/parameters/ExternalEndpointId'
+      - $ref: '#/components/parameters/InitialLoadEntityType'
     get:
       tags: [InitialLoad]
-      summary: Receive the endpoint's canonical set (Server-Sent Events)
+      summary: Receive the endpoint's canonical set of one entity type (Server-Sent Events)
       description: >
-        Delivers the canonical set this endpoint is owed: every object it is
-        entitled to, of every entity type currently in `LOADING_FROM_AGRIROUTER`,
-        ordered so that a referenced object precedes the objects that reference
-        it. Objects that are deactivated are part of the set and arrive with
-        `active: false`. A delivered object carries the endpoint's own identifier
-        in `localId` where agrirouter holds one.
+        Delivers the canonical set this endpoint is owed for one entity type:
+        every object of that type it is entitled to, while the type is in
+        `LOADING_FROM_AGRIROUTER`. One stream per entity type, matching the
+        granularity of the initial-load state and the shape of its status
+        resource. The set is complete: objects that are deactivated are part of
+        it and arrive with `active: false`, and so are objects whose current
+        revision the requesting application itself last wrote — origin
+        suppression does not apply here, since withholding them would have a
+        returning endpoint push them back as new and duplicate them. A delivered
+        object carries the application's own identifier in `localId` where
+        agrirouter holds one.
 
-        agrirouter closes the HTTP response once it has sent the whole set and then
-        moves initial load state to `RECONCILING`.
+        agrirouter closes the HTTP response once it has sent the whole set of
+        that entity type and then moves that entity type, and only that one, to
+        `RECONCILING`. A type opted in while another is streaming is unaffected.
+
+        Ordering across entity types is the endpoint's obligation. Opt-in is
+        dependency-closed, so every type an object can reference is opted in
+        and has a stream of its own; the endpoint opens the streams in
+        dependency order (organizations and field boundaries, then persons, then
+        farms, then fields), or tolerates a reference that resolves only once
+        another type's stream has delivered its target. An object it needs
+        sooner it requests (`POST /masterdata/<types>/requests`). Order within
+        one entity type is unspecified.
 
         The stream carries **no delivery position**: it delivers a set rather than
         a sequence of changes, so it takes no `Last-Event-ID`, its frames carry no
@@ -1110,8 +1239,14 @@ paths:
         marks it a repeat.
 
 
-        Idempotent: setting the state the entity type is already in returns the
-        current status unchanged.
+        Repeating an endpoint-driven transition is not a conflict. Setting the
+        state the entity type is already in returns `200` with the current
+        status; if the request carries `idMappings`, each pair is applied again
+        — binding is idempotent per pair — and `rejectedIdMappings` is
+        recomputed against the mapping as it now stands. That is how an endpoint
+        recovers from a lost response: it cannot read its mapping back, so
+        repeating the confirmation is its only way to learn which bindings were
+        recorded. Only out-of-order transitions are `409`.
       operationId: setEntityInitialLoadState
       requestBody:
         required: true
@@ -1153,10 +1288,11 @@ components:
       in: path
       required: true
       description: >
-        The sending participant's own identifier for the entity. Unique within
-        the calling endpoint per entity type. A local identifier already mapped to
-        a different canonical object is rejected (see the specification,
-        "Identifier mapping").
+        The sending application's own identifier for the entity. Unique across
+        the whole application per entity type, whichever of its endpoints sends
+        it: the mapping is keyed `(application, localId)`. A local identifier
+        already mapped to a different canonical object is rejected (see the
+        specification, "Identifier mapping").
       schema:
         type: string
     AgrirouterEndpointId:
@@ -1167,8 +1303,9 @@ components:
         The endpoint acting — the sender of an entity, the caller of a request,
         the holder of a binding. The token authorizes an *application*, which
         holds many endpoints across many tenants, so the acting one is named per
-        request rather than derived; `localId` resolves in its namespace and it
-        becomes the `sourceEndpointId` of any revision produced.
+        request rather than derived. It decides entitlement and the tenant, and it
+        becomes the `sourceEndpointId` of any revision produced. It does not
+        scope `localId`, which resolves in the application's namespace.
 
 
         This is the agrirouter endpoint ID — the `id` of the endpoint, not the
@@ -1179,6 +1316,36 @@ components:
       schema:
         type: string
         format: uuid
+    BaseRevision:
+      name: x-agrirouter-base-revision
+      in: header
+      required: false
+      description: >
+        The `revision` the client edited from — the base of this write. It is
+        a precondition on the request, not part of the entity, which is why it
+        travels as a header: `revision` in the body stays `readOnly` and
+        server-assigned, and a client-supplied revision is compared, never
+        assigned.
+
+
+        Required on a write to an object that already exists; absent there is
+        `428`, since omitting it would opt the client out of concurrency
+        control. Absent on a create is normal, there being no base. Present on
+        a request that does not resolve to an existing object it is `412`: the
+        client believes it is updating something agrirouter does not know under
+        that `localId`.
+
+
+        A base behind the current revision is not necessarily a failure.
+        agrirouter three-way merges where the client's change and the
+        intervening ones do not overlap and answers `200` with the merged
+        object, whose `revision` is then not base + 1; where they overlap it
+        answers `412` with the current revision. A write whose payload equals
+        the current canonical value succeeds as a no-op whatever the base. See
+        "Concurrency control" in specification.md.
+      schema:
+        type: integer
+        minimum: 1
     IdMappingAgrirouterId:
       name: agrirouterId
       in: path
@@ -1209,7 +1376,7 @@ components:
       description: The master-data entity type.
       schema:
         type: string
-        examples: [organizations, persons, farms, fields, fieldBoundaries]
+        examples: [organizations, persons, farms, fields, field-boundaries]
         description: >
           [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
     LastEventId:
@@ -1283,11 +1450,36 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    RevisionConflict:
+      description: >
+        The write could not be applied against its `x-agrirouter-base-revision`:
+        the base is behind the current revision and the changes since overlap
+        with the client's, so no merge is possible; or the base is one
+        agrirouter never issued for this object; or a base was given for a
+        `localId` that does not resolve to an existing object. The body carries
+        the current revision. The client refetches the object — through the
+        stream or `POST /masterdata/<types>/requests` — rebases its change, and
+        writes again.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RevisionConflictError'
+    BaseRevisionRequired:
+      description: >
+        The object exists and the request carried no
+        `x-agrirouter-base-revision`. Concurrency control is not optional on an
+        update. The body carries the current revision so the client can obtain
+        the object and write again with a base.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RevisionConflictError'
     MappingConflict:
       description: >
         The supplied local identifier is already mapped to a different canonical
         object, or — when binding — the canonical object is already bound to a
-        different local identifier of this endpoint. Either way an asymmetric /
+        different local identifier of this application. Both are checked across
+        the whole application, not just the calling endpoint. Either way an asymmetric /
         n:1 mapping the caller must resolve. The body names which of the two
         identifiers is taken, and the mapping that holds it, since that is what
         the resolving side has to show its user.
@@ -1312,6 +1504,20 @@ components:
         message:
           type: string
       required: [message]
+
+    RevisionConflictError:
+      description: >
+        The `412` or `428` of a write: an `Error` carrying the revision the
+        object is currently at, so that the client has the answer a rejected
+        write would otherwise have to fetch separately.
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            currentRevision:
+              type: integer
+              description: The canonical object's current `revision`.
+          required: [currentRevision]
 
     MappingConflictError:
       description: >
@@ -1427,9 +1633,9 @@ components:
         bulk on the initial-load confirmation.
 
 
-        Both ends belong to the calling endpoint's own store: the object it
+        Both ends belong to the calling application's own store: the object it
         matched, and what it calls that object. A mapping only ever travels from
-        an endpoint to agrirouter.
+        an application to agrirouter.
       properties:
         agrirouterId:
           type: string
@@ -1453,14 +1659,16 @@ components:
         localId:
           type: string
           description: >
-            Always the *calling* endpoint's own identifier for the entity, in
+            Always the *calling* application's own identifier for the entity, in
             both directions: on send the sender's, on delivery the receiving
-            endpoint's. It never carries another endpoint's identifier.
+            application's. It never carries another application's identifier.
+            One store per application, so the identifier is the same whichever
+            of the application's endpoints sends or receives it.
 
 
             Required on send. On delivery it is present when agrirouter holds a
-            mapping for the receiving endpoint, and absent when it does not —
-            an object the endpoint has not bound, or has unbound. An absent
+            mapping for the receiving application, and absent when it does not —
+            an object the application has not bound, or has unbound. An absent
             `localId` means "you do not hold this object": create it locally and
             bind the identifier you issue.
         active:
@@ -1469,18 +1677,36 @@ components:
         revision:
           type: integer
           readOnly: true
-          description: Monotonic per-object counter maintained by agrirouter.
+          description: >
+            Monotonic per-object counter maintained by agrirouter. Never taken
+            from the body: the revision a write was made from travels in the
+            `x-agrirouter-base-revision` header, where it is compared and
+            discarded.
         modifiedAt:
           type: string
           format: date-time
           readOnly: true
+        tenantId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: >
+            The tenant the object belongs to. Assigned by agrirouter; a value
+            sent by a participant is ignored. On send the tenant follows from
+            the endpoint named in `x-agrirouter-endpoint-id`.
+
+
+            One application stream carries every tenant the application is
+            routed to, so on delivery this is the field that says which of them
+            an object belongs to. A receiver holding data for several tenants
+            partitions on it rather than on the connection.
         sourceEndpointId:
           type: string
           format: uuid
           readOnly: true
           description: >
             The agrirouter identifier of the endpoint whose change produced this
-            revision.
+            revision. It always belongs to `tenantId`.
 
 
     Address:
@@ -1894,7 +2120,7 @@ components:
           description: >
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
             The entity type this toggle applies to.
-          examples: [organizations, persons, farms, fields, fieldBoundaries]
+          examples: [organizations, persons, farms, fields, field-boundaries]
       required: [entityType]
 
     MasterdataConfig:
@@ -1935,8 +2161,9 @@ components:
         never through the `status` subresource.
 
 
-        `RECONCILING` — the whole canonical set has been delivered and the
-        initial-load stream closed. agrirouter moves the entity type here itself,
+        `RECONCILING` — the whole canonical set of this entity type has been
+        delivered and its initial-load stream closed. agrirouter moves the entity
+        type here itself, and only this one,
         because it is the side that knows it has finished sending, which is also
         why this state is the authoritative answer to whether the set arrived: an
         endpoint cannot tell an orderly close from a dropped connection. The
@@ -1965,7 +2192,7 @@ components:
       properties:
         entityType:
           type: string
-          examples: [organizations, persons, farms, fields, fieldBoundaries]
+          examples: [organizations, persons, farms, fields, field-boundaries]
           description: >
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
         state:
@@ -2007,7 +2234,9 @@ components:
             its way. They do not fail the transition: one unresolvable pair
             should not block the load of a set. The endpoint resolves them as it
             resolves a `409` on the per-entity operation, and rebinds through
-            that operation once it has.
+            that operation once it has. Recomputed on every request that carries
+            `idMappings`, including a repeat of the transition, so a retry after
+            a lost response reports the current outcome rather than the first.
           items:
             $ref: '#/components/schemas/IdMappingRejection'
         updatedAt:
@@ -2065,7 +2294,9 @@ components:
             because matching happens over a whole set, and the semantics are those
             of the per-entity `id-mapping` operation applied to each pair. Meaningful
             only on the transition to `LOADING_TO_AGRIROUTER`, which is where
-            reconciliation is asserted to be done. Pairs are applied
+            reconciliation is asserted to be done, and on a repeat of that
+            transition, where the pairs are applied again and the rejections
+            recomputed. Pairs are applied
             independently: any that cannot be recorded — because an identifier is
             already bound, because the canonical object is unknown to the
             endpoint, or because the request names the same identifier twice —
