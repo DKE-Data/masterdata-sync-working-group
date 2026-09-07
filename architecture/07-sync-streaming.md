@@ -399,6 +399,9 @@ nothing forwarded. Origin suppression keeps a writer from being handed its own
 revision; no-op detection closes the loop that a coarser application-level unit
 closed by never letting the sibling see the object at all.
 
+`POST /masterdata/<types>/requests` would still result in object to be enqueued
+regardless of origin suppression.
+
 ### Rejected alternative: materializing the canonical set into a queue
 
 Described in [Context](#context). It buys one thing this design gives up: because
