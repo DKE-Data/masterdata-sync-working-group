@@ -385,9 +385,19 @@ object arrives after the objects it references, and nothing beyond that.
 
 With a queue per endpoint, [loop prevention](../specification.md#loop-prevention)
 filtered at enqueue. With one shared record per object there is nothing to filter
-at write time, so the source application is carried on the record and suppression is
-applied as it is read: an object whose most recent change came from the reading
-application is not delivered back to it.
+at write time, so the endpoint whose change produced the current revision is carried
+on the record as `sourceEndpointId`, and suppression is applied as it is read: an
+object whose most recent change came from an endpoint is not delivered back to that
+endpoint.
+
+The unit is the endpoint, not the application. An object changed by one endpoint is
+therefore still delivered to a sibling endpoint of the same application. Where those
+two endpoints are backed by one store the sibling re-emits the object, but the
+re-emission equals the current canonical revision, so
+[no-op detection](../specification.md#loop-prevention) drops it: no new revision,
+nothing forwarded. Origin suppression keeps a writer from being handed its own
+revision; no-op detection closes the loop that a coarser application-level unit
+closed by never letting the sibling see the object at all.
 
 ### Rejected alternative: materializing the canonical set into a queue
 

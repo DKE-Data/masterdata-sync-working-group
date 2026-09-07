@@ -194,7 +194,7 @@ Envelope fields:
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)). It is never taken from a sent object: the revision a participant edited from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded (see [Concurrency control](#concurrency-control)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
 - `tenantId` (string): the tenant the object belongs to ({{?RFC4122}}). It is set by agrirouter and MUST NOT be sent by a participant; on send the tenant follows from the acting endpoint, and any value a sender supplies is ignored. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
-- `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision. It always belongs to `tenantId`.
+- `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision. It always belongs to `tenantId`. It is the key [origin suppression](#loop-prevention) is decided on.
 
 ### References
 
@@ -402,9 +402,6 @@ To keep the canonical form unambiguous, `harvestPeriod` is defined as an interva
 A participant that natively uses a discrete year MUST map it to an interval on send
 and MAY use `label` to round-trip its own presentation.
 
-> The interval-versus-year modelling is **not yet finally settled**; the interval
-> form above is the working proposal. See [Open issues](#open-issues).
-
 # Encoding and canonicity
 
 ## Encoding
@@ -412,7 +409,7 @@ and MAY use `label` to round-trip its own presentation.
 The normative wire encoding for master-data payloads is a constrained subset of
 the EFDI / ISOXML (ISO 11783-10) representation of the corresponding entities
 (partfield, farm, customer). The exact subset and its Protobuf/EFDI form are being
-finalized together with the FarmSPT alignment (see [Open issues](#open-issues)); the JSON shown
+finalized together with the FarmSPT alignment, the JSON shown
 in this document is an illustrative projection of that model and is not itself the
 binding format.
 
@@ -645,8 +642,8 @@ object it concerns has moved on.
 
 The canonical set an endpoint receives includes objects whose current revision
 the requesting participant itself produced. [Origin suppression](#loop-prevention)
-does not apply to initial load: it exists to keep a participant from being handed
-a revision it already holds, and a participant taking the set has declared that
+does not apply to initial load: it exists to keep an endpoint from being handed
+a revision it already holds, and an endpoint taking the set has declared that
 it does not know what it holds. Withholding those objects would leave a returning
 participant reporting them in **loading to agrirouter** as absent from the SSOT,
 and agrirouter would mint a second canonical object for each — the failure the
@@ -856,7 +853,7 @@ when nothing actually changed.
 
 The protocol relies on the SSOT to break these loops:
 
-- agrirouter MUST NOT echo a change back to the **participant** it originated from, on any of that participant's endpoints. The unit of suppression is the participant rather than the endpoint because the participant is what holds a store: agrirouter does not know what an endpoint represents, so it cannot tell two endpoints backed by one store from two backed by different ones. agrirouter records the originating participant for every revision it produces; `sourceEndpointId` on the delivered object is informational and is not what suppression is decided on.
+- agrirouter MUST NOT echo a change back to the **endpoint** it originated from. The unit of suppression is the endpoint: agrirouter records the originating `sourceEndpointId` for every revision it produces and does not deliver an object back to the endpoint named there. A change made by one endpoint is still delivered to the participant's other endpoints. Where two of them are backed by one store the sibling may re-emit the object, and it is the no-op detection below — not origin suppression — that breaks that loop, because the re-emission equals the current canonical revision.
 - agrirouter maintains the `revision` counter per canonical object. An incoming entity that does not actually change the canonical object (it is equal to the current canonical revision) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
 - Participants SHOULD avoid re-emitting an object they have just received without a genuine local change. Because some systems cannot guarantee this, agrirouter's origin-suppression and no-op detection are the authoritative safeguards and do not depend on well-behaved participants.
 
@@ -945,6 +942,8 @@ from, and a concurrent edit to the entity is a conflict of which only one side
 succeeds. On an entity that is already inactive the base revision is ignored,
 which is what the idempotency above requires.
 
+Reactivation is possible by simply sending `PUT /masterdata/<types>/{localId}` with the entity's `active` property set to `true`.
+
 ## Split and merge
 
 Splitting a field into several, and merging several back into one, is a common
@@ -967,8 +966,6 @@ version already settles elsewhere:
 - **Held by agrirouter, read-only to participants.** Lineage is a property of the canonical object, like the [identifier mapping](#identifier-mapping), not an attribute a sender restates on every write. Carried in the envelope it would be erased by the next whole-object send from a participant that does not model it, and that erasure would be a change like any other — a new revision, delivered to everyone.
 - **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — inactive, if it was deactivated by the split — because agrirouter retains no past states of anything.
 
-What remains genuinely open is listed under [Open issues](#open-issues).
-
 ## Requesting objects (lazy loading)
 
 `POST /masterdata/<types>/requests` lets a participant pull a single entity by
@@ -976,10 +973,10 @@ What remains genuinely open is listed under [Open issues](#open-issues).
 corresponding object on the event stream if the requester is entitled to it under
 its opt-in configuration (see [Routing and opt-in](#routing-and-opt-in)).
 
-A requested object is delivered even when the requesting participant was its last
-writer. [Origin suppression](#loop-prevention) keeps a participant's own
+A requested object is delivered even when the requesting endpoint was its last
+writer. [Origin suppression](#loop-prevention) keeps an endpoint's own
 revisions off its stream because it already holds them; a request states the
-opposite, that the participant does not hold the object, and refetching something
+opposite, that the endpoint does not hold the object, and refetching something
 it wrote itself is the very case the operation exists for. Answering that with
 `202` and silence would leave the participant with no way back to its own data.
 
@@ -1039,20 +1036,4 @@ Field boundaries and party contact details are personal and commercially
 sensitive data. Participants SHOULD expose only the data necessary for
 synchronization and SHOULD honour deactivation promptly.
 
-# Open issues
 
-The following items are still under discussion and affect provisional parts of
-this document:
-
-- **Unambiguous EFDI subset & hard validation** — the exact validated subset of [Encoding and canonicity](#encoding-and-canonicity).
-- **Routing model** — the concrete default-route policy and opt-in switches of [Routing and opt-in](#routing-and-opt-in).
-- **Conflict resolution** — that the endpoint's own software resolves field-level conflicts with its user, and that agrirouter provides the canonical set to reconcile against and does not adjudicate, is settled in [Initial load and seeding](#initial-load-and-seeding), as are the two mechanical cases: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) and a [stricter recipient's](#differing-requiredoptional-attributes) own requirements. What is open is implementor guidance for the rest: how a partner presents a disagreement it cannot settle by its own rules, and how it reconciles against a set that keeps changing under it, delivery not being paused while a user deliberates. Two conflict outcomes are undefined rather than unguided and are tracked separately below: **Reactivation** and **Split / merge lineage**.
-- **Loop prevention** — final handling of unconditional-notification systems in [Loop prevention](#loop-prevention).
-- **Learning of disconnection** — a participant is not told that a user opted a type out or disconnected the endpoint from the hub; it observes the absence in its opt-in configuration and on the initial-load resource. Whether that warrants a signal on the delivery channel is open.
-- **Unbinding** — [Identifier mapping](#identifier-mapping) now lets an endpoint declare it no longer holds an object, which resolves the returning participant that discarded its local data. Open: whether a bulk form is needed for the mass case, as bindings have on the initial-load confirmation.
-- **Auditing the mapping** — a participant that suspects a few of its pairs are stale, rather than knowing its table is lost, has no cheap way to check: agrirouter does not disclose the mapping, so the choices are a full re-load of the endpoint's canonical set or waiting for each object's next change. Open: whether that case is common enough to warrant reading the correspondence back, which is the one recovery the [initial-load](#initial-load-and-seeding) re-entry does not make proportionate.
-- **`sourceEndpointId` on delivery** — [Identifier mapping](#identifier-mapping) settles that a delivered object carries no other endpoint's *local* identifiers. `sourceEndpointId` still names another endpoint, which the platform's own endpoint listing would disclose anyway, and which a receiver may want for a conflict UI. It now has no server-side use at all: [origin suppression](#loop-prevention) is decided on the originating participant, which agrirouter records separately, and a three-way merge can produce a revision no endpoint sent. Whether the field stays on the delivered object, is reduced to the originating participant, or is dropped, is open.
-- **Split / merge lineage** — deferred rather than open, and reopened by the entity types that would consume it. The shape is settled in [Split and merge](#split-and-merge); what is not, and needs a concrete consumer to settle, is: whether a predecessor MUST be deactivated by the split that supersedes it, or may stay active; whether the writes forming one split are related to each other on the wire, or arrive as unconnected changes; which endpoint may declare lineage, whether a declaration can be corrected or withdrawn, and what holds when two endpoints declare different predecessors for the same entity.
-- **Reactivation** — [Deactivation](#deactivation) defines the transition into inactive and no way back out. An endpoint that has bound a deactivated object and whose user later un-archives it sends under a `localId` that resolves to that canonical object; whether that revives the entity, or is rejected, is undefined. Reachable in ordinary use once [deactivated objects are part of a seeded set](#deactivated-objects-are-part-of-the-set).
-- **Harvest period** — interval-versus-year resolution in [Harvest period](#harvest-period).
-- **Deactivation idempotency** — duplicate deactivations in [Deactivation](#deactivation).

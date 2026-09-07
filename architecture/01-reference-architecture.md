@@ -227,10 +227,7 @@ Two mechanisms in the SSOT keep this from looping, both described in
 [Loop prevention](../specification.md#loop-prevention):
 
 - **Origin suppression.** A revision is never delivered back to the application
-  that produced it. The unit is the application because it is the unit holding a
-  store - agrirouter does not know what an endpoint represents, that being the
-  application's choice ([ADR 04](./04-routing.md)) - and the source application is
-  what the delivery record carries ([ADR 07](./07-sync-streaming.md)).
+  that produced it, unless it has an endpoint that was not the source of the change, in which case application is allowed to received information about the change to support certain use cases where moving masterdata from endpoint-bound scopes is necessary.
 - **No-op detection.** If an incoming entity does not actually change the
   canonical object - some systems emit a notification even when nothing changed -
   agrirouter creates no new `revision` and forwards nothing.

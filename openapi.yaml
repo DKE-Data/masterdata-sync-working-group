@@ -958,8 +958,9 @@ paths:
       description: >
         A persistent SSE stream of master-data changes for the calling
         application, carrying every tenant it is routed to and every entity type
-        it is opted into. agrirouter never echoes a change back to the application
-        it originated from, on any of that application's endpoints. Each event's
+        it is opted into. agrirouter never echoes a change back to the endpoint
+        it originated from; a change made by one endpoint is still delivered to
+        the application's other endpoints. Each event's
         `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
         `FieldBoundary` discriminated by its `type` property. A delivered object
         carries the receiving application's own identifier in `localId` when
