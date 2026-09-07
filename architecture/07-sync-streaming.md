@@ -135,12 +135,13 @@ means giving its tier an order that resolves it, which change order does not: an
 ancestor edited after its descendant was created carries the higher number.
 
 **The scan is stable under concurrent writes**, which is what lets it run without
-an upper bound. Every change made once the connection is open takes a number above
-the pin the buffer sets (below), so the sweep walks a closed range per tier -
-`after` exclusive, the pin exclusive - that concurrent writes cannot add to,
-reorder within, or move a row backwards out of. A row they *do* remove, by giving
-it a number above the pin, is a row the buffer now holds. Nothing is skipped,
-whatever happens during the pass.
+an upper bound. It reads inside a snapshot (below), so a write made once the sweep
+begins is invisible to it and takes a number above the pin that snapshot fixes. The
+sweep therefore walks a closed range per tier - `after` exclusive, the pin inclusive
+- that concurrent writes cannot add to, reorder within, or move a row out of. A row
+such a write changes is one the sweep still reads at its pre-snapshot value; the new
+value, above the pin, is a row the tail delivers. Nothing is skipped, whatever
+happens during the pass.
 
 An object unchanged since `after` is outside the filter, so the sweep skips it even
 when it delivers that object's children. The reference still resolves: unchanged
@@ -156,76 +157,88 @@ comes first - is relying on an implementation detail this ADR is free to revise.
 
 The initial-load stream of [ADR 06](./06-initial-load.md) is this sweep with
 `after` at zero, restricted to one endpoint and to the entity types it is opted
-into, and with neither buffer nor cursor: live changes go to the live stream,
+into, and with no cursor and no tail: live changes go to the live stream,
 which runs independently, and the response closes when the sweep ends. That is
 what lets the initial-load set arrive in tier order without the endpoint doing
 anything, and it is why there is one initial-load stream per endpoint rather
 than one per entity type - the order runs across types, and a sweep is one pass
 over all of them.
 
-### Live changes are buffered until the sweep ends
+### The tail is a second query, not a buffer
 
 A change landing while the sweep runs cannot go straight out. The sweep is walking
 tier order, so a field created now would arrive before the farm it references,
 which the sweep has yet to reach.
 
-agrirouter therefore subscribes to live changes when the connection opens, holds
-them in a **buffer** for the duration of the sweep, and flushes them once the sweep
-ends. The whole sweep precedes the whole flush, so a parent delivered by the sweep
-always precedes a child held in the buffer. After the flush the connection streams
-live changes directly.
+Rather than hold those changes in memory, agrirouter reads the sweep inside a
+`REPEATABLE READ` transaction and delivers what arrived afterwards with a **second
+query** once the sweep ends. The snapshot is fixed when the sweep's transaction
+begins; every statement of the sweep reads from it, so the sweep sees one consistent
+instant of the store however long it takes to walk, and concurrent writes are
+invisible to it.
+
+That same snapshot fixes the **pin**, the frontier of what the sweep could see. The
+sweep delivers every entitled object above `after` and visible in the snapshot; the
+pin is where the snapshot ends. Reading the pin from the transaction that ran the
+sweep is what makes the two agree exactly - the sweep delivered precisely the
+entitled changes at or below the pin, and nothing straddles the seam. A pin taken in
+a separate statement would not agree: a change committing between reading the pin and
+running the sweep could fall on either side, and delivery would have to choose which
+failure to take.
+
+When the sweep is exhausted agrirouter emits `CAUGHT_UP` and closes the snapshot. It
+then runs a **tail query** - the same read with `after` set to the pin - which
+delivers every entitled object changed above it. The tail runs under a fresh
+`REPEATABLE READ` snapshot that fixes a new pin, and on completion the pin advances to
+it. The tail is therefore a sweep of a narrower range, ordered the same way and
+carrying the same guarantee, and delivery from the first connection onward is one
+mechanism run repeatedly: a sweep, then a sweep of everything since, then again.
 
 ```mermaid
 flowchart TB
-    SUB["subscribe to live changes \n buffer everything that arrives"]
-    SWEEP["sweep once, ascending (tier, last_change_number) \n after &lt; last_change_number &lt; pin"]
-    MARK["emit CAUGHT_UP"]
-    FLUSH["flush the buffer, same order as the sweep"]
-    LIVE["stream live"]
-    SUB --> SWEEP
+    OPEN["open REPEATABLE READ snapshot \n fix pin at its frontier"]
+    SWEEP["sweep once, ascending (tier, last_change_number) \n after &lt; last_change_number &lt;= pin"]
+    MARK["emit CAUGHT_UP, close snapshot"]
+    WAIT["wait for a timer tick or a LISTEN/NOTIFY signal"]
+    TAIL["tail query in a fresh snapshot \n after = pin, deliver in tier order, advance pin"]
+    OPEN --> SWEEP
     SWEEP --> MARK
-    MARK --> FLUSH
-    FLUSH --> LIVE
+    MARK --> WAIT
+    WAIT --> TAIL
+    TAIL --> WAIT
 ```
 
-The buffer also tells the sweep where to stop. Because the subscription opens
-first, every change from some point on is in the buffer, and the first change it
-receives - the **`buffer_change_start_pin`** - is that point. It is an ordinary
-change number, so it cuts the same axis the sweep filters and orders by: below the
-pin belongs to the sweep, at or above it is buffered already. The two sides are
+**The tail runs on a poll, driven two ways.** A timer bounds how stale a connection
+can get when nothing else fires, and a `LISTEN/NOTIFY` signal on writes wakes the
+tail as soon as there is something to send. The signal is an optimisation over the
+timer, not a correctness requirement: a lost notification costs latency until the
+next tick, never a missed change, because the tail's range - above the pin - selects
+everything written since the pin however the poll was triggered. An idle system ticks
+and finds nothing above the pin, which is the whole of what an idle system costs.
+
+Below or at the pin belongs to the sweep, above it to the tail; the two sides are
 disjoint and together cover everything, which is the whole of the coordination
-between them.
+between them. The pin bounds every tier alike, because one snapshot underlies the
+whole sweep: within a tier the scan runs ascending `last_change_number` and leaves it
+at the pin.
 
-The pin bounds every tier rather than the sweep as a whole. Within a tier the scan
-runs ascending `last_change_number`, so it leaves that tier at the pin and starts
-the next one.
+**Each poll orders by tier, for the same reason the sweep does.** The tail reads the
+compacted index, one row per object at its current value, so change order carries no
+dependency meaning: a farm re-edited after a field was created against it sits above
+that field in change order, and a tail ordered by change alone would deliver the
+child first. Ordering `(tier, last_change_number)` places the farm's tier before the
+field's regardless, so every reference resolves against something already delivered -
+within the poll when it changed in the same window, before the poll otherwise.
 
-An idle system produces no pin and needs none: with nothing being written the scan
-reaches the end of each tier and stops. There is no case in between, because
-appending to the index *is* a change - a system busy enough to keep the scan
-finding new rows is busy enough to fill the buffer.
+Reading the compacted index is also what compacts the tail: an object edited fifty
+times between two polls is one row in the next poll, at its current value, and the
+intermediate edits are never materialised. It is the same compaction the sweep relies
+on, not a second copy of it kept in memory.
 
-The buffer is **compacted like the index it shadows**: it is keyed by object
-identity and holds only the latest change per object, so an object edited fifty
-times during a sweep costs one entry and the older ones are dropped rather than
-sent. Only the current value of any object is ever worth sending, and the drop is
-cheap because the buffer is keyed for exactly this lookup.
-
-An object the sweep already delivered can also be in the buffer, and that entry is
-kept: everything buffered is above the pin and everything swept is below it, so the
-buffered change is strictly the newer of the two and the flush is an update rather
-than a duplicate.
-
-**The flush uses the sweep's order**, `(tier, last_change_number)`. Tier is the part
-that matters, because compaction destroys change order on its own: the buffer holds
-an object at its *latest* change, which can fall after the creation of something
-that references it. A farm created during the sweep, a field created against it,
-then a second edit to the farm leaves the field at the earlier change and the farm
-at the later one, so change order alone would flush the child first.
-
-The live tail after the flush needs none of this: it carries one frame per change
-rather than one per object, so a change that introduces a reference always follows
-the one that created its target.
+An object an earlier sweep or poll already delivered can change again and reappear in
+a later one. Its new `last_change_number` is above the pin that closed the earlier
+read, so the later delivery is strictly the newer of the two - an update, not a
+duplicate.
 
 ### The cursor is a single change number
 
@@ -234,13 +247,14 @@ There is nothing else in it, in any state, and on our side two cursors compare a
 the integers they are. On the wire it is wrapped so that the application cannot
 do the same ([below](#the-id-on-the-wire-is-versioned-encoded-and-signed)).
 
-**It does not advance while a sweep runs.** Sweep frames carry the change number
-the sweep started from. Change numbers ascend within a tier and start over at the
-next, so a frame's own number says nothing about how far the sweep has got:
+**It does not advance while a sweep runs.** Sweep frames carry the position the
+sweep started from - its `after`. Change numbers ascend within a tier and start over
+at the next, so a frame's own number says nothing about how far the sweep has got:
 committing one from an early tier would put the cursor ahead of objects in later
 tiers that have not been sent yet, and the next sweep's filter would exclude them
-for good. It starts advancing when the sweep and its
-buffer flush are done, and from then on it tracks change order directly.
+for good. The cursor advances only when a sweep completes, to that sweep's pin. Each
+tail poll is a sweep in turn, so the cursor advances one pin at a time, at each poll
+boundary rather than at each change.
 
 **A requested object does not advance it either.** An object delivered because
 the application [asked for it](../specification.md#requesting-objects-lazy-loading)
@@ -332,7 +346,7 @@ cursor does either.
 Data that existed below `after` but was not granted at the time is therefore
 indistinguishable from data the application already holds. A tenant that grants
 access today has objects created months ago: their change numbers sit below
-`after`, so the filter excludes them, and they changed long ago, so the buffer
+`after`, so the filter excludes them, and they changed long ago, so the tail
 never sees them. Delivery has no way to tell that they are owed.
 
 Recognising that they are owed, and getting them across, belongs to initial load
@@ -368,18 +382,21 @@ prefer the older cursor.
 
 ### The end of the sweep is a frame
 
-agrirouter MUST emit an in-band `CAUGHT_UP` frame when the sweep is exhausted,
-before the buffer is flushed. It says that everything the application was missing
-when the sweep began has now been delivered.
+agrirouter MUST emit an in-band `CAUGHT_UP` frame when the sweep is exhausted. It
+says that everything the application was missing when the sweep began has now been
+delivered, and it carries the pin, so committing it is what advances the cursor. Each
+completed tail poll ends the same way, catching the application up to its own pin;
+`CAUGHT_UP` is the boundary at which the cursor moves.
 
 The frame is an **upper limit in the delivery, not a claim about the application**:
 it says the objects before it are everything owed, not that the application has
 worked through them.
 
-`CAUGHT_UP` is the only boundary in the delivery. The sweep does not announce moving
-from one tier to the next, and an application MUST NOT read completeness of an
-entity type out of the order it receives objects in. The order guarantees that every
-object arrives after the objects it references, and nothing beyond that.
+`CAUGHT_UP` is the only boundary in the delivery. Neither the sweep nor a tail poll
+announces moving from one tier to the next, and an application MUST NOT read
+completeness of an entity type out of the order it receives objects in. The order
+guarantees that every object arrives after the objects it references, and nothing
+beyond that.
 
 ### Origin suppression moves to read time
 
@@ -399,7 +416,7 @@ nothing forwarded. Origin suppression keeps a writer from being handed its own
 revision; no-op detection closes the loop that a coarser application-level unit
 closed by never letting the sibling see the object at all.
 
-`POST /masterdata/<types>/requests` would still result in object to be enqueued
+`POST /masterdata/<types>/requests` would still result in object to be sent on `/masterdata/events`
 regardless of origin suppression.
 
 ### Rejected alternative: materializing the canonical set into a queue
@@ -429,12 +446,13 @@ than two.
 
 ### Rejected alternative: a live tail concurrent with the sweep
 
-Sending live changes as they arrive, rather than buffering them, removes the
-buffer and its bound. It also breaks the ordering the sweep exists to provide: a
-child created during the sweep goes out immediately, while its parent waits for
-the sweep to reach its tier. The reference does not resolve, and the
-window is as long as the sweep. Buffering costs memory bounded by the objects
-changed during one sweep; the ordering has no substitute.
+Sending live changes as they arrive, while the sweep is still running, breaks the
+ordering the sweep exists to provide: a child created during the sweep goes out
+immediately, while its parent waits for the sweep to reach its tier. The reference
+does not resolve, and the window is as long as the sweep. Deferring the tail past the
+pin - reading those same changes only once the sweep has delivered every tier - keeps
+the ordering at a latency bounded by the sweep, which is exactly what the concurrent
+version would trade the ordering away to save.
 
 ## Consequences
 
@@ -445,7 +463,7 @@ changed during one sweep; the ordering has no substitute.
   length of time is a larger sweep rather than a failed one. Rate limiting a large
   sweep is a throughput concern rather than a correctness one.
 - **Delivery is type-aware, and the type graph is load-bearing.** Both the sweep
-  and the flush order by tier, so a new entity type has to be given a tier before it
+  and the tail order by tier, so a new entity type has to be given a tier before it
   can be delivered, and the type graph MUST stay acyclic. A cycle between two types
   has no tier assignment at all, and is the case that would force per-object
   dependency ordering.
@@ -462,7 +480,7 @@ changed during one sweep; the ordering has no substitute.
   right to change the order, so the tier table above is ours to revise without
   a client noticing.
 - **Initial load rides the same sweep.** One endpoint, every opted-in type, from
-  zero, no buffer and no cursor. Ordering the initial-load set costs nothing
+  zero, no tail and no cursor. Ordering the initial-load set costs nothing
   extra, and the endpoint gets one stream instead of one per type
   ([ADR 06](./06-initial-load.md)).
 - **An interrupted sweep is repeated, not resumed**, and the cost scales with how
@@ -476,16 +494,17 @@ changed during one sweep; the ordering has no substitute.
   issue is detected rather than trusted, and the payload can change shape
   without breaking anyone.
 - **Entitlement gained below the cursor is not reachable from here.** The filter
-  excludes it and the buffer never sees it. A cursor records a position, not what
+  excludes it and the tail never sees it. A cursor records a position, not what
   the application was entitled to on reaching it, so delivery cannot tell data it
   owes from data the application already holds.
 - **Applications lose intermediate states.** An application MUST NOT infer that it
   observed every change to an object, and MUST NOT derive anything from the number
   of times an object was delivered.
 - **Idempotent apply carries redelivery on reconnect**, including a restarted sweep
-  resending what its interrupted attempt already sent. The sweep and the buffer
-  behind it do not overlap: the pin separates them, so an object in both is simply
-  delivered twice in the right order. Within the stream, order is enough to make the
+  resending what its interrupted attempt already sent. The sweep and the tail behind
+  it do not overlap in range: the pin separates them, so an object changed during the
+  sweep is delivered by the sweep at its pre-snapshot value and by the tail at its new
+  one - twice, in the right order. Within the stream, order is enough to make the
   later value win; across the stream and a write response it is not, so apply is
   additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
