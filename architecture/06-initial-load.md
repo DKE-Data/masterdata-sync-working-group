@@ -122,8 +122,8 @@ sequenceDiagram
         AR-->>P: event: MASTERDATA_CHANGED (no id:) data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, owner: { agrirouterId: 9ab0…1234, … }, localId: P's own or absent }
         Note over P: apply as it arrives - the owner was delivered earlier in the same stream. reconcile against own store (id mapping, user decides on conflicts)
     end
-    AR-->>P: close SSE HTTP response
     Note over AR: endpoint → RECONCILING (agrirouter drives this - it knows it has sent everything)
+    AR-->>P: close SSE HTTP response
     Note over P: whole set held - user works through what is left, on their own schedule. live changes keep arriving meanwhile
     opt object referenced from the live stream, not delivered by the set yet
         P->>AR: POST /masterdata/organizations/requests { agrirouterId: 4d5e…6789 }
