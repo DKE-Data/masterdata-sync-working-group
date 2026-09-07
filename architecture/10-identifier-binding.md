@@ -121,8 +121,8 @@ one. The correspondence comes back attached to the objects, which is where this
 design puts it anyway - it is the same delivery that makes a repeat load *match*
 rather than reconcile.
 
-That costs the whole entity type in bandwidth to recover two identifiers per
-object, and it is the deliberate trade: agrirouter does not hand a participant its
+That costs the endpoint's whole canonical set in bandwidth to recover two
+identifiers per object, and it is the deliberate trade: agrirouter does not hand a participant its
 correspondence table on demand, so there is one path back rather than two, and the
 mapping stays something a participant keeps rather than something it can fetch.
 
@@ -133,7 +133,7 @@ would put a round trip against every object an endpoint recognises. The
 confirmation that ends reconciliation carries them instead:
 
 ```
-PUT /endpoints/{eid}/masterdata-initial-load/farms/status
+PUT /endpoints/{eid}/masterdata-initial-load/status
 {
   "state": "LOADING_TO_AGRIROUTER",
   "idMappings": [ { "agrirouterId": "1f2e...4567", "localId": "b1e7" } ]

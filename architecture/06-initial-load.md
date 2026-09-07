@@ -22,7 +22,7 @@ This is a mix of technical and organizational concerns: some of it is a defined 
 
 ## Decision
 
-Model initial load as an explicit **per-entity-type state machine** that agrirouter holds for each endpoint. Tracking it per entity type, rather than once for the whole endpoint, respects [entity dependencies](../specification.md#entity-dependencies): a field cannot be reconciled before the customers and farms it references.
+Model initial load as an explicit **state machine per endpoint** that agrirouter holds. There is one state and one stream per endpoint, covering every entity type it is opted into, rather than one of each per entity type. [Entity dependencies](../specification.md#entity-dependencies) - a field cannot be applied before the farm it references - are respected by the *order* of the one stream, which agrirouter produces: it is the same tier order the live stream's catch-up already uses ([ADR 07](./07-sync-streaming.md#the-sweep-delivers-in-tier-order)), so the endpoint has nothing to sequence. An earlier revision of this ADR tracked the state per entity type and left the ordering to the endpoint; see [the rejected alternative](#rejected-alternative-a-state-machine-and-a-stream-per-entity-type) for why that was dropped.
 
 ```mermaid
 flowchart TB
@@ -33,40 +33,46 @@ flowchart TB
     end
     START(("start"))
     LF["LOADING_FROM_AGRIROUTER"]
-    START -->|"agrirouter:\n entity type opted into the hub"| LF
+    START -->|"agrirouter:\n endpoint opted into the hub"| LF
     LF -->|"agrirouter:\n whole canonical set sent"| R
     R -->|"endpoint:\n confirms it has reconciled"| LT
     LT -->|"endpoint:\n has sent everything it holds"| C
-    sub1 -->|"endpoint:\n ask for the set again"| LF
-    sub1 -->|"agrirouter:\n entity type opted out"| START
+    sub1 -->|"endpoint: ask for the set again\n agrirouter: an entity type added"| LF
+    sub1 -->|"agrirouter:\n last entity type opted out"| START
     LF --> START
     %% ceasg:{"id":"6kuwmm6w"} %%
     %% mermaid-flow:pos R=605,394 LT=508,513 C=235,636 START=167,105 LF=439,205
     %% mermaid-flow:gpos sub1=70,335,631,365
 ```
 
-The flow, per entity type:
+The flow, per endpoint:
 
-1. **Opt in.** The user routes the endpoint to the [masterdata hub](./04-routing.md) and opts it into one or more entity types. Each such entity type enters `LOADING_FROM_AGRIROUTER`.
-2. **Load from agrirouter.** agrirouter sends the endpoint every canonical object of that type it is entitled to receive, on that type's own stream. This direction is well-defined precisely because [agrirouter is the SSOT](./01-reference-architecture.md) - it already holds the authoritative set to hand over.
-3. **Set delivered.** agrirouter closes the HTTP response of that entity type's stream once it has sent everything, and moves the entity type to `RECONCILING`. This is mechanical and agrirouter drives it: it knows it has sent everything, so nothing needs to be reported back. There is no in-band end marker, because a dropped connection closes the response the same way an orderly finish does; the state is what records that the set was sent, and an endpoint that finds the type still at `LOADING_FROM_AGRIROUTER` connects again.
-4. **Confirm.** Reconciliation potentially finishes much later. Whatever conflicts it surfaced are settled in the partner's software - by a user where the partner's own rules cannot settle them - on a schedule agrirouter does not control. The endpoint confirms after *that*, moving the entity type to `LOADING_TO_AGRIROUTER`. This transition is explicit precisely because agrirouter can see the previous moment and not this one.
+1. **Opt in.** The user routes the endpoint to the [masterdata hub](./04-routing.md) and opts it into one or more entity types. The endpoint enters `LOADING_FROM_AGRIROUTER`.
+2. **Load from agrirouter.** agrirouter sends the endpoint every canonical object of every opted-in type it is entitled to receive, on the endpoint's one stream, ordered so that a referenced object precedes the objects referencing it. This direction is well-defined precisely because [agrirouter is the SSOT](./01-reference-architecture.md) - it already holds the authoritative set to hand over, and the order to hand it over in.
+3. **Set delivered.** agrirouter closes the HTTP response once it has sent everything, and moves the endpoint to `RECONCILING`. This is mechanical and agrirouter drives it: it knows it has sent everything, so nothing needs to be reported back. There is no in-band end marker, because a dropped connection closes the response the same way an orderly finish does; the state is what records that the set was sent, and an endpoint that finds itself still at `LOADING_FROM_AGRIROUTER` connects again.
+4. **Confirm.** Reconciliation potentially finishes much later. Whatever conflicts it surfaced are settled in the partner's software - by a user where the partner's own rules cannot settle them - on a schedule agrirouter does not control. The endpoint confirms after *that*, moving to `LOADING_TO_AGRIROUTER`. This transition is explicit precisely because agrirouter can see the previous moment and not this one.
 5. **Load to agrirouter.** The endpoint now sends the objects it holds that the canonical set did not contain, plus any it changed while resolving conflicts. Because it reconciled first, it sends genuinely new objects instead of duplicates of ones it just received.
-6. **Complete.** When the endpoint has sent everything, the entity type enters `COMPLETED`, and ordinary steady-state synchronization ([ADR 07](./07-sync-streaming.md)) applies from then on.
+6. **Complete.** When the endpoint has sent everything, it enters `COMPLETED`, and ordinary steady-state synchronization ([ADR 07](./07-sync-streaming.md)) applies from then on.
 
-The same six steps run again if the entity type is opted out and back in, but the
+The same six steps run again if the endpoint is re-routed to the hub, or if an
+entity type is added to it - the set is fixed when a load starts, and there is
+one load per endpoint, so a type opted in later means the load starts over
+covering every opted-in type, from whichever state the endpoint was in. The
 second time the endpoint's identifier mapping is still there, so step 2 delivers
 objects the endpoint recognises and steps 4 and 5 have little to do
 ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
 `previousLoadCompletedAt` on the initial-load resource is what tells the endpoint
 which of the two it is in, and an endpoint that ignores it duplicates its own data.
+Opting a type out leaves the state alone - the endpoint is still in step for what
+it remains opted into - unless it was the last one, in which case there is
+nothing left to be in step for and the state goes with it.
 
 The `RECONCILING` state enables differentiating between 3 and 4. In its absence, agrirouter would be unable to say whether it still owed the endpoint data or was waiting on a partner app - a distinction it needs for its own scheduling ([ADR 07](./07-sync-streaming.md)), and one the user-facing UI could show as well.
 
 ### The endpoint can ask for the set again
 
 ```
-PUT /endpoints/{eid}/masterdata-initial-load/farms/status
+PUT /endpoints/{eid}/masterdata-initial-load/status
 { "state": "LOADING_FROM_AGRIROUTER" }
 ```
 
@@ -93,7 +99,9 @@ so the objects come back carrying the endpoint's own `localId`.
 ### The flow in concrete calls
 
 The same six steps expressed as the actual operations of the master-data API,
-for one entity type (`farms`). `{eid}` is the endpoint's `externalEndpointId`.
+for an endpoint opted into organizations, persons and farms - the smallest
+dependency-closed set that includes farms. `{eid}` is the endpoint's
+`externalEndpointId`.
 
 ```mermaid
 %% ceasg:{"id":"8xpvwi5e"} %%
@@ -103,30 +111,30 @@ sequenceDiagram
     participant P as Partner (endpoint)
     participant AR as agrirouter (SSOT)
 
-    U->>P: opt this endpoint into farms
-    P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "farms" }] }
+    U->>P: opt this endpoint into farms (and the parties they reference)
+    P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "organizations" }, { entityType: "persons" }, { entityType: "farms" }] }
     AR-->>P: 200 MasterdataConfig
-    Note over AR: farms → LOADING_FROM_AGRIROUTER
+    Note over AR: endpoint → LOADING_FROM_AGRIROUTER
 
-    P->>AR: GET /endpoints/{eid}/masterdata-initial-load/farms/events (SSE)
+    P->>AR: GET /endpoints/{eid}/masterdata-initial-load/events (SSE)
     AR-->>P: 200 text/event-stream
-    loop every canonical farm the endpoint is entitled to
-        AR-->>P: event: MASTERDATA_CHANGED (no id:) data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, localId: P's own or absent }
-        Note over P: reconcile against own store (id mapping, user decides on conflicts)
+    loop every canonical object the endpoint is entitled to - organizations, then persons, then farms
+        AR-->>P: event: MASTERDATA_CHANGED (no id:) data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, owner: { agrirouterId: 9ab0…1234, … }, localId: P's own or absent }
+        Note over P: apply as it arrives - the owner was delivered earlier in the same stream. reconcile against own store (id mapping, user decides on conflicts)
     end
     AR-->>P: close SSE HTTP response
-    Note over AR: farms → RECONCILING (agrirouter drives this - it knows it has sent everything)
+    Note over AR: endpoint → RECONCILING (agrirouter drives this - it knows it has sent everything)
     Note over P: whole set held - user works through what is left, on their own schedule. live changes keep arriving meanwhile
-    opt referenced object not held yet
-        P->>AR: POST /masterdata/organizations/requests { agrirouterId: 9ab0…1234 }
+    opt object referenced from the live stream, not delivered by the set yet
+        P->>AR: POST /masterdata/organizations/requests { agrirouterId: 4d5e…6789 }
         AR-->>P: 202 Accepted
         AR-->>P: event: MASTERDATA_CHANGED (organization)
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status { state: "LOADING_TO_AGRIROUTER", idMappings: [{ agrirouterId: 1f2e…4567, localId: b1e7… }] }
-    AR-->>P: 200 EntityInitialLoadStatus { state: "LOADING_TO_AGRIROUTER", rejectedIdMappings: [] }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/status { state: "LOADING_TO_AGRIROUTER", idMappings: [{ agrirouterId: 1f2e…4567, localId: b1e7… }, { agrirouterId: 9ab0…1234, localId: c02a… }] }
+    AR-->>P: 200 InitialLoadStatus { state: "LOADING_TO_AGRIROUTER", rejectedIdMappings: [] }
 
-    loop every local farm that is new or was changed while resolving a conflict
+    loop every local object that is new or was changed while resolving a conflict, parties before farms
         P->>AR: PUT /masterdata/farms/{localId} { type: "farm", owner: {...}, name: "Hof Nord" }
         alt matched during reconciliation, bound above
             AR-->>P: 200 Farm { agrirouterId: 1f2e…4567, revision: 8 }
@@ -134,12 +142,12 @@ sequenceDiagram
             AR-->>P: 201 Farm { agrirouterId: 7c1d…8899, revision: 1 }
         else localId already mapped to a different canonical object
             AR-->>P: 409 Error (mapping conflict - resolved in the partner)
-            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status { awaitingUser: true }
+            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/status { awaitingUser: true }
         end
     end
 
-    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/farms/status { state: "COMPLETED" }
-    AR-->>P: 200 EntityInitialLoadStatus { state: "COMPLETED" }
+    P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/status { state: "COMPLETED" }
+    AR-->>P: 200 InitialLoadStatus { state: "COMPLETED" }
     Note over P,AR: steady-state synchronization from here on, over the same event stream
 ```
 
@@ -153,57 +161,62 @@ Points worth noting about the calls themselves:
   [ADR 10](./10-identifier-binding.md). It is also why the loop above has a `200`
   branch at all: an object matched and then edited during conflict resolution is
   an update to a canonical object, not a creation.
-- **There is an initial load /events resource per entity type.** The form of the
+- **There is one initial load /events resource per endpoint.** The form of the
   stream is the same as the persistent event stream (`GET /masterdata/events`) to
   simplify implementation, but it is a separate resource because the way initial
   load accesses data is quite different from the way steady-state sync does. It is
-  one per entity type, `.../masterdata-initial-load/{entityType}/events`, because
-  that is the granularity the state has and the path shape the status resource
-  already uses: closing a stream advances exactly the type it carried. A single
-  stream for "every type currently loading" would have to fix that set at some
-  moment, and a type opted in while it ran would either be missed or be advanced
-  to `RECONCILING` having been sent nothing.
-- **Dependency order across types is the endpoint's.** One stream could deliver
-  a referenced object before the object referencing it; several cannot promise
-  that between them. Opt-in is dependency-closed, so every referenced type has a
-  stream - this is an ordering obligation, not a missing-data one. The endpoint
-  opens the streams in dependency order, or tolerates a reference that resolves
-  once another stream delivers its target, and requests an object it needs sooner.
+  one per endpoint, `.../masterdata-initial-load/events`, because that is the
+  granularity the state has, and because the order the set has to arrive in runs
+  *across* entity types: it is the sweep [ADR 07](./07-sync-streaming.md) already
+  runs for catch-up, restricted to one endpoint and started from zero, and a
+  sweep is one pass over every type. The set a stream delivers is fixed when the
+  load starts; a type opted in while it runs restarts the load rather than being
+  missed or advanced having been sent nothing.
+- **Dependency order is agrirouter's.** The stream delivers a referenced object
+  before the objects referencing it, by tier, and opt-in is dependency-closed, so
+  every target is in the set. The endpoint applies each object as it arrives and
+  sequences nothing. What the order does *not* say is where one type ends and
+  another begins, or that the order will stay the way it is: the specification
+  reserves the right to change it, and the only promise is that references
+  resolve. During a load the one source of a reference that does not resolve yet
+  is the live stream, which is independent of this one; the endpoint requests
+  such an object rather than waiting.
 - **Opting in is what starts the first load.** `PUT .../masterdata-config` does
   it, not the endpoint. agrirouter also drives the step to `RECONCILING`, for the
-  same reason - it is the side that knows the set has been sent. The endpoint
-  drives the confirmation, the completion, and the return to
-  `LOADING_FROM_AGRIROUTER`, all through
-  `PUT .../masterdata-initial-load/{entityType}/status`. Every out-of-order
+  same reason - it is the side that knows the set has been sent - and the restart
+  when a further type is added. The endpoint drives the confirmation, the
+  completion, and the return to `LOADING_FROM_AGRIROUTER`, all through
+  `PUT .../masterdata-initial-load/status`. Every out-of-order
   transition is a `409`: the states advance in order, and the only way out of
-  that order is back to the start. Repeating the transition the entity type is
+  that order is back to the start. Repeating the transition the endpoint is
   already in is not out of order, and is `200`
   ([below](#repeating-a-transition-is-not-a-conflict)).
-- **Opting out is a second way back** Removing
-  an entity type from the configuration also discards its state, from whichever
-  state it was in, and opting it back can start the load again. These operations
+- **Opting out and back in is a second way back.** Removing an entity type from
+  the configuration stops its delivery and leaves the endpoint's state alone -
+  or discards it, if it was the last type - and adding it back restarts the load
+  for every opted-in type. These operations
   are not supposed to work back to back in order to do this restart even though it is technically possible, but instead using state machine transition is preferred directly.
 - **The endpoint reads the state machine, it does not keep one.** agrirouter is
   authoritative for every phase, including whether the canonical set finished
   arriving (that is the difference between
   `LOADING_FROM_AGRIROUTER` and `RECONCILING`). So
-  `GET /endpoints/{eid}/masterdata-initial-load` answers both questions an
+  `GET /endpoints/{eid}/masterdata-initial-load/status` answers both questions an
   endpoint that restarted mid-flow has: whether it still owes a push, and whether
   it holds the whole set.
 - **The to-agrirouter direction uses the ordinary send operation.**  There is no
   special initial-load write path - `PUT /masterdata/farms/{localId}` is the same
   call the endpoint uses in steady state, and the same `409` signals a
   [non-unique mapping](#granularity-mismatches-and-differing-requirements).
-- **There is no "not started" state.** An entity type has an initial-load state
-  only once it is opted in - the absence of a toggle in `masterdata-config`
-  already says it does not participate, and a second representation of that
-  would allow the two to disagree. Opting out discards the state along with the
-  toggle, so opting back in reloads rather than resumes - see above for why
-  resuming would not be safe.
+- **There is no "not started" state.** An endpoint has an initial-load state
+  only once it is opted into something - the absence of any toggle in
+  `masterdata-config` already says it does not participate, and a second
+  representation of that would allow the two to disagree. Opting the last type
+  out discards the state along with the toggle, so opting back in reloads rather
+  than resumes - see above for why resuming would not be safe.
 
 ### Repeating a transition is not a conflict
 
-An endpoint that sets the state its entity type is already in gets `200` and the
+An endpoint that sets the state it is already in gets `200` and the
 current status, never the `409` reserved for transitions out of order. Where the
 request carries `idMappings`, agrirouter applies every pair again - each bind is
 idempotent on its own ([ADR 10](./10-identifier-binding.md)) - and recomputes
@@ -226,7 +239,7 @@ While reconciling, the endpoint may find that its own object and the canonical o
 
 The conflicts are in the partner's software, but the user who connected the endpoint is not necessarily there. Three questions follow: whether agrirouter has to be told that conflicts exist, whether it should send the user somewhere, and what happens when no user is present at all.
 
-**agrirouter is told that reconciliation needs user action.** The endpoint raises `awaitingUser` flag on the entity type's status the moment its own software detects that reconciliation is needed, and agrirouter clears it on the next forward transition. That is the whole of the reporting:
+**agrirouter is told that reconciliation needs user action.** The endpoint raises `awaitingUser` flag on its status the moment its own software detects that reconciliation is needed, and agrirouter clears it on the next forward transition. That is the whole of the reporting:
 
 | what agrirouter holds | what agrirouter UI says about the endpoint |
 | --- | --- |
@@ -238,7 +251,7 @@ The conflicts are in the partner's software, but the user who connected the endp
 | `LOADING_TO_AGRIROUTER`, `awaitingUser` set | waiting for you in *app* |
 | `COMPLETED` | in sync |
 
-`awaitingUser` is a flag signifying that user action is needed to perform reconciliation. It is reset by a transition agrirouter owns rather than by a second call from the endpoint. It is specified per entity type, like the resource it sits on, so farms can be clean while fields wait.
+`awaitingUser` is a flag signifying that user action is needed to perform reconciliation. It is reset by a transition agrirouter owns rather than by a second call from the endpoint. It is one flag per endpoint, like the resource it sits on: reconciliation is one job in the partner's software, and a user who is needed for fields is needed, full stop.
 
 **Every phase before `COMPLETED` can need a person.** Reconciling against the canonical set is the obvious source of conflicts, and they surface object by object as objects arrive - so the flag can be raised while the set is still being delivered, not only once it is complete. The push direction produces them too: a `PUT /masterdata/farms/{localId}` can come back `409` because the canonical object it names is already mapped to a different `localId` ([below](#granularity-mismatches-and-differing-requirements)), and resolving that is a decision in the partner's software just the same.
 
@@ -271,7 +284,7 @@ Two kinds of interruption look alike and are handled differently.
 
 An already-`COMPLETED` endpoint going offline while changes accumulate is the live stream's concern. Its application resumes from the last delivery position it durably applied - the **delivery cursor** [ADR 03](./03-revision-model.md) calls for rather than the per-object `revision` - carried as `Last-Event-ID`; its shape, and the fact that it cannot expire, are described in [ADR 07](./07-sync-streaming.md).
 
-A connection dropping mid-load is not that case, and the live stream's resume mechanic does not transfer to it. An initial-load stream delivers a fixed set of one entity type rather than a sequence of changes, so it carries no position: its frames carry no `id:`, it does not accept `Last-Event-ID`, and a dropped connection is recovered by connecting again and taking that type's set from the beginning. Order within the set is unspecified, so there is no offset to pick up from either; what the per-type split buys is that a drop costs one type's set rather than every type's. What the endpoint reads to decide whether it must reconnect is the entity type's state: agrirouter advances it to `RECONCILING` only after sending everything, so a type still at `LOADING_FROM_AGRIROUTER` after the response closed has not been delivered in full.
+A connection dropping mid-load is not that case, and the live stream's resume mechanic does not transfer to it. An initial-load stream delivers a fixed set rather than a sequence of changes, so it carries no position: its frames carry no `id:`, it does not accept `Last-Event-ID`, and a dropped connection is recovered by connecting again and taking the set from the beginning. The order the set arrives in is agrirouter's and may change, so there is no offset to pick up from either. A drop therefore costs the whole set, which is the same price an interrupted sweep pays on the live stream and is bounded the same way ([ADR 07](./07-sync-streaming.md)). What the endpoint reads to decide whether it must reconnect is its state: agrirouter advances it to `RECONCILING` only after sending everything, so an endpoint still at `LOADING_FROM_AGRIROUTER` after the response closed has not been delivered in full.
 
 Here is approximate lifecycle that we are expected to support:
 
@@ -291,22 +304,52 @@ flowchart TB
     %% mermaid-flow:pos START=270,60 INITIAL_LOAD=270,165 OPERATING=270,275 DOWN=110,395 CATCHING_UP=430,395
 ```
 
+### Rejected alternative: a state machine and a stream per entity type
+
+An earlier revision of this ADR kept the state, the status resource and the
+stream per entity type: `.../masterdata-initial-load/{entityType}/events` and
+`.../{entityType}/status`, each advancing on its own. It bought three things.
+Closing a stream advanced exactly the type it carried, so a type opted in while
+another was streaming needed no special handling. A dropped connection cost one
+type's set rather than every type's. And the confirmation carried the bindings of
+one type, matching the granularity a partner might reconcile at.
+
+What it cost was the order. One stream can deliver a referenced object before the
+object referencing it; several cannot promise that between them, so ordering
+across types moved to the endpoint - open the streams in dependency order, or
+tolerate references that resolve only once another stream has delivered their
+target. Every partner implemented that separately, the partner that opened its
+streams in parallel got dangling references it then had to request one by one,
+and the endpoint was deriving on its side an order agrirouter already produces
+for the same objects on the live stream's catch-up
+([ADR 07](./07-sync-streaming.md#the-sweep-delivers-in-tier-order)). It also
+meant five states to poll, five confirmations to send and five flags to raise for
+what is one job in the partner's software.
+
+One state and one stream per endpoint puts the order where the knowledge is.
+The one situation the per-type design handled for free - a type added mid-load -
+is handled by fixing the set when a load starts and restarting the load when the
+set would change, which costs a repeat delivery of already-matched objects and
+nothing else. The per-type granularity of a dropped connection is given up: a
+drop costs the whole set, as an interrupted sweep does on the live stream.
+
 ## Consequences
 
-- agrirouter holds an explicit per-endpoint, per-entity-type initial-load state and exposes it as a `status` subresource that the endpoint reads and advances by setting its state (confirm receipt, then complete), as part of the master-data API.
+- agrirouter holds an explicit per-endpoint initial-load state, covering every entity type the endpoint is opted into, and exposes it as a `status` resource that the endpoint reads and advances by setting its state (confirm receipt, then complete), as part of the master-data API.
 - The "from agrirouter, then to agrirouter" ordering is what prevents duplication: reconciliation happens against the canonical set before the endpoint sends anything.
 - Some of the hard parts are intentionally organizational: conflict resolution and granularity mismatches live in partner software, so the protocol defines the flow and the failure signals but not the resolution.
-- Initial load has no position of its own. A returning `COMPLETED` endpoint is served by the live stream from its application's cursor; an interrupted load is taken again from the beginning, and the per-type state, not the stream, says whether that is needed.
-- agrirouter learns that a user action is needed, never what for. `awaitingUser` is one bit per entity type, monotonic within a window and cleared by the endpoint-driven transition that ends it.
+- Initial load has no position of its own. A returning `COMPLETED` endpoint is served by the live stream from its application's cursor; an interrupted load is taken again from the beginning, and the endpoint's state, not the stream, says whether that is needed.
+- agrirouter learns that a user action is needed, never what for. `awaitingUser` is one bit per endpoint, monotonic within a window and cleared by the endpoint-driven transition that ends it.
 - The bit is advisory. Endpoints that omit it cost only label precision, and nothing in the flow branches on it.
 - `masterdata-config` gains an optional `resolutionUrl`, which is the only thing a partner has to supply for agrirouter to point a user at the right screen, and default routing never opts an endpoint into the hub.
-- Either endpoint-driven transition *may* wait on a human - the confirmation on reconciliation, the completion on a rejected push - and neither necessarily does: an endpoint with no conflicts, or one whose conflicts its own rules settle, advances straight through. What agrirouter cannot tell is which case it is in, since it sees only when it finished sending. So an entity type can sit in either loading state for days without anything being wrong, and no timeout on them would be meaningful.
+- Either endpoint-driven transition *may* wait on a human - the confirmation on reconciliation, the completion on a rejected push - and neither necessarily does: an endpoint with no conflicts, or one whose conflicts its own rules settle, advances straight through. What agrirouter cannot tell is which case it is in, since it sees only when it finished sending. So an endpoint can sit in either loading state for days without anything being wrong, and no timeout on them would be meaningful.
 - `RECONCILING` separates "agrirouter still owes data" from "the endpoint still owes a decision". agrirouter needs that distinction for its own scheduling - on a reconnect it must know whether a sweep is outstanding ([ADR 07](./07-sync-streaming.md)) - and publishing it rather than hiding it keeps a single representation of the phase, consistent with there being no "not started" state.
 - The state machine has agrirouter-driven and endpoint-driven edges. Opt-in and the step to `RECONCILING` are agrirouter's; the confirmation, the completion, and the return to `LOADING_FROM_AGRIROUTER` are the endpoint's.
-- **A partner can re-seed itself, so the state is not evidence of a user's intent.** An entity type back in `LOADING_FROM_AGRIROUTER` means the endpoint asked for the set, which is not the same as a user opting in, and a UI that reports it as "connecting for the first time" will be wrong sooner or later.
+- **A partner can re-seed itself, so the state is not evidence of a user's intent.** An endpoint back in `LOADING_FROM_AGRIROUTER` means the endpoint asked for the set, or a type was added, which is not the same as a user connecting, and a UI that reports it as "connecting for the first time" will be wrong sooner or later.
 - Confirming from `LOADING_FROM_AGRIROUTER` is a `409`. An endpoint cannot have reconciled a set it has not finished receiving.
 - Repeating the current transition is `200`, with `idMappings` re-applied and `rejectedIdMappings` recomputed. A lost response on the confirmation is recovered by sending it again, which is the only recovery available since the mapping cannot be read back.
-- The initial-load stream is per endpoint and entity type, like the state it serves. Ordering across types moves to the endpoint with it: it opens the streams in dependency order or tolerates references that resolve later, and opt-in closure guarantees the target exists.
-- Initial-load state is keyed per endpoint and entity type, while the delivery cursor is keyed per application ([ADR 07](./07-sync-streaming.md)). One connection therefore carries the loads of many tenants at once, each at its own phase, and an application MUST NOT treat "my stream is in initial load" as a single condition.
-- Because event delivery does not expire, an entity type can sit in either loading state indefinitely without putting the endpoint's position at risk. The only cost of a slow user is a canonical set that has moved on.
+- The initial-load stream is per endpoint, like the state it serves, and agrirouter orders it: a referenced object precedes the objects referencing it, across every opted-in type, and opt-in closure guarantees the target is in the set. The endpoint applies objects as they arrive and sequences nothing. The order is agrirouter's to change, and the specification says so; an endpoint that reads anything but resolvable references out of it is relying on an implementation detail.
+- Adding an entity type restarts the endpoint's load. The set is fixed when a load starts, and there is one load per endpoint, so a type opted in later is delivered by sending the whole set again. Already-loaded objects arrive matched, so the repeat costs bandwidth, not reconciliation. Opting a type out leaves the state where it is, unless it was the last one.
+- Initial-load state is keyed per endpoint, while the delivery cursor is keyed per application ([ADR 07](./07-sync-streaming.md)). The live stream therefore carries endpoints at every phase of initial load at once, and an application MUST NOT treat "my stream is in initial load" as a single condition.
+- Because event delivery does not expire, an endpoint can sit in either loading state indefinitely without putting its application's position at risk. The only cost of a slow user is a canonical set that has moved on.
 - Several details remain open: best-practice guidance for implementors on conflicts and differing requirements.

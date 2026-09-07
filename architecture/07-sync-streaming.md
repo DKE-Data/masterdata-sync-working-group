@@ -146,6 +146,23 @@ An object unchanged since `after` is outside the filter, so the sweep skips it e
 when it delivers that object's children. The reference still resolves: unchanged
 since the cursor means it was delivered before the cursor was written.
 
+Tier order is how the promise is kept, not the promise. What the specification
+gives an application is that references resolve as objects arrive; the order
+that achieves it is ours, the specification says it may change, and an
+application that reads anything more out of it - where one type ends, which type
+comes first - is relying on an implementation detail this ADR is free to revise.
+
+### The initial-load stream is the same sweep
+
+The initial-load stream of [ADR 06](./06-initial-load.md) is this sweep with
+`after` at zero, restricted to one endpoint and to the entity types it is opted
+into, and with neither buffer nor cursor: live changes go to the live stream,
+which runs independently, and the response closes when the sweep ends. That is
+what lets the initial-load set arrive in tier order without the endpoint doing
+anything, and it is why there is one initial-load stream per endpoint rather
+than one per entity type - the order runs across types, and a sweep is one pass
+over all of them.
+
 ### Live changes are buffered until the sweep ends
 
 A change landing while the sweep runs cannot go straight out. The sweep is walking
@@ -213,8 +230,9 @@ the one that created its target.
 ### The cursor is a single change number
 
 The cursor is the change number of the last frame the application durably applied.
-There is nothing else in it, in any state, and two cursors compare as the integers
-they are.
+There is nothing else in it, in any state, and on our side two cursors compare as
+the integers they are. On the wire it is wrapped so that the application cannot
+do the same ([below](#the-id-on-the-wire-is-versioned-encoded-and-signed)).
 
 **It does not advance while a sweep runs.** Sweep frames carry the change number
 the sweep started from. Change numbers ascend within a tier and start over at the
@@ -251,16 +269,56 @@ The id remains **opaque**, and an application MUST NOT depend on it holding stil
 across a sweep. Carrying sweep progress in it is what would make an interrupted
 sweep resumable, and that option is deliberately left open.
 
-The value rides in `Last-Event-ID`, which SSE treats as opaque. Damage to it is
-largely self-limiting - truncating or corrupting a decimal integer overwhelmingly
-yields a smaller one, which costs redelivery rather than a gap - so agrirouter need
-only reject a value above the current change number, and serve a rejected one as a
-first connection.
+### The id on the wire is versioned, encoded, and signed
+
+The `id:` of a frame, and so the value in `Last-Event-ID`, has the shape
+
+```
+v1.<payload>.<signature>
+```
+
+for example `v1.f8yQ_KL5hHBS.TBQjL_8GeXSs6TIxFzsdQQ`. The three parts are:
+
+- **a version**, `v1`, naming the structure of the rest;
+- **a payload**, base64url without padding, that carries the change number and
+  whatever a later version adds to it - sweep progress, should the option above
+  ever be taken;
+- **a signature**, base64url without padding, a MAC over the version and payload
+  under a key only agrirouter holds.
+
+The specification says none of this. There the id is an opaque string of
+undefined structure, and the example is an illustration of its shape; the
+structure is described here so that the reasons for it are on record, not so
+that anyone builds against it.
+
+A bare decimal - `42` - was the earlier form, and it invited exactly what the
+specification forbids. It reads as a number, so a client compares two of them,
+adds one, persists it as an integer column, or hand-crafts a resume point, and
+each of those is an assumption we want to be free to break. The wrapped form
+removes the temptation rather than the rule: nothing in it looks like a number,
+so nothing in a client can come to depend on the number that is in it.
+
+Each part does one job. The **signature** makes an id agrirouter did not issue
+detectable, so a constructed or edited value is served as a first connection
+rather than trusted - the earlier design leaned on decimal damage being mostly
+harmless, which is an argument about luck. The **version** lets the payload
+change shape without a flag day, since clients never parse it and agrirouter
+reads only what it wrote. The **encoding** keeps the change number out of sight,
+which is what makes the opacity the specification asks for real rather than
+polite. Inside, agrirouter still has a comparable integer, and everything above
+about the cursor holds unchanged.
+
+What an application loses is the ability to order two ids itself. It never needed
+to: the one place the specification asked for "the lowest" position - parallel
+apply - is answered by delivery order, the id of the earliest frame in the order
+the stream delivered them that is not yet applied, and the specification now says
+so in those terms.
 
 ### A cursor we cannot read is a first connection
 
-An application that presents no `Last-Event-ID`, or one that fails validation, is
-swept from zero.
+An application that presents no `Last-Event-ID`, or one that fails validation -
+a signature that does not verify, a version agrirouter does not issue, or a change
+number above the current one - is swept from zero.
 
 Discarding the cursor is therefore how an application asks for every object it is
 entitled to, again.
@@ -387,14 +445,23 @@ changed during one sweep; the ordering has no substitute.
 - **The order promises resolvable references, nothing else.** Tiers are how that is
   achieved rather than something an application reads: anything keyed per entity type
   has to derive its own completion, and the delivery carries one boundary,
-  `CAUGHT_UP`, covering the sweep as a whole.
+  `CAUGHT_UP`, covering the sweep as a whole. The specification reserves the
+  right to change the order, so the tier table above is ours to revise without
+  a client noticing.
+- **Initial load rides the same sweep.** One endpoint, every opted-in type, from
+  zero, no buffer and no cursor. Ordering the initial-load set costs nothing
+  extra, and the endpoint gets one stream instead of one per type
+  ([ADR 06](./06-initial-load.md)).
 - **An interrupted sweep is repeated, not resumed**, and the cost scales with how
   far it got. A large first load over an unreliable connection is the case to
   watch: a sweep that cannot finish between drops does not converge, so
   throughput and connection stability bound how large a set can be delivered.
-- **Cursors are comparable integers.** An application applying in parallel commits
-  the lowest position it has not yet applied, rather than tracking the order
-  frames arrived in.
+- **Cursors are integers to agrirouter and opaque tokens to the application.**
+  An application applying in parallel commits the id of the earliest frame, in
+  delivery order, that it has not yet applied; it cannot compare two ids and
+  MUST NOT try. The id is versioned and signed, so a value agrirouter did not
+  issue is detected rather than trusted, and the payload can change shape
+  without breaking anyone.
 - **Entitlement gained below the cursor is not reachable from here.** The filter
   excludes it and the buffer never sees it. A cursor records a position, not what
   the application was entitled to on reaching it, so delivery cannot tell data it

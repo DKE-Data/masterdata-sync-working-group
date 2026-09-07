@@ -217,8 +217,8 @@ paths:
       summary: Request an organization (lazy loading)
       description: >
         Refetches an organization the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by an object that arrived
-        before its own entity type's initial-load stream delivered it.
+        an object lost locally, or one referenced by an object that arrived on
+        the live stream before the initial-load stream delivered its target.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
@@ -395,8 +395,8 @@ paths:
       summary: Request a person (lazy loading)
       description: >
         Refetches a person the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by an object that arrived
-        before its own entity type's initial-load stream delivered it.
+        an object lost locally, or one referenced by an object that arrived on
+        the live stream before the initial-load stream delivered its target.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
@@ -573,8 +573,8 @@ paths:
       summary: Request a farm (lazy loading)
       description: >
         Refetches a farm the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by an object that arrived
-        before its own entity type's initial-load stream delivered it.
+        an object lost locally, or one referenced by an object that arrived on
+        the live stream before the initial-load stream delivered its target.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
@@ -751,8 +751,8 @@ paths:
       summary: Request a field (lazy loading)
       description: >
         Refetches a field the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by an object that arrived
-        before its own entity type's initial-load stream delivered it.
+        an object lost locally, or one referenced by an object that arrived on
+        the live stream before the initial-load stream delivered its target.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
@@ -929,8 +929,8 @@ paths:
       summary: Request a field boundary (lazy loading)
       description: >
         Refetches a field boundary the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by an object that arrived
-        before its own entity type's initial-load stream delivered it.
+        an object lost locally, or one referenced by an object that arrived on
+        the live stream before the initial-load stream delivered its target.
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
@@ -967,15 +967,20 @@ paths:
 
         This stream carries steady-state synchronization only. Initial load is
         delivered separately, per endpoint, by
-        `/endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/events`;
+        `/endpoints/{externalEndpointId}/masterdata-initial-load/events`;
         the two are independent and are not deduplicated against each other, so an
         object may arrive on both while an endpoint is loading.
 
         An application reconnecting after an absence is served catch-up before
         live changes: everything it is entitled to that changed since its
         position, ordered so that a referenced object precedes the objects that
-        reference it, ending with a `CAUGHT_UP` event. `Last-Event-ID` is the only
-        position the application keeps, and positions do not expire.
+        reference it, ending with a `CAUGHT_UP` event. That is the only property
+        of the order an application may rely on. The order itself is
+        agrirouter's and may change in a later version of this API, so an
+        application MUST NOT depend on the position of one entity type relative
+        to another, or read the completeness of an entity type out of it.
+        `Last-Event-ID` is the only position the application keeps, and
+        positions do not expire.
       operationId: streamMasterdataEvents
       parameters:
         - $ref: '#/components/parameters/LastEventId'
@@ -998,7 +1003,8 @@ paths:
                   persists once it has durably applied the frame, and returns as
                   `Last-Event-ID` on reconnect. `id` may repeat across some events
                   and application should not expect it would always advance or
-                  attempt to parse it in any way, `id` must be treated as an opaque string.
+                  attempt to parse, compare, or construct it in any way: `id` must
+                  be treated as an opaque string whose structure may change.
                   Whatever `id` a frame carries is safe to resume from once that
                   frame and every frame before it have been applied.
                 $ref: '#/components/schemas/Entity'
@@ -1035,19 +1041,27 @@ paths:
         organizations and persons those farms reference, to be enabled as well. A configuration that is
         not dependency-closed is rejected with `400`.
 
-        Opting an entity type in also starts its initial load: that entity type
-        enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load
-        resource), and its canonical set is collected by the endpoint from
-        `/endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/events`. The set
+        Opting the endpoint into its first entity type starts its initial load:
+        the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial
+        Load resource), and its canonical set — every object of every opted-in
+        entity type — is collected by the endpoint from
+        `/endpoints/{externalEndpointId}/masterdata-initial-load/events`. The set
         waits there until the endpoint connects and is not lost if it is
-        disconnected at the time. Removing a toggle opts the entity type out and
-        discards its initial-load state, so opting it back in runs a full initial
-        load. Opting out discards neither the canonical objects nor the
-        application's identifier mapping, so that repeat load arrives matched —
-        `previousLoadCompletedAt` on the Initial Load resource marks it as a
-        repeat. An endpoint that needs the set again SHOULD set
-        `LOADING_FROM_AGRIROUTER` on the Initial Load status subresource rather
-        than opting the entity type out and back in.
+        disconnected at the time.
+
+        Initial load is one state and one stream per endpoint, not per entity
+        type. Adding an entity type to an endpoint that already has initial-load
+        state therefore restarts the load, from whatever state the endpoint is
+        in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again,
+        covering every opted-in type, since agrirouter cannot enumerate what the
+        endpoint missed while the type was not opted in. Removing a toggle stops
+        delivery of that entity type and leaves the initial-load state as it
+        is; removing the last toggle discards it. Opting out discards neither
+        the canonical objects nor the application's identifier mapping, so a
+        repeat load arrives matched, and `previousLoadCompletedAt` on the
+        Initial Load resource marks it as a repeat. An endpoint that needs the
+        set again SHOULD set `LOADING_FROM_AGRIROUTER` on the Initial Load
+        status resource rather than opting an entity type out and back in.
       operationId: putMasterdataConfig
       requestBody:
         required: true
@@ -1069,17 +1083,16 @@ paths:
 
   # ----------------------------------------------------------------- initial load
 
-  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/events:
+  /endpoints/{externalEndpointId}/masterdata-initial-load/events:
     parameters:
       - $ref: '#/components/parameters/ExternalEndpointId'
-      - $ref: '#/components/parameters/InitialLoadEntityType'
     get:
       tags: [InitialLoad]
-      summary: Receive the endpoint's canonical set of one entity type (Server-Sent Events)
+      summary: Receive the endpoint's canonical set (Server-Sent Events)
       description: >
-        Delivers the canonical set this endpoint is owed for one entity type:
-        every object of that type it is entitled to, while the type is in
-        `LOADING_FROM_AGRIROUTER`. One stream per entity type, matching the
+        Delivers the canonical set this endpoint is owed: every object of every
+        entity type it is opted into that it is entitled to, while the endpoint
+        is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the
         granularity of the initial-load state and the shape of its status
         resource. The set is complete: objects that are deactivated are part of
         it and arrive with `active: false`, and so are objects whose current
@@ -1089,18 +1102,22 @@ paths:
         object carries the application's own identifier in `localId` where
         agrirouter holds one.
 
-        agrirouter closes the HTTP response once it has sent the whole set of
-        that entity type and then moves that entity type, and only that one, to
-        `RECONCILING`. A type opted in while another is streaming is unaffected.
+        agrirouter closes the HTTP response once it has sent the whole set and
+        then moves the endpoint to `RECONCILING`. The set is fixed when the load
+        starts: an entity type opted in while the set is streaming restarts the
+        load, so the endpoint re-enters `LOADING_FROM_AGRIROUTER` and the set is
+        sent again including the new type.
 
-        Ordering across entity types is the endpoint's obligation. Opt-in is
-        dependency-closed, so every type an object can reference is opted in
-        and has a stream of its own; the endpoint opens the streams in
-        dependency order (organizations and field boundaries, then persons, then
-        farms, then fields), or tolerates a reference that resolves only once
-        another type's stream has delivered its target. An object it needs
-        sooner it requests (`POST /masterdata/<types>/requests`). Order within
-        one entity type is unspecified.
+        Order is agrirouter's, not the endpoint's. The set is delivered so that a
+        referenced object precedes the objects that reference it, as catch-up on
+        `/masterdata/events` is, and opt-in is dependency-closed, so the target
+        of every reference is in the set and an endpoint can apply each object
+        as it arrives. That is the only property of the order an endpoint may
+        rely on: the order itself may change in a later version of this API, so
+        an endpoint MUST NOT depend on the position of one entity type relative
+        to another, or read the completeness of an entity type out of it. An
+        object referenced from the live stream that this stream has not
+        delivered yet is requested (`POST /masterdata/<types>/requests`).
 
         The stream carries **no delivery position**: it delivers a set rather than
         a sequence of changes, so it takes no `Last-Event-ID`, its frames carry no
@@ -1109,7 +1126,7 @@ paths:
 
         An endpoint MUST NOT treat the response ending as proof that the set
         arrived — a dropped connection ends it the same way. Whether the set was
-        sent is recorded in the entity type's state on the Initial Load resource,
+        sent is recorded in the endpoint's state on the Initial Load resource,
         which agrirouter advances only after sending everything.
 
         This stream is independent of the application's steady-state stream
@@ -1128,8 +1145,8 @@ paths:
                   SSE stream as defined in https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
 
                   SSE event would carry three parts: "id:", "event:" and "data:".
-                  
-                  Every frame carries an `event:` of `MASTERDATA_CHANGED` 
+
+                  Every frame carries an `event:` of `MASTERDATA_CHANGED`
                   and an `Entity` type in the `data:` payload.
                 $ref: '#/components/schemas/Entity'
         '403':
@@ -1137,28 +1154,29 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /endpoints/{externalEndpointId}/masterdata-initial-load:
+  /endpoints/{externalEndpointId}/masterdata-initial-load/status:
     parameters:
       - $ref: '#/components/parameters/ExternalEndpointId'
     get:
       tags: [InitialLoad]
-      summary: Get initial load status for all entity types
+      summary: Get the endpoint's initial load status
       description: >
-        Returns the per-entity-type initial load state for the endpoint. Only
-        entity types the endpoint is opted into are listed. The state machine per
-        entity type is:
+        Returns the endpoint's initial load state. There is one state per
+        endpoint, covering every entity type it is opted into; an endpoint
+        opted into no entity type has no initial-load state and is `404`. The
+        state machine is:
         `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
         `COMPLETED`, with a return to `LOADING_FROM_AGRIROUTER` available from any
-        state for an endpoint that needs the canonical set again. Opting an entity
-        type in (via the master-data configuration)
-        starts it at `LOADING_FROM_AGRIROUTER`, and agrirouter itself advances it
-        to `RECONCILING` once the whole canonical set has been sent; the endpoint
-        drives the remaining transitions by sending a PUT request to its
-        per-entity-type `status` subresource.
+        state for an endpoint that needs the canonical set again. Opting the
+        endpoint into its first entity type (via the master-data configuration)
+        starts it at `LOADING_FROM_AGRIROUTER`, adding a further entity type
+        returns it there, and agrirouter itself advances it to `RECONCILING`
+        once the whole canonical set has been sent; the endpoint drives the
+        remaining transitions by sending a PUT request to this resource.
       operationId: getInitialLoadStatus
       responses:
         '200':
-          description: The endpoint's initial load status across all entity types.
+          description: The endpoint's initial load status.
           content:
             application/json:
               schema:
@@ -1167,31 +1185,11 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /endpoints/{externalEndpointId}/masterdata-initial-load/{entityType}/status:
-    parameters:
-      - $ref: '#/components/parameters/ExternalEndpointId'
-      - $ref: '#/components/parameters/InitialLoadEntityType'
-    get:
-      tags: [InitialLoad]
-      summary: Get initial load status for one entity type
-      operationId: getEntityInitialLoadStatus
-      responses:
-        '200':
-          description: The initial load status for this entity type.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityInitialLoadStatus'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
     put:
       tags: [InitialLoad]
-      summary: Set the initial load state for one entity type
+      summary: Set the endpoint's initial load state
       description: >
-        Sets this entity type's initial-load `state`. The states advance in order
+        Sets the endpoint's initial-load `state`. The states advance in order
         and agrirouter rejects any other transition with `409`, with one exception:
         `LOADING_FROM_AGRIROUTER` may be set from any state, which asks for the
         canonical set again.
@@ -1199,10 +1197,10 @@ paths:
 
         Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has *reconciled* the
         canonical set, not merely received it. Receipt is already recorded:
-        agrirouter moved the entity type to `RECONCILING` when it finished sending,
+        agrirouter moved the endpoint to `RECONCILING` when it finished sending,
         so this operation asserts only that the conflicts reconciling surfaced have
         been resolved in the endpoint's own software. That is human-paced and
-        unbounded, so an entity type may sit in `RECONCILING` for a long time
+        unbounded, so an endpoint may sit in `RECONCILING` for a long time
         without anything being wrong. Carry the bindings reconciliation produced
         in `idMappings`, so the objects the endpoint matched resolve to the
         canonical objects they were matched to. From that point the endpoint sends
@@ -1211,9 +1209,9 @@ paths:
         steady-state (day-2) synchronization applies.
 
 
-        Setting `LOADING_TO_AGRIROUTER` while the entity type is still
+        Setting `LOADING_TO_AGRIROUTER` while the endpoint is still
         `LOADING_FROM_AGRIROUTER` is rejected with `409`: the endpoint cannot have
-        reconciled a set it has not finished receiving. An entity type first enters
+        reconciled a set it has not finished receiving. An endpoint first enters
         `LOADING_FROM_AGRIROUTER` when it is opted in, and leaves it when
         agrirouter has sent the set — neither happens through this operation.
 
@@ -1224,7 +1222,7 @@ paths:
         otherwise loses the correspondence between its records and the canonical
         objects. The set is then owed again on this endpoint's initial-load
         stream, exactly as it is for a first load, and the endpoint walks the same
-        states out again. Use this rather than opting the entity
+        states out again. Use this rather than opting an entity
         type out and back in: that reaches the same place, but it takes two writes
         to the opt-in configuration — not atomic, so a failure between them leaves
         the user opted out with delivery stopped — and it records a partner's
@@ -1240,14 +1238,14 @@ paths:
 
 
         Repeating an endpoint-driven transition is not a conflict. Setting the
-        state the entity type is already in returns `200` with the current
+        state the endpoint is already in returns `200` with the current
         status; if the request carries `idMappings`, each pair is applied again
         — binding is idempotent per pair — and `rejectedIdMappings` is
         recomputed against the mapping as it now stands. That is how an endpoint
         recovers from a lost response: it cannot read its mapping back, so
         repeating the confirmation is its only way to learn which bindings were
         recorded. Only out-of-order transitions are `409`.
-      operationId: setEntityInitialLoadState
+      operationId: setInitialLoadState
       requestBody:
         required: true
         content:
@@ -1256,11 +1254,11 @@ paths:
               $ref: '#/components/schemas/InitialLoadStateUpdate'
       responses:
         '200':
-          description: Updated initial load status for this entity type.
+          description: Updated initial load status for this endpoint.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntityInitialLoadStatus'
+                $ref: '#/components/schemas/InitialLoadStatus'
         '400':
           $ref: '#/components/responses/ValidationError'
         '403':
@@ -1369,16 +1367,6 @@ components:
         endpoint by its agrirouter ID in a header instead, as sending does.
       schema:
         type: string
-    InitialLoadEntityType:
-      name: entityType
-      in: path
-      required: true
-      description: The master-data entity type.
-      schema:
-        type: string
-        examples: [organizations, persons, farms, fields, field-boundaries]
-        description: >
-          [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
     LastEventId:
       name: Last-Event-ID
       in: header
@@ -1388,7 +1376,9 @@ components:
         stream, as agrirouter issued it in the `id:` field of an SSE
         frame.
         The application MUST send it back exactly as issued, treat it as an opaque string
-        and MUST NOT construct or modify it in any way.
+        and MUST NOT interpret, compare, construct, or modify it in any way. Its
+        structure is not defined by this API and may change; the example below
+        illustrates its size and shape only.
 
         It does not always advance on every frame: the same value may repeat
         on some frames, and an application MUST NOT read anything into that
@@ -1398,22 +1388,24 @@ components:
         The application MUST save it from what it has **durably applied**
         rather than from whatever its stream client last read; delivery is
         at-least-once, so everything after it is sent again on reconnect. Where
-        applies complete out of order, store the lowest position received and not
-        yet applied. It does not expire, and agrirouter stores no copy of it.
+        applies complete out of order, store the id of the earliest frame, in
+        the order the stream delivered them, that is not yet applied: ids are
+        not comparable by the application, so this is a matter of remembering
+        delivery order. It does not expire, and agrirouter stores no copy of it.
 
 
-        Omitted, or present and unreadable, is served as a first connection on
-        this stream: everything the application is entitled to, ending with a
-        `CAUGHT_UP` frame. That costs the application its place in the stream and
-        not its entitlement, and is how it asks for every entity to be delivered
-        again.
+        Omitted, or present and one agrirouter cannot validate, is served as a
+        first connection on this stream: everything the application is entitled
+        to, ending with a `CAUGHT_UP` frame. That costs the application its place
+        in the stream and not its entitlement, and is how it asks for every
+        entity to be delivered again.
 
 
         This parameter applies to `/masterdata/events` only. The initial-load
         stream carries no position and does not accept it.
       schema:
         type: string
-      example: '42'
+      example: 'v1.f8yQ_KL5hHBS.TBQjL_8GeXSs6TIxFzsdQQ'
 
   requestBodies:
     EntityRequest:
@@ -1489,9 +1481,9 @@ components:
             $ref: '#/components/schemas/MappingConflictError'
     InitialLoadConflict:
       description: >
-        The requested transition is not valid from the entity type's current
-        initial load state (e.g. confirming before opt-in, or completing before
-        confirming).
+        The requested transition is not valid from the endpoint's current
+        initial load state (e.g. confirming before the set has been sent, or
+        completing before confirming).
       content:
         application/json:
           schema:
@@ -2146,24 +2138,27 @@ components:
           description: >
             Where the user resolves initial-load conflicts in the endpoint's own
             software. Optional, opaque to agrirouter, and not per conflict: it is
-            rendered as a link while an entity type has `awaitingUser` set.
+            rendered as a link while the endpoint has `awaitingUser` set.
           examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
     InitialLoadState:
       type: string
       description: >
-        Per-endpoint, per-entity-type initial-load state.
+        Per-endpoint initial-load state, covering every entity type the
+        endpoint is opted into.
 
 
         `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set.
-        Entered by opting the entity type in via the master-data configuration,
-        never through the `status` subresource.
+        Entered by opting the endpoint into its first entity type via the
+        master-data configuration, again whenever a further entity type is
+        added there, and by the endpoint asking for the set again through the
+        `status` resource.
 
 
-        `RECONCILING` — the whole canonical set of this entity type has been
-        delivered and its initial-load stream closed. agrirouter moves the entity
-        type here itself, and only this one,
+        `RECONCILING` — the whole canonical set has been delivered and the
+        initial-load stream closed. agrirouter moves the endpoint here itself,
+        and only this one,
         because it is the side that knows it has finished sending, which is also
         why this state is the authoritative answer to whether the set arrived: an
         endpoint cannot tell an orderly close from a dropped connection. The
@@ -2178,8 +2173,8 @@ components:
         `COMPLETED` — steady-state synchronization applies.
 
 
-        The endpoint drives two of these transitions, both through the entity
-        type's `status` subresource: `RECONCILING` → `LOADING_TO_AGRIROUTER` and
+        The endpoint drives two of these transitions, both through the
+        `status` resource: `RECONCILING` → `LOADING_TO_AGRIROUTER` and
         `LOADING_TO_AGRIROUTER` → `COMPLETED`.
       enum:
         - LOADING_FROM_AGRIROUTER
@@ -2187,14 +2182,20 @@ components:
         - LOADING_TO_AGRIROUTER
         - COMPLETED
 
-    EntityInitialLoadStatus:
+    InitialLoadStatus:
       type: object
+      description: >
+        The endpoint's initial-load state. One per endpoint, covering every
+        entity type it is opted into; an endpoint opted into no entity type has
+        no initial-load state.
       properties:
-        entityType:
+        endpointId:
           type: string
-          examples: [organizations, persons, farms, fields, field-boundaries]
+          format: uuid
+          readOnly: true
           description: >
-            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The agrirouter identifier of the endpoint this resource belongs to.
+            The path addresses it by the participant's own `externalEndpointId`.
         state:
           $ref: '#/components/schemas/InitialLoadState'
         awaitingUser:
@@ -2202,7 +2203,7 @@ components:
           readOnly: true
           description: >
             Whether the endpoint's own software is needing user action
-            for this entity type — a conflict, a missing required
+            — a conflict, a missing required
             attribute, a granularity mismatch. Raised by the endpoint and cleared
             by agrirouter, on the two endpoint-driven transitions only: advancing
             to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to
@@ -2216,11 +2217,12 @@ components:
           format: date-time
           readOnly: true
           description: >
-            When this entity type last reached `COMPLETED`, present only if it
+            When this endpoint last reached `COMPLETED`, present only if it
             has. Its presence means the canonical set now arriving is a repeat
             load — the endpoint was a participant before and has returned, having
-            been opted out, disconnected from the hub, or having asked for the set
-            again itself. The identifier mapping survived all three, so the objects
+            been opted out, disconnected from the hub, opted into a further
+            entity type, or having asked for the set
+            again itself. The identifier mapping survived all of these, so the objects
             arrive carrying the endpoint's own `localId` and match rather than
             reconcile. An endpoint MUST NOT take the arrival of a canonical set as
             evidence of a first connection: without this check it creates local
@@ -2243,32 +2245,12 @@ components:
           type: string
           format: date-time
           readOnly: true
-      required: [entityType, state]
-
-    InitialLoadStatus:
-      type: object
-      description: >
-        Initial-load state for every entity type the endpoint is opted into.
-        Entity types that are not opted in have no initial-load state and are
-        not listed.
-      properties:
-        endpointId:
-          type: string
-          format: uuid
-          readOnly: true
-          description: >
-            The agrirouter identifier of the endpoint this resource belongs to.
-            The path addresses it by the participant's own `externalEndpointId`.
-        entities:
-          type: array
-          items:
-            $ref: '#/components/schemas/EntityInitialLoadStatus'
-      required: [entities]
+      required: [state]
 
     InitialLoadStateUpdate:
       type: object
       description: >
-        The target initial-load `state` for an entity type. The states are
+        The target initial-load `state` for the endpoint. The states are
         accepted in order, plus `LOADING_FROM_AGRIROUTER` from any state, which
         asks for the canonical set again.
       properties:
@@ -2277,7 +2259,7 @@ components:
         awaitingUser:
           type: boolean
           description: >
-            Set to `true` when this entity type's reconciliation is requiring
+            Set to `true` when the endpoint's reconciliation is requiring
             user action, so agrirouter can show the endpoint as waiting
             rather than as still working. May be set from any state before
             `COMPLETED`, including while the canonical set is still arriving,
