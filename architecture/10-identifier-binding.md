@@ -16,7 +16,7 @@ and more frequent direction: an endpoint receives a canonical object, recognises
 it as one it already holds, and has to say so.
 
 [ADR 01](./01-reference-architecture.md) assumes the mechanism twice - the
-receiver "reports it back, completing the id mapping" during seeding, and a
+receiver "reports it back, completing the id mapping" during initial load, and a
 later edit resolves against that mapping - but neither the specification nor
 `openapi.yaml` has it. Every write path is keyed by `{localId}` and
 `agrirouterId` is `readOnly` on send.
@@ -113,11 +113,10 @@ offers is keyed by an identifier the loss took with it. The request of
 longer name to agrirouter can reach none of them, and its own next send does not
 resolve and duplicates.
 
-The exit is not a read of the mapping but a re-load: the endpoint asks for the
-canonical set again
-([ADR 06](./06-initial-load.md#the-endpoint-can-ask-for-the-set-again)), and each
-delivered object carries that endpoint's own `localId` wherever agrirouter holds
-one. The correspondence comes back attached to the objects, which is where this
+The exit is not a read of the mapping but a re-load, and the endpoint cannot
+start one: nothing re-enters `LOADING_FROM_AGRIROUTER` but a user's opt-in
+([ADR 06](./06-initial-load.md#there-is-no-way-to-ask-for-the-set-again)). Each delivered object then carries that endpoint's
+own `localId` wherever agrirouter holds one. The correspondence comes back attached to the objects, which is where this
 design puts it anyway - it is the same delivery that makes a repeat load *match*
 rather than reconcile.
 
@@ -205,7 +204,6 @@ could not settle it.
 | The endpoint keeps the correspondence privately | It already must, to reconcile deliveries against its own store. But a private table cannot be used on the write path, which is keyed by identifiers agrirouter knows. Nothing changes and the duplicates continue. |
 | The confirmation's `idMappings` is authoritative for the set - pairs it omits are unbound | Covers the mass case in one call with no new verb. But an accidentally omitted pair then unbinds silently, it says nothing about an object deleted locally in ordinary operation, and it turns a list of assertions into a list plus an implied negation of everything else. |
 | A read operation for the endpoint's own mapping, `GET /masterdata/{type}/id-mappings` | Proportionate to the failure: it returns two identifiers per object rather than the object, so an endpoint that lost only its table pays only for what it lost, and it is the sole way to *audit* a mapping rather than assume the worst about it. It discloses nothing either - both ends of every pair were asserted by the caller. Rejected on surface rather than on principle: it is five paths and a paged collection in a specification partners must implement, for a failure the [re-load](#an-endpoint-that-lost-its-own-table-re-loads) already resolves, and it makes the correspondence something agrirouter serves rather than something a participant keeps. The audit case survives as an open issue. |
-| An endpoint that lost its table opts the type out and back in | Reaches the same place as the re-load with no new rule at all. But it is two writes to the opt-in configuration instead of one transition: not atomic, so a failure between them leaves the endpoint opted out with delivery stopped, and it puts a partner's maintenance in the record of what a user agreed to share. |
 
 ## Consequences
 
@@ -237,7 +235,8 @@ could not settle it.
 - **The correspondence stays something a participant keeps.** agrirouter holds
   the mapping and uses it on delivery, but never serves it. A participant that
   wants to know what agrirouter calls its records has to have kept the answer, or
-  ask for the set again - which also means the ISOXML LinkList correspondence the
+  have its user ask agrirouter for the set again - which also means the ISOXML
+  LinkList correspondence the
   [specification requires](../specification.md#identifier-mapping) is expressed
   from the participant's own table, not exported from ours.
 

@@ -73,7 +73,7 @@ naturally, and there it is permitted as a non-normative implementation aid:
 ### The per-object revision is not the resume checkpoint
 
 `revision` versions **one canonical object**. It is not, by itself, sufficient for
-[resume](../specification.md#initial-load-and-seeding): a returning partner needs to
+[resume](../specification.md#initial-load): a returning partner needs to
 know what changed across *all* objects it is entitled to, not to walk each one. That
 calls for a second, separate ordering - a **monotonic delivery sequence held per
 application**, so a partner resumes from "the last position I confirmed."

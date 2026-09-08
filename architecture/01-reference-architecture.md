@@ -247,9 +247,9 @@ a new revision nor forward it to other partners.
 - **Identity across vendors.** The id mapping lets separately identified objects be recognized as one entity, which is what prevents duplication on delivery.
 - **Loop prevention has an anchor.** Origin suppression and no-op detection need a
   single authority that knows the source and the current state - that is the agrirouter single source of truth.
-- **New and returning systems can be seeded.** A partner that connects (or
+- **New and returning systems can be given the canonical set.** A partner that connects (or
   reconnects) is brought up to date from the canonical set; see
-  [Initial load and seeding](../specification.md#initial-load-and-seeding). Any
+  [Initial load](../specification.md#initial-load). Any
   partner can disconnect and reappear with no loss of sync capability.
 - **Possible latencies**: background sync implies a separate process that is not necessarily instant (i.e reads may be stale - eventual consistency). In some situations it may even lead to writes being rejected due to stale reads. See [ADR 05 - Solving stale reads](./05-stale-reads.md) for more details.
 - agrirouter takes on **statefulness and storage** it would not have as a pure
@@ -257,6 +257,6 @@ a new revision nor forward it to other partners.
 - The canonical store is a facilitation mechanism only. It is deliberately **not**
   a history store, a data-maintenance UI, or a marketed "source of truth" product (for example it is not supposed to be queried directly).
 - Some problems are **pushed to the partner applications by design**: field-level conflict
-  resolution during seeding, and genuine n:1 granularity mismatches, are resolved
+  resolution during initial load, and genuine n:1 granularity mismatches, are resolved
   in partner software, not adjudicated by agrirouter (see
   [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings)).

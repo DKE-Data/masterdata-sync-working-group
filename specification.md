@@ -104,7 +104,7 @@ synchronized entity it stores:
 The SSOT store is what makes robust n:m synchronization tractable: it provides a
 single place against which updates are reconciled, it powers loop prevention (see
 [Loop prevention](#loop-prevention)), and it lets a newly connected or returning system be seeded from a
-known-good set (see [Initial load and seeding](#initial-load-and-seeding)).
+known-good set (see [Initial load](#initial-load)).
 
 The choice of a canonical central store — rather than a purely meshed exchange —
 is a settled design decision for this protocol. The previously considered
@@ -141,7 +141,7 @@ purposes and are independent of each other:
 | Stream | Scoped to | Carries |
 | --- | --- | --- |
 | `GET /masterdata/events` | the application | live changes: canonical objects and deactivations, for every tenant the application is routed to |
-| `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events` | one endpoint | the canonical set of every opted-in entity type for that endpoint's [initial load](#initial-load-and-seeding), ending when the response closes |
+| `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events` | one endpoint | the canonical set of every opted-in entity type for that endpoint's [initial load](#initial-load), ending when the response closes |
 
 Only `/masterdata/events` carries a position, as `Last-Event-ID` (see
 [Downtime and resume](#downtime-and-resume)). An initial-load stream delivers a fixed limited set rather
@@ -377,7 +377,7 @@ the field boundaries that describe it; a farm references the party that owns it
 and MAY reference further parties as partners; and a person MAY reference the
 organizations it belongs to. A field boundary references nothing: the reference
 runs from the field to its boundaries, not the other way. These dependencies
-are significant for routing and seeding: a participant that is to receive fields
+are significant for routing and initial load: a participant that is to receive fields
 MUST also be enabled for the farms, parties, and field boundaries those fields
 depend on, so that references can be resolved on the receiving side (see
 [Routing and opt-in](#routing-and-opt-in)).
@@ -468,7 +468,7 @@ the entity: it creates no revision, does not alter `sourceEndpointId`, and is
 delivered to nobody. Until it has bound, an endpoint MUST NOT send that object,
 because the send does not resolve and creates a second canonical object for the
 same entity. During
-[initial load](#initial-load-and-seeding) the bindings for a whole set are
+[initial load](#initial-load) the bindings for a whole set are
 carried on the confirmation that ends reconciliation. The concrete operations are
 described in `openapi.yaml`.
 
@@ -499,10 +499,8 @@ unbinding names a pair, [requesting](#requesting-objects-lazy-loading) names an
 `agrirouterId`, and an ordinary send resolves through a `localId` already mapped.
 An endpoint whose own store was restored from a backup or migrated may hold none
 of them, and agrirouter does not disclose the mapping on demand — a participant's
-correspondence table is its own to keep. Such an endpoint recovers by asking for
-the canonical set again (see [Initial load and seeding](#initial-load-and-seeding)),
-which delivers every object it is entitled to carrying that endpoint's own
-`localId`, and so restores the correspondence and the data together.
+correspondence table is its own to keep. A participant is expected to hold that
+table durably and to restore it with the rest of its store.
 
 A mapping otherwise outlives the connection that created it: it belongs to the
 participant, and is not discarded when an entity type is opted out, when an
@@ -530,22 +528,22 @@ Therefore:
 - Master-data routes MUST NOT be created by the machine→software default-route logic. A participant takes part in master-data exchange only through explicit **opt-in**.
 - Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
 - Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
-- Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms and field boundaries those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST reject a configuration that is not dependency-closed rather than silently enabling the missing types. Implementations SHOULD surface the dependency to the user.
-- Opting an entity type **in** on an endpoint that already takes part restarts that endpoint's [initial load](#initial-load-and-seeding): agrirouter cannot enumerate what the endpoint missed while the type was not opted in, and initial load is per endpoint rather than per entity type, so the whole set — every opted-in type — is sent again. Neither the canonical objects nor the endpoint's identifier mapping are discarded by an opt-out, so what was loaded before arrives matched rather than reconciled (see [Disconnection and re-connection](#disconnection-and-re-connection)).
+- Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms and field boundaries those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST NOT record a configuration that is not dependency-closed, and MUST surface the dependency where the user makes the choice rather than silently enabling the missing types.
+- Opting an entity type **in** on an endpoint that already takes part restarts that endpoint's [initial load](#initial-load): agrirouter cannot enumerate what the endpoint missed while the type was not opted in, and initial load is per endpoint rather than per entity type, so the whole set — every opted-in type — is sent again. Neither the canonical objects nor the endpoint's identifier mapping are discarded by an opt-out, so what was loaded before arrives matched rather than reconciled (see [Disconnection and re-connection](#disconnection-and-re-connection)).
 - Opting an entity type **out** removes it from the configuration and stops its delivery. The endpoint's initial-load state is left as it is, and is discarded only with the last entity type.
-- The opt-in decision SHOULD be offered to the user at endpoint onboarding, and MUST remain changeable afterwards.
+- A participant learns that an endpoint was routed to the hub from the notification that already reports a change to the endpoints and routes visible to it (`ENDPOINTS_LIST_CHANGED` in G4), and reads the configuration then. There is no separate opt-in notification.
 
-The concrete configuration resource is described in `openapi.yaml`.
+The configuration is therefore read-only in its entirety, and `openapi.yaml` exposes it as a single `GET`.
 
-## Initial load and seeding
+## Initial load
 
-A newly connected system usually **already holds its own master data**. Seeding
-reconciles that existing data with the SSOT. Each endpoint has one initial-load
+A newly connected system usually **already holds its own master data**. Initial
+load reconciles that existing data with the SSOT. Each endpoint has one initial-load
 state, held by agrirouter on the initial-load resource and read there by the
 endpoint. It covers every entity type the endpoint is opted into; there is no
 state, and no stream, per entity type. The defined progression is:
 
-1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user opts the endpoint into master data, or into a further entity type (see [Routing and opt-in](#routing-and-opt-in)), or when the endpoint asks for the set again (below), and by no other means. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
+1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user opts the endpoint into master data, or into a further entity type (see [Routing and opt-in](#routing-and-opt-in)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 
    Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object referenced from the live stream that the set has not delivered yet is [requested](#requesting-objects-lazy-loading).
 2. **`RECONCILING`.** agrirouter closes the stream's HTTP response once it has sent the whole set, and advances the state. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
@@ -570,12 +568,13 @@ having been sent is recorded in is the endpoint's state — agrirouter advances
 it to `RECONCILING` only after sending everything — so an endpoint that finds it
 still at `LOADING_FROM_AGRIROUTER` connects again and takes the set once more.
 
-Two of these transitions are agrirouter's and two are the endpoint's, and the
-split follows what each side can observe: agrirouter starts the load and declares
-the set sent, the endpoint declares reconciliation done and the push finished. The
-states advance in that order, and agrirouter MUST reject any transition out of
-that order — the re-entry below being the one exception. Setting the state the
-endpoint is already in is not out of order: agrirouter MUST accept it and
+Entering `LOADING_FROM_AGRIROUTER` and advancing to `RECONCILING` are
+agrirouter's; the two remaining transitions are the endpoint's. The split follows
+what each side can observe and who is asking: agrirouter starts the load, on a
+user's instruction and never on a participant's, and declares the set sent, while
+the endpoint declares reconciliation done and the push finished. The states
+advance in that order, and agrirouter MUST reject any transition out of it.
+Setting the state the endpoint is already in is not out of order: agrirouter MUST accept it and
 answer with the current status, and where the request carries bindings it MUST
 apply them again and report afresh which were rejected. An endpoint whose
 confirmation went unanswered has no other way to learn whether its bindings were
@@ -584,27 +583,18 @@ recorded, the mapping not being readable (see
 state only while it is opted into at least one entity type; there is no state for one that never was, the
 absence of any toggle already saying that it does not participate.
 
-An endpoint MAY re-enter `LOADING_FROM_AGRIROUTER` from any of these states, which
-asks agrirouter to send the canonical set again. The state asserts that the set is
-owed to the endpoint, and that becomes true a second time when the endpoint's own
-store is restored from a backup, migrated, or otherwise loses the correspondence
-between its records and the canonical objects — a loss agrirouter cannot observe
-and MUST therefore take on the endpoint's word. agrirouter MUST then re-send the
-set as it does for a first load, and MUST mark it a repeat, the identifier mapping
-being unaffected (see [Re-connection](#re-connection)). Re-entry matters as much
-from `RECONCILING` and `LOADING_TO_AGRIROUTER` as from `COMPLETED`:
-agrirouter has already sent the set by then, so an endpoint that loses its store
-during reconciliation — a window that is human-paced and unbounded — could
-otherwise neither advance nor return.
 
-A participant SHOULD use this rather than opting an entity type out and back in.
-Both reach the same state, but opting out and in is two writes to the opt-in
-configuration rather than one transition: it is not atomic, so a failure between
-them leaves the endpoint opted out with delivery stopped, and it records a
-participant's own maintenance in the configuration that expresses what a user
-agreed to share (see [Routing and opt-in](#routing-and-opt-in)).
 
-Conflict detection during seeding, and its resolution, are the responsibility of
+A participant that has lost its store outright, keeping no position and no
+correspondence, is not covered by this and is not expected to be: such a loss is
+a property of the participant's whole store rather than of one endpoint, so it
+would take every tenant and every endpoint with it, and re-onboarding is then the
+proportionate answer. The identifier mapping is keyed by the participant and
+survives endpoint removal (see [Identifier mapping](#identifier-mapping)), so a
+re-onboarded endpoint is sent the canonical set carrying its own `localId`s and
+matches rather than reconciles.
+
+Conflict detection during initial load, and its resolution, are the responsibility of
 the **endpoint's own software**, which presents conflicts to the user. agrirouter
 provides the canonical set to reconcile against; it does not adjudicate field-level
 conflicts.
@@ -622,13 +612,14 @@ needed and never what for: it is one bit per endpoint, not a conflict list.
 - **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same.
 - **Unset says nothing about the user.** It is ambiguous between having nothing to raise and not reporting at all, so it only ever upgrades what agrirouter shows, and an endpoint that omits it costs precision rather than correctness. Nothing in the protocol branches on it.
 
-A participant MAY also declare, as a `resolutionUrl` in its opt-in configuration,
-where in its own software the user resolves this endpoint's initial load.
-agrirouter treats it as opaque, links to it while a user is awaited, and where
-none is declared can only name the application. It is per endpoint rather than per
-conflict: at the moment the route is created there is nothing to resolve yet, and
-a location that is right only once the first conflict exists would have to be
-declared then, which is exactly when nobody is there to declare it.
+A participant SHOULD also supply a **master-data resolution URI** for each of its
+endpoints: where in its own software a user resolves *that endpoint's* initial
+load. agrirouter treats it as opaque and links to it while a user is awaited;
+where none is supplied it can only name the application.
+
+It is a property of the endpoint, set on the endpoint itself through the
+agrirouter endpoint API, and is not part of this document's API — which has no
+write operation on the master-data configuration at all.
 
 Reconciliation does not pause delivery. The application's live changes stream
 belongs to the application and carries every endpoint it serves (see
@@ -693,7 +684,7 @@ Both MUST be machine-readable: the endpoint's handling differs by cause — some
 rejections belong in front of a user, others must never reach one.
 
 The same applies whether the binding was rejected singly or as one pair of an
-[initial-load](#initial-load-and-seeding) confirmation; agrirouter MUST report a
+[initial-load](#initial-load) confirmation; agrirouter MUST report a
 bulk rejection per pair, since the endpoint has to resolve each on its own terms.
 
 ### Differing required/optional attributes
@@ -761,7 +752,7 @@ Omitting `Last-Event-ID` is consequently the widest way a participant can ask fo
 data again on this stream: it re-delivers every object for every endpoint the
 application holds. A participant that needs less asks for one endpoint's
 canonical set (see
-[Initial load and seeding](#initial-load-and-seeding)), or refetches objects
+[Initial load](#initial-load)), or refetches objects
 individually (see [Requesting objects (lazy loading)](#requesting-objects-lazy-loading)).
 
 ## Disconnection and re-connection
@@ -808,7 +799,7 @@ participant, whose own data comes back unrecognizable.
 ### Re-connection
 
 Opting a type back in, or re-routing the endpoint to the hub, runs a full
-[initial load](#initial-load-and-seeding) of the endpoint, covering every entity
+[initial load](#initial-load) of the endpoint, covering every entity
 type it is opted into: agrirouter cannot enumerate what the endpoint missed while
 it was not a participant, so it re-sends the canonical set rather than a delta.
 
@@ -984,7 +975,7 @@ delivery, so every object a request can return is one agrirouter would deliver
 anyway. What it addresses is that *delivered* is not *held*:
 
 - a participant that lost an object locally refetches that object, rather than opting the entity type out and back in and taking a full initial load;
-- during [initial load](#initial-load-and-seeding) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other.
+- during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other.
 
 A request is per entity type, which is why a reference to a party carries a `type`
 discriminator (see [References](#references)).
@@ -992,7 +983,7 @@ discriminator (see [References](#references)).
 A request is the right shape only when the participant knows which objects it
 wants. One that has lost enough of them that naming each is impractical asks for
 the endpoint's whole canonical set again instead (see
-[Initial load and seeding](#initial-load-and-seeding)), and one that has lost its
+[Initial load](#initial-load)), and one that has lost its
 delivery position as well takes everything (see
 [Downtime and resume](#downtime-and-resume)).
 

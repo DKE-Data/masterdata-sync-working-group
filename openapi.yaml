@@ -1018,29 +1018,25 @@ paths:
     get:
       tags: [Configuration]
       summary: Get the endpoint's master-data opt-in configuration
-      operationId: getMasterdataConfig
-      responses:
-        '200':
-          description: The current configuration.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MasterdataConfig'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      tags: [Configuration]
-      summary: Set the endpoint's master-data opt-in configuration
       description: >
-        Configures per-entity opt-in. Master-data routes
-        are created only through this explicit opt-in, never by default routing.
+        The entity types this endpoint is opted into. Opt-in is per endpoint and
+        per entity type, and carries no direction: an opted-in type is read and
+        write.
 
-        The configuration MUST be dependency-closed: enabling fields requires
-        the farms and field boundaries those fields reference, and the
-        organizations and persons those farms reference, to be enabled as well. A configuration that is
-        not dependency-closed is rejected with `400`.
+        The resource is read-only. Opting an endpoint into master data is the
+        user's decision, taken in agrirouter alongside the route to the
+        master-data hub. This resource is where a participant reads that
+        decision. Opt-in is per endpoint, so an application MUST NOT assume the
+        types it exchanges for one endpoint are the types it exchanges for
+        another.
+
+        An endpoint opted into nothing has an empty `toggles`, not a `404`; a
+        `404` means no such endpoint.
+
+        Read this when the endpoint's routes change: a route to the master-data
+        hub is reported like any other, by `ENDPOINTS_LIST_CHANGED`, and there is
+        no separate opt-in notification.
+
 
         Opting the endpoint into its first entity type starts its initial load:
         the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial
@@ -1060,27 +1056,19 @@ paths:
         is; removing the last toggle discards it. Opting out discards neither
         the canonical objects nor the application's identifier mapping, so a
         repeat load arrives matched, and `previousLoadCompletedAt` on the
-        Initial Load resource marks it as a repeat. An endpoint that needs the
-        set again SHOULD set `LOADING_FROM_AGRIROUTER` on the Initial Load
-        status resource rather than opting an entity type out and back in.
-      operationId: putMasterdataConfig
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MasterdataConfig'
+        Initial Load resource marks it as a repeat.
+      operationId: getMasterdataConfig
       responses:
         '200':
-          description: Updated configuration.
+          description: The current configuration.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MasterdataConfig'
-        '400':
-          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ----------------------------------------------------------------- initial load
 
@@ -1167,13 +1155,13 @@ paths:
         opted into no entity type has no initial-load state and is `404`. The
         state machine is:
         `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
-        `COMPLETED`, with a return to `LOADING_FROM_AGRIROUTER` available from any
-        state for an endpoint that needs the canonical set again. Opting the
-        endpoint into its first entity type (via the master-data configuration)
-        starts it at `LOADING_FROM_AGRIROUTER`, adding a further entity type
-        returns it there, and agrirouter itself advances it to `RECONCILING`
-        once the whole canonical set has been sent; the endpoint drives the
-        remaining transitions by sending a PUT request to this resource.
+        `COMPLETED`. Opting the endpoint into its first entity type (via the
+        master-data configuration) starts it at `LOADING_FROM_AGRIROUTER`, and
+        adding a further entity type returns it there; agrirouter itself
+        advances it to `RECONCILING` once the whole canonical set has been sent.
+        Every entry into `LOADING_FROM_AGRIROUTER` is therefore agrirouter's,
+        carrying out a user's opt-in decision; the endpoint drives the two exits
+        by sending a PUT request to this resource.
       operationId: getInitialLoadStatus
       responses:
         '200':
@@ -1191,9 +1179,9 @@ paths:
       summary: Set the endpoint's initial load state
       description: >
         Sets the endpoint's initial-load `state`. The states advance in order
-        and agrirouter rejects any other transition with `409`, with one exception:
-        `LOADING_FROM_AGRIROUTER` may be set from any state, which asks for the
-        canonical set again.
+        and agrirouter rejects any other transition with `409`. The two
+        transitions available here are the endpoint's own: the confirmation and
+        the completion.
 
 
         Set `LOADING_TO_AGRIROUTER` to confirm the endpoint has *reconciled* the
@@ -1212,30 +1200,15 @@ paths:
 
         Setting `LOADING_TO_AGRIROUTER` while the endpoint is still
         `LOADING_FROM_AGRIROUTER` is rejected with `409`: the endpoint cannot have
-        reconciled a set it has not finished receiving. An endpoint first enters
-        `LOADING_FROM_AGRIROUTER` when it is opted in, and leaves it when
-        agrirouter has sent the set — neither happens through this operation.
+        reconciled a set it has not finished receiving. An endpoint enters
+        `LOADING_FROM_AGRIROUTER` when it is opted in, when an entity type is
+        added, or when a user asks agrirouter to load it again, and leaves it
+        when agrirouter has sent the set — none of which happens through this
+        operation.
 
 
-        Set `LOADING_FROM_AGRIROUTER` to ask for the canonical set again. The state
-        means the set is owed to this endpoint, and that becomes true a second time
-        when the endpoint's own store is restored from a backup, migrated, or
-        otherwise loses the correspondence between its records and the canonical
-        objects. The set is then owed again on this endpoint's initial-load
-        stream, exactly as it is for a first load, and the endpoint walks the same
-        states out again. Use this rather than opting an entity
-        type out and back in: that reaches the same place, but it takes two writes
-        to the opt-in configuration — not atomic, so a failure between them leaves
-        the user opted out with delivery stopped — and it records a partner's
-        maintenance in the resource that says what a user agreed to share.
-
-
-        Allowed from any state. `RECONCILING` and `LOADING_TO_AGRIROUTER` matter
-        as much as `COMPLETED`: agrirouter has already sent the set by then, so an
-        endpoint that loses its store while reconciling can otherwise neither
-        advance nor go back. The identifier mapping is unaffected, so the set
-        arrives carrying the endpoint's own `localId` and `previousLoadCompletedAt`
-        marks it a repeat.
+        Setting `LOADING_FROM_AGRIROUTER` is a `409` from every state, including
+        from itself.
 
 
         Repeating an endpoint-driven transition is not a conflict. Setting the
@@ -1616,6 +1589,7 @@ components:
         - type: object
           properties:
             type:
+              type: string
               enum: [organization, person]
           required: [type]
 
@@ -2131,16 +2105,12 @@ components:
             The path addresses it by the participant's own `externalEndpointId`.
         toggles:
           type: array
+          description: >
+            The entity types the user opted this endpoint into, empty where it
+            is opted into none — always present, never absent. Set by the user in
+            agrirouter.
           items:
             $ref: '#/components/schemas/EntityTypeToggle'
-        resolutionUrl:
-          type: string
-          format: uri
-          description: >
-            Where the user resolves initial-load conflicts in the endpoint's own
-            software. Optional, opaque to agrirouter, and not per conflict: it is
-            rendered as a link while the endpoint has `awaitingUser` set.
-          examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
     InitialLoadState:
@@ -2152,9 +2122,10 @@ components:
 
         `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set.
         Entered by opting the endpoint into its first entity type via the
-        master-data configuration, again whenever a further entity type is
-        added there, and by the endpoint asking for the set again through the
-        `status` resource.
+        master-data configuration, and again whenever a further entity type is
+        added there. Both are a user's opt-in decision carried out by
+        agrirouter; a participant cannot enter this state directly, and an
+        attempt to set it on the `status` resource is a `409`.
 
 
         `RECONCILING` — the whole canonical set has been delivered and the
@@ -2211,8 +2182,8 @@ components:
             `COMPLETED`. The step to `RECONCILING` does not, since that is
             agrirouter reporting it has finished sending and says nothing about
             whether the user has finished deciding. agrirouter renders the flag as
-            "waiting for you in <app>", together with `resolutionUrl` where one is
-            configured.
+            "waiting for you in <app>", linking to the master-data resolution URI
+            supplied for this endpoint.
         previousLoadCompletedAt:
           type: string
           format: date-time

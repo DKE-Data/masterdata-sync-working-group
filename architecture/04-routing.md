@@ -42,7 +42,8 @@ Where `hub` behaves like an endpoint:
 
 Where `hub` differs from an endpoint:
 - only one hub of a particular type can exist in a tenant (i.e. one `masterdata hub` per tenant) - this avoids the "split brain" situation described above
-- it is not visible as an endpoint from any API perspective, including G4, and needs to be represented there as a special case (for example, when connecting to masterdata exchange during remote application connection - aka RAC)
+- it is not visible as an endpoint from any API perspective, including G4, and needs to be represented there as a special case wherever routes are listed or drawn
+- remote application connection (RAC) does not cover it: an endpoint is connected to the masterdata hub, and opted into entity types, by the user in agrirouter, and not from a partner's own screens
 - it is not backed by a remote application, but by `agrirouter` itself
 
 Note that the name `hub` implies a central point that fans out data to all connected participants indiscriminately, and the single hub in a tenant does exactly that. "Single" here means one hub per tenant, the way an endpoint belongs to a tenant, not one hub per agrirouter. It would therefore be incorrect to say "our system communicates with the agrirouter masterdata hub", since no such global hub exists. You can say "the user routed our endpoint to the masterdata hub in their tenant", or "our system communicates with the masterdata API of agrirouter".
