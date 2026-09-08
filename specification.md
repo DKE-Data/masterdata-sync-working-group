@@ -308,7 +308,6 @@ Canonical attributes (subset):
 - `address` (object, optional): as for a party.
 - `geoReference` (`Point`, optional): longitude and latitude of the farm.
 - `specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
-  - 👷‍♂️ _to be refined_
 - `partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry carries:
 
   - `partnerId` (reference, required): the organization or person.
