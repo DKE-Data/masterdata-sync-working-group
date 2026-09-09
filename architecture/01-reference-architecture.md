@@ -70,12 +70,6 @@ identifiers**, and continues to serve its own users from that copy. Read "Partne
 A" as any [participant](../specification.md#terminology): an FMIS, a machine
 platform, terminal software, a service provider.
 
-"Its own copy" is scoped to the **endpoint**, not to the partner. A partner that
-holds several organizations onboards each as its own endpoint, and the same
-record commonly exists in more than one of them, so a `localId` means something
-only inside the endpoint that issued it (see
-[ADR 11](./11-mapping-scope.md)).
-
 These are the key reasons:
 
 - **Reads must stay local - a CQRS-style split of reads from writes.** Reading
@@ -117,32 +111,26 @@ The SSOT exists *only* to make synchronization tractable - it is explicitly
 
 ### What each store holds for one field
 
-The three stores describe the same field, but not identically. Each endpoint
+The three stores describe the same field, but not identically. Each partner
 identifies the field by its own **`localId`** - the identifier by which *that
-endpoint* knows the field inside its own store, meaningful only there and
-assigned by the partner itself. agrirouter's canonical object carries the stable,
-globally meaningful `agrirouterId` and the mapping from it back to each
-endpoint's `localId`.
+partner* knows the field inside its own store, meaningful only there and assigned
+by the partner itself. agrirouter's canonical object carries the stable, globally
+meaningful `agrirouterId` and the mapping from it back to each partner's `localId`.
 
-| | Partner A store (endpoint A1) | agrirouter SSOT | Partner B store (endpoint B1) |
+| | Partner A store | agrirouter SSOT | Partner B store |
 |---|---|---|---|
-| Identifier | `localId` = `field-9931` (how A1 knows it) | `agrirouterId` = `1f2e…4567` (canonical) | `localId` = `b1e7…` (how B1 knows it) |
-| Id mapping | - | A1 → `field-9931`, B1 → `b1e7…` | - |
+| Identifier | `localId` = `field-9931` (how A knows it) | `agrirouterId` = `1f2e…4567` (canonical) | `localId` = `b1e7…` (how B knows it) |
+| Id mapping | - | A → `field-9931`, B → `b1e7…` | - |
 | Revision | (local) | `revision` = 7 (authoritative) | (local) |
 | Data | name, boundary, … | canonical name, boundary, … | name, boundary, … |
 
-Where Partner A holds a second organization on endpoint A2 that also has this
-field, the mapping simply gains a third row - A2 → whatever A2 calls it, which
-may be the same string A1 uses and means something else.
-
 The id mapping held on the canonical object is what lets a change originating in A
 be delivered to B as *the same field B already knows*, rather than a duplicate. It
-is held whole by agrirouter and delivered in slices: B1's copy of the field carries
-B1's `localId` and no one else's, A2's included. See
+is held whole by agrirouter and delivered in slices: B's copy of the field carries
+B's `localId` and never A's. See
 [Identifier mapping](../specification.md#identifier-mapping) and
 [Security considerations](../specification.md#security-considerations) for the
-rule, [ADR 10](./10-identifier-binding.md) for how a mapping is declared, and
-[ADR 11](./11-mapping-scope.md) for why the endpoint is its scope.
+rule, and [ADR 10](./10-identifier-binding.md) for the reasoning.
 
 We suggest to keep identity mapping for these main reasons:
 - as mentioned before access patterns are different for each partner and pre-existing schema of identifying entities could vary between different implementations. Therefore, it is not possible to have a single identifier for each entity that would be used by all partners at the same time.
@@ -191,10 +179,9 @@ Step by step:
 3. **agrirouter validates and makes it canonical.** agrirouter
    [validates the request](../specification.md#hard-validation) against the
    defined format and rejects it outright if it does not conform. On success it
-   sees no existing mapping for `(A1, field-9931)` - the acting endpoint named in
-   `x-agrirouter-endpoint-id` - so it **creates a new canonical
+   sees no existing mapping for `(A, field-9931)`, so it **creates a new canonical
    object**, assigns a stable `agrirouterId`, sets `revision` to its first value,
-   records the source endpoint, and stores the mapping `A1 → field-9931`.
+   records the source endpoint, and stores the mapping `A → field-9931`.
    **agrirouter's state has now changed** - this is the pivot of the whole flow.
 4. **A learns the canonical id.** The response carries the canonical object, so A
    records the `agrirouterId` next to its own `localId`, and future updates to this

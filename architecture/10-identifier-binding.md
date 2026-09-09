@@ -6,10 +6,10 @@
 
 ## Context
 
-The mapping is keyed `(endpoint, localId)` - a local store is scoped to the
-endpoint, so a `localId` names a record only in the namespace of the endpoint
-that sent it - and a send that does not resolve
-creates a canonical object
+The mapping is keyed `(application, localId)` - an application keeps one local
+store behind however many endpoints it operates, so a `localId` is unique across
+the whole application and denotes the same record whichever endpoint sends it -
+and a send that does not resolve creates a canonical object
 ([Identifier mapping](../specification.md#identifier-mapping)). That covers the
 endpoint introducing an entity to the network. It does not cover the opposite
 and more frequent direction: an endpoint receives a canonical object, recognises
@@ -39,7 +39,7 @@ x-agrirouter-endpoint-id: <the endpoint binding>
 ```
 
 - **`204`** - the mapping is recorded. Idempotent: re-binding the same pair changes nothing.
-- **`409`** - `(endpoint, localId)` is already bound to a different canonical object, or this endpoint already has a different `localId` bound to that `agrirouterId`. Neither is decided by what a *sibling* endpoint has bound: two endpoints of one application may hold the same `localId` against different objects, and different `localId`s against the same one. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
+- **`409`** - `(application, localId)` is already bound to a different canonical object, or this application already has a different `localId` bound to that `agrirouterId`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
 - **`404`** - no such canonical object, or the endpoint is not entitled to it.
 
 The mapping is an association, and both of its ends are in the path, so the
@@ -189,9 +189,8 @@ The state machine needs no new state for this. Binding is what "reconciled"
 Identity is declared by the endpoint, never derived by agrirouter from the
 content of an object. Two fields with the same name on the same farm are
 ordinary, boundaries differ between systems by simplification and projection,
-and a wrong bind, while scoped to the binding endpoint, sends every revision
-written through it to the whole tenant, with an inverse that recovers the
-identity but not those revisions. The endpoint is also the only
+and a wrong bind is tenant-wide, with an inverse that recovers the identity but
+not the revisions written through it. The endpoint is also the only
 side that knows: it is the one that reconciled, with its user where its own rules
 could not settle it.
 
@@ -211,12 +210,6 @@ could not settle it.
 - **The day-2 receive path gains a step.** An endpoint creating a local object
   for a delivered canonical one binds it in the same unit of work. Deferring is
   legal and costs nothing until that object is edited.
-- **Every endpoint binds for itself.** A participant with one store behind
-  several endpoints - the multi-organization case of
-  [ADR 11](./11-mapping-scope.md) - holds one binding per (endpoint, object),
-  often against the same `localId` string. The sibling that skips it does not
-  echo, it duplicates, and that is the one loop the safeguards in agrirouter
-  cannot close.
 - **Delivery can carry a `localId` for objects the endpoint did not create.**
   That clause sets it to the recipient's own identifier wherever a mapping
   exists, and binding is what creates one for a received object. Without it such
