@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Bind declares that a canonical object is one this participant already holds,
+// Bind declares that a canonical object is one this endpoint already holds,
 // under its own localID.
 //
 // agrirouter never infers a mapping from the content of an object, so
@@ -21,8 +21,13 @@ import (
 // canonical object for the same entity — the duplicate this operation exists
 // to prevent.
 //
-// A local identifier denotes exactly one canonical object, so binding a second
-// one is [ErrMappingConflict]. The bindings produced while reconciling a whole
+// The mapping is keyed by the endpoint, so this binds for this endpoint alone:
+// a participant that keeps one store behind several endpoints binds once per
+// endpoint, often against the same localID, and a sibling endpoint's bindings
+// neither satisfy this one nor conflict with it.
+//
+// Within this endpoint a local identifier denotes exactly one canonical object,
+// so binding a second one is [ErrMappingConflict]. The bindings produced while reconciling a whole
 // canonical set travel in bulk on the initial-load confirmation instead; see
 // [Endpoint.ConfirmReconciled]. See "Identifier mapping" in specification.md.
 func (e *Endpoint) Bind(
@@ -74,14 +79,14 @@ func (e *Endpoint) Bind(
 	}
 }
 
-// Unbind declares that this participant no longer holds a canonical object
+// Unbind declares that this endpoint no longer holds a canonical object
 // under localID — deleted locally, or discarded while it was not a participant.
 //
-// It is the counterpart of [Endpoint.Bind] and, like it, a claim about the
-// participant's own store that agrirouter records and never infers. It is not
+// It is the counterpart of [Endpoint.Bind] and, like it, a claim about this
+// endpoint's own store that agrirouter records and never infers. It is not
 // the correction of a mistaken binding, and it is not a deactivation: it
-// removes no canonical object, touches no other participant's mapping, creates
-// no revision, and reaches nobody.
+// removes no canonical object, touches no other endpoint's mapping — a sibling
+// of the same application included — creates no revision, and reaches nobody.
 //
 // It also does not narrow what the endpoint receives, opt-in being the only
 // such filter. The object's next change is delivered again, now carrying no

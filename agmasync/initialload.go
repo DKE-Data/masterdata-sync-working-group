@@ -171,14 +171,17 @@ func IsRepeatLoad(s oapi.InitialLoadStatus) bool {
 	return s.PreviousLoadCompletedAt != nil
 }
 
-// SetInitialLoadState drives one of the endpoint's two transitions, or asks for
-// the canonical set again.
+// SetInitialLoadState drives one of the endpoint's two transitions.
 //
 // Out-of-order transitions are [ErrInitialLoadConflict]. Repeating the state
 // the endpoint is already in is not out of order: it succeeds, and any
 // bindings carried are applied again and their rejections recomputed. That is
 // the only way an endpoint whose confirmation went unanswered can learn which
 // bindings were recorded, the mapping not being readable back.
+//
+// [StateLoadingFromAgrirouter] is refused from every state, including from
+// itself. This operation moves the endpoint and does nothing else; reporting
+// that a user is needed is [Endpoint.ReportUserAttention].
 func (e *Endpoint) SetInitialLoadState(
 	ctx context.Context, upd oapi.InitialLoadStateUpdate,
 ) (oapi.InitialLoadStatus, error) {
@@ -248,7 +251,7 @@ func (e *Endpoint) CompleteInitialLoad(ctx context.Context) (oapi.InitialLoadSta
 // a merge and the object can then be fetched with [Endpoint.Request], requests
 // being exempt from suppression.
 
-// ReportAwaitingUser tells agrirouter that this endpoint's reconciliation is
+// ReportUserAttention tells agrirouter that this endpoint's reconciliation is
 // waiting on a person.
 //
 // Resolution happens on a screen agrirouter cannot see, while the user who
@@ -257,17 +260,40 @@ func (e *Endpoint) CompleteInitialLoad(ctx context.Context) (oapi.InitialLoadSta
 // working through your data". It is one bit per endpoint: agrirouter learns
 // that a person is needed and never what for.
 //
-// The endpoint raises it and agrirouter clears it, on the two endpoint-driven
-// transitions only. Nothing in the protocol branches on it, so an endpoint that
-// omits it costs precision rather than correctness.
-func (e *Endpoint) ReportAwaitingUser(
-	ctx context.Context, state oapi.InitialLoadState,
-) (oapi.InitialLoadStatus, error) {
-	awaiting := true
-	return e.SetInitialLoadState(ctx, oapi.InitialLoadStateUpdate{
-		State:        state,
-		AwaitingUser: &awaiting,
-	})
+// It names no state, and that is the point of it being its own operation.
+// Conflicts surface object by object, so this has to be sendable from any state
+// before [StateCompleted] — including while the set is still arriving, when the
+// endpoint has no state of its own to name and agrirouter may advance it at any
+// moment. Naming nothing, the report cannot be out of order and cannot race a
+// transition.
+//
+// The endpoint raises and agrirouter clears, on the two endpoint-driven
+// transitions only; there is nothing here to lower it with. Repeating it while
+// it is already raised does nothing. A [StateCompleted] load waits on nobody, so
+// reporting one is [ErrInitialLoadConflict]. Nothing in the protocol branches on
+// the flag, so an endpoint that never calls this costs precision rather than
+// correctness.
+func (e *Endpoint) ReportUserAttention(ctx context.Context) (oapi.InitialLoadStatus, error) {
+	r, err := e.client.api.ReportUserAttentionWithResponse(ctx, e.externalID)
+	if err != nil {
+		return oapi.InitialLoadStatus{}, transportErr(err)
+	}
+	if r.StatusCode() == 409 {
+		msg := "the initial load is completed and waits on nobody"
+		if r.JSON409 != nil && r.JSON409.Message != "" {
+			msg = r.JSON409.Message
+		}
+		return oapi.InitialLoadStatus{}, &APIError{r.StatusCode(), msg, ErrInitialLoadConflict}
+	}
+	if resErr := (writeResult{
+		statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404, body: r.Body,
+	}).err(); resErr != nil {
+		return oapi.InitialLoadStatus{}, resErr
+	}
+	if r.JSON200 == nil {
+		return oapi.InitialLoadStatus{}, fmt.Errorf("agmasync: empty initial load status")
+	}
+	return *r.JSON200, nil
 }
 
 // Binding pairs one of this participant's local identifiers with the canonical

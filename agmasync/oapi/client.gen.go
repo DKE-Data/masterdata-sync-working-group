@@ -98,14 +98,14 @@ type ClientInterface interface {
 	// Read this when the endpoint's routes change: a route to the master-data hub is reported like any other, by `ENDPOINTS_LIST_CHANGED`, and there is no separate opt-in notification.
 	//
 	// Opting the endpoint into its first entity type starts its initial load: the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load resource), and its canonical set — every object of every opted-in entity type — is collected by the endpoint from `/endpoints/{externalEndpointId}/masterdata-initial-load/events`. The set waits there until the endpoint connects and is not lost if it is disconnected at the time.
-	// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the application's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
+	// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the endpoint's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
 	//
 	// Corresponds with GET /endpoints/{externalEndpointId}/masterdata-config (the `GetMasterdataConfig` operationId).
 	GetMasterdataConfig(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamInitialLoadEvents Receive the endpoint's canonical set (Server-Sent Events)
 	//
-	// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries the application's own identifier in `localId` where agrirouter holds one.
+	// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries this endpoint's own identifier in `localId` where agrirouter holds one, and names the endpoint in `recipientEndpointId`.
 	// agrirouter closes the HTTP response once it has sent the whole set and then moves the endpoint to `RECONCILING`. The set is fixed when the load starts: an entity type opted in while the set is streaming restarts the load, so the endpoint re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again including the new type.
 	// Order is agrirouter's, not the endpoint's. The set is delivered so that a referenced object precedes the objects that reference it, as catch-up on `/masterdata/events` is, and opt-in is dependency-closed, so the target of every reference is in the set and an endpoint can apply each object as it arrives. That is the only property of the order an endpoint may rely on: the order itself may change in a later version of this API, so an endpoint MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. An object referenced from the live stream that this stream has not delivered yet is requested (`POST /masterdata/<types>/requests`).
 	// The stream carries **no delivery position**: it delivers a set rather than a sequence of changes, so it takes no `Last-Event-ID`, its frames carry no `id:`, and a connection that drops before the set is complete is recovered by requesting it again from the beginning.
@@ -156,9 +156,24 @@ type ClientInterface interface {
 	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
 	SetInitialLoadState(ctx context.Context, externalEndpointId ExternalEndpointId, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ReportUserAttention Report that the endpoint's initial load is waiting on a user
+	//
+	// Raises `awaitingUser` on the endpoint's initial-load status, so that agrirouter shows "waiting for you in <app>" — linking to the master-data resolution URI supplied for this endpoint — in place of its own "this application is working through your data".
+	//
+	// It is a resource of its own because reporting a user is not a transition. Conflicts surface object by object, so an endpoint has to be able to say this from any state before `COMPLETED`, including while the canonical set is still arriving; naming a state in order to say it would mean naming one the endpoint does not own and cannot set. This names none, so it never races the transitions agrirouter drives and is never out of order.
+	//
+	// It carries no body and raises the flag; there is nothing to lower it with, because lowering it is not the endpoint's to do. agrirouter clears it on the two endpoint-driven transitions — advancing to `LOADING_TO_AGRIROUTER` or to `COMPLETED` — and the step to `RECONCILING` does not, that being agrirouter reporting it has finished sending rather than the user having finished deciding. Repeating it while it is already raised is a `200`.
+	//
+	// agrirouter learns *that* a person is needed and never what for: it is one bit per endpoint, not a conflict list. Nothing in the protocol branches on it, so an endpoint that never calls this costs precision rather than correctness.
+	//
+	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
+	ReportUserAttention(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	//
-	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `localId` when agrirouter holds one, and no `localId` at all when it does not.
+	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property.
+	//
+	// A frame is addressed to one endpoint, named in `recipientEndpointId`, and carries that endpoint's own identifier in `localId` when agrirouter holds one and no `localId` at all when it does not. The mapping is scoped to the endpoint, so an object entitled to two of the application's endpoints arrives twice, rendered for each.
 	// This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{externalEndpointId}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 	// An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 	//
@@ -167,7 +182,7 @@ type ClientInterface interface {
 
 	// RequestFarmWithBody Request a farm (lazy loading)
 	//
-	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -176,7 +191,7 @@ type ClientInterface interface {
 
 	// RequestFarm Request a farm (lazy loading)
 	//
-	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -185,7 +200,7 @@ type ClientInterface interface {
 
 	// PutFarmWithBody Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -194,7 +209,7 @@ type ClientInterface interface {
 
 	// PutFarm Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -221,14 +236,14 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/farms/{localId}/id-mapping/{agrirouterId} (the `BindFarmMapping` operationId).
 	BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestFieldBoundaryWithBody Request a field boundary (lazy loading)
 	//
-	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -237,7 +252,7 @@ type ClientInterface interface {
 
 	// RequestFieldBoundary Request a field boundary (lazy loading)
 	//
-	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -246,7 +261,7 @@ type ClientInterface interface {
 
 	// PutFieldBoundaryWithBody Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -255,7 +270,7 @@ type ClientInterface interface {
 
 	// PutFieldBoundary Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -282,14 +297,14 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{localId}/id-mapping/{agrirouterId} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestFieldWithBody Request a field (lazy loading)
 	//
-	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -298,7 +313,7 @@ type ClientInterface interface {
 
 	// RequestField Request a field (lazy loading)
 	//
-	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -307,7 +322,7 @@ type ClientInterface interface {
 
 	// PutFieldWithBody Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -316,7 +331,7 @@ type ClientInterface interface {
 
 	// PutField Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -343,14 +358,14 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/fields/{localId}/id-mapping/{agrirouterId} (the `BindFieldMapping` operationId).
 	BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestOrganizationWithBody Request an organization (lazy loading)
 	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -359,7 +374,7 @@ type ClientInterface interface {
 
 	// RequestOrganization Request an organization (lazy loading)
 	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -368,7 +383,7 @@ type ClientInterface interface {
 
 	// PutOrganizationWithBody Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -377,7 +392,7 @@ type ClientInterface interface {
 
 	// PutOrganization Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -404,14 +419,14 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical organization in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/organizations/{localId}/id-mapping/{agrirouterId} (the `BindOrganizationMapping` operationId).
 	BindOrganizationMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestPersonWithBody Request a person (lazy loading)
 	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -420,7 +435,7 @@ type ClientInterface interface {
 
 	// RequestPerson Request a person (lazy loading)
 	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -429,7 +444,7 @@ type ClientInterface interface {
 
 	// PutPersonWithBody Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -438,7 +453,7 @@ type ClientInterface interface {
 
 	// PutPerson Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -465,7 +480,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical person in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/persons/{localId}/id-mapping/{agrirouterId} (the `BindPersonMapping` operationId).
 	BindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -479,7 +494,7 @@ type ClientInterface interface {
 // Read this when the endpoint's routes change: a route to the master-data hub is reported like any other, by `ENDPOINTS_LIST_CHANGED`, and there is no separate opt-in notification.
 //
 // Opting the endpoint into its first entity type starts its initial load: the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load resource), and its canonical set — every object of every opted-in entity type — is collected by the endpoint from `/endpoints/{externalEndpointId}/masterdata-initial-load/events`. The set waits there until the endpoint connects and is not lost if it is disconnected at the time.
-// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the application's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
+// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the endpoint's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
 //
 // Corresponds with GET /endpoints/{externalEndpointId}/masterdata-config (the `GetMasterdataConfig` operationId).
 func (c *Client) GetMasterdataConfig(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -496,7 +511,7 @@ func (c *Client) GetMasterdataConfig(ctx context.Context, externalEndpointId Ext
 
 // StreamInitialLoadEvents Receive the endpoint's canonical set (Server-Sent Events)
 //
-// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries the application's own identifier in `localId` where agrirouter holds one.
+// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries this endpoint's own identifier in `localId` where agrirouter holds one, and names the endpoint in `recipientEndpointId`.
 // agrirouter closes the HTTP response once it has sent the whole set and then moves the endpoint to `RECONCILING`. The set is fixed when the load starts: an entity type opted in while the set is streaming restarts the load, so the endpoint re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again including the new type.
 // Order is agrirouter's, not the endpoint's. The set is delivered so that a referenced object precedes the objects that reference it, as catch-up on `/masterdata/events` is, and opt-in is dependency-closed, so the target of every reference is in the set and an endpoint can apply each object as it arrives. That is the only property of the order an endpoint may rely on: the order itself may change in a later version of this API, so an endpoint MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. An object referenced from the live stream that this stream has not delivered yet is requested (`POST /masterdata/<types>/requests`).
 // The stream carries **no delivery position**: it delivers a set rather than a sequence of changes, so it takes no `Last-Event-ID`, its frames carry no `id:`, and a connection that drops before the set is complete is recovered by requesting it again from the beginning.
@@ -587,9 +602,34 @@ func (c *Client) SetInitialLoadState(ctx context.Context, externalEndpointId Ext
 	return c.Client.Do(req)
 }
 
+// ReportUserAttention Report that the endpoint's initial load is waiting on a user
+//
+// Raises `awaitingUser` on the endpoint's initial-load status, so that agrirouter shows "waiting for you in <app>" — linking to the master-data resolution URI supplied for this endpoint — in place of its own "this application is working through your data".
+//
+// It is a resource of its own because reporting a user is not a transition. Conflicts surface object by object, so an endpoint has to be able to say this from any state before `COMPLETED`, including while the canonical set is still arriving; naming a state in order to say it would mean naming one the endpoint does not own and cannot set. This names none, so it never races the transitions agrirouter drives and is never out of order.
+//
+// It carries no body and raises the flag; there is nothing to lower it with, because lowering it is not the endpoint's to do. agrirouter clears it on the two endpoint-driven transitions — advancing to `LOADING_TO_AGRIROUTER` or to `COMPLETED` — and the step to `RECONCILING` does not, that being agrirouter reporting it has finished sending rather than the user having finished deciding. Repeating it while it is already raised is a `200`.
+//
+// agrirouter learns *that* a person is needed and never what for: it is one bit per endpoint, not a conflict list. Nothing in the protocol branches on it, so an endpoint that never calls this costs precision rather than correctness.
+//
+// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
+func (c *Client) ReportUserAttention(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportUserAttentionRequest(c.Server, externalEndpointId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 //
-// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `localId` when agrirouter holds one, and no `localId` at all when it does not.
+// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property.
+//
+// A frame is addressed to one endpoint, named in `recipientEndpointId`, and carries that endpoint's own identifier in `localId` when agrirouter holds one and no `localId` at all when it does not. The mapping is scoped to the endpoint, so an object entitled to two of the application's endpoints arrives twice, rendered for each.
 // This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{externalEndpointId}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 // An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 //
@@ -608,7 +648,7 @@ func (c *Client) StreamMasterdataEvents(ctx context.Context, params *StreamMaste
 
 // RequestFarmWithBody Request a farm (lazy loading)
 //
-// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type.
 //
@@ -627,7 +667,7 @@ func (c *Client) RequestFarmWithBody(ctx context.Context, params *RequestFarmPar
 
 // RequestFarm Request a farm (lazy loading)
 //
-// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -646,7 +686,7 @@ func (c *Client) RequestFarm(ctx context.Context, params *RequestFarmParams, bod
 
 // PutFarmWithBody Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -665,7 +705,7 @@ func (c *Client) PutFarmWithBody(ctx context.Context, localId LocalId, params *P
 
 // PutFarm Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -722,7 +762,7 @@ func (c *Client) UnbindFarmMapping(ctx context.Context, localId LocalId, agrirou
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/farms/{localId}/id-mapping/{agrirouterId} (the `BindFarmMapping` operationId).
 func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -739,7 +779,7 @@ func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agriroute
 
 // RequestFieldBoundaryWithBody Request a field boundary (lazy loading)
 //
-// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type.
 //
@@ -758,7 +798,7 @@ func (c *Client) RequestFieldBoundaryWithBody(ctx context.Context, params *Reque
 
 // RequestFieldBoundary Request a field boundary (lazy loading)
 //
-// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -777,7 +817,7 @@ func (c *Client) RequestFieldBoundary(ctx context.Context, params *RequestFieldB
 
 // PutFieldBoundaryWithBody Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -796,7 +836,7 @@ func (c *Client) PutFieldBoundaryWithBody(ctx context.Context, localId LocalId, 
 
 // PutFieldBoundary Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -853,7 +893,7 @@ func (c *Client) UnbindFieldBoundaryMapping(ctx context.Context, localId LocalId
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/field-boundaries/{localId}/id-mapping/{agrirouterId} (the `BindFieldBoundaryMapping` operationId).
 func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -870,7 +910,7 @@ func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, 
 
 // RequestFieldWithBody Request a field (lazy loading)
 //
-// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type.
 //
@@ -889,7 +929,7 @@ func (c *Client) RequestFieldWithBody(ctx context.Context, params *RequestFieldP
 
 // RequestField Request a field (lazy loading)
 //
-// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -908,7 +948,7 @@ func (c *Client) RequestField(ctx context.Context, params *RequestFieldParams, b
 
 // PutFieldWithBody Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -927,7 +967,7 @@ func (c *Client) PutFieldWithBody(ctx context.Context, localId LocalId, params *
 
 // PutField Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -984,7 +1024,7 @@ func (c *Client) UnbindFieldMapping(ctx context.Context, localId LocalId, agriro
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/fields/{localId}/id-mapping/{agrirouterId} (the `BindFieldMapping` operationId).
 func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1001,7 +1041,7 @@ func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirout
 
 // RequestOrganizationWithBody Request an organization (lazy loading)
 //
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1020,7 +1060,7 @@ func (c *Client) RequestOrganizationWithBody(ctx context.Context, params *Reques
 
 // RequestOrganization Request an organization (lazy loading)
 //
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1039,7 +1079,7 @@ func (c *Client) RequestOrganization(ctx context.Context, params *RequestOrganiz
 
 // PutOrganizationWithBody Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1058,7 +1098,7 @@ func (c *Client) PutOrganizationWithBody(ctx context.Context, localId LocalId, p
 
 // PutOrganization Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1115,7 +1155,7 @@ func (c *Client) UnbindOrganizationMapping(ctx context.Context, localId LocalId,
 //
 // Declares that the canonical organization in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/organizations/{localId}/id-mapping/{agrirouterId} (the `BindOrganizationMapping` operationId).
 func (c *Client) BindOrganizationMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1132,7 +1172,7 @@ func (c *Client) BindOrganizationMapping(ctx context.Context, localId LocalId, a
 
 // RequestPersonWithBody Request a person (lazy loading)
 //
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1151,7 +1191,7 @@ func (c *Client) RequestPersonWithBody(ctx context.Context, params *RequestPerso
 
 // RequestPerson Request a person (lazy loading)
 //
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1170,7 +1210,7 @@ func (c *Client) RequestPerson(ctx context.Context, params *RequestPersonParams,
 
 // PutPersonWithBody Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1189,7 +1229,7 @@ func (c *Client) PutPersonWithBody(ctx context.Context, localId LocalId, params 
 
 // PutPerson Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1246,7 +1286,7 @@ func (c *Client) UnbindPersonMapping(ctx context.Context, localId LocalId, agrir
 //
 // Declares that the canonical person in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/persons/{localId}/id-mapping/{agrirouterId} (the `BindPersonMapping` operationId).
 func (c *Client) BindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1406,6 +1446,40 @@ func NewSetInitialLoadStateRequestWithBody(server string, externalEndpointId Ext
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewReportUserAttentionRequest constructs an http.Request for the ReportUserAttention method
+func NewReportUserAttentionRequest(server string, externalEndpointId ExternalEndpointId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "externalEndpointId", externalEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/endpoints/%s/masterdata-initial-load/user-attention", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2954,7 +3028,7 @@ type ClientWithResponsesInterface interface {
 	// Read this when the endpoint's routes change: a route to the master-data hub is reported like any other, by `ENDPOINTS_LIST_CHANGED`, and there is no separate opt-in notification.
 	//
 	// Opting the endpoint into its first entity type starts its initial load: the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load resource), and its canonical set — every object of every opted-in entity type — is collected by the endpoint from `/endpoints/{externalEndpointId}/masterdata-initial-load/events`. The set waits there until the endpoint connects and is not lost if it is disconnected at the time.
-	// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the application's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
+	// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the endpoint's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -2963,7 +3037,7 @@ type ClientWithResponsesInterface interface {
 
 	// StreamInitialLoadEventsWithResponse Receive the endpoint's canonical set (Server-Sent Events)
 	//
-	// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries the application's own identifier in `localId` where agrirouter holds one.
+	// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries this endpoint's own identifier in `localId` where agrirouter holds one, and names the endpoint in `recipientEndpointId`.
 	// agrirouter closes the HTTP response once it has sent the whole set and then moves the endpoint to `RECONCILING`. The set is fixed when the load starts: an entity type opted in while the set is streaming restarts the load, so the endpoint re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again including the new type.
 	// Order is agrirouter's, not the endpoint's. The set is delivered so that a referenced object precedes the objects that reference it, as catch-up on `/masterdata/events` is, and opt-in is dependency-closed, so the target of every reference is in the set and an endpoint can apply each object as it arrives. That is the only property of the order an endpoint may rely on: the order itself may change in a later version of this API, so an endpoint MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. An object referenced from the live stream that this stream has not delivered yet is requested (`POST /masterdata/<types>/requests`).
 	// The stream carries **no delivery position**: it delivers a set rather than a sequence of changes, so it takes no `Last-Event-ID`, its frames carry no `id:`, and a connection that drops before the set is complete is recovered by requesting it again from the beginning.
@@ -3018,9 +3092,26 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
 	SetInitialLoadStateWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error)
 
+	// ReportUserAttentionWithResponse Report that the endpoint's initial load is waiting on a user
+	//
+	// Raises `awaitingUser` on the endpoint's initial-load status, so that agrirouter shows "waiting for you in <app>" — linking to the master-data resolution URI supplied for this endpoint — in place of its own "this application is working through your data".
+	//
+	// It is a resource of its own because reporting a user is not a transition. Conflicts surface object by object, so an endpoint has to be able to say this from any state before `COMPLETED`, including while the canonical set is still arriving; naming a state in order to say it would mean naming one the endpoint does not own and cannot set. This names none, so it never races the transitions agrirouter drives and is never out of order.
+	//
+	// It carries no body and raises the flag; there is nothing to lower it with, because lowering it is not the endpoint's to do. agrirouter clears it on the two endpoint-driven transitions — advancing to `LOADING_TO_AGRIROUTER` or to `COMPLETED` — and the step to `RECONCILING` does not, that being agrirouter reporting it has finished sending rather than the user having finished deciding. Repeating it while it is already raised is a `200`.
+	//
+	// agrirouter learns *that* a person is needed and never what for: it is one bit per endpoint, not a conflict list. Nothing in the protocol branches on it, so an endpoint that never calls this costs precision rather than correctness.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
+	ReportUserAttentionWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*ReportUserAttentionResponse, error)
+
 	// StreamMasterdataEventsWithResponse Receive master-data changes (Server-Sent Events)
 	//
-	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `localId` when agrirouter holds one, and no `localId` at all when it does not.
+	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property.
+	//
+	// A frame is addressed to one endpoint, named in `recipientEndpointId`, and carries that endpoint's own identifier in `localId` when agrirouter holds one and no `localId` at all when it does not. The mapping is scoped to the endpoint, so an object entitled to two of the application's endpoints arrives twice, rendered for each.
 	// This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{externalEndpointId}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 	// An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 	//
@@ -3031,7 +3122,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestFarmWithBodyWithResponse Request a farm (lazy loading)
 	//
-	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3040,7 +3131,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestFarmWithResponse Request a farm (lazy loading)
 	//
-	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3049,7 +3140,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFarmWithBodyWithResponse Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3058,7 +3149,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFarmWithResponse Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3089,7 +3180,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3098,7 +3189,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestFieldBoundaryWithBodyWithResponse Request a field boundary (lazy loading)
 	//
-	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3107,7 +3198,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestFieldBoundaryWithResponse Request a field boundary (lazy loading)
 	//
-	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3116,7 +3207,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldBoundaryWithBodyWithResponse Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3125,7 +3216,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldBoundaryWithResponse Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3156,7 +3247,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3165,7 +3256,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestFieldWithBodyWithResponse Request a field (lazy loading)
 	//
-	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3174,7 +3265,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestFieldWithResponse Request a field (lazy loading)
 	//
-	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3183,7 +3274,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldWithBodyWithResponse Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3192,7 +3283,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldWithResponse Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3223,7 +3314,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3232,7 +3323,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestOrganizationWithBodyWithResponse Request an organization (lazy loading)
 	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3241,7 +3332,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestOrganizationWithResponse Request an organization (lazy loading)
 	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3250,7 +3341,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutOrganizationWithBodyWithResponse Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3259,7 +3350,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutOrganizationWithResponse Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3290,7 +3381,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical organization in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3299,7 +3390,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestPersonWithBodyWithResponse Request a person (lazy loading)
 	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3308,7 +3399,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestPersonWithResponse Request a person (lazy loading)
 	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3317,7 +3408,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutPersonWithBodyWithResponse Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3326,7 +3417,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutPersonWithResponse Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3357,7 +3448,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical person in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3586,6 +3677,68 @@ func (r SetInitialLoadStateResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetInitialLoadStateResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReportUserAttentionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *InitialLoadStatus
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReportUserAttentionResponse) GetJSON200() *InitialLoadStatus {
+	return r.JSON200
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReportUserAttentionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReportUserAttentionResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ReportUserAttentionResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r ReportUserAttentionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReportUserAttentionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReportUserAttentionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReportUserAttentionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5149,7 +5302,7 @@ func (r BindPersonMappingResponse) ContentType() string {
 // Read this when the endpoint's routes change: a route to the master-data hub is reported like any other, by `ENDPOINTS_LIST_CHANGED`, and there is no separate opt-in notification.
 //
 // Opting the endpoint into its first entity type starts its initial load: the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial Load resource), and its canonical set — every object of every opted-in entity type — is collected by the endpoint from `/endpoints/{externalEndpointId}/masterdata-initial-load/events`. The set waits there until the endpoint connects and is not lost if it is disconnected at the time.
-// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the application's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
+// Initial load is one state and one stream per endpoint, not per entity type. Adding an entity type to an endpoint that already has initial-load state therefore restarts the load, from whatever state the endpoint is in: it re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again, covering every opted-in type, since agrirouter cannot enumerate what the endpoint missed while the type was not opted in. Removing a toggle stops delivery of that entity type and leaves the initial-load state as it is; removing the last toggle discards it. Opting out discards neither the canonical objects nor the endpoint's identifier mapping, so a repeat load arrives matched, and `previousLoadCompletedAt` on the Initial Load resource marks it as a repeat.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5164,7 +5317,7 @@ func (c *ClientWithResponses) GetMasterdataConfigWithResponse(ctx context.Contex
 
 // StreamInitialLoadEventsWithResponse Receive the endpoint's canonical set (Server-Sent Events)
 //
-// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries the application's own identifier in `localId` where agrirouter holds one.
+// Delivers the canonical set this endpoint is owed: every object of every entity type it is opted into that it is entitled to, while the endpoint is in `LOADING_FROM_AGRIROUTER`. One stream per endpoint, matching the granularity of the initial-load state and the shape of its status resource. The set is complete: objects that are deactivated are part of it and arrive with `active: false`, and so are objects whose current revision the requesting application itself last wrote — origin suppression does not apply here, since withholding them would have a returning endpoint push them back as new and duplicate them. A delivered object carries this endpoint's own identifier in `localId` where agrirouter holds one, and names the endpoint in `recipientEndpointId`.
 // agrirouter closes the HTTP response once it has sent the whole set and then moves the endpoint to `RECONCILING`. The set is fixed when the load starts: an entity type opted in while the set is streaming restarts the load, so the endpoint re-enters `LOADING_FROM_AGRIROUTER` and the set is sent again including the new type.
 // Order is agrirouter's, not the endpoint's. The set is delivered so that a referenced object precedes the objects that reference it, as catch-up on `/masterdata/events` is, and opt-in is dependency-closed, so the target of every reference is in the set and an endpoint can apply each object as it arrives. That is the only property of the order an endpoint may rely on: the order itself may change in a later version of this API, so an endpoint MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. An object referenced from the live stream that this stream has not delivered yet is requested (`POST /masterdata/<types>/requests`).
 // The stream carries **no delivery position**: it delivers a set rather than a sequence of changes, so it takes no `Last-Event-ID`, its frames carry no `id:`, and a connection that drops before the set is complete is recovered by requesting it again from the beginning.
@@ -5243,9 +5396,32 @@ func (c *ClientWithResponses) SetInitialLoadStateWithResponse(ctx context.Contex
 	return ParseSetInitialLoadStateResponse(rsp)
 }
 
+// ReportUserAttentionWithResponse Report that the endpoint's initial load is waiting on a user
+//
+// Raises `awaitingUser` on the endpoint's initial-load status, so that agrirouter shows "waiting for you in <app>" — linking to the master-data resolution URI supplied for this endpoint — in place of its own "this application is working through your data".
+//
+// It is a resource of its own because reporting a user is not a transition. Conflicts surface object by object, so an endpoint has to be able to say this from any state before `COMPLETED`, including while the canonical set is still arriving; naming a state in order to say it would mean naming one the endpoint does not own and cannot set. This names none, so it never races the transitions agrirouter drives and is never out of order.
+//
+// It carries no body and raises the flag; there is nothing to lower it with, because lowering it is not the endpoint's to do. agrirouter clears it on the two endpoint-driven transitions — advancing to `LOADING_TO_AGRIROUTER` or to `COMPLETED` — and the step to `RECONCILING` does not, that being agrirouter reporting it has finished sending rather than the user having finished deciding. Repeating it while it is already raised is a `200`.
+//
+// agrirouter learns *that* a person is needed and never what for: it is one bit per endpoint, not a conflict list. Nothing in the protocol branches on it, so an endpoint that never calls this costs precision rather than correctness.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
+func (c *ClientWithResponses) ReportUserAttentionWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*ReportUserAttentionResponse, error) {
+	rsp, err := c.ReportUserAttention(ctx, externalEndpointId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportUserAttentionResponse(rsp)
+}
+
 // StreamMasterdataEventsWithResponse Receive master-data changes (Server-Sent Events)
 //
-// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `localId` when agrirouter holds one, and no `localId` at all when it does not.
+// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property.
+//
+// A frame is addressed to one endpoint, named in `recipientEndpointId`, and carries that endpoint's own identifier in `localId` when agrirouter holds one and no `localId` at all when it does not. The mapping is scoped to the endpoint, so an object entitled to two of the application's endpoints arrives twice, rendered for each.
 // This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{externalEndpointId}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 // An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 //
@@ -5262,7 +5438,7 @@ func (c *ClientWithResponses) StreamMasterdataEventsWithResponse(ctx context.Con
 
 // RequestFarmWithBodyWithResponse Request a farm (lazy loading)
 //
-// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5277,7 +5453,7 @@ func (c *ClientWithResponses) RequestFarmWithBodyWithResponse(ctx context.Contex
 
 // RequestFarmWithResponse Request a farm (lazy loading)
 //
-// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5292,7 +5468,7 @@ func (c *ClientWithResponses) RequestFarmWithResponse(ctx context.Context, param
 
 // PutFarmWithBodyWithResponse Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5307,7 +5483,7 @@ func (c *ClientWithResponses) PutFarmWithBodyWithResponse(ctx context.Context, l
 
 // PutFarmWithResponse Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5356,7 +5532,7 @@ func (c *ClientWithResponses) UnbindFarmMappingWithResponse(ctx context.Context,
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5371,7 +5547,7 @@ func (c *ClientWithResponses) BindFarmMappingWithResponse(ctx context.Context, l
 
 // RequestFieldBoundaryWithBodyWithResponse Request a field boundary (lazy loading)
 //
-// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5386,7 +5562,7 @@ func (c *ClientWithResponses) RequestFieldBoundaryWithBodyWithResponse(ctx conte
 
 // RequestFieldBoundaryWithResponse Request a field boundary (lazy loading)
 //
-// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field boundary the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5401,7 +5577,7 @@ func (c *ClientWithResponses) RequestFieldBoundaryWithResponse(ctx context.Conte
 
 // PutFieldBoundaryWithBodyWithResponse Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5416,7 +5592,7 @@ func (c *ClientWithResponses) PutFieldBoundaryWithBodyWithResponse(ctx context.C
 
 // PutFieldBoundaryWithResponse Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5465,7 +5641,7 @@ func (c *ClientWithResponses) UnbindFieldBoundaryMappingWithResponse(ctx context
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5480,7 +5656,7 @@ func (c *ClientWithResponses) BindFieldBoundaryMappingWithResponse(ctx context.C
 
 // RequestFieldWithBodyWithResponse Request a field (lazy loading)
 //
-// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5495,7 +5671,7 @@ func (c *ClientWithResponses) RequestFieldWithBodyWithResponse(ctx context.Conte
 
 // RequestFieldWithResponse Request a field (lazy loading)
 //
-// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a field the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5510,7 +5686,7 @@ func (c *ClientWithResponses) RequestFieldWithResponse(ctx context.Context, para
 
 // PutFieldWithBodyWithResponse Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5525,7 +5701,7 @@ func (c *ClientWithResponses) PutFieldWithBodyWithResponse(ctx context.Context, 
 
 // PutFieldWithResponse Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5574,7 +5750,7 @@ func (c *ClientWithResponses) UnbindFieldMappingWithResponse(ctx context.Context
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5589,7 +5765,7 @@ func (c *ClientWithResponses) BindFieldMappingWithResponse(ctx context.Context, 
 
 // RequestOrganizationWithBodyWithResponse Request an organization (lazy loading)
 //
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5604,7 +5780,7 @@ func (c *ClientWithResponses) RequestOrganizationWithBodyWithResponse(ctx contex
 
 // RequestOrganizationWithResponse Request an organization (lazy loading)
 //
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5619,7 +5795,7 @@ func (c *ClientWithResponses) RequestOrganizationWithResponse(ctx context.Contex
 
 // PutOrganizationWithBodyWithResponse Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5634,7 +5810,7 @@ func (c *ClientWithResponses) PutOrganizationWithBodyWithResponse(ctx context.Co
 
 // PutOrganizationWithResponse Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5683,7 +5859,7 @@ func (c *ClientWithResponses) UnbindOrganizationMappingWithResponse(ctx context.
 //
 // Declares that the canonical organization in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5698,7 +5874,7 @@ func (c *ClientWithResponses) BindOrganizationMappingWithResponse(ctx context.Co
 
 // RequestPersonWithBodyWithResponse Request a person (lazy loading)
 //
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5713,7 +5889,7 @@ func (c *ClientWithResponses) RequestPersonWithBodyWithResponse(ctx context.Cont
 
 // RequestPersonWithResponse Request a person (lazy loading)
 //
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
+// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's `localId` where one is held.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5728,7 +5904,7 @@ func (c *ClientWithResponses) RequestPersonWithResponse(ctx context.Context, par
 
 // PutPersonWithBodyWithResponse Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5743,7 +5919,7 @@ func (c *ClientWithResponses) PutPersonWithBodyWithResponse(ctx context.Context,
 
 // PutPersonWithResponse Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the application, not the endpoint: a `localId` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (endpoint, localId) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouterId` is assigned. The mapping is keyed by the endpoint named in `x-agrirouter-endpoint-id`: a `localId` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5792,7 +5968,7 @@ func (c *ClientWithResponses) UnbindPersonMappingWithResponse(ctx context.Contex
 //
 // Declares that the canonical person in the path is the one this endpoint knows as `localId` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `sourceEndpointId`, and is delivered to nobody. Afterwards the ordinary PUT under that `localId` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — a participant with one store behind several endpoints binds once per endpoint, often against the same `localId`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5962,6 +6138,53 @@ func ParseSetInitialLoadStateResponse(rsp *http.Response) (*SetInitialLoadStateR
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest InitialLoadConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReportUserAttentionResponse parses an HTTP response from a ReportUserAttentionWithResponse call
+func ParseReportUserAttentionResponse(rsp *http.Response) (*ReportUserAttentionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReportUserAttentionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest InitialLoadStatus
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

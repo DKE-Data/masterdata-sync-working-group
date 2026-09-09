@@ -97,12 +97,14 @@ func (e *MappingConflict) Is(target error) bool { return target == ErrMappingCon
 // parse — hence plain string constants and a default branch, not a closed Go
 // enum. See "Extensible enumerations" in specification.md.
 const (
-	// ReasonLocalIDAlreadyBound means this participant already knows a
+	// ReasonLocalIDAlreadyBound means this endpoint already knows a
 	// different canonical object by that localId. Resolving it needs a user:
-	// two of their records are being claimed to be one.
+	// two of their records are being claimed to be one. What a sibling endpoint
+	// of the same application has bound never causes this: the mapping is keyed
+	// by the endpoint.
 	ReasonLocalIDAlreadyBound = "LOCAL_ID_ALREADY_BOUND"
 
-	// ReasonAgrirouterIDAlreadyBound means this participant already knows that
+	// ReasonAgrirouterIDAlreadyBound means this endpoint already knows that
 	// canonical object under a different localId. Often resolvable without a
 	// user — the participant is usually holding the answer already.
 	ReasonAgrirouterIDAlreadyBound = "AGRIROUTER_ID_ALREADY_BOUND"

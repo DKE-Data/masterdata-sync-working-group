@@ -134,7 +134,7 @@ sequenceDiagram
             AR-->>P: 201 Farm { agrirouterId: 7c1d…8899, revision: 1 }
         else localId already mapped to a different canonical object
             AR-->>P: 409 Error (mapping conflict - resolved in the partner)
-            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/status { awaitingUser: true }
+            P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/user-attention
         end
     end
 
@@ -228,7 +228,7 @@ While reconciling, the endpoint may find that its own object and the canonical o
 
 The conflicts are in the partner's software, but the user who connected the endpoint is not necessarily there. Three questions follow: whether agrirouter has to be told that conflicts exist, whether it should send the user somewhere, and what happens when no user is present at all.
 
-**agrirouter is told that reconciliation needs user action.** The endpoint raises `awaitingUser` flag on its status the moment its own software detects that reconciliation is needed, and agrirouter clears it on the next forward transition. That is the whole of the reporting:
+**agrirouter is told that reconciliation needs user action.** The endpoint raises `awaitingUser` — a PUT on the `user-attention` sub-resource — the moment its own software detects that reconciliation is needed, and agrirouter clears it on the next forward transition. That is the whole of the reporting:
 
 | what agrirouter holds | what agrirouter UI says about the endpoint |
 | --- | --- |
@@ -242,7 +242,7 @@ The conflicts are in the partner's software, but the user who connected the endp
 
 `awaitingUser` is a flag signifying that user action is needed to perform reconciliation. It is reset by a transition agrirouter owns rather than by a second call from the endpoint. It is one flag per endpoint, like the resource it sits on: reconciliation is one job in the partner's software, and a user who is needed for fields is needed, full stop.
 
-**Every phase before `COMPLETED` can need a person.** Reconciling against the canonical set is the obvious source of conflicts, and they surface object by object as objects arrive - so the flag can be raised while the set is still being delivered, not only once it is complete. The push direction produces them too: a `PUT /masterdata/farms/{localId}` can come back `409` because the canonical object it names is already mapped to a different `localId` ([below](#granularity-mismatches-and-differing-requirements)), and resolving that is a decision in the partner's software just the same.
+**Every phase before `COMPLETED` can need a person.** Reconciling against the canonical set is the obvious source of conflicts, and they surface object by object as objects arrive - so the flag can be raised while the set is still being delivered, not only once it is complete. That is why it is a resource of its own rather than a field on the state update: raising it while the set arrives would otherwise mean naming a state the endpoint does not own and agrirouter may change under it. The push direction produces them too: a `PUT /masterdata/farms/{localId}` can come back `409` because the canonical object it names is already mapped to a different `localId` ([below](#granularity-mismatches-and-differing-requirements)), and resolving that is a decision in the partner's software just the same.
 
 The flag therefore spans two windows rather than three. `LOADING_FROM_AGRIROUTER` and `RECONCILING` are one window - the same reconciliation work, before and after the last object lands - cleared by the confirmation. `LOADING_TO_AGRIROUTER` is the second, cleared by the completion. The `LOADING_FROM_AGRIROUTER` → `RECONCILING` step does **not** clear it: that transition is agrirouter saying it has finished sending, which asserts nothing about whether the user has finished deciding.
 
