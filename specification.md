@@ -871,6 +871,25 @@ On a write that resolves to an existing object, agrirouter MUST proceed as follo
 - **Base absent.** The write is rejected with `428 Precondition Required`. Omitting the header would opt a participant out of concurrency control, and the integrations least able to surface a conflict to a user are the ones most likely to omit it.
 - **Base that agrirouter never issued for the object.** Rejected with `412`.
 
+Merging is what obliges agrirouter to keep anything at all beyond current state.
+Both sides of the comparison are changes measured *from the base*, so the base has
+to be reconstructable for any revision agrirouter has issued and a participant may
+still be holding. agrirouter therefore retains whatever lets it reconstruct one.
+How is not constrained here: prior states, per-attribute deltas, and anything else
+that answers "what did this object look like at revision N" are equivalent for
+this purpose, and the choice belongs to an implementation rather than to the
+protocol.
+
+**That retention is unbounded.** agrirouter keeps every base it has issued for as
+long as it holds the object, and MUST NOT age one out: a participant returning
+after an arbitrary absence, writing from the revision it last saw, is merged
+against rather than rejected for having waited.
+
+This is internal to conflict resolution and is not history in the sense this
+document [disclaims](#what-this-protocol-is-and-is-not). It is never served: no
+operation returns a past version and `revision` addresses no version but the current
+one.
+
 A create carries no base, there being no revision to compare against. A base on a
 request that does not resolve to an existing object is rejected with `412`: the
 participant believes it is updating an object agrirouter does not know under that
@@ -954,7 +973,7 @@ version already settles elsewhere:
 
 - **Operation-agnostic.** References to the entities a given entity supersedes, with nothing on the wire distinguishing a split from a merge — a split names one predecessor on each successor, a merge names several on one, and neither needs an operation of its own. A participant that does not model the distinction is unaffected by it.
 - **Held by agrirouter, read-only to participants.** Lineage is a property of the canonical object, like the [identifier mapping](#identifier-mapping), not an attribute a sender restates on every write. Carried in the envelope it would be erased by the next whole-object send from a participant that does not model it, and that erasure would be a change like any other — a new revision, delivered to everyone.
-- **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — inactive, if it was deactivated by the split — because agrirouter retains no past states of anything.
+- **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — inactive, if it was deactivated by the split — because current state is the only thing agrirouter serves.
 
 ## Requesting objects (lazy loading)
 

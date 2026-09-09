@@ -83,6 +83,19 @@ copy newer than mine" for one object, the delivery sequence answers "what have I
 not seen yet" across all of them. [ADR 07](./07-sync-streaming.md) defines the
 latter.
 
+### Merge bases are kept without a horizon
+
+The three-way merge compares both sides of a change against the base, so
+agrirouter has to be able to reconstruct what an object looked like at any
+revision a partner may still be holding. It keeps them all, for as long as it
+holds the object, and ages none of them out.
+
+The cost is agrirouter's: retention grows with the number of
+changes rather than with the number of entities, and no operation in the protocol
+removes an entity, deactivation included. What it buys is that a `412` has one
+meaning. How the bases are stored - prior states, per-attribute deltas, anything
+that reconstructs one - is left to the implementation.
+
 ## Summary
 
 - `revision` is a **monotonic positive integer assigned by agrirouter**; no digest,
@@ -91,4 +104,6 @@ latter.
   resume actually need.
 - The correctness invariant is: **agrirouter serializes writes per canonical
   object.** State it; preserve it.
+- **Merge bases are retained without a horizon**, so a `412` always means a real
+  overlap and never a forgotten base.
 
