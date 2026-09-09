@@ -1,0 +1,6 @@
+package: oapi
+generate:
+  echo-server: true
+  strict-server: true
+  models: true
+output: reference-client/internal/testrouter/oapi/server.gen.go

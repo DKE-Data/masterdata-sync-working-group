@@ -1,0 +1,4 @@
+package: oapi
+generate:
+  models: true
+output: agmasync/oapi/models.gen.go

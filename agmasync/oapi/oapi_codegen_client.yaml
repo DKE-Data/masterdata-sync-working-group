@@ -1,0 +1,4 @@
+package: oapi
+generate:
+  client: true
+output: agmasync/oapi/client.gen.go
