@@ -1018,25 +1018,29 @@ paths:
     get:
       tags: [Configuration]
       summary: Get the endpoint's master-data opt-in configuration
+      operationId: getMasterdataConfig
+      responses:
+        '200':
+          description: The current configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MasterdataConfig'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Configuration]
+      summary: Set the endpoint's master-data opt-in configuration
       description: >
-        The entity types this endpoint is opted into. Opt-in is per endpoint and
-        per entity type, and carries no direction: an opted-in type is read and
-        write.
+        Configures per-entity opt-in. Master-data routes
+        are created only through this explicit opt-in, never by default routing.
 
-        The resource is read-only. Opting an endpoint into master data is the
-        user's decision, taken in agrirouter alongside the route to the
-        master-data hub. This resource is where a participant reads that
-        decision. Opt-in is per endpoint, so an application MUST NOT assume the
-        types it exchanges for one endpoint are the types it exchanges for
-        another.
-
-        An endpoint opted into nothing has an empty `toggles`, not a `404`; a
-        `404` means no such endpoint.
-
-        Read this when the endpoint's routes change: a route to the master-data
-        hub is reported like any other, by `ENDPOINTS_LIST_CHANGED`, and there is
-        no separate opt-in notification.
-
+        The configuration MUST be dependency-closed: enabling fields requires
+        the farms and field boundaries those fields reference, and the
+        organizations and persons those farms reference, to be enabled as well. A configuration that is
+        not dependency-closed is rejected with `400`.
 
         Opting the endpoint into its first entity type starts its initial load:
         the endpoint enters the `LOADING_FROM_AGRIROUTER` state (see the Initial
@@ -1056,19 +1060,27 @@ paths:
         is; removing the last toggle discards it. Opting out discards neither
         the canonical objects nor the application's identifier mapping, so a
         repeat load arrives matched, and `previousLoadCompletedAt` on the
-        Initial Load resource marks it as a repeat.
-      operationId: getMasterdataConfig
+        Initial Load resource marks it as a repeat. An endpoint that needs the
+        set again SHOULD set `LOADING_FROM_AGRIROUTER` on the Initial Load
+        status resource rather than opting an entity type out and back in.
+      operationId: putMasterdataConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MasterdataConfig'
       responses:
         '200':
-          description: The current configuration.
+          description: Updated configuration.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MasterdataConfig'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   # ----------------------------------------------------------------- initial load
 
@@ -1155,13 +1167,13 @@ paths:
         opted into no entity type has no initial-load state and is `404`. The
         state machine is:
         `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
-        `COMPLETED`. Opting the endpoint into its first entity type (via the
-        master-data configuration) starts it at `LOADING_FROM_AGRIROUTER`, and
-        adding a further entity type returns it there; agrirouter itself
-        advances it to `RECONCILING` once the whole canonical set has been sent.
-        Every entry into `LOADING_FROM_AGRIROUTER` is therefore agrirouter's,
-        carrying out a user's opt-in decision; the endpoint drives the two exits
-        by sending a PUT request to this resource.
+        `COMPLETED`, with a return to `LOADING_FROM_AGRIROUTER` available from any
+        state for an endpoint that needs the canonical set again. Opting the
+        endpoint into its first entity type (via the master-data configuration)
+        starts it at `LOADING_FROM_AGRIROUTER`, adding a further entity type
+        returns it there, and agrirouter itself advances it to `RECONCILING`
+        once the whole canonical set has been sent; the endpoint drives the
+        remaining transitions by sending a PUT request to this resource.
       operationId: getInitialLoadStatus
       responses:
         '200':
@@ -2162,12 +2174,16 @@ components:
             The path addresses it by the participant's own `externalEndpointId`.
         toggles:
           type: array
-          description: >
-            The entity types the user opted this endpoint into, empty where it
-            is opted into none — always present, never absent. Set by the user in
-            agrirouter.
           items:
             $ref: '#/components/schemas/EntityTypeToggle'
+        resolutionUrl:
+          type: string
+          format: uri
+          description: >
+            Where the user resolves initial-load conflicts in the endpoint's own
+            software. Optional, opaque to agrirouter, and not per conflict: it is
+            rendered as a link while the endpoint has `awaitingUser` set.
+          examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
     InitialLoadState:

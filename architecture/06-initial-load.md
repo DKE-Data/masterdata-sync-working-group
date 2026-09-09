@@ -99,11 +99,10 @@ sequenceDiagram
     participant P as Partner (endpoint)
     participant AR as agrirouter (SSOT)
 
-    U->>AR: opt this endpoint into farms (and the parties they reference), in agrirouter
-    Note over AR: toggles: organizations, persons, farms<br/>endpoint → LOADING_FROM_AGRIROUTER
-    AR-->>P: ENDPOINTS_LIST_CHANGED (the hub route is a route like any other)
-    P->>AR: GET /endpoints/{eid}/masterdata-config
-    AR-->>P: 200 MasterdataConfig { toggles: [{ entityType: "organizations" }, { entityType: "persons" }, { entityType: "farms" }] }
+    U->>P: opt this endpoint into farms (and the parties they reference)
+    P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "organizations" }, { entityType: "persons" }, { entityType: "farms" }] }
+    AR-->>P: 200 MasterdataConfig
+    Note over AR: endpoint → LOADING_FROM_AGRIROUTER
 
     P->>AR: GET /endpoints/{eid}/masterdata-initial-load/events (SSE)
     AR-->>P: 200 text/event-stream
@@ -170,20 +169,21 @@ Points worth noting about the calls themselves:
   resolve. During a load the one source of a reference that does not resolve yet
   is the live stream, which is independent of this one; the endpoint requests
   such an object rather than waiting.
-- **Opting in is what starts the first load, and opt-in is the user's.** The
-  toggles are set in agrirouter next to the hub-route arrow; `GET
-  .../masterdata-config` is how a partner reads them, and there is no operation
-  to change them. agrirouter also drives the step to `RECONCILING` - it is the
-  side that knows the set has been sent - and the restart when a further type is
-  added. The endpoint drives the confirmation and the completion through
-  `PUT .../masterdata-initial-load/status`; every other transition there is a
-  `409`, including any attempt to set `LOADING_FROM_AGRIROUTER`. Repeating the
-  transition the endpoint is already in is `200`
+- **Opting in is what starts the first load.** `PUT .../masterdata-config` does
+  it, not the endpoint. agrirouter also drives the step to `RECONCILING`, for the
+  same reason - it is the side that knows the set has been sent - and the restart
+  when a further type is added. The endpoint drives the confirmation, the
+  completion, and the return to `LOADING_FROM_AGRIROUTER`, all through
+  `PUT .../masterdata-initial-load/status`. Every out-of-order
+  transition is a `409`: the states advance in order, and the only way out of
+  that order is back to the start. Repeating the transition the endpoint is
+  already in is not out of order, and is `200`
   ([below](#repeating-a-transition-is-not-a-conflict)).
-- **Opting out and back in is the only way back, and only the user can do it.**
-  Removing an entity type stops its delivery and leaves the endpoint's state
-  alone - or discards it, if it was the last type - and adding it back restarts
-  the load for every opted-in type.
+- **Opting out and back in is a second way back.** Removing an entity type from
+  the configuration stops its delivery and leaves the endpoint's state alone -
+  or discards it, if it was the last type - and adding it back restarts the load
+  for every opted-in type. These operations
+  are not supposed to work back to back in order to do this restart even though it is technically possible, but instead using state machine transition is preferred directly.
 - **The endpoint reads the state machine, it does not keep one.** agrirouter is
   authoritative for every phase, including whether the canonical set finished
   arriving (that is the difference between
@@ -247,13 +247,13 @@ The flag therefore spans two windows rather than three. `LOADING_FROM_AGRIROUTER
 
 The flag is independent of the fact that the whole canonical set has been received: conflicts surface object by object as they arrive.
 
-**A link, not a redirect.** When the route is created there is nothing to resolve yet, so redirecting then lands the user on an empty page, and the flag that says otherwise arrives hours later. So the partner supplies a **master-data resolution URI**, which agrirouter renders as a link throughout initial load - the call to action while `awaitingUser` is set, quiet otherwise. Opaque, not per conflict, and where none is supplied the label stands on its own.
+**A link, not a redirect.** When the route is created there is nothing to resolve yet, so redirecting at that moment lands the user on an empty page - and the flag that says otherwise arrives minutes or hours later. So the partner declares `resolutionUrl`, an optional opaque URL set on `PUT .../masterdata-config` next to the toggles - the moment it knows which of its own tenants this endpoint is - and agrirouter renders it as a link throughout initial load, as the call to action whenever `awaitingUser` is set and quietly otherwise. It is not per conflict and not templated by agrirouter, and where it is absent the label stands on its own.
 
-**It is per endpoint and sits on the endpoint**. A partner with one endpoint per customer organization would otherwise potentially land the user in the wrong one, and nothing would catch it.
+**Route creation scenarios differ only in where the user already is.** The canvas arrow ([ADR 04](./04-routing.md)) and the entity-type toggles are two gates on the same thing, and the load starts once both are present:
 
-**The user is in agrirouter when a load starts.** The canvas arrow ([ADR 04](./04-routing.md)) and the toggles are two gates on the same thing, both in agrirouter, so the work is always somewhere the user is not. That is what the label and the link exist for.
-
-A load is never **started automatically**: default routing never creates a `HubRoute`. Opting into master data stays an explicit act by a user, for the reason [ADR 04](./04-routing.md) gives - connecting an application unintentionally can overwrite a lot of data - so an endpoint created by a partner that supports master data is not silently opted in, and no initial load starts with nobody to tell.
+- **Partner-initiated** - RAC, or the partner's own settings screen. The user is in the partner app when the load starts and never leaves it, so nothing is required of agrirouter. This is the shape to prefer, and the reason `resolutionUrl` is optional.
+- **Drawn in the agrirouter canvas.** The user is in agrirouter and the work is elsewhere. This is the case the label and the link exist for.
+- **Created automatically.** Does not arise: default routing never creates a `HubRoute`. Opting into master data stays an explicit act by a user, for the reason [ADR 04](./04-routing.md) gives - connecting an application unintentionally can overwrite a lot of data - so an endpoint created by a partner that supports master data is not silently opted in, and no initial load starts with nobody to tell.
 
 **Waiting is not free**, which is why the partner should not rely on the user wandering back. Delivery does not expire, so a resolution left half done does not cost a reload of the canonical set ([ADR 07](./07-sync-streaming.md)) - but the set keeps moving underneath it, so the longer a conflict sits the likelier it is that the object the user is deciding about has changed again since it was surfaced. Pending resolution SHOULD therefore be surfaced in the partner's own UI rather than only on the screen the user happened to be on.
 
