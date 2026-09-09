@@ -85,6 +85,15 @@ travels in the event envelope, so a partner serving 100k farmers holds one
 connection and one position rather than 100k of each, and server-side delivery
 state is proportional to the number of applications.
 
+**A frame, however, is per endpoint.** The identifier mapping is scoped to the
+endpoint ([ADR 11](./11-mapping-scope.md)), and every `localId` in a payload -
+the envelope's own and one per reference - is resolved in the recipient's
+namespace, so a rendering serves exactly one endpoint. Each frame therefore names
+its recipient in `recipientEndpointId`, and an application with two opted-in
+endpoints in one tenant receives the object twice, once rendered for each. The
+connection is still one, and so is the position: fan-out happens at render time,
+downstream of everything below.
+
 Which tenants an application may read is decided by the hub
 routes the user created ([ADR 04](./04-routing.md)), and is applied as a predicate on
 the query rather than as a property of the connection.
@@ -162,7 +171,9 @@ which runs independently, and the response closes when the sweep ends. That is
 what lets the initial-load set arrive in tier order without the endpoint doing
 anything, and it is why there is one initial-load stream per endpoint rather
 than one per entity type - the order runs across types, and a sweep is one pass
-over all of them.
+over all of them. Being restricted to one endpoint, it needs no fan-out; its
+frames carry `recipientEndpointId` all the same, so a frame means the same thing
+on either stream.
 
 ### The tail is a second query, not a buffer
 
@@ -408,13 +419,20 @@ object whose most recent change came from an endpoint is not delivered back to t
 endpoint.
 
 The unit is the endpoint, not the application. An object changed by one endpoint is
-therefore still delivered to a sibling endpoint of the same application. Where those
-two endpoints are backed by one store the sibling re-emits the object, but the
-re-emission equals the current canonical revision, so
-[no-op detection](../specification.md#loop-prevention) drops it: no new revision,
-nothing forwarded. Origin suppression keeps a writer from being handed its own
-revision; no-op detection closes the loop that a coarser application-level unit
-closed by never letting the sibling see the object at all.
+therefore still delivered to a sibling endpoint of the same application, as a frame
+addressed to that sibling. Where those two endpoints are backed by one store the
+sibling re-emits the object, and what happens then depends on whether it has
+bound: a bound sibling's re-emission equals the current canonical revision, so
+[no-op detection](../specification.md#loop-prevention) drops it - no new
+revision, nothing forwarded - while an unbound one does not resolve at all and
+mints a duplicate.
+
+That is the one place [ADR 11](./11-mapping-scope.md) makes the safeguards weaker
+rather than sharper, and it has no server-side fix: an unresolved send is
+indistinguishable from a create. What replaces it is the frame the sibling gets,
+which carries no `localId` and is the endpoint's cue to bind rather than to send.
+Origin suppression keeps a writer from being handed its own revision; no-op
+detection closes the loop for a sibling that has declared itself.
 
 `POST /masterdata/<types>/requests` would still result in object to be sent on `/masterdata/events`
 regardless of origin suppression.

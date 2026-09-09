@@ -15,7 +15,9 @@ info:
     single channel genuinely carries all types — the event stream.
 
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
-    every entity plus a mapping to each participant's own identifier.
+    every entity plus a mapping to each endpoint's own identifier. The mapping is
+    scoped to the endpoint, so a `localId` means something only inside the
+    endpoint that issued it.
 
     A write answers with the resulting canonical object, and that response is a
     delivery rather than an acknowledgement: it is the only place the writing
@@ -71,11 +73,12 @@ paths:
       summary: Send (create or update) an organization
       description: >
         Submits an organization from the calling endpoint. If the
-        (application, localId) pair is already mapped to a canonical object, that
+        (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. The mapping is keyed by the application, not
-        the endpoint: a `localId` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        `agrirouterId` is assigned. The mapping is keyed by the endpoint named in
+        `x-agrirouter-endpoint-id`: a `localId` names a record only in that
+        endpoint's namespace, and the same string sent by a sibling endpoint of
+        the same application is a different record. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
@@ -129,8 +132,11 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        Within its own endpoint a local identifier denotes exactly one canonical
+        object, so this is a singleton: binding a second one is the `409`. A
+        sibling endpoint's bindings do not enter into it — a participant with one
+        store behind several endpoints binds once per endpoint, often against the
+        same `localId`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindOrganizationMapping
       responses:
@@ -222,10 +228,11 @@ paths:
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
-        It is delivered even when the requesting application was the object's
+        It is delivered even when the requesting endpoint was the object's
         last writer: origin suppression does not apply to a requested object,
-        since refetching something it wrote itself is exactly what an application
-        that lost the object needs.
+        since refetching something it wrote itself is exactly what an endpoint
+        that lost the object needs. The frame is addressed to the requesting
+        endpoint and carries that endpoint's `localId` where one is held.
       operationId: requestOrganization
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -249,11 +256,12 @@ paths:
       summary: Send (create or update) a person
       description: >
         Submits a person from the calling endpoint. If the
-        (application, localId) pair is already mapped to a canonical object, that
+        (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. The mapping is keyed by the application, not
-        the endpoint: a `localId` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        `agrirouterId` is assigned. The mapping is keyed by the endpoint named in
+        `x-agrirouter-endpoint-id`: a `localId` names a record only in that
+        endpoint's namespace, and the same string sent by a sibling endpoint of
+        the same application is a different record. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
@@ -307,8 +315,11 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        Within its own endpoint a local identifier denotes exactly one canonical
+        object, so this is a singleton: binding a second one is the `409`. A
+        sibling endpoint's bindings do not enter into it — a participant with one
+        store behind several endpoints binds once per endpoint, often against the
+        same `localId`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindPersonMapping
       responses:
@@ -400,10 +411,11 @@ paths:
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
-        It is delivered even when the requesting application was the object's
+        It is delivered even when the requesting endpoint was the object's
         last writer: origin suppression does not apply to a requested object,
-        since refetching something it wrote itself is exactly what an application
-        that lost the object needs.
+        since refetching something it wrote itself is exactly what an endpoint
+        that lost the object needs. The frame is addressed to the requesting
+        endpoint and carries that endpoint's `localId` where one is held.
       operationId: requestPerson
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -427,11 +439,12 @@ paths:
       summary: Send (create or update) a farm
       description: >
         Submits a farm from the calling endpoint. If the
-        (application, localId) pair is already mapped to a canonical object, that
+        (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. The mapping is keyed by the application, not
-        the endpoint: a `localId` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        `agrirouterId` is assigned. The mapping is keyed by the endpoint named in
+        `x-agrirouter-endpoint-id`: a `localId` names a record only in that
+        endpoint's namespace, and the same string sent by a sibling endpoint of
+        the same application is a different record. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
@@ -485,8 +498,11 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        Within its own endpoint a local identifier denotes exactly one canonical
+        object, so this is a singleton: binding a second one is the `409`. A
+        sibling endpoint's bindings do not enter into it — a participant with one
+        store behind several endpoints binds once per endpoint, often against the
+        same `localId`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFarmMapping
       responses:
@@ -578,10 +594,11 @@ paths:
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
-        It is delivered even when the requesting application was the object's
+        It is delivered even when the requesting endpoint was the object's
         last writer: origin suppression does not apply to a requested object,
-        since refetching something it wrote itself is exactly what an application
-        that lost the object needs.
+        since refetching something it wrote itself is exactly what an endpoint
+        that lost the object needs. The frame is addressed to the requesting
+        endpoint and carries that endpoint's `localId` where one is held.
       operationId: requestFarm
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -605,11 +622,12 @@ paths:
       summary: Send (create or update) a field
       description: >
         Submits a field from the calling endpoint. If the
-        (application, localId) pair is already mapped to a canonical object, that
+        (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. The mapping is keyed by the application, not
-        the endpoint: a `localId` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        `agrirouterId` is assigned. The mapping is keyed by the endpoint named in
+        `x-agrirouter-endpoint-id`: a `localId` names a record only in that
+        endpoint's namespace, and the same string sent by a sibling endpoint of
+        the same application is a different record. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
@@ -663,8 +681,11 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        Within its own endpoint a local identifier denotes exactly one canonical
+        object, so this is a singleton: binding a second one is the `409`. A
+        sibling endpoint's bindings do not enter into it — a participant with one
+        store behind several endpoints binds once per endpoint, often against the
+        same `localId`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFieldMapping
       responses:
@@ -756,10 +777,11 @@ paths:
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
-        It is delivered even when the requesting application was the object's
+        It is delivered even when the requesting endpoint was the object's
         last writer: origin suppression does not apply to a requested object,
-        since refetching something it wrote itself is exactly what an application
-        that lost the object needs.
+        since refetching something it wrote itself is exactly what an endpoint
+        that lost the object needs. The frame is addressed to the requesting
+        endpoint and carries that endpoint's `localId` where one is held.
       operationId: requestField
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -783,11 +805,12 @@ paths:
       summary: Send (create or update) a field boundary
       description: >
         Submits a field boundary from the calling endpoint. If the
-        (application, localId) pair is already mapped to a canonical object, that
+        (endpoint, localId) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
-        `agrirouterId` is assigned. The mapping is keyed by the application, not
-        the endpoint: a `localId` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        `agrirouterId` is assigned. The mapping is keyed by the endpoint named in
+        `x-agrirouter-endpoint-id`: a `localId` names a record only in that
+        endpoint's namespace, and the same string sent by a sibling endpoint of
+        the same application is a different record. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
@@ -841,8 +864,11 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        Within its own endpoint a local identifier denotes exactly one canonical
+        object, so this is a singleton: binding a second one is the `409`. A
+        sibling endpoint's bindings do not enter into it — a participant with one
+        store behind several endpoints binds once per endpoint, often against the
+        same `localId`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFieldBoundaryMapping
       responses:
@@ -934,10 +960,11 @@ paths:
         Opt-in remains the only filter on delivery, so a request never returns
         anything the stream would not also deliver. The object arrives
         asynchronously as a master-data change event (see `/masterdata/events`).
-        It is delivered even when the requesting application was the object's
+        It is delivered even when the requesting endpoint was the object's
         last writer: origin suppression does not apply to a requested object,
-        since refetching something it wrote itself is exactly what an application
-        that lost the object needs.
+        since refetching something it wrote itself is exactly what an endpoint
+        that lost the object needs. The frame is addressed to the requesting
+        endpoint and carries that endpoint's `localId` where one is held.
       operationId: requestFieldBoundary
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
@@ -962,9 +989,14 @@ paths:
         it originated from; a change made by one endpoint is still delivered to
         the application's other endpoints. Each event's
         `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
-        `FieldBoundary` discriminated by its `type` property. A delivered object
-        carries the receiving application's own identifier in `localId` when
-        agrirouter holds one, and no `localId` at all when it does not.
+        `FieldBoundary` discriminated by its `type` property.
+
+
+        A frame is addressed to one endpoint, named in `recipientEndpointId`, and
+        carries that endpoint's own identifier in `localId` when agrirouter holds
+        one and no `localId` at all when it does not. The mapping is scoped to
+        the endpoint, so an object entitled to two of the application's endpoints
+        arrives twice, rendered for each.
 
         This stream carries steady-state synchronization only. Initial load is
         delivered separately, per endpoint, by
@@ -1054,7 +1086,7 @@ paths:
         endpoint missed while the type was not opted in. Removing a toggle stops
         delivery of that entity type and leaves the initial-load state as it
         is; removing the last toggle discards it. Opting out discards neither
-        the canonical objects nor the application's identifier mapping, so a
+        the canonical objects nor the endpoint's identifier mapping, so a
         repeat load arrives matched, and `previousLoadCompletedAt` on the
         Initial Load resource marks it as a repeat.
       operationId: getMasterdataConfig
@@ -1088,8 +1120,8 @@ paths:
         revision the requesting application itself last wrote — origin
         suppression does not apply here, since withholding them would have a
         returning endpoint push them back as new and duplicate them. A delivered
-        object carries the application's own identifier in `localId` where
-        agrirouter holds one.
+        object carries this endpoint's own identifier in `localId` where
+        agrirouter holds one, and names the endpoint in `recipientEndpointId`.
 
         agrirouter closes the HTTP response once it has sent the whole set and
         then moves the endpoint to `RECONCILING`. The set is fixed when the load
@@ -1260,11 +1292,12 @@ components:
       in: path
       required: true
       description: >
-        The sending application's own identifier for the entity. Unique across
-        the whole application per entity type, whichever of its endpoints sends
-        it: the mapping is keyed `(application, localId)`. A local identifier
-        already mapped to a different canonical object is rejected (see the
-        specification, "Identifier mapping").
+        The calling endpoint's own identifier for the entity. Unique within that
+        endpoint per entity type and meaningless outside it: the mapping is keyed
+        `(endpoint, localId)`, so the same string from a sibling endpoint of the
+        same application names a different record. A local identifier already
+        mapped to a different canonical object *for this endpoint* is rejected
+        (see the specification, "Identifier mapping").
       schema:
         type: string
     AgrirouterEndpointId:
@@ -1444,9 +1477,10 @@ components:
       description: >
         The supplied local identifier is already mapped to a different canonical
         object, or — when binding — the canonical object is already bound to a
-        different local identifier of this application. Both are checked across
-        the whole application, not just the calling endpoint. Either way an asymmetric /
-        n:1 mapping the caller must resolve. The body names which of the two
+        different local identifier of this endpoint. Both are checked within the
+        calling endpoint only: what a sibling endpoint of the same application
+        has bound is a separate namespace and never a conflict. Either way an
+        asymmetric / n:1 mapping the caller must resolve. The body names which of the two
         identifiers is taken, and the mapping that holds it, since that is what
         the resolving side has to show its user.
       content:
@@ -1626,18 +1660,20 @@ components:
         localId:
           type: string
           description: >
-            Always the *calling* application's own identifier for the entity, in
-            both directions: on send the sender's, on delivery the receiving
-            application's. It never carries another application's identifier.
-            One store per application, so the identifier is the same whichever
-            of the application's endpoints sends or receives it.
+            Always the *acting* endpoint's own identifier for the entity, in
+            both directions: on send the sending endpoint's, on delivery the
+            receiving endpoint's (named by `recipientEndpointId`). It never
+            carries another endpoint's identifier, a sibling endpoint of the same
+            application included. A local store is scoped to the endpoint, so the
+            same string sent by two endpoints is two records.
 
 
             Required on send. On delivery it is present when agrirouter holds a
-            mapping for the receiving application, and absent when it does not —
-            an object the application has not bound, or has unbound. An absent
+            mapping for the receiving endpoint, and absent when it does not —
+            an object that endpoint has not bound, or has unbound. An absent
             `localId` means "you do not hold this object": create it locally and
-            bind the identifier you issue.
+            bind the identifier you issue, or — if you recognise it in a store
+            you already share with another endpoint — bind without creating.
         active:
           type: boolean
           default: true
@@ -1674,6 +1710,22 @@ components:
           description: >
             The agrirouter identifier of the endpoint whose change produced this
             revision. It always belongs to `tenantId`.
+        recipientEndpointId:
+          type: string
+          format: uuid
+          readOnly: true
+          description: >
+            On delivery, the endpoint this copy is rendered for: the endpoint
+            whose `localId` the envelope and every reference in it carry.
+            Assigned by agrirouter; a value sent by a participant is ignored.
+
+
+            Because the identifier mapping is scoped to the endpoint, the event
+            stream carries one frame per recipient endpoint rather than one per
+            object. An application with two opted-in endpoints in one tenant
+            receives the same canonical object twice, rendered for each, and
+            partitions on this field. On a write response it is the endpoint
+            named in `x-agrirouter-endpoint-id`.
 
 
     Address:

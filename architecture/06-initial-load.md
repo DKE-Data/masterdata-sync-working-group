@@ -61,6 +61,9 @@ covering every opted-in type, from whichever state the endpoint was in. The
 second time the endpoint's identifier mapping is still there, so step 2 delivers
 objects the endpoint recognises and steps 4 and 5 have little to do
 ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
+A participant that removed the endpoint and onboarded a new one instead gets no
+such discount: the mapping was keyed by the endpoint it deleted
+([ADR 11](./11-mapping-scope.md)), so the new endpoint runs a first load in full.
 `previousLoadCompletedAt` on the initial-load resource is what tells the endpoint
 which of the two it is in, and an endpoint that ignores it duplicates its own data.
 Opting a type out leaves the state alone - the endpoint is still in step for what
