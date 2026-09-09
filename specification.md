@@ -608,7 +608,10 @@ answer with the current status, and where the request carries bindings it MUST
 apply them again and report afresh which were rejected. An endpoint whose
 confirmation went unanswered has no other way to learn whether its bindings were
 recorded, the mapping not being readable (see
-[Identifier mapping](#identifier-mapping)), so it repeats the confirmation. An endpoint has an initial-load
+[Identifier mapping](#identifier-mapping)), so it repeats the confirmation.
+`LOADING_FROM_AGRIROUTER` is not narrowed by any of this: it is refused from
+every state including from itself, a state update being the only thing this
+operation does. An endpoint has an initial-load
 state only while it is opted into at least one entity type; there is no state for one that never was, the
 absence of any toggle already saying that it does not participate.
 
@@ -639,8 +642,9 @@ on the initial-load resource — which agrirouter shows in place of its own "thi
 application is working through your data". agrirouter learns *that* a person is
 needed and never what for: it is one bit per endpoint, not a conflict list.
 
-- **The endpoint raises it and agrirouter clears it**, on the two transitions the endpoint drives — the confirmation and the completion. The step to `RECONCILING` MUST NOT clear it: that is agrirouter reporting it has finished sending, which asserts nothing about whether the user has finished deciding.
-- **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same.
+- **It is raised on a resource of its own**, `PUT .../masterdata-initial-load/user-attention`, and not by updating the state. Reporting a user is not a transition, and an endpoint that had to name a state in order to report one would be naming a state it does not own: agrirouter may advance the endpoint between the object that surfaced the conflict and the request reporting it, which would make an accurate report an out-of-order transition. Naming no state, the report cannot be out of order and cannot race.
+- **The endpoint raises it and agrirouter clears it**, on the two transitions the endpoint drives — the confirmation and the completion. There is nothing for an endpoint to lower it with. The step to `RECONCILING` MUST NOT clear it: that is agrirouter reporting it has finished sending, which asserts nothing about whether the user has finished deciding.
+- **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same. A completed load waits on nobody, so raising it then is refused.
 - **Unset says nothing about the user.** It is ambiguous between having nothing to raise and not reporting at all, so it only ever upgrades what agrirouter shows, and an endpoint that omits it costs precision rather than correctness. Nothing in the protocol branches on it.
 
 A participant SHOULD also supply a **master-data resolution URI** for each of its

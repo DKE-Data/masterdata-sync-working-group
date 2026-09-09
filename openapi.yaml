@@ -1274,6 +1274,63 @@ paths:
         '409':
           $ref: '#/components/responses/InitialLoadConflict'
 
+  /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention:
+    parameters:
+      - $ref: '#/components/parameters/ExternalEndpointId'
+    put:
+      tags: [InitialLoad]
+      summary: Report that the endpoint's initial load is waiting on a user
+      description: >
+        Raises `awaitingUser` on the endpoint's initial-load status, so that
+        agrirouter shows "waiting for you in <app>" — linking to the master-data
+        resolution URI supplied for this endpoint — in place of its own "this
+        application is working through your data".
+
+
+        It is a resource of its own because reporting a user is not a
+        transition. Conflicts surface object by object, so an endpoint has to be
+        able to say this from any state before `COMPLETED`, including while the
+        canonical set is still arriving; naming a state in order to say it would
+        mean naming one the endpoint does not own and cannot set. This names
+        none, so it never races the transitions agrirouter drives and is never
+        out of order.
+
+
+        It carries no body and raises the flag; there is nothing to lower it
+        with, because lowering it is not the endpoint's to do. agrirouter clears
+        it on the two endpoint-driven transitions — advancing to
+        `LOADING_TO_AGRIROUTER` or to `COMPLETED` — and the step to
+        `RECONCILING` does not, that being agrirouter reporting it has finished
+        sending rather than the user having finished deciding. Repeating it
+        while it is already raised is a `200`.
+
+
+        agrirouter learns *that* a person is needed and never what for: it is one
+        bit per endpoint, not a conflict list. Nothing in the protocol branches
+        on it, so an endpoint that never calls this costs precision rather than
+        correctness.
+      operationId: reportUserAttention
+      responses:
+        '200':
+          description: The endpoint's initial load status, with the flag raised.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitialLoadStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: >
+            The endpoint's initial load is `COMPLETED`, and a completed load is
+            waiting on nobody. An endpoint opted into no entity type has no
+            initial-load state at all and is `404`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2228,8 +2285,9 @@ components:
           description: >
             Whether the endpoint's own software is needing user action
             — a conflict, a missing required
-            attribute, a granularity mismatch. Raised by the endpoint and cleared
-            by agrirouter, on the two endpoint-driven transitions only: advancing
+            attribute, a granularity mismatch. Raised by the endpoint through the
+            `user-attention` resource and cleared by agrirouter, on the two
+            endpoint-driven transitions only: advancing
             to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to
             `COMPLETED`. The step to `RECONCILING` does not, since that is
             agrirouter reporting it has finished sending and says nothing about
@@ -2275,23 +2333,12 @@ components:
       type: object
       description: >
         The target initial-load `state` for the endpoint. The states are
-        accepted in order, plus `LOADING_FROM_AGRIROUTER` from any state, which
-        asks for the canonical set again.
+        accepted in order, and repeating the one the endpoint is already in is
+        accepted too. `LOADING_FROM_AGRIROUTER` is never a transition an
+        endpoint may make, from any state including from itself.
       properties:
         state:
           $ref: '#/components/schemas/InitialLoadState'
-        awaitingUser:
-          type: boolean
-          description: >
-            Set to `true` when the endpoint's reconciliation is requiring
-            user action, so agrirouter can show the endpoint as waiting
-            rather than as still working. May be set from any state before
-            `COMPLETED`, including while the canonical set is still arriving,
-            since conflicts surface object by object. Endpoints SHOULD report it,
-            and may do so with the idempotent PUT that repeats the current state.
-            It is not cleared by the endpoint: advancing to
-            `LOADING_TO_AGRIROUTER` or `COMPLETED` clears it. Omitting it leaves
-            the current value untouched.
         idMappings:
           type: array
           description: >
