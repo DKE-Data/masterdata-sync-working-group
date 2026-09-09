@@ -531,9 +531,8 @@ Therefore:
 - Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms and field boundaries those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST NOT record a configuration that is not dependency-closed, and MUST surface the dependency where the user makes the choice rather than silently enabling the missing types.
 - Opting an entity type **in** on an endpoint that already takes part restarts that endpoint's [initial load](#initial-load): agrirouter cannot enumerate what the endpoint missed while the type was not opted in, and initial load is per endpoint rather than per entity type, so the whole set — every opted-in type — is sent again. Neither the canonical objects nor the endpoint's identifier mapping are discarded by an opt-out, so what was loaded before arrives matched rather than reconciled (see [Disconnection and re-connection](#disconnection-and-re-connection)).
 - Opting an entity type **out** removes it from the configuration and stops its delivery. The endpoint's initial-load state is left as it is, and is discarded only with the last entity type.
-- A participant learns that an endpoint was routed to the hub from the notification that already reports a change to the endpoints and routes visible to it (`ENDPOINTS_LIST_CHANGED` in G4), and reads the configuration then. There is no separate opt-in notification.
 
-The configuration is therefore read-only in its entirety, and `openapi.yaml` exposes it as a single `GET`.
+The concrete configuration resource is described in `openapi.yaml`.
 
 ## Initial load
 
