@@ -616,14 +616,13 @@ needed and never what for: it is one bit per endpoint, not a conflict list.
 - **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same. A completed load waits on nobody, so raising it then is refused.
 - **Unset says nothing about the user.** It is ambiguous between having nothing to raise and not reporting at all, so it only ever upgrades what agrirouter shows, and an endpoint that omits it costs precision rather than correctness. Nothing in the protocol branches on it.
 
-A participant SHOULD also supply a **master-data resolution URI** for each of its
-endpoints: where in its own software a user resolves *that endpoint's* initial
-load. agrirouter treats it as opaque and links to it while a user is awaited;
-where none is supplied it can only name the application.
-
-It is a property of the endpoint, set on the endpoint itself through the
-agrirouter endpoint API, and is not part of this document's API — which has no
-write operation on the master-data configuration at all.
+A participant MAY also declare, as a `resolutionUrl` in its opt-in configuration,
+where in its own software the user resolves this endpoint's initial load.
+agrirouter treats it as opaque, links to it while a user is awaited, and where
+none is declared can only name the application. It is per endpoint rather than per
+conflict: at the moment the route is created there is nothing to resolve yet, and
+a location that is right only once the first conflict exists would have to be
+declared then, which is exactly when nobody is there to declare it.
 
 Reconciliation does not pause delivery. The application's live changes stream
 belongs to the application and carries every endpoint it serves (see
