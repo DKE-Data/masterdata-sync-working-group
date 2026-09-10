@@ -982,6 +982,18 @@ paths:
         to another, or read the completeness of an entity type out of it.
         `Last-Event-ID` is the only position the application keeps, and
         positions do not expire.
+
+        The stream also carries `ENDPOINT_SELECTION_CHANGED`, which states which
+        entity types the user has selected for one of the application's
+        endpoints. It is issued every time that selection moves — the endpoint
+        routed to master-data, a type selected, a type deselected, the last one
+        deselected — and the selection is recorded by agrirouter and is not a
+        resource of this API, so this frame is the only place an application is
+        told it. On catch-up agrirouter restates it for every endpoint that has
+        a selection and for every endpoint whose selection was emptied, so that a
+        withdrawal reaches an application that was offline when it happened. The
+        frame therefore arrives more than once for one selection and MUST be
+        handled idempotently.
       operationId: streamMasterdataEvents
       parameters:
         - $ref: '#/components/parameters/LastEventId'
@@ -997,9 +1009,10 @@ paths:
                   SSE event would carry three parts: "id:", "event:" and "data:".
 
                   The `data:` is a payload of each SSE frame. Frames carry an `event:`
-                  of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`, or
-                  `CAUGHT_UP`; the first two carry an `Entity` and the last
-                  has no data. Every frame also carries an `id:`, which is the
+                  of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`,
+                  `CAUGHT_UP` or `ENDPOINT_SELECTION_CHANGED`; the first two carry an `Entity`,
+                  `CAUGHT_UP` has no data and `ENDPOINT_SELECTION_CHANGED` carries an event payload. 
+                  Every frame also carries an `id:`, which is the
                   delivery position as of that frame — what the application
                   persists once it has durably applied the frame, and returns as
                   `Last-Event-ID` on reconnect. `id` may repeat across some events
@@ -1008,7 +1021,9 @@ paths:
                   be treated as an opaque string whose structure may change.
                   Whatever `id` a frame carries is safe to resume from once that
                   frame and every frame before it have been applied.
-                $ref: '#/components/schemas/Entity'
+                oneOf:
+                  - $ref: '#/components/schemas/Entity'
+                  - $ref: '#/components/schemas/EndpointSelectionChangedEventData'
 
   # ------------------------------------------------------------ configuration
 
@@ -1017,7 +1032,7 @@ paths:
       - $ref: '#/components/parameters/ExternalEndpointId'
     get:
       tags: [Configuration]
-      summary: Get the endpoint's master-data opt-in configuration
+      summary: Get what the endpoint has declared it can exchange
       operationId: getMasterdataConfig
       responses:
         '200':
@@ -1167,13 +1182,26 @@ paths:
         opted into no entity type has no initial-load state and is `404`. The
         state machine is:
         `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
-        `COMPLETED`, with a return to `LOADING_FROM_AGRIROUTER` available from any
-        state for an endpoint that needs the canonical set again. Opting the
-        endpoint into its first entity type (via the master-data configuration)
-        starts it at `LOADING_FROM_AGRIROUTER`, adding a further entity type
-        returns it there, and agrirouter itself advances it to `RECONCILING`
-        once the whole canonical set has been sent; the endpoint drives the
-        remaining transitions by sending a PUT request to this resource.
+        `COMPLETED`. Entering `LOADING_FROM_AGRIROUTER` is agrirouter's alone and
+        follows from the user's opt-in and from nothing else: the user selecting
+        the endpoint's first entity type, when routing it to the master-data hub,
+        starts it there, and selecting a further entity type returns it there. An
+        application cannot enter it, from any state including from itself, and
+        there is no operation for asking that the set be sent again. agrirouter
+        itself advances it to `RECONCILING` once the whole canonical set has been
+        sent; the endpoint drives the remaining two transitions by sending a PUT
+        request to this resource.
+
+        Initial load is one state and one stream per endpoint, not per entity
+        type, which is why selecting a further type restarts it from whatever
+        state the endpoint is in: the set is fixed when a load starts, and
+        agrirouter cannot enumerate what the endpoint missed while the type was
+        not selected, so the whole set — every selected type — is sent again.
+        Deselecting a type stops its delivery and leaves this state as it is;
+        deselecting the last one discards it, and the endpoint is then `404`.
+        Neither the canonical objects nor the application's identifier mapping
+        are discarded by a deselection, so a repeat load arrives matched, and
+        `previousLoadCompletedAt` below marks it as a repeat.
       operationId: getInitialLoadStatus
       responses:
         '200':
@@ -2186,6 +2214,75 @@ components:
           examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
+    EndpointSelectionChangedEventData:
+      type: object
+      description: >
+        Data structure for `ENDPOINT_SELECTION_CHANGED` events on
+        `/masterdata/events`. It states which entity types the user has selected
+        for one of the application's endpoints.
+
+        It is a statement of the selection rather than of a transition, which is
+        why one event covers every way the selection moves: the endpoint routed
+        to the master-data hub for the first time, a further entity type selected
+        on one already routed, a type deselected, and the last one deselected or
+        the route removed, which is an empty `entityTypes`. An application does
+        not have to tell those apart to act on it: it applies the selection it is
+        given, replacing whatever it held for that endpoint.
+
+        **This event is the only place the selection is exposed.** agrirouter
+        records it when the user routes the endpoint to the hub, and no operation
+        returns it, so an application that was not told it here has no way to read
+        it. What `masterdata-config` holds is the application's own declaration,
+        a superset of this.
+
+        On catch-up agrirouter emits one for every endpoint of the application
+        that has a selection, and one for every endpoint whose selection was
+        emptied. The second is what makes a withdrawal survive a disconnection:
+        an emptied endpoint has nothing to restate, so without it an application
+        that was offline when its user withdrew would simply never hear again and
+        would go on believing it was opted in.
+      required: [eventType, endpointId, externalEndpointId, entityTypes]
+      properties:
+        eventType:
+          type: string
+          const: ENDPOINT_SELECTION_CHANGED
+          description: Discriminator; matches the `event:` line.
+        endpointId:
+          type: string
+          format: uuid
+          description: >
+            The agrirouter identifier of the endpoint. This is the id the
+            application names as the acting endpoint on the writes that follow
+            (`x-agrirouter-endpoint-id`).
+        externalEndpointId:
+          type: string
+          description: >
+            The application's own identifier for the same endpoint. Carried
+            alongside the agrirouter id because the two sides of this API are
+            addressed differently and the application needs whichever it is about
+            to use: the initial-load and configuration resources are addressed
+            by `externalEndpointId`.
+        entityTypes:
+          type: array
+          description: >
+            Complete current selection for this endpoint. Replaces any cached
+            selection, do not merge.
+
+            Always a subset of what the endpoint declared, and dependency-closed.
+            Empty means the endpoint exchanges nothing: the user deselected the
+            last type or removed the route to the hub. The application stops
+            sending for it and may tell its user that exchange has ended. What is
+            not discarded is the canonical objects or the identifier mapping, so
+            a later reselection is a matched repeat rather than a fresh start.
+          items:
+            $ref: '#/components/schemas/EntityTypeToggle'
+        changedAt:
+          type: string
+          format: date-time
+          description: >
+            When the selection last changed. On an event emitted during catch-up
+            this is that time, not the time of the catch-up.
+
     InitialLoadState:
       type: string
       description: >
@@ -2194,11 +2291,13 @@ components:
 
 
         `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set.
-        Entered by opting the endpoint into its first entity type via the
-        master-data configuration, and again whenever a further entity type is
-        added there. Both are a user's opt-in decision carried out by
-        agrirouter; a participant cannot enter this state directly, and an
-        attempt to set it on the `status` resource is a `409`.
+        Entered when the user selects the endpoint's first entity type, and again
+        whenever a further entity type is selected. Both are a user's opt-in
+        decision carried out by agrirouter, and the application is told of them
+        by `ENDPOINT_SELECTION_CHANGED` on `/masterdata/events`. A participant cannot
+        enter this state directly — neither by adding a type to its declaration,
+        which enables nothing, nor by setting it on the `status` resource, which
+        is a `409`.
 
 
         `RECONCILING` — the whole canonical set has been delivered and the
@@ -2266,9 +2365,10 @@ components:
             When this endpoint last reached `COMPLETED`, present only if it
             has. Its presence means the canonical set now arriving is a repeat
             load — the endpoint was a participant before and has returned, having
-            been opted out, disconnected from the hub, opted into a further
-            entity type, or having asked for the set
-            again itself. The identifier mapping survived all of these, so the objects
+            been deselected, disconnected from the hub, or had a further
+            entity type selected on it. Each of those is the user's act: an
+            application cannot ask for the set again. The identifier mapping
+            survived all of them, so the objects
             arrive carrying the endpoint's own `localId` and match rather than
             reconcile. An endpoint MUST NOT take the arrival of a canonical set as
             evidence of a first connection: without this check it creates local

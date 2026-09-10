@@ -43,7 +43,7 @@ Where `hub` behaves like an endpoint:
 Where `hub` differs from an endpoint:
 - only one hub of a particular type can exist in a tenant (i.e. one `masterdata hub` per tenant) - this avoids the "split brain" situation described above
 - it is not visible as an endpoint from any API perspective, including G4, and needs to be represented there as a special case wherever routes are listed or drawn
-- remote application connection (RAC) does not cover it: an endpoint is connected to the masterdata hub, and opted into entity types, by the user in agrirouter, and not from a partner's own screens
+- remote application connection (RAC) does not cover it: an endpoint is connected to the masterdata hub, and opted into entity types, by the user in agrirouter, and not from a partner's own screens. Declaring and selecting are two separate steps by two separate actors — the partner declares what its endpoint *can* exchange, the user selects what it *does* — and only the first is an API call a partner makes. Since the partner is not present for the second, agrirouter tells it with `ENDPOINT_SELECTION_CHANGED` on `/masterdata/events` - on every move of the selection, a user withdrawing types included ([ADR 06](./06-initial-load.md))
 - it is not backed by a remote application, but by `agrirouter` itself
 
 Note that the name `hub` implies a central point that fans out data to all connected participants indiscriminately, and the single hub in a tenant does exactly that. "Single" here means one hub per tenant, the way an endpoint belongs to a tenant, not one hub per agrirouter. It would therefore be incorrect to say "our system communicates with the agrirouter masterdata hub", since no such global hub exists. You can say "the user routed our endpoint to the masterdata hub in their tenant", or "our system communicates with the masterdata API of agrirouter".
@@ -52,6 +52,8 @@ The hub also requires a new type of route: `HubRoute(endpointId, 'masterdata')`,
 - it is not directional - an endpoint is either connected to the hub or not
 
 If a user disconnects an endpoint from the masterdata hub after data from that endpoint has already been written to the SSOT, it might be tempting to clean out the data owned by that endpoint. This would be complex and potentially not what the user expects, so the data should remain. The endpoint's identifier mapping remains with it, so that reconnecting is a matched re-load rather than a fresh reconciliation ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
+
+A disconnected endpoint is therefore retained by the hub with an empty selection, not forgotten. That is what lets `ENDPOINT_SELECTION_CHANGED` restate a withdrawal to an application that was offline when it happened: agrirouter keeps no event log, so catch-up enumerates the hub's endpoints for that application and states each one's current selection, empty included.
 
 ### Not in MVP: "read only" routes
 
