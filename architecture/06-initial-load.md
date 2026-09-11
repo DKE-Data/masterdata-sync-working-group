@@ -105,8 +105,10 @@ sequenceDiagram
     Note over U,AR: step 2 - the user selects, in agrirouter, which of the declared types this endpoint exchanges
     U->>AR: create hub route and select organizations, persons, farms
     Note over AR: endpoint → LOADING_FROM_AGRIROUTER
-    AR->>P: event: ENDPOINT_SELECTION_CHANGED on /masterdata/events data: { endpointId, externalEndpointId, entityTypes }
+    AR->>P: event: ENDPOINT_SELECTION_CHANGED on /masterdata/events data: { endpointId, externalEndpointId }
 
+    P->>AR: GET /endpoints/{eid}/masterdata-selection
+    AR-->>P: 200 EndpointSelection { entityTypes: [organizations, persons, farms] }
     Note over P: the selection grew, so read the state before taking the set
     P->>AR: GET /endpoints/{eid}/masterdata-initial-load/status
     AR-->>P: 200 InitialLoadStatus { state: "LOADING_FROM_AGRIROUTER" } - no previousLoadCompletedAt, so a first load and not a repeat
@@ -177,13 +179,19 @@ Points worth noting about the calls themselves:
   such an object rather than waiting.
 - **Declaring and selecting are two steps with two actors.** `PUT
   .../masterdata-config` is the partner's, and says what the endpoint *can*
-  exchange - it creates no route and starts no load. The user's selection, made
-  in agrirouter on the hub route, says what it *does*, and is what starts the
-  load. The partner is notified by agrirouter with `ENDPOINT_SELECTION_CHANGED`
-  on `/masterdata/events` and it opens the inital load SSE stream. That frame names
-  the endpoint and carries the selected types. 
-- **The `ENDPOINT_SELECTION_CHANGED` event is not the trigger to take the set, the 
-  initial load `status` resource is.** A partner reads it for an endpoint whose selection grew and for one it does not recognise. That read is also where `previousLoadCompletedAt` says whether the set now arriving is a repeat.
+  exchange. The user's selection, made in agrirouter on the masterdata route, 
+  says what it *does*, and is what starts the load. The selection is a resource
+  the partner reads; `ENDPOINT_SELECTION_CHANGED` on `/masterdata/events` says
+  when to read it, and a partner that was disconnected for one reads every
+  endpoint's selection on connecting instead
+  ([ADR 07](./07-sync-streaming.md#endpoint_selection_changed-points-it-does-not-state)).
+- **Neither the event nor the selection is the trigger to take the set, the
+  initial load `status` resource is.** Acting on a widening is therefore three
+  reads and not one: the event points at an endpoint, the selection says it grew,
+  the status says a set is waiting. Each answers a different question, and only
+  the last is authoritative about whether anything is owed. That read is also
+  where `previousLoadCompletedAt` says whether the set now arriving is a
+  repeat.
 - agrirouter also drives the step to `RECONCILING`, for the
   same reason - it is the side that knows the set has been sent - and the restart
   when a further type is added. The endpoint drives the confirmation and the
@@ -191,13 +199,7 @@ Points worth noting about the calls themselves:
   transition is a `409`: the states advance in order. Repeating the transition the endpoint is
   already in is not out of order, and is `200`
   ([below](#repeating-a-transition-is-not-a-conflict)).
-- **Opting out and back in is the only way back.** Removing an entity type from
-  the selection stops its delivery and leaves the endpoint's state alone -
-  or discards it, if it was the last type - and adding it back restarts the load
-  for every selected type. That is a user's decision about what to share and not
-  a maintenance lever a partner can pull: there is no operation for asking that
-  the set be sent again, and setting `LOADING_FROM_AGRIROUTER` is a `409` from
-  every state ([above](#there-is-no-way-to-ask-for-the-set-again)).
+- **Opting out and back in is the only way back.** Removing an entity type from the selection stops its delivery and leaves the endpoint's state untouched and adding it back restarts the load for every selected type. That is a user's decision about what to share and not a maintenance lever a partner can pull: there is no operation for asking that the set be sent again, and setting `LOADING_FROM_AGRIROUTER` is a `409` from every state ([above](#there-is-no-way-to-ask-for-the-set-again)).
 - **The endpoint reads the state machine, it does not keep one.** agrirouter is
   authoritative for every phase, including whether the canonical set finished
   arriving (that is the difference between
@@ -261,7 +263,7 @@ The flag therefore spans two windows rather than three. `LOADING_FROM_AGRIROUTER
 
 The flag is independent of the fact that the whole canonical set has been received: conflicts surface object by object as they arrive.
 
-**A link, not a redirect.** When the route is created there is nothing to resolve yet, so redirecting at that moment lands the user on an empty page - and the flag that says otherwise arrives minutes or hours later. So the partner declares `resolutionUrl`, an optional opaque URL set on `PUT .../masterdata-config` next to the toggles - the moment it knows which of its own tenants this endpoint is, which is well before any user has selected anything - and agrirouter renders it as a link throughout initial load, as the call to action whenever `awaitingUser` is set and quietly otherwise. It is not per conflict and not templated by agrirouter, and where it is absent the label stands on its own.
+**A link, not a redirect.** When the route is created there is nothing to resolve yet, so redirecting at that moment lands the user on an empty page - and the flag that says otherwise arrives minutes or hours later. So the partner declares `resolutionUrl`, an optional opaque URL set on `PUT .../masterdata-config` next to the toggles - the moment it knows which of its own tenants this endpoint is - and agrirouter renders it as a link throughout initial load, as the call to action whenever `awaitingUser` is set and quietly otherwise. It is not per conflict and not templated by agrirouter, and where it is absent the label stands on its own.
 
 
 
@@ -337,9 +339,8 @@ drop costs the whole set, as an interrupted sweep does on the live stream.
 - Initial load has no position of its own. A returning `COMPLETED` endpoint is served by the live stream from its application's cursor; an interrupted load is taken again from the beginning, and the endpoint's state, not the stream, says whether that is needed.
 - agrirouter learns that a user action is needed, never what for. `awaitingUser` is one bit per endpoint, monotonic within a window and cleared by the endpoint-driven transition that ends it.
 - The bit is advisory. Endpoints that omit it cost only label precision, and nothing in the flow branches on it.
-- What an endpoint exchanges is settled in two steps by two actors, and only the first is in this API. `masterdata-config` is the partner's and says what the endpoint *can* exchange. The selection is the user's, made in agrirouter, recorded there, and exposed to the partner only on the `ENDPOINT_SELECTION_CHANGED` frame. Declaring enables nothing, and default routing never opts an endpoint into the hub, so nothing a partner can call puts data in front of its own endpoint.
+- What an endpoint exchanges is settled in two steps by two actors, and only the first is in this API. `masterdata-config` is the partner's and says what the endpoint *can* exchange. The selection is the user's, made in agrirouter, recorded there, and read by the partner from the selection resource, which `ENDPOINT_SELECTION_CHANGED` tells it to re-read. Declaring enables nothing, and default routing never opts an endpoint into masterdata exchange, so nothing a partner can call puts data in front of its own endpoint.
 - A partner narrowing its declaration narrows any selection that named the withdrawn type. That is the only path by which a partner's call changes what is delivered, and it can only ever remove.
-- `ENDPOINT_SELECTION_CHANGED` on `/masterdata/events` is how a partner learns what the user selected. It names the endpoint by both identifiers and carries the selected types.
 - Either endpoint-driven transition *may* wait on a human - the confirmation on reconciliation, the completion on a rejected push - and neither necessarily does: an endpoint with no conflicts, or one whose conflicts its own rules settle, advances straight through. What agrirouter cannot tell is which case it is in, since it sees only when it finished sending. So an endpoint can sit in either loading state for days without anything being wrong, and no timeout on them would be meaningful.
 - `RECONCILING` separates "agrirouter still owes data" from "the endpoint still owes a decision". agrirouter needs that distinction for its own scheduling - on a reconnect it must know whether a sweep is outstanding ([ADR 07](./07-sync-streaming.md)) - and publishing it rather than hiding it keeps a single representation of the phase, consistent with there being no "not started" state.
 - The state machine has agrirouter-driven and endpoint-driven edges, and they divide cleanly: every entry into `LOADING_FROM_AGRIROUTER` is agrirouter's - opt-in, an added entity type, a user asking for the set again - as is the step to `RECONCILING`; the two exits, the confirmation and the completion, are the endpoint's.

@@ -85,16 +85,9 @@ travels in the event envelope, so a partner serving 100k farmers holds one
 connection and one position rather than 100k of each, and server-side delivery
 state is proportional to the number of applications.
 
-Which tenants an application may read is decided by the hub
+Which tenants an application may read is decided by the masterdata
 routes the user created ([ADR 04](./04-routing.md)), and is applied as a predicate on
 the query rather than as a property of the connection.
-
-Opt-in per entity type is not a second predicate alongside it. Opt-in is held per
-endpoint ([Routing and opt-in](../specification.md#routing-and-opt-in)), and each
-of an application's endpoints belongs to a different tenant, so two tenants on the
-same stream routinely differ - one exchanging farms and fields, the other only
-farms. The filter is therefore per tenant and type. An application MUST NOT assume
-the types it receives for one tenant are the types it receives for another.
 
 ### The sweep delivers in tier order
 
@@ -397,43 +390,28 @@ completeness of an entity type out of the order it receives objects in. The orde
 guarantees that every object arrives after the objects it references, and nothing
 beyond that.
 
-### `ENDPOINT_SELECTION_CHANGED` rides the same delivery
+### `ENDPOINT_SELECTION_CHANGED`
 
 The stream carries one frame that is not an entity: `ENDPOINT_SELECTION_CHANGED`,
-which states which entity types the user has selected for one of the
-application's endpoints ([ADR 06](./06-initial-load.md)). The application is not
-present when the user chooses and no operation returns the selection, so there is
-nowhere else to tell it.
+which says the user has moved the selection on one endpoint and names that
+endpoint ([ADR 06](./06-initial-load.md)).
 
-It states the selection rather than a transition, which is why one frame covers
-the endpoint being routed to the hub, a type selected on one already routed, a
-type deselected, and the last one deselected - an empty selection. The
-application applies what it is given, replacing whatever it held for that
-endpoint. Whether a canonical set is waiting is not on the frame: that is the
-Initial Load resource's to answer, and an application reads it for an endpoint
-whose selection grew or that it does not recognise.
+- **It names one endpoint.** The user makes the selection on that endpoint's
+  route to the hub, so every way it changes (routed to the hub, a type selected on
+  one already routed, a type deselected, the last one deselected) affects only
+  one.
+- **It carries no change number** and repeats the `id:` of the frame before it,
+  as a sweep frame does. Committing it cannot move the cursor past an object the
+  application has not been sent.
+- **It may arrive more than once and is handled idempotently**, the read behind
+  it being the thing that produces state.
 
-It fits the delivery model without an exception to it:
-
-- **It carries no change number of its own** and repeats the `id:` of the frame
-  before it, as a sweep frame does. Committing it therefore cannot move the
-  cursor past an object the application has not been sent.
-- **A sweep emits one for every endpoint of the application that has a
-  selection, and one for every endpoint whose selection was emptied**, read from
-  the sweep's own snapshot. The second half is what makes a
-  withdrawal survive a disconnection: an emptied endpoint has no selection to
-  restate, so on the first rule alone it would never be named again and an
-  application offline at the time would go on believing it was opted in.
-- **A tail poll emits one for each endpoint whose selection moved above the pin**,
-  exactly as it delivers an entity changed above the pin. Narrowings included:
-  the frame is how an application learns that a type it was sending is no longer
-  wanted, rather than inferring it from silence or from a rejected write.
-- **The application therefore sees it more than once per selection** - once per
-  reconnect, at least - and MUST handle it idempotently.
-
-An empty `entityTypes` is a statement and not an omission - it says the endpoint
-exchanges nothing, because the user deselected the last type or removed the
-route.
+**A missed event is not a lost selection.** These events are not replayed, so one that
+went out while an application was disconnected is gone, and nothing on the stream
+will mention that endpoint again. What closes that is the application reading
+every endpoint's selection when it connects, after opening the stream, so a move
+in between is either already in the answer or announced on the stream it is by
+then connected to. 
 
 ### Origin suppression moves to read time
 
@@ -545,15 +523,10 @@ version would trade the ordering away to save.
   later value win; across the stream and a write response it is not, so apply is
   additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
-- **The stream carries one non-entity frame.** `ENDPOINT_SELECTION_CHANGED` is
+- **The stream carries one non-entity event.** `ENDPOINT_SELECTION_CHANGED` is
   the only thing on the stream that is not an entity or a boundary marker, and it
-  exists because the application is not present when the user makes the selection
-  and nothing else exposes it. It states the selection rather than a transition,
-  so one frame covers routing, selecting, deselecting, and deselecting the last
-  type. It repeats the preceding `id:`, is emitted by a sweep for every endpoint
-  that currently has a selection and by a tail for every endpoint whose selection
-  moved above the pin, and is therefore delivered repeatedly and handled
-  idempotently.
+  exists to notify the application when the user changes the selection of masterdata
+  entity types.
 - **Dependency-closed opt-in is structural.** An application opted into fields but
   not farms gets no farms at all and then every field with an unresolvable
   reference. [The rule](../specification.md#routing-and-opt-in) is what holds the
