@@ -156,9 +156,12 @@ A write operation answers with the resulting canonical object, which is the
 second channel and is not merely an acknowledgement — see
 [Applying what agrirouter returns](#applying-what-agrirouter-returns).
 
-Which entity types an endpoint takes part in is opt-in rather than a
-declared capability, and is not directional in the MVP: an opted-in entity type
-is exchanged in both directions (see [Routing and opt-in](#routing-and-opt-in)).
+Which entity types an endpoint takes part in is settled in two steps by two
+different actors: the participant **declares** what its endpoint is able to
+exchange, and the user **selects**, when routing that endpoint to the master-data
+hub, which of those it does exchange. Neither step is directional in the MVP: a
+selected entity type is exchanged in both directions (see
+[Routing and opt-in](#routing-and-opt-in)).
 
 # Data model
 
@@ -528,11 +531,87 @@ Therefore:
 - Master-data routes MUST NOT be created by the machine→software default-route logic. A participant takes part in master-data exchange only through explicit **opt-in**.
 - Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
 - Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
-- Because of entity dependencies (see [Entity dependencies](#entity-dependencies)), an opt-in configuration MUST be **dependency-closed**: enabling fields requires the farms and field boundaries those fields reference, and the parties those farms reference, to be enabled as well. agrirouter MUST NOT record a configuration that is not dependency-closed, and MUST surface the dependency where the user makes the choice rather than silently enabling the missing types.
-- Opting an entity type **in** on an endpoint that already takes part restarts that endpoint's [initial load](#initial-load): agrirouter cannot enumerate what the endpoint missed while the type was not opted in, and initial load is per endpoint rather than per entity type, so the whole set — every opted-in type — is sent again. Neither the canonical objects nor the endpoint's identifier mapping are discarded by an opt-out, so what was loaded before arrives matched rather than reconciled (see [Disconnection and re-connection](#disconnection-and-re-connection)).
-- Opting an entity type **out** removes it from the configuration and stops its delivery. The endpoint's initial-load state is left as it is, and is discarded only with the last entity type.
 
-The concrete configuration resource is described in `openapi.yaml`.
+What an endpoint exchanges is settled in **two steps, performed by two different
+actors at two different times**:
+
+1. the participant **declares** which entity types the endpoint is able to exchange (see [Declaration: what an endpoint can exchange](#declaration-what-an-endpoint-can-exchange));
+2. the user **selects**, when routing that endpoint to the master-data hub, which of the declared types it actually exchanges (see [Selection: what an endpoint does exchange](#selection-what-an-endpoint-does-exchange)).
+
+Both steps are readable. The declaration is the endpoint's master-data
+configuration and is written by the participant; the selection is made by the
+user in agrirouter and is read-only to a participant. Both are described in
+`openapi.yaml`. A participant learns that the selection has moved from the
+notification of [Learning what an endpoint exchanges](#learning-what-an-endpoint-exchanges).
+
+### Declaration: what an endpoint can exchange
+
+A participant declares, per endpoint, the entity types that endpoint is able to
+exchange. The declaration describes the participant's software rather than
+anyone's intent: it says the endpoint can parse, store, and produce fields, not
+that any user wants it to.
+
+- The declaration is written by the participant on the endpoint's master-data configuration.
+- It MUST be **dependency-closed** (see [Entity dependencies](#entity-dependencies)): declaring fields requires declaring the farms and field boundaries those fields reference, and the parties those farms reference. An endpoint that could receive fields but not the farms they hang off could not resolve their references, so agrirouter MUST reject such a declaration rather than record it.
+- Declaring an entity type enables no exchange, creates no route, and starts no [initial load](#initial-load). It only puts the type in front of the user as something selectable. Adding one to the declaration of an endpoint that already takes part therefore changes nothing until the user selects it.
+- Withdrawing an entity type from the declaration narrows any selection naming it. agrirouter MUST narrow the selection to what is still declared.
+- An endpoint that has declared nothing offers the user nothing to select and cannot take part in masterdata exchange
+
+### Selection: what an endpoint does exchange
+
+The user selects, on the endpoint's route to the masterdata hub, which of the
+declared entity types the endpoint exchanges. 
+
+- The selection MUST be a subset of the declaration.
+- The selection is made by the user in agrirouter. A participant reads it, per endpoint or for all of its endpoints at once.
+- A participant is notified when it moves (see [Learning what an endpoint exchanges](#learning-what-an-endpoint-exchanges)).
+- It MUST likewise be **dependency-closed**, and agrirouter MUST surface the dependency where the user makes the choice.
+- Selecting an entity type on an endpoint that is already connected to masterdata restarts that endpoint's [initial load](#initial-load), since it is per endpoint and not per entity type, triggering the whole set to be sent again.
+- Deselecting an entity type removes it from the selection and stops its delivery. The endpoint's initial-load state is left as it is, and is discarded only with the last entity type.
+- **Every move of the selection is announced**, narrowings included, on the notification of [Learning what an endpoint exchanges](#learning-what-an-endpoint-exchanges).
+
+### Learning what an endpoint exchanges
+
+A participant **reads** the selection, and an **event says when to read it
+again**.
+
+1. On connecting, the participant reads the selection of every endpoint it holds.
+   It MUST do so **after** opening `/masterdata/events` and not before, so that a
+   selection moving in between is either already in what it reads or announced on
+   the stream it is by then connected to.
+2. agrirouter issues `ENDPOINT_SELECTION_CHANGED` on that stream, naming the
+   endpoint whose selection has changed. The participant re-reads that endpoint.
+
+
+Example event (non-normative):
+
+~~~ json
+{
+  "eventType": "ENDPOINT_SELECTION_CHANGED",
+  "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+  "externalEndpointId": "urn:my-app:endpoint:42"
+}
+~~~
+
+Example selection, as read back (non-normative):
+
+~~~ json
+{
+  "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+  "externalEndpointId": "urn:my-app:endpoint:42",
+  "entityTypes": [
+    { "entityType": "organizations" },
+    { "entityType": "persons" },
+    { "entityType": "farms" }
+  ],
+  "changedAt": "2026-07-14T09:20:00Z"
+}
+~~~
+
+Note:
+- Reading every endpoint's selection returns those that exchange something. An endpoint of the application that is not in that response exchanges nothing, the user having never routed it to the hub or having deselected its last entity type.
+- Reading **one** endpoint's selection answers for it either way: an endpoint that exchanges nothing answers with an empty `entityTypes` rather than `404`, which is the same statement the absence above makes. `404` means no such endpoint.
+- The event may be delivered more than once for one change and MUST be handled idempotently, as MUST the read behind it. A participant that misses one converges on its next connection, the read on connecting covering every endpoint.
 
 ## Initial load
 
@@ -542,7 +621,7 @@ state, held by agrirouter on the initial-load resource and read there by the
 endpoint. It covers every entity type the endpoint is opted into; there is no
 state, and no stream, per entity type. The defined progression is:
 
-1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user opts the endpoint into master data, or into a further entity type (see [Routing and opt-in](#routing-and-opt-in)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
+1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; a participant adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The participant is pointed at the endpoint by [`ENDPOINT_SELECTION_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 
    Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object referenced from the live stream that the set has not delivered yet is [requested](#requesting-objects-lazy-loading).
 2. **`RECONCILING`.** agrirouter closes the stream's HTTP response once it has sent the whole set, and advances the state. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
@@ -582,8 +661,8 @@ recorded, the mapping not being readable (see
 `LOADING_FROM_AGRIROUTER` is not narrowed by any of this: it is refused from
 every state including from itself, a state update being the only thing this
 operation does. An endpoint has an initial-load
-state only while it is opted into at least one entity type; there is no state for one that never was, the
-absence of any toggle already saying that it does not participate.
+state only while at least one entity type is selected on it; there is no state for one that never had any, the
+empty selection already saying that it does not participate.
 
 
 
@@ -615,8 +694,9 @@ needed and never what for: it is one bit per endpoint, not a conflict list.
 - **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same. A completed load waits on nobody, so raising it then is refused.
 - **Unset says nothing about the user.** It is ambiguous between having nothing to raise and not reporting at all, so it only ever upgrades what agrirouter shows, and an endpoint that omits it costs precision rather than correctness. Nothing in the protocol branches on it.
 
-A participant MAY also declare, as a `resolutionUrl` in its opt-in configuration,
-where in its own software the user resolves this endpoint's initial load.
+A participant MAY also declare, as a `resolutionUrl` on the endpoint's
+[declaration](#declaration-what-an-endpoint-can-exchange), where in its own
+software the user resolves this endpoint's initial load.
 agrirouter treats it as opaque, links to it while a user is awaited, and where
 none is declared can only name the application. It is per endpoint rather than per
 conflict: at the moment the route is created there is nothing to resolve yet, and
@@ -767,7 +847,7 @@ Three distinct events end participation, at different scopes:
 
 | Event | Scope |
 |---|---|
-| **Type opt-out** — an entity type removed from the endpoint's opt-in configuration | one entity type |
+| **Type opt-out** — an entity type no longer exchanged, the user having deselected it or the participant having withdrawn it from the declaration | one entity type |
 | **Hub disconnection** — the endpoint's route to the master-data hub removed | every entity type of that endpoint |
 | **Endpoint removal** — the endpoint itself deleted from the tenant | the endpoint |
 
@@ -834,7 +914,7 @@ against its own retained copy.
 The mapping hangs from the participant, not from the endpoint, so the retention
 above survives re-onboarding onto a fresh endpoint: a participant that removes an
 endpoint and creates another in the same tenant finds its bindings intact, and the
-set it is then seeded with arrives carrying its own `localId`s.
+set it is then initially loaded with arrives carrying its own `localId`s.
 
 ## Loop prevention
 
@@ -982,7 +1062,7 @@ version already settles elsewhere:
 `POST /masterdata/<types>/requests` lets a participant pull a single entity by
 `agrirouterId` rather than wait for it to arrive. agrirouter delivers the
 corresponding object on the event stream if the requester is entitled to it under
-its opt-in configuration (see [Routing and opt-in](#routing-and-opt-in)).
+the entity types selected on it (see [Routing and opt-in](#routing-and-opt-in)).
 
 A requested object is delivered even when the requesting endpoint was its last
 writer. [Origin suppression](#loop-prevention) keeps an endpoint's own
@@ -1025,6 +1105,14 @@ type receives every canonical object of that type in the exchange, and no
 attribute inside a synchronized object narrows that (see [Farm](#farm)). The set
 of entity types a user opts an endpoint into therefore defines exactly what
 master data that endpoint is exposed to.
+
+That set is the user's [selection](#selection-what-an-endpoint-does-exchange)
+and never the participant's
+[declaration](#declaration-what-an-endpoint-can-exchange). The split of the two
+is what keeps this a user's control: the declaration is the only one of the two
+a participant writes, and it can bound the selection but MUST NOT widen it, so
+declaring a further entity type exposes nothing until a user selects it. The
+selection is not writable through this protocol.
 
 That statement is about master data, and is deliberately not a claim about the
 platform. An application that holds an endpoint in a tenant can already enumerate
