@@ -105,10 +105,8 @@ sequenceDiagram
     Note over U,AR: step 2 - the user selects, in agrirouter, which of the declared types this endpoint exchanges
     U->>AR: create hub route and select organizations, persons, farms
     Note over AR: endpoint → LOADING_FROM_AGRIROUTER
-    AR->>P: event: ENDPOINT_SELECTION_CHANGED on /masterdata/events data: { endpointId, externalEndpointId }
+    AR->>P: event: ROUTE_CHANGED on /masterdata/events data: { endpointId, externalEndpointId, entityTypes }
 
-    P->>AR: GET /endpoints/{eid}/masterdata-selection
-    AR-->>P: 200 EndpointSelection { entityTypes: [organizations, persons, farms] }
     Note over P: the selection grew, so read the state before taking the set
     P->>AR: GET /endpoints/{eid}/masterdata-initial-load/status
     AR-->>P: 200 InitialLoadStatus { state: "LOADING_FROM_AGRIROUTER" } - no previousLoadCompletedAt, so a first load and not a repeat
@@ -180,18 +178,11 @@ Points worth noting about the calls themselves:
 - **Declaring and selecting are two steps with two actors.** `PUT
   .../masterdata-config` is the partner's, and says what the endpoint *can*
   exchange. The user's selection, made in agrirouter on the masterdata route, 
-  says what it *does*, and is what starts the load. The selection is a resource
-  the partner reads; `ENDPOINT_SELECTION_CHANGED` on `/masterdata/events` says
-  when to read it, and a partner that was disconnected for one reads every
-  endpoint's selection on connecting instead
-  ([ADR 07](./07-sync-streaming.md#endpoint_selection_changed-points-it-does-not-state)).
-- **Neither the event nor the selection is the trigger to take the set, the
-  initial load `status` resource is.** Acting on a widening is therefore three
-  reads and not one: the event points at an endpoint, the selection says it grew,
-  the status says a set is waiting. Each answers a different question, and only
-  the last is authoritative about whether anything is owed. That read is also
-  where `previousLoadCompletedAt` says whether the set now arriving is a
-  repeat.
+  says what it *does*, and is what starts the load. The partner is notified by agrirouter with `ROUTE_CHANGED` on `/masterdata/events`.
+- The event is not the trigger to take the set, the
+  initial load `status` resource is. Acting on a widening is therefore 2
+  reads and not one: the event notifies that the selection grew and
+  the status says a set is waiting. The initial load status is authoritative about whether a canonical set is owed. That read is also where `previousLoadCompletedAt` says whether the set now arriving is a repeat.
 - agrirouter also drives the step to `RECONCILING`, for the
   same reason - it is the side that knows the set has been sent - and the restart
   when a further type is added. The endpoint drives the confirmation and the
@@ -339,13 +330,14 @@ drop costs the whole set, as an interrupted sweep does on the live stream.
 - Initial load has no position of its own. A returning `COMPLETED` endpoint is served by the live stream from its application's cursor; an interrupted load is taken again from the beginning, and the endpoint's state, not the stream, says whether that is needed.
 - agrirouter learns that a user action is needed, never what for. `awaitingUser` is one bit per endpoint, monotonic within a window and cleared by the endpoint-driven transition that ends it.
 - The bit is advisory. Endpoints that omit it cost only label precision, and nothing in the flow branches on it.
-- What an endpoint exchanges is settled in two steps by two actors, and only the first is in this API. `masterdata-config` is the partner's and says what the endpoint *can* exchange. The selection is the user's, made in agrirouter, recorded there, and read by the partner from the selection resource, which `ENDPOINT_SELECTION_CHANGED` tells it to re-read. Declaring enables nothing, and default routing never opts an endpoint into masterdata exchange, so nothing a partner can call puts data in front of its own endpoint.
+- What an endpoint exchanges is settled in two steps by two actors, and only the first is in this API. `masterdata-config` is the partner's and says what the endpoint *can* exchange. The selection is the user's, made in agrirouter, recorded there, and exposed to the partner through the `ROUTE_CHANGED` event. Declaring enables nothing, and default routing never opts an endpoint into masterdata exchange, so nothing a partner can call puts data in front of its own endpoint.
 - A partner narrowing its declaration narrows any selection that named the withdrawn type. That is the only path by which a partner's call changes what is delivered, and it can only ever remove.
+- `ROUTE_CHANGED` on `/masterdata/events` is how a partner learns what entity types the user selected. It names the endpoint by both identifiers and carries the selected types.
 - Either endpoint-driven transition *may* wait on a human - the confirmation on reconciliation, the completion on a rejected push - and neither necessarily does: an endpoint with no conflicts, or one whose conflicts its own rules settle, advances straight through. What agrirouter cannot tell is which case it is in, since it sees only when it finished sending. So an endpoint can sit in either loading state for days without anything being wrong, and no timeout on them would be meaningful.
 - `RECONCILING` separates "agrirouter still owes data" from "the endpoint still owes a decision". agrirouter needs that distinction for its own scheduling - on a reconnect it must know whether a sweep is outstanding ([ADR 07](./07-sync-streaming.md)) - and publishing it rather than hiding it keeps a single representation of the phase, consistent with there being no "not started" state.
 - The state machine has agrirouter-driven and endpoint-driven edges, and they divide cleanly: every entry into `LOADING_FROM_AGRIROUTER` is agrirouter's - opt-in, an added entity type, a user asking for the set again - as is the step to `RECONCILING`; the two exits, the confirmation and the completion, are the endpoint's.
 - Confirming from `LOADING_FROM_AGRIROUTER` is a `409`. An endpoint cannot have reconciled a set it has not finished receiving.
-- Repeating the current transition is `200`, with `idMappings` re-applied and `rejectedIdMappings` recomputed. A lost response on the confirmation is recovered by sending it again, which is the only recovery available since the mapping cannot be read back.
+- Repeating the current transition is `200`, with `idMappings` re-applied and `rejectedIdMappings` recomputed. A lost response on the confirmation is recoavered by sending it again, which is the only recovery available since the mapping cannot be read back.
 - The initial-load stream is per endpoint, like the state it serves, and agrirouter orders it: a referenced object precedes the objects referencing it, across every opted-in type, and opt-in closure guarantees the target is in the set. The endpoint applies objects as they arrive and sequences nothing. The order is agrirouter's to change, and the specification says so; an endpoint that reads anything but resolvable references out of it is relying on an implementation detail.
 - Adding an entity type restarts the endpoint's load. The set is fixed when a load starts, and there is one load per endpoint, so a type opted in later is delivered by sending the whole set again. Already-loaded objects arrive matched, so the repeat costs bandwidth, not reconciliation. Opting a type out leaves the state where it is, unless it was the last one.
 - Initial-load state is keyed per endpoint, while the delivery cursor is keyed per application ([ADR 07](./07-sync-streaming.md)). The live stream therefore carries endpoints at every phase of initial load at once, and an application MUST NOT treat "my stream is in initial load" as a single condition.

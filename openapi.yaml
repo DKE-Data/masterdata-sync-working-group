@@ -983,12 +983,11 @@ paths:
         `Last-Event-ID` is the only position the application keeps, and
         positions do not expire.
 
-        The stream also carries `ENDPOINT_SELECTION_CHANGED`, which says that the
-        user's selection of entity types has moved on one endpoint, and names
-        it. It is issued every time that selection moves — the endpoint
+        The stream also carries `ROUTE_CHANGED`, which states which
+        entity types the user has selected for one of the application's
+        endpoints. It is issued every time that selection changes — the endpoint
         routed to master-data, a type selected, a type deselected, the last one
-        deselected. The selection itself is not on the frame: the application
-        reads it from `/endpoints/{externalEndpointId}/masterdata-selection`.
+        deselected.
 
       operationId: streamMasterdataEvents
       parameters:
@@ -1006,8 +1005,8 @@ paths:
 
                   The `data:` is a payload of each SSE frame. Frames carry an `event:`
                   of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`,
-                  `CAUGHT_UP` or `ENDPOINT_SELECTION_CHANGED`; the first two carry an `Entity`,
-                  `CAUGHT_UP` has no data and `ENDPOINT_SELECTION_CHANGED` carries an event payload. 
+                  `CAUGHT_UP` or `ROUTE_CHANGED`; the first two carry an `Entity`,
+                  `CAUGHT_UP` has no data and `ROUTE_CHANGED` carries an event payload. 
                   Every frame also carries an `id:`, which is the
                   delivery position as of that frame — what the application
                   persists once it has durably applied the frame, and returns as
@@ -1019,57 +1018,9 @@ paths:
                   frame and every frame before it have been applied.
                 oneOf:
                   - $ref: '#/components/schemas/Entity'
-                  - $ref: '#/components/schemas/EndpointSelectionChangedEventData'
+                  - $ref: '#/components/schemas/RouteChangedEventData'
 
   # ------------------------------------------------------------ configuration
-
-  /masterdata/selections:
-    get:
-      tags: [Configuration]
-      summary: Read what every endpoint of the application exchanges
-      description: >
-        The endpoints of the calling application that exchange something, with
-        what each exchanges.
-
-        An application reads this on connecting, after opening
-        `/masterdata/events` to learn what changed while it was disconnected. Afterwards,
-        `ENDPOINT_SELECTION_CHANGED` notifies about an endpoint that changed, and the
-        application reads that one.
-      operationId: listEndpointSelections
-      responses:
-        '200':
-          description: What each endpoint exchanges.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EndpointSelections'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /endpoints/{externalEndpointId}/masterdata-selection:
-    parameters:
-      - $ref: '#/components/parameters/ExternalEndpointId'
-    get:
-      tags: [Configuration]
-      summary: Read what the endpoint exchanges
-      description: >
-        Returns the user's selection for one endpoint.
-
-        The selection is the user's and is not writable through this API. An
-        endpoint that exists but was never routed to the master-data hub answers
-        with an empty `entityTypes` rather than `404`; `404` means no such endpoint.
-      operationId: getEndpointSelection
-      responses:
-        '200':
-          description: What the endpoint exchanges.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EndpointSelection'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   /endpoints/{externalEndpointId}/masterdata-config:
     parameters:
@@ -2258,26 +2209,24 @@ components:
           examples: ['https://app.example.com/tenants/42/agrirouter/masterdata']
       required: [toggles]
 
-    EndpointSelectionChangedEventData:
+    RouteChangedEventData:
       type: object
       description: >
-        Data structure for `ENDPOINT_SELECTION_CHANGED` events on
-        `/masterdata/events`. It says that the user's selection of entity types
-        has changed on one endpoint, and names that endpoint. The selection itself
-        is not on the event: the application reads it from
-        `/endpoints/{externalEndpointId}/masterdata-selection`.
+        Data structure for `ROUTE_CHANGED` events on
+        `/masterdata/events`. It states which entity types the user has selected
+        for one of the application's endpoints.
 
         One event covers every way the selection changes: the endpoint routed to
-        the master-data hub for the first time, a further entity type selected on
+        the masterdata hub for the first time, a further entity type selected on
         one already routed, a type deselected, and the last one deselected or the
         route removed.
 
         The event may arrive more than once for one move and MUST be handled idempotently.
-      required: [eventType, endpointId, externalEndpointId]
+      required: [eventType, endpointId, externalEndpointId, entityTypes, changedAt]
       properties:
         eventType:
           type: string
-          const: ENDPOINT_SELECTION_CHANGED
+          const: ROUTE_CHANGED
           description: Discriminator; matches the `event:` line.
         endpointId:
           type: string
@@ -2286,47 +2235,29 @@ components:
         externalEndpointId:
           type: string
           description: The application's own identifier for the same endpoint.
-
-    EndpointSelection:
-      type: object
-      description: >
-        What one endpoint exchanges, reflecting the user's selection.
-      required: [endpointId, externalEndpointId, entityTypes]
-      properties:
-        endpointId:
-          type: string
-          format: uuid
-          description: The agrirouter identifier of the endpoint.
-        externalEndpointId:
-          type: string
-          description: The application's own identifier for the same endpoint.
         entityTypes:
           type: array
-          description: >
-            Complete current selection for this endpoint. Replaces any cached
-            selection, do not merge.
-
-            Always a subset of what the endpoint declared, and dependency-closed.
           items:
             $ref: '#/components/schemas/EntityTypeToggle'
+          description: >
+            The endpoint's selection as it stands after the change, stated in
+            full rather than as a delta. The application replaces what it held
+            for this endpoint with this list.
+
+            An empty array is a statement and not an omission: it says the
+            endpoint exchanges nothing, because the user deselected the last
+            entity type or the route was removed.
+          examples:
+            - [{entityType: organizations}, {entityType: persons}, {entityType: farms}]
         changedAt:
           type: string
           format: date-time
-          description: When the selection last changed.
-
-    EndpointSelections:
-      type: object
-      description: >
-        The endpoints of the calling application that exchange something. An
-        endpoint of the application that is absent exchanges nothing: the user
-        never routed it to the master-data hub, or deselected its last entity
-        type.
-      required: [selections]
-      properties:
-        selections:
-          type: array
-          items:
-            $ref: '#/components/schemas/EndpointSelection'
+          description: >
+            When the selection reached this state. Not a delivery timestamp: it
+            is unchanged when the same event is delivered again, and a repeat
+            carrying an older value than one already applied for this endpoint
+            can be discarded.
+          examples: ['2026-07-14T09:20:00Z']
 
     InitialLoadState:
       type: string
@@ -2339,7 +2270,7 @@ components:
         Entered when the user selects the endpoint's first entity type, and again
         whenever a further entity type is selected. Both are a user's opt-in
         decision carried out by agrirouter, and the application is told of them
-        by `ENDPOINT_SELECTION_CHANGED` on `/masterdata/events`. A participant cannot
+        by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot
         enter this state directly — neither by adding a type to its declaration,
         which enables nothing, nor by setting it on the `status` resource, which
         is a `409`.

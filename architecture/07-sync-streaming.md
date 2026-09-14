@@ -390,28 +390,28 @@ completeness of an entity type out of the order it receives objects in. The orde
 guarantees that every object arrives after the objects it references, and nothing
 beyond that.
 
-### `ENDPOINT_SELECTION_CHANGED`
+### `ROUTE_CHANGED` event
 
-The stream carries one frame that is not an entity: `ENDPOINT_SELECTION_CHANGED`,
-which says the user has moved the selection on one endpoint and names that
-endpoint ([ADR 06](./06-initial-load.md)).
+The stream carries one event that is not an entity: `ROUTE_CHANGED`,
+which states which entity types the user has selected for one of the
+application's endpoints ([ADR 06](./06-initial-load.md)).
 
 - **It names one endpoint.** The user makes the selection on that endpoint's
   route to the hub, so every way it changes (routed to the hub, a type selected on
   one already routed, a type deselected, the last one deselected) affects only
   one.
-- **It carries no change number** and repeats the `id:` of the frame before it,
-  as a sweep frame does. Committing it cannot move the cursor past an object the
-  application has not been sent.
-- **It may arrive more than once and is handled idempotently**, the read behind
-  it being the thing that produces state.
+- **A sweep emits one for every endpoint of the application whose selection changed,
+  including those whose selection was emptied**. The last part is what makes a
+  withdrawal survive a disconnection.
+- **A tail poll emits one for each endpoint whose selection changed above the pin**,
+  exactly as it delivers an entity changed above the pin. Narrowings included:
+  the frame is how an application learns that a type it was sending is no longer
+  wanted, rather than inferring it from silence or from a rejected write.
+- The application might receive the event more than once and MUST handle it idempotently.
 
-**A missed event is not a lost selection.** These events are not replayed, so one that
-went out while an application was disconnected is gone, and nothing on the stream
-will mention that endpoint again. What closes that is the application reading
-every endpoint's selection when it connects, after opening the stream, so a move
-in between is either already in the answer or announced on the stream it is by
-then connected to. 
+An empty `entityTypes` is a statement and not an omission - it says the endpoint
+exchanges nothing, because the user deselected the last type or removed the
+route.
 
 ### Origin suppression moves to read time
 
@@ -523,7 +523,7 @@ version would trade the ordering away to save.
   later value win; across the stream and a write response it is not, so apply is
   additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
-- **The stream carries one non-entity event.** `ENDPOINT_SELECTION_CHANGED` is
+- **The stream carries one non-entity event.** `ROUTE_CHANGED` is
   the only thing on the stream that is not an entity or a boundary marker, and it
   exists to notify the application when the user changes the selection of masterdata
   entity types.
