@@ -1012,24 +1012,9 @@ paths:
 
   # ------------------------------------------------------------ configuration
 
-  /endpoints/{externalEndpointId}/masterdata-config:
+  /endpoints/{externalEndpointId}:
     parameters:
       - $ref: '#/components/parameters/ExternalEndpointId'
-    get:
-      tags: [Configuration]
-      summary: Get the endpoint's master-data opt-in configuration
-      operationId: getMasterdataConfig
-      responses:
-        '200':
-          description: The current configuration.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MasterdataConfig'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
     put:
       tags: [Configuration]
       summary: Set the endpoint's master-data opt-in configuration
@@ -1063,20 +1048,20 @@ paths:
         Initial Load resource marks it as a repeat. An endpoint that needs the
         set again SHOULD set `LOADING_FROM_AGRIROUTER` on the Initial Load
         status resource rather than opting an entity type out and back in.
-      operationId: putMasterdataConfig
+      operationId: putEndpoint
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MasterdataConfig'
+              $ref: '#/components/schemas/PutEndpointRequest'
       responses:
         '200':
           description: Updated configuration.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MasterdataConfig'
+                $ref: '#/components/schemas/PutEndpointRequest'
         '400':
           $ref: '#/components/responses/ValidationError'
         '403':
@@ -2159,7 +2144,12 @@ components:
           examples: [organizations, persons, farms, fields, field-boundaries]
       required: [entityType]
 
-    MasterdataConfig:
+    PutEndpointRequest:
+      type: object
+      properties:
+        masterdata_capabilities:
+          $ref: '#/components/schemas/MasterdataCapabilities'
+    MasterdataCapabilities:
       type: object
       description: >
         Per-endpoint, per-entity opt-in for master-data exchange. Absence of a
