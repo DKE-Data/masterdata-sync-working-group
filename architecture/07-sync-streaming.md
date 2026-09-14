@@ -400,13 +400,9 @@ application's endpoints ([ADR 06](./06-initial-load.md)).
   route to the hub, so every way it changes (routed to the hub, a type selected on
   one already routed, a type deselected, the last one deselected) affects only
   one.
-- **A sweep emits one for every endpoint of the application whose selection changed,
-  including those whose selection was emptied**. The last part is what makes a
+- The event is emitted for every endpoint of the application whose selection changed,
+  including those whose selection was emptied. The last part is what makes a
   withdrawal survive a disconnection.
-- **A tail poll emits one for each endpoint whose selection changed above the pin**,
-  exactly as it delivers an entity changed above the pin. Narrowings included:
-  the frame is how an application learns that a type it was sending is no longer
-  wanted, rather than inferring it from silence or from a rejected write.
 - The application might receive the event more than once and MUST handle it idempotently.
 
 An empty `entityTypes` is a statement and not an omission - it says the endpoint
