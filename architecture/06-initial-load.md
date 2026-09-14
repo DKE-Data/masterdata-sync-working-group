@@ -179,10 +179,7 @@ Points worth noting about the calls themselves:
   .../masterdata-config` is the partner's, and says what the endpoint *can*
   exchange. The user's selection, made in agrirouter on the masterdata route, 
   says what it *does*, and is what starts the load. The partner is notified by agrirouter with `ROUTE_CHANGED` on `/masterdata/events`.
-- The event is not the trigger to take the set, the
-  initial load `status` resource is. Acting on a widening is therefore 2
-  reads and not one: the event notifies that the selection grew and
-  the status says a set is waiting. The initial load status is authoritative about whether a canonical set is owed. That read is also where `previousLoadCompletedAt` says whether the set now arriving is a repeat.
+- The event is not the trigger to take the set, the initial load `status` resource is. The event notifies that the selection grew and the status says a set is waiting. The initial load status is authoritative about whether a canonical set is owed. That read is also where `previousLoadCompletedAt` says whether the set now arriving is a repeat.
 - agrirouter also drives the step to `RECONCILING`, for the
   same reason - it is the side that knows the set has been sent - and the restart
   when a further type is added. The endpoint drives the confirmation and the
@@ -337,7 +334,7 @@ drop costs the whole set, as an interrupted sweep does on the live stream.
 - `RECONCILING` separates "agrirouter still owes data" from "the endpoint still owes a decision". agrirouter needs that distinction for its own scheduling - on a reconnect it must know whether a sweep is outstanding ([ADR 07](./07-sync-streaming.md)) - and publishing it rather than hiding it keeps a single representation of the phase, consistent with there being no "not started" state.
 - The state machine has agrirouter-driven and endpoint-driven edges, and they divide cleanly: every entry into `LOADING_FROM_AGRIROUTER` is agrirouter's - opt-in, an added entity type, a user asking for the set again - as is the step to `RECONCILING`; the two exits, the confirmation and the completion, are the endpoint's.
 - Confirming from `LOADING_FROM_AGRIROUTER` is a `409`. An endpoint cannot have reconciled a set it has not finished receiving.
-- Repeating the current transition is `200`, with `idMappings` re-applied and `rejectedIdMappings` recomputed. A lost response on the confirmation is recoavered by sending it again, which is the only recovery available since the mapping cannot be read back.
+- Repeating the current transition is `200`, with `idMappings` re-applied and `rejectedIdMappings` recomputed. A lost response on the confirmation is recovered by sending it again, which is the only recovery available since the mapping cannot be read back.
 - The initial-load stream is per endpoint, like the state it serves, and agrirouter orders it: a referenced object precedes the objects referencing it, across every opted-in type, and opt-in closure guarantees the target is in the set. The endpoint applies objects as they arrive and sequences nothing. The order is agrirouter's to change, and the specification says so; an endpoint that reads anything but resolvable references out of it is relying on an implementation detail.
 - Adding an entity type restarts the endpoint's load. The set is fixed when a load starts, and there is one load per endpoint, so a type opted in later is delivered by sending the whole set again. Already-loaded objects arrive matched, so the repeat costs bandwidth, not reconciliation. Opting a type out leaves the state where it is, unless it was the last one.
 - Initial-load state is keyed per endpoint, while the delivery cursor is keyed per application ([ADR 07](./07-sync-streaming.md)). The live stream therefore carries endpoints at every phase of initial load at once, and an application MUST NOT treat "my stream is in initial load" as a single condition.
