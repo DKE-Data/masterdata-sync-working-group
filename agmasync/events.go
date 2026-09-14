@@ -27,6 +27,11 @@ const (
 	// EventCaughtUp marks the end of catch-up on the live stream. It carries
 	// no entity and names no entity type: it covers the catch-up as a whole.
 	EventCaughtUp = "CAUGHT_UP"
+
+	// EventRouteChanged states which entity types the user has selected on one
+	// endpoint. It carries an [oapi.RouteChangedEventData] rather than an
+	// entity.
+	EventRouteChanged = "ROUTE_CHANGED"
 )
 
 // Event is one frame of a master-data stream.
@@ -57,10 +62,16 @@ type Event struct {
 	// needs the type and the revision before it can decide what to do with the
 	// object, and every frame on the live stream may be any of the five types.
 	Envelope Envelope
+
+	// Selection is set on an [EventRouteChanged] frame and nil on every other.
+	// It is the one frame on the stream that carries something other than an
+	// entity, and what it carries is the endpoint's whole selection as it
+	// stands after the change.
+	Selection *oapi.RouteChangedEventData
 }
 
 // HasEntity reports whether the frame carries a canonical object.
-func (e Event) HasEntity() bool { return e.Type != EventCaughtUp && e.Envelope.Type != "" }
+func (e Event) HasEntity() bool { return e.Envelope.Type != "" }
 
 // Stream is an open master-data event stream.
 //
@@ -106,7 +117,10 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 				ev.ID = raw.LastEventID
 			}
 
-			if raw.Type != EventCaughtUp && raw.Data != "" {
+			switch {
+			case raw.Data == "":
+
+			case raw.Type == EventMasterdataChanged || raw.Type == EventMasterdataDeactivated:
 				if err := json.Unmarshal([]byte(raw.Data), &ev.Entity); err != nil {
 					yield(Event{}, fmt.Errorf("agmasync: decoding %s frame: %w", raw.Type, err))
 					return
@@ -117,6 +131,14 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 					return
 				}
 				ev.Envelope = env
+
+			case raw.Type == EventRouteChanged:
+				var selection oapi.RouteChangedEventData
+				if err := json.Unmarshal([]byte(raw.Data), &selection); err != nil {
+					yield(Event{}, fmt.Errorf("agmasync: decoding %s frame: %w", raw.Type, err))
+					return
+				}
+				ev.Selection = &selection
 			}
 
 			if !yield(ev, nil) {
