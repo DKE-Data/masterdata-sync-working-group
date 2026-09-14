@@ -9,9 +9,14 @@ import (
 
 // EntityType is one of the five master-data entity types of the MVP scope.
 //
-// The values are the ones the `type` discriminator carries on the wire. They
-// are not the same strings as the collection segments in the paths, which are
-// plural and kebab-cased; [EntityType.Collection] converts.
+// The values are the ones the `type` discriminator carries on the wire, and an
+// `entityType` toggle carries the same, so a declaration or a selection can be
+// compared against an entity's own type directly.
+//
+// The collection segments in the paths are spelled differently — plural and
+// kebab-cased, `field-boundaries` for `fieldBoundary` — but nothing here
+// converts between the two: the paths are only reached through the generated
+// client, which has an operation per collection.
 type EntityType string
 
 // The entity types. See "Scope" in specification.md.
@@ -43,25 +48,6 @@ var DependencyOrder = []EntityType{
 	TypeOrganization, TypePerson, TypeFarm, TypeFieldBoundary, TypeField,
 }
 
-// Collection returns the path segment and opt-in toggle name for the type —
-// `organizations`, `persons`, `farms`, `fields`, `field-boundaries`.
-func (t EntityType) Collection() string {
-	switch t {
-	case TypeOrganization:
-		return "organizations"
-	case TypePerson:
-		return "persons"
-	case TypeFarm:
-		return "farms"
-	case TypeField:
-		return "fields"
-	case TypeFieldBoundary:
-		return "field-boundaries"
-	default:
-		return string(t)
-	}
-}
-
 // Valid reports whether the type is one this version of the protocol defines.
 //
 // Unknown entity types are not the same case as unknown values of an
@@ -75,16 +61,6 @@ func (t EntityType) Valid() bool {
 	default:
 		return false
 	}
-}
-
-// ParseCollection maps a collection segment back to its entity type.
-func ParseCollection(collection string) (EntityType, bool) {
-	for _, t := range EntityTypes {
-		if t.Collection() == collection {
-			return t, true
-		}
-	}
-	return "", false
 }
 
 // Envelope is the set of fields every entity shares, plus the type

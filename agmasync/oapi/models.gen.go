@@ -55,6 +55,21 @@ func (e PartyReferenceType) Valid() bool {
 	}
 }
 
+// Defines values for RouteChangedEventDataEventType.
+const (
+	ROUTECHANGED RouteChangedEventDataEventType = "ROUTE_CHANGED"
+)
+
+// Valid indicates whether the value is a known member of the RouteChangedEventDataEventType enum.
+func (e RouteChangedEventDataEventType) Valid() bool {
+	switch e {
+	case ROUTECHANGED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Address defines model for Address.
 type Address struct {
 	City *string `json:"city,omitempty"`
@@ -103,7 +118,7 @@ type EntityTypeToggle struct {
 	// EntityType [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). The entity type this toggle applies to.
 	//
 	//
-	// Examples: organizations, persons, farms, fields, field-boundaries
+	// Examples: organization, person, farm, field, fieldBoundary
 	EntityType string `json:"entityType"`
 }
 
@@ -114,16 +129,11 @@ type Envelope struct {
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
 	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
 
-	// LocalId Always the *acting* endpoint's own identifier for the entity, in both directions: on send the sending endpoint's, on delivery the receiving endpoint's (named by `recipientEndpointId`). It never carries another endpoint's identifier, a sibling endpoint of the same application included. A local store is scoped to the endpoint, so the same string sent by two endpoints is two records.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving endpoint, and absent when it does not — an object that endpoint has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue, or — if you recognise it in a store you already share with another endpoint — bind without creating.
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId    *string    `json:"localId,omitempty"`
 	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
-
-	// RecipientEndpointId On delivery, the endpoint this copy is rendered for: the endpoint whose `localId` the envelope and every reference in it carry. Assigned by agrirouter; a value sent by a participant is ignored.
-	//
-	// Because the identifier mapping is scoped to the endpoint, the event stream carries one frame per recipient endpoint rather than one per object. An application with two opted-in endpoints in one tenant receives the same canonical object twice, rendered for each, and partitions on this field. On a write response it is the endpoint named in `x-agrirouter-endpoint-id`.
-	RecipientEndpointId *openapi_types.UUID `json:"recipientEndpointId,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
@@ -153,9 +163,9 @@ type Farm struct {
 	// GeoReference A GeoJSON Point (longitude, latitude) locating the farm.
 	GeoReference *Geometry `json:"geoReference,omitempty"`
 
-	// LocalId Always the *acting* endpoint's own identifier for the entity, in both directions: on send the sending endpoint's, on delivery the receiving endpoint's (named by `recipientEndpointId`). It never carries another endpoint's identifier, a sibling endpoint of the same application included. A local store is scoped to the endpoint, so the same string sent by two endpoints is two records.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving endpoint, and absent when it does not — an object that endpoint has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue, or — if you recognise it in a store you already share with another endpoint — bind without creating.
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId    *string    `json:"localId,omitempty"`
 	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
 	Name       string     `json:"name"`
@@ -165,11 +175,6 @@ type Farm struct {
 
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
 	Partners *[]Partner `json:"partners,omitempty"`
-
-	// RecipientEndpointId On delivery, the endpoint this copy is rendered for: the endpoint whose `localId` the envelope and every reference in it carry. Assigned by agrirouter; a value sent by a participant is ignored.
-	//
-	// Because the identifier mapping is scoped to the endpoint, the event stream carries one frame per recipient endpoint rather than one per object. An application with two opted-in endpoints in one tenant receives the same canonical object twice, rendered for each, and partitions on this field. On a write response it is the endpoint named in `x-agrirouter-endpoint-id`.
-	RecipientEndpointId *openapi_types.UUID `json:"recipientEndpointId,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
@@ -208,9 +213,9 @@ type Field struct {
 	// HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
 	HarvestPeriod *HarvestPeriod `json:"harvestPeriod,omitempty"`
 
-	// LocalId Always the *acting* endpoint's own identifier for the entity, in both directions: on send the sending endpoint's, on delivery the receiving endpoint's (named by `recipientEndpointId`). It never carries another endpoint's identifier, a sibling endpoint of the same application included. A local store is scoped to the endpoint, so the same string sent by two endpoints is two records.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving endpoint, and absent when it does not — an object that endpoint has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue, or — if you recognise it in a store you already share with another endpoint — bind without creating.
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"localId,omitempty"`
 
 	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
@@ -220,11 +225,6 @@ type Field struct {
 
 	// Owner The organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
 	Owner *PartyReference `json:"owner,omitempty"`
-
-	// RecipientEndpointId On delivery, the endpoint this copy is rendered for: the endpoint whose `localId` the envelope and every reference in it carry. Assigned by agrirouter; a value sent by a participant is ignored.
-	//
-	// Because the identifier mapping is scoped to the endpoint, the event stream carries one frame per recipient endpoint rather than one per object. An application with two opted-in endpoints in one tenant receives the same canonical object twice, rendered for each, and partitions on this field. On a write response it is the endpoint named in `x-agrirouter-endpoint-id`.
-	RecipientEndpointId *openapi_types.UUID `json:"recipientEndpointId,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
@@ -272,20 +272,15 @@ type FieldBoundary struct {
 	// HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
 	HarvestPeriod *HarvestPeriod `json:"harvestPeriod,omitempty"`
 
-	// LocalId Always the *acting* endpoint's own identifier for the entity, in both directions: on send the sending endpoint's, on delivery the receiving endpoint's (named by `recipientEndpointId`). It never carries another endpoint's identifier, a sibling endpoint of the same application included. A local store is scoped to the endpoint, so the same string sent by two endpoints is two records.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving endpoint, and absent when it does not — an object that endpoint has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue, or — if you recognise it in a store you already share with another endpoint — bind without creating.
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"localId,omitempty"`
 
 	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
 	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
 	ModifiedAt *time.Time              `json:"modifiedAt,omitempty"`
 	Obstacles  *[]Obstacle             `json:"obstacles,omitempty"`
-
-	// RecipientEndpointId On delivery, the endpoint this copy is rendered for: the endpoint whose `localId` the envelope and every reference in it carry. Assigned by agrirouter; a value sent by a participant is ignored.
-	//
-	// Because the identifier mapping is scoped to the endpoint, the event stream carries one frame per recipient endpoint rather than one per object. An application with two opted-in endpoints in one tenant receives the same canonical object twice, rendered for each, and partitions on this field. On a write response it is the endpoint named in `x-agrirouter-endpoint-id`.
-	RecipientEndpointId *openapi_types.UUID `json:"recipientEndpointId,omitempty"`
 
 	// RegulatoryRequirements [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A regulatory constraint applying to the boundary.
 	//
@@ -376,7 +371,7 @@ type IdMappingRejectionReason = string
 
 // InitialLoadState Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 //
-// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered by opting the endpoint into its first entity type via the master-data configuration, and again whenever a further entity type is added there. Both are a user's opt-in decision carried out by agrirouter; a participant cannot enter this state directly, and an attempt to set it on the `status` resource is a `409`.
+// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 //
 // `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 //
@@ -394,7 +389,7 @@ type InitialLoadStateUpdate struct {
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
-	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered by opting the endpoint into its first entity type via the master-data configuration, and again whenever a further entity type is added there. Both are a user's opt-in decision carried out by agrirouter; a participant cannot enter this state directly, and an attempt to set it on the `status` resource is a `409`.
+	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
 	// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
@@ -414,7 +409,7 @@ type InitialLoadStatus struct {
 	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
 	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
 
-	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been opted out, disconnected from the hub, opted into a further entity type, or having asked for the set again itself. The identifier mapping survived all of these, so the objects arrive carrying the endpoint's own `localId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
+	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, disconnected from the hub, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `localId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
 	PreviousLoadCompletedAt *time.Time `json:"previousLoadCompletedAt,omitempty"`
 
 	// RejectedIdMappings Bindings supplied on this request that could not be recorded, each with its `reason` and, where one exists, the mapping that stands in its way. They do not fail the transition: one unresolvable pair should not block the load of a set. The endpoint resolves them as it resolves a `409` on the per-entity operation, and rebinds through that operation once it has. Recomputed on every request that carries `idMappings`, including a repeat of the transition, so a retry after a lost response reports the current outcome rather than the first.
@@ -422,7 +417,7 @@ type InitialLoadStatus struct {
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
-	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered by opting the endpoint into its first entity type via the master-data configuration, and again whenever a further entity type is added there. Both are a user's opt-in decision carried out by agrirouter; a participant cannot enter this state directly, and an attempt to set it on the `status` resource is a `409`.
+	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
 	// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
@@ -448,8 +443,12 @@ type MasterdataConfig struct {
 	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
 	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
 
-	// Toggles The entity types the user opted this endpoint into, empty where it is opted into none — always present, never absent. Set by the user in agrirouter.
-	Toggles []EntityTypeToggle `json:"toggles"`
+	// ResolutionUrl Where the user resolves initial-load conflicts in the endpoint's own software. Optional, opaque to agrirouter, and not per conflict: it is rendered as a link while the endpoint has `awaitingUser` set.
+	//
+	//
+	// Examples: https://app.example.com/tenants/42/agrirouter/masterdata
+	ResolutionUrl *string            `json:"resolutionUrl,omitempty"`
+	Toggles       []EntityTypeToggle `json:"toggles"`
 }
 
 // Membership A role held by a person in one organization.
@@ -488,17 +487,12 @@ type Organization struct {
 	CommercialRegistryNumber *string  `json:"commercialRegistryNumber,omitempty"`
 	Contact                  *Contact `json:"contact,omitempty"`
 
-	// LocalId Always the *acting* endpoint's own identifier for the entity, in both directions: on send the sending endpoint's, on delivery the receiving endpoint's (named by `recipientEndpointId`). It never carries another endpoint's identifier, a sibling endpoint of the same application included. A local store is scoped to the endpoint, so the same string sent by two endpoints is two records.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving endpoint, and absent when it does not — an object that endpoint has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue, or — if you recognise it in a store you already share with another endpoint — bind without creating.
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId    *string    `json:"localId,omitempty"`
 	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
 	Name       string     `json:"name"`
-
-	// RecipientEndpointId On delivery, the endpoint this copy is rendered for: the endpoint whose `localId` the envelope and every reference in it carry. Assigned by agrirouter; a value sent by a participant is ignored.
-	//
-	// Because the identifier mapping is scoped to the endpoint, the event stream carries one frame per recipient endpoint rather than one per object. An application with two opted-in endpoints in one tenant receives the same canonical object twice, rendered for each, and partitions on this field. On a write response it is the endpoint named in `x-agrirouter-endpoint-id`.
-	RecipientEndpointId *openapi_types.UUID `json:"recipientEndpointId,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
@@ -581,19 +575,14 @@ type Person struct {
 	FirstName      *string             `json:"firstName,omitempty"`
 	LastName       string              `json:"lastName"`
 
-	// LocalId Always the *acting* endpoint's own identifier for the entity, in both directions: on send the sending endpoint's, on delivery the receiving endpoint's (named by `recipientEndpointId`). It never carries another endpoint's identifier, a sibling endpoint of the same application included. A local store is scoped to the endpoint, so the same string sent by two endpoints is two records.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving endpoint, and absent when it does not — an object that endpoint has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue, or — if you recognise it in a store you already share with another endpoint — bind without creating.
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"localId,omitempty"`
 
 	// Memberships The organizations this person belongs to, each with the role held there. A person carrying at least one entry is a member.
 	Memberships *[]Membership `json:"memberships,omitempty"`
 	ModifiedAt  *time.Time    `json:"modifiedAt,omitempty"`
-
-	// RecipientEndpointId On delivery, the endpoint this copy is rendered for: the endpoint whose `localId` the envelope and every reference in it carry. Assigned by agrirouter; a value sent by a participant is ignored.
-	//
-	// Because the identifier mapping is scoped to the endpoint, the event stream carries one frame per recipient endpoint rather than one per object. An application with two opted-in endpoints in one tenant receives the same canonical object twice, rendered for each, and partitions on this field. On a write response it is the endpoint named in `x-agrirouter-endpoint-id`.
-	RecipientEndpointId *openapi_types.UUID `json:"recipientEndpointId,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
@@ -631,6 +620,36 @@ type RevisionConflictError struct {
 //
 // Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
 type Role = string
+
+// RouteChangedEventData Data structure for `ROUTE_CHANGED` events on `/masterdata/events`. It states which entity types the user has selected for one of the application's endpoints.
+// One event covers every way the selection changes: the endpoint routed to the masterdata hub for the first time, a further entity type selected on one already routed, a type deselected, and the last one deselected or the route removed.
+// The event may arrive more than once for one move and MUST be handled idempotently.
+type RouteChangedEventData struct {
+	// ChangedAt When the selection reached this state. Not a delivery timestamp: it is unchanged when the same event is delivered again, and a repeat carrying an older value than one already applied for this endpoint can be discarded.
+	//
+	//
+	// Examples: 2026-07-14T09:20:00Z
+	ChangedAt time.Time `json:"changedAt"`
+
+	// EndpointId The agrirouter identifier of the endpoint whose selection changed.
+	EndpointId openapi_types.UUID `json:"endpointId"`
+
+	// EntityTypes The endpoint's selection as it stands after the change, stated in full rather than as a delta. The application replaces what it held for this endpoint with this list.
+	// An empty array is a statement and not an omission: it says the endpoint exchanges nothing, because the user deselected the last entity type or the route was removed.
+	//
+	//
+	// Examples: [{"entityType":"organization"},{"entityType":"person"},{"entityType":"farm"}]
+	EntityTypes []EntityTypeToggle `json:"entityTypes"`
+
+	// EventType Discriminator; matches the `event:` line.
+	EventType RouteChangedEventDataEventType `json:"eventType"`
+
+	// ExternalEndpointId The application's own identifier for the same endpoint.
+	ExternalEndpointId string `json:"externalEndpointId"`
+}
+
+// RouteChangedEventDataEventType Discriminator; matches the `event:` line.
+type RouteChangedEventDataEventType string
 
 // SoilInfo Soil characteristics of a field.
 type SoilInfo struct {
@@ -965,6 +984,9 @@ type BindPersonMappingParams struct {
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
 }
+
+// PutMasterdataConfigJSONRequestBody defines body for PutMasterdataConfig for application/json ContentType.
+type PutMasterdataConfigJSONRequestBody = MasterdataConfig
 
 // SetInitialLoadStateJSONRequestBody defines body for SetInitialLoadState for application/json ContentType.
 type SetInitialLoadStateJSONRequestBody = InitialLoadStateUpdate
