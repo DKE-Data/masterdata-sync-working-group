@@ -2179,7 +2179,7 @@ components:
           description: >
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
             The entity type this toggle applies to.
-          examples: [organizations, persons, farms, fields, field-boundaries]
+          examples: [organization, person, farm, field, fieldBoundary]
       required: [entityType]
 
     MasterdataConfig:
@@ -2248,7 +2248,7 @@ components:
             endpoint exchanges nothing, because the user deselected the last
             entity type or the route was removed.
           examples:
-            - [{entityType: organizations}, {entityType: persons}, {entityType: farms}]
+            - [{entityType: organization}, {entityType: person}, {entityType: farm}]
         changedAt:
           type: string
           format: date-time
