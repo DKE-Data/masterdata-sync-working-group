@@ -582,9 +582,9 @@ Example event (non-normative):
   "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
   "externalEndpointId": "urn:my-app:endpoint:42",
   "entityTypes": [
-    { "entityType": "organizations" },
-    { "entityType": "persons" },
-    { "entityType": "farms" }
+    { "entityType": "organization" },
+    { "entityType": "person" },
+    { "entityType": "farm" }
   ],
   "changedAt": "2026-07-14T09:20:00Z"
 }
