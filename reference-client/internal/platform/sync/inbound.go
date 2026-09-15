@@ -92,6 +92,12 @@ type Outcome struct {
 	// attention, or would have. It is reported to agrirouter as one bit for the
 	// whole load; see [Loader].
 	AwaitingUser bool
+
+	// Blocked is true where the recogniser could not decide what the object was
+	// and would not guess. Nothing was created, nothing was applied, and nothing
+	// was bound: the object is left for a person, and [Loader] stops short of
+	// declaring the load reconciled while any are outstanding.
+	Blocked bool
 }
 
 // Apply applies one canonical object, and records the delivery position with
@@ -206,6 +212,18 @@ func (a *Applier) applyUnheldObject(
 	}
 
 	switch {
+	case known.Blocked:
+		// The recogniser could not tell what this object is and declined to
+		// guess. Creating a record anyway is the one thing that must not happen
+		// here: it is what turns an undecidable object into a duplicate, and a
+		// duplicate is what the whole reconciliation exists to avoid.
+		//
+		// Whatever the recogniser wrote for the person who will decide is
+		// committed with this transaction; the object itself is not applied and
+		// not bound. [Loader] leaves the load short of reconciled while any are
+		// outstanding, and the object is asked for again once they have answered.
+		return Outcome{Blocked: true, AwaitingUser: known.AwaitingUser}, nil
+
 	case known.LocalID != "" && !active:
 		// A deactivated object the platform does recognise is bound and its own
 		// copy marked inactive. Binding a dead object is worth doing: an unbound

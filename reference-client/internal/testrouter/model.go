@@ -191,6 +191,11 @@ type endpoint struct {
 	// endpoint through the failure the state machine exists to survive: a set
 	// that stops arriving without agrirouter ever having declared it sent.
 	dropLoad bool
+
+	// corruptLoad makes every initial-load stream open and then fail, rather
+	// than end. It is the other shape of failed take: one that recurs on every
+	// attempt, where dropLoad is survived by taking the set again.
+	corruptLoad bool
 }
 
 func (e *endpoint) optedInto(t agmasync.EntityType) bool {

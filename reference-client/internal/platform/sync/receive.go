@@ -47,7 +47,17 @@ type Receiver struct {
 	// something — and an empty EntityTypes means exchange has ended for that
 	// endpoint. What the receiver must not do is drop it silently, which would
 	// leave the platform sending types nobody wants until a write is refused.
-	OnSelection func(oapi.RouteChangedEventData)
+	//
+	// It is handed the transaction the frame's position is written in, and what
+	// it persists through that transaction commits with the position or not at
+	// all — the same bargain [Applier.Apply] makes for an entity frame, and for
+	// the same reason. A position is a claim to have durably applied everything
+	// at or below it, and the receiver has no way to make that claim about work
+	// done somewhere it cannot see. Returning an error abandons both: the frame
+	// is redelivered on the next connection, which the specification requires a
+	// participant to tolerate, since the frame states the whole selection rather
+	// than a delta.
+	OnSelection func(*store.Tx, oapi.RouteChangedEventData) error
 }
 
 // ReceiveResult counts what one run of the loop did.
@@ -113,8 +123,11 @@ func (r *Receiver) consume(ctx context.Context, untilCaughtUp bool) (ReceiveResu
 		}
 
 		if ev.Type == agmasync.EventCaughtUp {
-			// Everything before this frame has been applied, so its position is
-			// one the participant may resume from.
+			// Everything before this frame has been applied and committed —
+			// entity frames with their own positions, selections with theirs —
+			// so this position is one the participant may resume from. It covers
+			// nothing that is not already durable, which is what makes taking it
+			// safe rather than merely convenient.
 			if ev.ID != "" {
 				if err := r.savePosition(ev.ID); err != nil {
 					return res, err
@@ -130,10 +143,16 @@ func (r *Receiver) consume(ctx context.Context, untilCaughtUp bool) (ReceiveResu
 		if ev.Selection != nil {
 			// The one frame on this stream that is not an entity, and it states
 			// the whole selection rather than a delta, so handing it on is the
-			// whole of acting on it. Its position is not taken: what it carries
-			// is applied by the platform, not here, so the receiver has no
-			// claim to have applied it.
-			r.deliverSelection(*ev.Selection)
+			// whole of acting on it. Its position travels with what the platform
+			// persisted from it, which is the only way the receiver can claim to
+			// have applied it.
+			applied, err := r.applySelection(ev, *ev.Selection)
+			if err != nil {
+				return res, err
+			}
+			if applied && ev.ID != "" {
+				res.Position = ev.ID
+			}
 			continue
 		}
 		if !ev.HasEntity() {
@@ -187,18 +206,60 @@ func (r *Receiver) consume(ctx context.Context, untilCaughtUp bool) (ReceiveResu
 	return res, nil
 }
 
-// deliverSelection hands a ROUTE_CHANGED frame to the platform.
+// applySelection hands a ROUTE_CHANGED frame to the platform, in the
+// transaction that records the frame's position. It reports whether the
+// position was taken.
 //
 // There is nothing to read behind it and nothing to merge: the frame states the
 // endpoint's whole selection, so the platform replaces what it held for that
 // endpoint with it. An empty EntityTypes is the statement that the endpoint
 // exchanges nothing, and it is the one a receiver must not quietly drop — it is
 // how a withdrawal arrives, including one made while this participant was away.
-func (r *Receiver) deliverSelection(sel oapi.RouteChangedEventData) {
+//
+// Losing one is worse than seeing it twice, which is what the transaction is
+// for. A position committed for a selection the platform had not durably
+// recorded would put that frame below the position the next connection resumes
+// from, and agrirouter does not restate what it has already stated above a
+// participant's position — so a withdrawal would be lost for good, and the
+// platform would go on offering types its user has switched off. The other way
+// round costs a redelivery of a frame that states the whole selection, which is
+// idempotent by construction.
+func (r *Receiver) applySelection(
+	ev agmasync.Event, sel oapi.RouteChangedEventData,
+) (bool, error) {
 	if r.OnSelection == nil {
-		return
+		return false, nil
 	}
-	r.OnSelection(sel)
+	err := r.Store.Tx(r.tenantOf(sel), func(tx *store.Tx) error {
+		if err := r.OnSelection(tx, sel); err != nil {
+			return err
+		}
+		return tx.SetPosition(ev.ID)
+	})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// tenantOf names the tenancy a selection is about.
+//
+// A ROUTE_CHANGED names an endpoint rather than a tenant, so unlike a delivered
+// object it cannot be routed off the envelope. Each of the product's tenancies
+// is onboarded as its own endpoint, though, so the endpoint the frame names is
+// the one an applier holds — and running in that tenancy is what lets a handler
+// act on the withdrawal for the right set of holdings.
+//
+// An endpoint no applier claims leaves the empty tenancy, which is what the
+// position alone needs: it belongs to the application and not to any one of its
+// tenants.
+func (r *Receiver) tenantOf(sel oapi.RouteChangedEventData) string {
+	for _, applier := range r.Tenants {
+		if applier.Endpoint != nil && applier.Endpoint.ID() == sel.EndpointId {
+			return applier.Tenant
+		}
+	}
+	return ""
 }
 
 // applierFor routes a frame to the tenant its object belongs to.

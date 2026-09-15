@@ -314,9 +314,20 @@ func (r *Router) initialLoadStream(ctx context.Context, ep *endpoint) io.Reader 
 	// end exactly as it does on an orderly completion, and only the state tells
 	// the two apart.
 	drop := r.takeDrop(ep)
+	corrupt := r.corrupted(ep)
 
 	go func() {
 		defer pipeW.Close()
+
+		// An undecodable frame, which fails the take in a way taking it again
+		// does not fix. Written in place of the set rather than after it, so the
+		// endpoint cannot reach the end and mistake this for an orderly finish.
+		if corrupt {
+			_, _ = io.WriteString(pipeW,
+				"event: "+string(eventMasterdataChanged)+"\ndata: {\n\n")
+			return
+		}
+
 		for i, f := range frames {
 			if ctx.Err() != nil {
 				return
