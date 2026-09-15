@@ -1098,8 +1098,12 @@ paths:
         object carries the application's own identifier in `localId` where
         agrirouter holds one.
 
-        agrirouter closes the HTTP response once it has sent the whole set and
-        then moves the endpoint to `RECONCILING`. The set is fixed when the load
+        agrirouter moves the endpoint to `RECONCILING` once it has sent the
+        whole set and closes the HTTP response after it, in that order: the
+        state is what tells an orderly finish from a dropped connection, so
+        closing first would leave a window in which an endpoint reads
+        `LOADING_FROM_AGRIROUTER` for a set that did arrive and takes the whole
+        set again for nothing. The set is fixed when the load
         starts: an entity type opted in while the set is streaming restarts the
         load, so the endpoint re-enters `LOADING_FROM_AGRIROUTER` and the set is
         sent again including the new type.
@@ -1123,7 +1127,11 @@ paths:
         An endpoint MUST NOT treat the response ending as proof that the set
         arrived — a dropped connection ends it the same way. Whether the set was
         sent is recorded in the endpoint's state on the Initial Load resource,
-        which agrirouter advances only after sending everything.
+        which agrirouter advances only after sending everything, and before
+        closing this response. That read is therefore conclusive as soon as the
+        response ends: an endpoint that finds `LOADING_FROM_AGRIROUTER` there
+        has been cut short and reconnects at once, without waiting before the
+        read or polling for a state change.
 
         This stream is independent of the application's steady-state stream
         `/masterdata/events`, which keeps running throughout and is not
@@ -2266,12 +2274,13 @@ components:
         is a `409`.
 
 
-        `RECONCILING` — the whole canonical set has been delivered and the
-        initial-load stream closed. agrirouter moves the endpoint here itself,
-        and only this one,
+        `RECONCILING` — the whole canonical set has been delivered, and
+        agrirouter moves the endpoint here before closing the initial-load
+        stream. agrirouter moves it here itself, and only this one,
         because it is the side that knows it has finished sending, which is also
         why this state is the authoritative answer to whether the set arrived: an
-        endpoint cannot tell an orderly close from a dropped connection. The
+        endpoint cannot tell an orderly close from a dropped connection. Moving
+        first is what makes reading it once, as the response ends, enough. The
         endpoint is now working through whatever conflicts reconciling surfaced,
         which may take as long as a user takes.
 

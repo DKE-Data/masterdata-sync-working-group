@@ -49,7 +49,7 @@ The flow, per endpoint:
 
 1. **Opt in.** The user routes the endpoint to the [masterdata hub](./04-routing.md) and opts it into one or more entity types. The endpoint enters `LOADING_FROM_AGRIROUTER`.
 2. **Load from agrirouter.** agrirouter sends the endpoint every canonical object of every opted-in type it is entitled to receive, on the endpoint's one stream, ordered so that a referenced object precedes the objects referencing it. This direction is well-defined precisely because [agrirouter is the SSOT](./01-reference-architecture.md) - it already holds the authoritative set to hand over, and the order to hand it over in.
-3. **Set delivered.** agrirouter closes the HTTP response once it has sent everything, and moves the endpoint to `RECONCILING`. This is mechanical and agrirouter drives it: it knows it has sent everything, so nothing needs to be reported back. There is no in-band end marker, because a dropped connection closes the response the same way an orderly finish does; the state is what records that the set was sent, and an endpoint that finds itself still at `LOADING_FROM_AGRIROUTER` connects again.
+3. **Set delivered.** agrirouter moves the endpoint to `RECONCILING` once it has sent everything, then closes the HTTP response. This is mechanical and agrirouter drives it: it knows it has sent everything, so nothing needs to be reported back. There is no in-band end marker, because a dropped connection closes the response the same way an orderly finish does; the state is what records that the set was sent, and an endpoint that finds itself still at `LOADING_FROM_AGRIROUTER` connects again. The order matters: closing first would leave a window in which that read says `LOADING_FROM_AGRIROUTER` about a set that did arrive, costing a full redundant re-delivery. Advancing first makes one read, taken as the response ends, conclusive.
 4. **Confirm.** Reconciliation potentially finishes much later. Whatever conflicts it surfaced are settled in the partner's software - by a user where the partner's own rules cannot settle them - on a schedule agrirouter does not control. The endpoint confirms after *that*, moving to `LOADING_TO_AGRIROUTER`. This transition is explicit precisely because agrirouter can see the previous moment and not this one.
 5. **Load to agrirouter.** The endpoint now sends the objects it holds that the canonical set did not contain, plus any it changed while resolving conflicts. Because it reconciled first, it sends genuinely new objects instead of duplicates of ones it just received.
 6. **Complete.** When the endpoint has sent everything, it enters `COMPLETED`, and ordinary steady-state synchronization ([ADR 07](./07-sync-streaming.md)) applies from then on.
@@ -118,6 +118,9 @@ sequenceDiagram
     end
     Note over AR: endpoint → RECONCILING (agrirouter drives this - it knows it has sent everything)
     AR-->>P: close SSE HTTP response
+    Note over P: the response ending is not proof the set arrived - a dropped connection ends it the same way
+    P->>AR: GET /endpoints/{eid}/masterdata-initial-load/status
+    AR-->>P: 200 InitialLoadStatus { state: "RECONCILING" } - the set arrived complete.
     Note over P: whole set held - user works through what is left, on their own schedule. live changes keep arriving meanwhile
     opt object referenced from the live stream, not delivered by the set yet
         P->>AR: POST /masterdata/organizations/requests { agrirouterId: 4d5e…6789 }
