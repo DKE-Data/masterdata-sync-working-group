@@ -57,7 +57,7 @@ func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 }
 
 func TestDeclaredMatchesTypeNames(t *testing.T) {
-	cfg := oapi.MasterdataConfig{Toggles: []oapi.EntityTypeToggle{
+	cfg := oapi.MasterdataCapabilities{Toggles: []oapi.EntityTypeToggle{
 		{EntityType: "farm"},
 		{EntityType: "fieldBoundary"},
 	}}

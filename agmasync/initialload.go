@@ -45,13 +45,13 @@ const (
 // It closes the set over entity dependencies, since a declaration that is not
 // dependency-closed is rejected: an endpoint that could receive fields but not
 // the farms they hang off could not resolve their references.
-func Declaration(types ...EntityType) oapi.MasterdataConfig {
+func Declaration(types ...EntityType) oapi.MasterdataCapabilities {
 	closure := DependencyClosure(types)
 	toggles := make([]oapi.EntityTypeToggle, 0, len(closure))
 	for _, t := range closure {
 		toggles = append(toggles, oapi.EntityTypeToggle{EntityType: string(t)})
 	}
-	return oapi.MasterdataConfig{Toggles: toggles}
+	return oapi.MasterdataCapabilities{Toggles: toggles}
 }
 
 // Declare states which entity types this endpoint is able to exchange.
@@ -63,41 +63,20 @@ func Declaration(types ...EntityType) oapi.MasterdataConfig {
 // Withdrawing a type narrows any selection naming it, which for that type has the
 // effect of the user deselecting it. That is the only way a call made here
 // changes what is delivered, and it can only ever remove.
-func (e *Endpoint) Declare(ctx context.Context, cfg oapi.MasterdataConfig) (oapi.MasterdataConfig, error) {
-	r, err := e.client.api.PutMasterdataConfigWithResponse(ctx, e.externalID, cfg)
+func (e *Endpoint) Declare(ctx context.Context, cfg oapi.MasterdataCapabilities) (oapi.MasterdataCapabilities, error) {
+	r, err := e.client.api.PutEndpointWithResponse(ctx, e.externalID, oapi.PutEndpointJSONRequestBody{MasterdataCapabilities: &cfg})
 	if err != nil {
-		return oapi.MasterdataConfig{}, transportErr(err)
+		return oapi.MasterdataCapabilities{}, transportErr(err)
 	}
 	if resErr := (writeResult{
 		statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403, body: r.Body,
 	}).err(); resErr != nil {
-		return oapi.MasterdataConfig{}, resErr
+		return oapi.MasterdataCapabilities{}, resErr
 	}
-	if r.JSON200 == nil {
-		return oapi.MasterdataConfig{}, fmt.Errorf("agmasync: empty configuration response")
+	if r.JSON200 == nil || r.JSON200.MasterdataCapabilities == nil {
+		return oapi.MasterdataCapabilities{}, fmt.Errorf("agmasync: empty configuration response")
 	}
-	return *r.JSON200, nil
-}
-
-// MasterdataConfig reads back what this endpoint declared it can exchange.
-//
-// It is the participant's own statement, not the user's decision, so it answers
-// what the endpoint is capable of and never what it is opted into.
-// [ErrNotFound] means no such endpoint.
-func (e *Endpoint) MasterdataConfig(ctx context.Context) (oapi.MasterdataConfig, error) {
-	r, err := e.client.api.GetMasterdataConfigWithResponse(ctx, e.externalID)
-	if err != nil {
-		return oapi.MasterdataConfig{}, transportErr(err)
-	}
-	if resErr := (writeResult{
-		statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404, body: r.Body,
-	}).err(); resErr != nil {
-		return oapi.MasterdataConfig{}, resErr
-	}
-	if r.JSON200 == nil {
-		return oapi.MasterdataConfig{}, fmt.Errorf("agmasync: empty configuration response")
-	}
-	return *r.JSON200, nil
+	return *r.JSON200.MasterdataCapabilities, nil
 }
 
 // DependencyClosure expands a set of entity types to the dependency-closed set
@@ -173,7 +152,7 @@ func SelectedTypes(s oapi.RouteChangedEventData) []EntityType {
 //
 // It answers what the software is capable of, never what the user opted it into
 // — see [SelectedTypes] for that.
-func Declared(cfg oapi.MasterdataConfig, t EntityType) bool {
+func Declared(cfg oapi.MasterdataCapabilities, t EntityType) bool {
 	for _, toggle := range cfg.Toggles {
 		if toggle.EntityType == string(t) {
 			return true
