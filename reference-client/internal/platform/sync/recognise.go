@@ -67,7 +67,13 @@ func (ByName) Recognise(
 	case 1:
 		return Recognition{LocalID: found[0]}, nil
 	default:
-		return Recognition{AwaitingUser: true}, nil
+		// Two records answering to one canonical object, which is not a match to
+		// pick between. Saying only that a person is needed would leave this
+		// reading as "not held" — an instruction to create a record — so the
+		// endpoint would answer an object it could not identify with a third
+		// copy of it. It blocks instead, and the load stops for the person it
+		// just asked for.
+		return Recognition{AwaitingUser: true, Blocked: true}, nil
 	}
 }
 

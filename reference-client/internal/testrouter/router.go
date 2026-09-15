@@ -551,6 +551,35 @@ func (r *Router) DropNextInitialLoad(externalID string) error {
 	return nil
 }
 
+// CorruptInitialLoad makes this endpoint's initial-load stream carry a frame
+// that cannot be decoded, on every attempt until it is turned off.
+//
+// It is the failure a retry does not fix, which is what separates it from
+// [Router.DropNextInitialLoad]: taking the set again produces the same broken
+// frame, so an endpoint that treats every failed take as a dropped connection
+// exhausts its attempts and has nothing to say about why.
+//
+// There is no agrirouter equivalent, and no control-plane route: it is a test
+// affordance, not a protocol operation.
+func (r *Router) CorruptInitialLoad(externalID string, on bool) error {
+	ep, ok := r.lookupEndpoint(externalID)
+	if !ok {
+		return errNotFound
+	}
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	ep.corruptLoad = on
+	return nil
+}
+
+// corrupted reports whether this endpoint's load stream is armed to fail. It is
+// not consumed: the failure recurs until a test clears it.
+func (r *Router) corrupted(ep *endpoint) bool {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	return ep.corruptLoad
+}
+
 // takeDrop consumes the armed drop, so the next attempt is served in full.
 func (r *Router) takeDrop(ep *endpoint) bool {
 	r.store.mu.Lock()

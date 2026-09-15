@@ -18,7 +18,7 @@ them does.
 go run ./cmd/scenarios
 ```
 
-Seven numbered stories, narrated as they run, each citing the sections of the
+Eight numbered stories, narrated as they run, each citing the sections of the
 specification it is about. No Docker and nothing to start: the test router runs
 in process.
 
@@ -29,11 +29,18 @@ in process.
 5. A deactivated object in the canonical set, recognised and not
 6. Resume after downtime, and a crash between applying and saving the position
 7. Non-unique mapping rejected, both causes, singly and in bulk
+8. Reconciliation that needs a person stops the load until it has one
 
 They assert as they narrate. Every `ok` line is a claim checked at the moment it
 is printed, so a scenario that would teach something untrue fails instead —
 which is what makes them worth reading and worth keeping in CI. One at a time
 with `go run ./cmd/scenarios -scenario 4`.
+
+Scenario 8 asks you a question, because the protocol cannot answer it: agrirouter
+provides the canonical set and adjudicates nothing, so which of a platform's
+records a delivered object *is* comes down to a person. Run it from a terminal
+and it prompts; with input redirected, or under `-batch` or `go test`, the
+default answer stands and the run stays automatable.
 
 ## What is in here
 

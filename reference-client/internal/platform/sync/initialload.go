@@ -53,6 +53,22 @@ type Recognition struct {
 	// records answering to one canonical object. It is reported to agrirouter as
 	// one bit for the whole load and never as what it was about.
 	AwaitingUser bool
+
+	// Blocked says the recogniser cannot decide this object without a person and
+	// will not guess. Nothing is created for it and nothing is bound, and the
+	// load stops short of reconciled rather than completing around it.
+	Blocked bool
+}
+
+// BlockedObject names a canonical object no decision was reached about.
+//
+// It carries the canonical identifier rather than the object, because that is
+// what asks for it again: the set is delivered once, so an object left undecided
+// comes back through [agmasync.Endpoint.Request], which puts it on the live
+// stream where the receiver applies it like any other delivery.
+type BlockedObject struct {
+	Type         agmasync.EntityType
+	AgrirouterID uuid.UUID
 }
 
 // Loader drives an endpoint's initial load from wherever it currently stands to
@@ -108,9 +124,30 @@ type LoadResult struct {
 	// Counts over the last complete take of the set.
 	Received, Created, Matched, Ignored, Superseded int
 
-	// AwaitingUser is true where recognising something needed a person, and was
-	// reported to agrirouter as such.
+	// AwaitingUser is true where recognising something needed a person and
+	// agrirouter was told so. It is not raised locally without that, since the
+	// flag is agrirouter's to display and nothing here reads it back.
 	AwaitingUser bool
+
+	// UserAttentionErr is why agrirouter could not be told, where a person was
+	// needed and the report did not get through.
+	//
+	// It does not fail the load, and is reported rather than returned for that
+	// reason: the flag upgrades a label in agrirouter's UI and nothing in the
+	// protocol branches on it, so an endpoint that cannot raise it has lost
+	// precision and not correctness. Dropping the set that was arriving over a
+	// label would be the worse trade by a long way.
+	UserAttentionErr error
+
+	// Blocked are the objects the recogniser would not decide. While there are
+	// any, the load stops at RECONCILING rather than completing: confirming is
+	// the endpoint saying reconciliation is done, and it is what clears the flag
+	// that has agrirouter showing "waiting for you".
+	//
+	// The product asks for them again once its user has answered — see
+	// [Recognition.Blocked] — and runs the load once more, which re-enters at
+	// RECONCILING, confirms, pushes and completes.
+	Blocked []BlockedObject
 
 	// Confirmed are the bindings the confirmation carried, Rejected the pairs
 	// agrirouter would not record. A rejection does not fail the load: each is
@@ -194,6 +231,16 @@ func (l *Loader) Run(ctx context.Context) (LoadResult, error) {
 		}
 	}
 
+	// A load with objects nobody could decide stops here, at RECONCILING, with
+	// the flag raised and agrirouter showing "waiting for you in <app>".
+	//
+	// The load is re-run once the user has answered. Being re-entrant, it picks
+	// up at RECONCILING and carries on from the confirmation.
+	if len(res.Blocked) > 0 {
+		res.State = status.State
+		return res, nil
+	}
+
 	// The records whose bindings agrirouter refused, which the push below must
 	// not offer back: an unbound send mints a second canonical object for an
 	// entity that already has one.
@@ -259,6 +306,7 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 	// Counted per take, so what a scenario reports describes the delivery it
 	// ended on rather than the sum of the ones that failed.
 	res.Received, res.Created, res.Matched, res.Ignored, res.Superseded = 0, 0, 0, 0, 0
+	res.Blocked = nil
 
 	for ev, err := range stream.Events() {
 		if err != nil {
@@ -280,6 +328,10 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 
 		res.Received++
 		switch {
+		case out.Blocked:
+			res.Blocked = append(res.Blocked, BlockedObject{
+				Type: ev.Envelope.Type, AgrirouterID: *ev.Envelope.AgrirouterId,
+			})
 		case out.Created:
 			res.Created++
 		case out.Matched:
@@ -290,8 +342,6 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 			res.Superseded++
 		}
 		if out.AwaitingUser && !res.AwaitingUser {
-			res.AwaitingUser = true
-
 			// Raised as the conflict surfaces rather than once the set is
 			// complete, because that is when the user is first waiting: from
 			// here on agrirouter shows "waiting for you in <app>" instead of its
@@ -299,8 +349,18 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 			// state, so it does not matter that agrirouter may finish sending
 			// while this request is in flight. The confirmation clears it — the
 			// endpoint raises, agrirouter clears.
+			//
+			// Recorded as raised only once agrirouter has it. Marking it first
+			// would make a failed report permanent: the guard above is what stops
+			// the raise repeating, so the next conflict — and every conflict in
+			// every later take, this being one of the few things not reset per
+			// take — would skip a report that never got through, while the result
+			// went on claiming a person had been asked for.
 			if _, err := l.Applier.Endpoint.ReportUserAttention(ctx); err != nil {
-				return nil, err
+				res.UserAttentionErr = err
+			} else {
+				res.AwaitingUser = true
+				res.UserAttentionErr = nil
 			}
 		}
 	}
