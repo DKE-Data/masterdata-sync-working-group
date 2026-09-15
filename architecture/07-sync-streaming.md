@@ -85,17 +85,9 @@ travels in the event envelope, so a partner serving 100k farmers holds one
 connection and one position rather than 100k of each, and server-side delivery
 state is proportional to the number of applications.
 
-Which tenants an application may read is decided by the hub
+Which tenants an application may read is decided by the masterdata
 routes the user created ([ADR 04](./04-routing.md)), and is applied as a predicate on
 the query rather than as a property of the connection.
-
-Opt-in per entity type is not a second predicate alongside it. Opt-in is held per
-endpoint ([Routing and opt-in](../specification.md#routing-and-opt-in)), and each
-of an application's endpoints belongs to a different tenant, so two tenants on the
-same stream routinely differ - one exchanging farms and fields, the other only
-farms. The filter is therefore per tenant and type, read from each tenant's own
-`masterdata-config`. An application MUST NOT assume the types it receives for one
-tenant are the types it receives for another.
 
 ### The sweep delivers in tier order
 
@@ -398,6 +390,25 @@ completeness of an entity type out of the order it receives objects in. The orde
 guarantees that every object arrives after the objects it references, and nothing
 beyond that.
 
+### `ROUTE_CHANGED` event
+
+The stream carries one event that is not an entity: `ROUTE_CHANGED`,
+which states which entity types the user has selected for one of the
+application's endpoints ([ADR 06](./06-initial-load.md)).
+
+- **It names one endpoint.** The user makes the selection on that endpoint's
+  route to the hub, so every way it changes (routed to the hub, a type selected on
+  one already routed, a type deselected, the last one deselected) affects only
+  one.
+- The event is emitted for every endpoint of the application whose selection changed,
+  including those whose selection was emptied. The last part is what makes a
+  withdrawal survive a disconnection.
+- The application might receive the event more than once and MUST handle it idempotently.
+
+An empty `entityTypes` is a statement and not an omission - it says the endpoint
+exchanges nothing, because the user deselected the last type or removed the
+route.
+
 ### Origin suppression moves to read time
 
 With a queue per endpoint, [loop prevention](../specification.md#loop-prevention)
@@ -508,6 +519,10 @@ version would trade the ordering away to save.
   later value win; across the stream and a write response it is not, so apply is
   additionally guarded by `revision`
   ([ADR 05](./05-stale-reads.md#consequences)).
+- **The stream carries one non-entity event.** `ROUTE_CHANGED` is
+  the only thing on the stream that is not an entity or a boundary marker, and it
+  exists to notify the application when the user changes the selection of masterdata
+  entity types.
 - **Dependency-closed opt-in is structural.** An application opted into fields but
   not farms gets no farms at all and then every field with an unresolvable
   reference. [The rule](../specification.md#routing-and-opt-in) is what holds the
