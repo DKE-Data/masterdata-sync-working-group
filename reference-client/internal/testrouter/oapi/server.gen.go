@@ -60,6 +60,21 @@ func (e PartyReferenceType) Valid() bool {
 	}
 }
 
+// Defines values for RouteChangedEventDataEventType.
+const (
+	ROUTECHANGED RouteChangedEventDataEventType = "ROUTE_CHANGED"
+)
+
+// Valid indicates whether the value is a known member of the RouteChangedEventDataEventType enum.
+func (e RouteChangedEventDataEventType) Valid() bool {
+	switch e {
+	case ROUTECHANGED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Address defines model for Address.
 type Address struct {
 	City *string `json:"city,omitempty"`
@@ -108,7 +123,7 @@ type EntityTypeToggle struct {
 	// EntityType [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). The entity type this toggle applies to.
 	//
 	//
-	// Examples: organizations, persons, farms, fields, field-boundaries
+	// Examples: organization, person, farm, field, fieldBoundary
 	EntityType string `json:"entityType"`
 }
 
@@ -361,7 +376,7 @@ type IdMappingRejectionReason = string
 
 // InitialLoadState Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 //
-// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered by opting the endpoint into its first entity type via the master-data configuration, and again whenever a further entity type is added there. Both are a user's opt-in decision carried out by agrirouter; a participant cannot enter this state directly, and an attempt to set it on the `status` resource is a `409`.
+// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 //
 // `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 //
@@ -372,17 +387,14 @@ type IdMappingRejectionReason = string
 // The endpoint drives two of these transitions, both through the `status` resource: `RECONCILING` → `LOADING_TO_AGRIROUTER` and `LOADING_TO_AGRIROUTER` → `COMPLETED`.
 type InitialLoadState string
 
-// InitialLoadStateUpdate The target initial-load `state` for the endpoint. The states are accepted in order, plus `LOADING_FROM_AGRIROUTER` from any state, which asks for the canonical set again.
+// InitialLoadStateUpdate The target initial-load `state` for the endpoint. The states are accepted in order, and repeating the one the endpoint is already in is accepted too. `LOADING_FROM_AGRIROUTER` is never a transition an endpoint may make, from any state including from itself.
 type InitialLoadStateUpdate struct {
-	// AwaitingUser Set to `true` when the endpoint's reconciliation is requiring user action, so agrirouter can show the endpoint as waiting rather than as still working. May be set from any state before `COMPLETED`, including while the canonical set is still arriving, since conflicts surface object by object. Endpoints SHOULD report it, and may do so with the idempotent PUT that repeats the current state. It is not cleared by the endpoint: advancing to `LOADING_TO_AGRIROUTER` or `COMPLETED` clears it. Omitting it leaves the current value untouched.
-	AwaitingUser *bool `json:"awaitingUser,omitempty"`
-
 	// IdMappings The bindings reconciliation produced: one entry per canonical object the endpoint matched to something it already held. Carried here because matching happens over a whole set, and the semantics are those of the per-entity `id-mapping` operation applied to each pair. Meaningful only on the transition to `LOADING_TO_AGRIROUTER`, which is where reconciliation is asserted to be done, and on a repeat of that transition, where the pairs are applied again and the rejections recomputed. Pairs are applied independently: any that cannot be recorded — because an identifier is already bound, because the canonical object is unknown to the endpoint, or because the request names the same identifier twice — come back in `rejectedIdMappings` rather than failing the transition.
 	IdMappings *[]IdMappingBinding `json:"idMappings,omitempty"`
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
-	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered by opting the endpoint into its first entity type via the master-data configuration, and again whenever a further entity type is added there. Both are a user's opt-in decision carried out by agrirouter; a participant cannot enter this state directly, and an attempt to set it on the `status` resource is a `409`.
+	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
 	// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
@@ -396,13 +408,13 @@ type InitialLoadStateUpdate struct {
 
 // InitialLoadStatus The endpoint's initial-load state. One per endpoint, covering every entity type it is opted into; an endpoint opted into no entity type has no initial-load state.
 type InitialLoadStatus struct {
-	// AwaitingUser Whether the endpoint's own software is needing user action — a conflict, a missing required attribute, a granularity mismatch. Raised by the endpoint and cleared by agrirouter, on the two endpoint-driven transitions only: advancing to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to `COMPLETED`. The step to `RECONCILING` does not, since that is agrirouter reporting it has finished sending and says nothing about whether the user has finished deciding. agrirouter renders the flag as "waiting for you in <app>", linking to the master-data resolution URI supplied for this endpoint. That URI is a property of the endpoint, set on the endpoint resource beside `connections_uri` and not through this API. It is a destination and not a credential: authenticate the user at the landing page.
+	// AwaitingUser Whether the endpoint's own software is needing user action — a conflict, a missing required attribute, a granularity mismatch. Raised by the endpoint through the `user-attention` resource and cleared by agrirouter, on the two endpoint-driven transitions only: advancing to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to `COMPLETED`. The step to `RECONCILING` does not, since that is agrirouter reporting it has finished sending and says nothing about whether the user has finished deciding. agrirouter renders the flag as "waiting for you in <app>", linking to the master-data resolution URI supplied for this endpoint.
 	AwaitingUser *bool `json:"awaitingUser,omitempty"`
 
 	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
 	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
 
-	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been opted out, disconnected from the hub, opted into a further entity type, or having asked for the set again itself. The identifier mapping survived all of these, so the objects arrive carrying the endpoint's own `localId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
+	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, disconnected from the hub, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `localId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
 	PreviousLoadCompletedAt *time.Time `json:"previousLoadCompletedAt,omitempty"`
 
 	// RejectedIdMappings Bindings supplied on this request that could not be recorded, each with its `reason` and, where one exists, the mapping that stands in its way. They do not fail the transition: one unresolvable pair should not block the load of a set. The endpoint resolves them as it resolves a `409` on the per-entity operation, and rebinds through that operation once it has. Recomputed on every request that carries `idMappings`, including a repeat of the transition, so a retry after a lost response reports the current outcome rather than the first.
@@ -410,7 +422,7 @@ type InitialLoadStatus struct {
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
-	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered by opting the endpoint into its first entity type via the master-data configuration, and again whenever a further entity type is added there. Both are a user's opt-in decision carried out by agrirouter; a participant cannot enter this state directly, and an attempt to set it on the `status` resource is a `409`.
+	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
 	// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
@@ -431,13 +443,17 @@ type MappingConflictError struct {
 	Rejection IdMappingRejection `json:"rejection"`
 }
 
-// MasterdataConfig Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
-type MasterdataConfig struct {
+// MasterdataCapabilities Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+type MasterdataCapabilities struct {
 	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
 	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
 
-	// Toggles The entity types the user opted this endpoint into, empty where it is opted into none — always present, never absent. Set by the user in agrirouter.
-	Toggles []EntityTypeToggle `json:"toggles"`
+	// ResolutionUrl Where the user resolves initial-load conflicts in the endpoint's own software. Optional, opaque to agrirouter, and not per conflict: it is rendered as a link while the endpoint has `awaitingUser` set.
+	//
+	//
+	// Examples: https://app.example.com/tenants/42/agrirouter/masterdata
+	ResolutionUrl *string            `json:"resolutionUrl,omitempty"`
+	Toggles       []EntityTypeToggle `json:"toggles"`
 }
 
 // Membership A role held by a person in one organization.
@@ -598,6 +614,12 @@ type Person struct {
 	Type interface{} `json:"type,omitempty"`
 }
 
+// PutEndpointRequest defines model for PutEndpointRequest.
+type PutEndpointRequest struct {
+	// MasterdataCapabilities Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+	MasterdataCapabilities *MasterdataCapabilities `json:"masterdata_capabilities,omitempty"`
+}
+
 // RevisionConflictError The `412` or `428` of a write: an `Error` carrying the revision the object is currently at, so that the client has the answer a rejected write would otherwise have to fetch separately.
 type RevisionConflictError struct {
 	// CurrentRevision The canonical object's current `revision`.
@@ -609,6 +631,36 @@ type RevisionConflictError struct {
 //
 // Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
 type Role = string
+
+// RouteChangedEventData Data structure for `ROUTE_CHANGED` events on `/masterdata/events`. It states which entity types the user has selected for one of the application's endpoints.
+// One event covers every way the selection changes: the endpoint routed to the masterdata hub for the first time, a further entity type selected on one already routed, a type deselected, and the last one deselected or the route removed.
+// The event may arrive more than once for one move and MUST be handled idempotently.
+type RouteChangedEventData struct {
+	// ChangedAt When the selection reached this state. Not a delivery timestamp: it is unchanged when the same event is delivered again, and a repeat carrying an older value than one already applied for this endpoint can be discarded.
+	//
+	//
+	// Examples: 2026-07-14T09:20:00Z
+	ChangedAt time.Time `json:"changedAt"`
+
+	// EndpointId The agrirouter identifier of the endpoint whose selection changed.
+	EndpointId openapi_types.UUID `json:"endpointId"`
+
+	// EntityTypes The endpoint's selection as it stands after the change, stated in full rather than as a delta. The application replaces what it held for this endpoint with this list.
+	// An empty array is a statement and not an omission: it says the endpoint exchanges nothing, because the user deselected the last entity type or the route was removed.
+	//
+	//
+	// Examples: [{"entityType":"organization"},{"entityType":"person"},{"entityType":"farm"}]
+	EntityTypes []EntityTypeToggle `json:"entityTypes"`
+
+	// EventType Discriminator; matches the `event:` line.
+	EventType RouteChangedEventDataEventType `json:"eventType"`
+
+	// ExternalEndpointId The application's own identifier for the same endpoint.
+	ExternalEndpointId string `json:"externalEndpointId"`
+}
+
+// RouteChangedEventDataEventType Discriminator; matches the `event:` line.
+type RouteChangedEventDataEventType string
 
 // SoilInfo Soil characteristics of a field.
 type SoilInfo struct {
@@ -943,6 +995,9 @@ type BindPersonMappingParams struct {
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
 }
+
+// PutEndpointJSONRequestBody defines body for PutEndpoint for application/json ContentType.
+type PutEndpointJSONRequestBody = PutEndpointRequest
 
 // SetInitialLoadStateJSONRequestBody defines body for SetInitialLoadState for application/json ContentType.
 type SetInitialLoadStateJSONRequestBody = InitialLoadStateUpdate
@@ -1421,9 +1476,9 @@ func (t *PartyReference) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// GetMasterdataConfig Get the endpoint's master-data opt-in configuration
-	// (GET /endpoints/{externalEndpointId}/masterdata-config)
-	GetMasterdataConfig(ctx echo.Context, externalEndpointId ExternalEndpointId) error
+	// PutEndpoint Set the endpoint's master-data opt-in configuration
+	// (PUT /endpoints/{externalEndpointId})
+	PutEndpoint(ctx echo.Context, externalEndpointId ExternalEndpointId) error
 	// StreamInitialLoadEvents Receive the endpoint's canonical set (Server-Sent Events)
 	// (GET /endpoints/{externalEndpointId}/masterdata-initial-load/events)
 	StreamInitialLoadEvents(ctx echo.Context, externalEndpointId ExternalEndpointId) error
@@ -1433,6 +1488,9 @@ type ServerInterface interface {
 	// SetInitialLoadState Set the endpoint's initial load state
 	// (PUT /endpoints/{externalEndpointId}/masterdata-initial-load/status)
 	SetInitialLoadState(ctx echo.Context, externalEndpointId ExternalEndpointId) error
+	// ReportUserAttention Report that the endpoint's initial load is waiting on a user
+	// (PUT /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention)
+	ReportUserAttention(ctx echo.Context, externalEndpointId ExternalEndpointId) error
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	// (GET /masterdata/events)
 	StreamMasterdataEvents(ctx echo.Context, params StreamMasterdataEventsParams) error
@@ -1518,8 +1576,8 @@ type ServerInterfaceWrapper struct {
 	Handler ServerInterface
 }
 
-// GetMasterdataConfig converts echo context to params.
-func (w *ServerInterfaceWrapper) GetMasterdataConfig(ctx echo.Context) error {
+// PutEndpoint converts echo context to params.
+func (w *ServerInterfaceWrapper) PutEndpoint(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "externalEndpointId" -------------
 	var externalEndpointId ExternalEndpointId
@@ -1530,7 +1588,7 @@ func (w *ServerInterfaceWrapper) GetMasterdataConfig(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetMasterdataConfig(ctx, externalEndpointId)
+	err = w.Handler.PutEndpoint(ctx, externalEndpointId)
 	return err
 }
 
@@ -1579,6 +1637,22 @@ func (w *ServerInterfaceWrapper) SetInitialLoadState(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.SetInitialLoadState(ctx, externalEndpointId)
+	return err
+}
+
+// ReportUserAttention converts echo context to params.
+func (w *ServerInterfaceWrapper) ReportUserAttention(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "externalEndpointId" -------------
+	var externalEndpointId ExternalEndpointId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "externalEndpointId", ctx.Param("externalEndpointId"), &externalEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter externalEndpointId: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ReportUserAttention(ctx, externalEndpointId)
 	return err
 }
 
@@ -2829,10 +2903,11 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 	router.POST(options.BaseURL+"/masterdata/field-boundaries/:localId/deactivation", wrapper.DeactivateFieldBoundary, options.OperationMiddlewares["deactivateFieldBoundary"]...)
 	router.POST(options.BaseURL+"/masterdata/field-boundaries/requests", wrapper.RequestFieldBoundary, options.OperationMiddlewares["requestFieldBoundary"]...)
 	router.GET(options.BaseURL+"/masterdata/events", wrapper.StreamMasterdataEvents, options.OperationMiddlewares["streamMasterdataEvents"]...)
-	router.GET(options.BaseURL+"/endpoints/:externalEndpointId/masterdata-config", wrapper.GetMasterdataConfig, options.OperationMiddlewares["getMasterdataConfig"]...)
+	router.PUT(options.BaseURL+"/endpoints/:externalEndpointId", wrapper.PutEndpoint, options.OperationMiddlewares["putEndpoint"]...)
 	router.GET(options.BaseURL+"/endpoints/:externalEndpointId/masterdata-initial-load/events", wrapper.StreamInitialLoadEvents, options.OperationMiddlewares["streamInitialLoadEvents"]...)
 	router.GET(options.BaseURL+"/endpoints/:externalEndpointId/masterdata-initial-load/status", wrapper.GetInitialLoadStatus, options.OperationMiddlewares["getInitialLoadStatus"]...)
 	router.PUT(options.BaseURL+"/endpoints/:externalEndpointId/masterdata-initial-load/status", wrapper.SetInitialLoadState, options.OperationMiddlewares["setInitialLoadState"]...)
+	router.PUT(options.BaseURL+"/endpoints/:externalEndpointId/masterdata-initial-load/user-attention", wrapper.ReportUserAttention, options.OperationMiddlewares["reportUserAttention"]...)
 
 }
 
@@ -2853,17 +2928,18 @@ type RevisionConflictJSONResponse RevisionConflictError
 
 type ValidationErrorJSONResponse Error
 
-type GetMasterdataConfigRequestObject struct {
+type PutEndpointRequestObject struct {
 	ExternalEndpointId ExternalEndpointId `json:"externalEndpointId"`
+	Body               *PutEndpointJSONRequestBody
 }
 
-type GetMasterdataConfigResponseObject interface {
-	VisitGetMasterdataConfigResponse(w http.ResponseWriter) error
+type PutEndpointResponseObject interface {
+	VisitPutEndpointResponse(w http.ResponseWriter) error
 }
 
-type GetMasterdataConfig200JSONResponse MasterdataConfig
+type PutEndpoint200JSONResponse PutEndpointRequest
 
-func (response GetMasterdataConfig200JSONResponse) VisitGetMasterdataConfigResponse(w http.ResponseWriter) error {
+func (response PutEndpoint200JSONResponse) VisitPutEndpointResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2875,9 +2951,23 @@ func (response GetMasterdataConfig200JSONResponse) VisitGetMasterdataConfigRespo
 	return err
 }
 
-type GetMasterdataConfig403JSONResponse struct{ ForbiddenJSONResponse }
+type PutEndpoint400JSONResponse struct{ ValidationErrorJSONResponse }
 
-func (response GetMasterdataConfig403JSONResponse) VisitGetMasterdataConfigResponse(w http.ResponseWriter) error {
+func (response PutEndpoint400JSONResponse) VisitPutEndpointResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutEndpoint403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PutEndpoint403JSONResponse) VisitPutEndpointResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2885,20 +2975,6 @@ func (response GetMasterdataConfig403JSONResponse) VisitGetMasterdataConfigRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetMasterdataConfig404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response GetMasterdataConfig404JSONResponse) VisitGetMasterdataConfigResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3102,6 +3178,70 @@ type SetInitialLoadState409JSONResponse struct {
 }
 
 func (response SetInitialLoadState409JSONResponse) VisitSetInitialLoadStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportUserAttentionRequestObject struct {
+	ExternalEndpointId ExternalEndpointId `json:"externalEndpointId"`
+}
+
+type ReportUserAttentionResponseObject interface {
+	VisitReportUserAttentionResponse(w http.ResponseWriter) error
+}
+
+type ReportUserAttention200JSONResponse InitialLoadStatus
+
+func (response ReportUserAttention200JSONResponse) VisitReportUserAttentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportUserAttention403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReportUserAttention403JSONResponse) VisitReportUserAttentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportUserAttention404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReportUserAttention404JSONResponse) VisitReportUserAttentionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportUserAttention409JSONResponse Error
+
+func (response ReportUserAttention409JSONResponse) VisitReportUserAttentionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4871,9 +5011,9 @@ func (response BindPersonMapping409JSONResponse) VisitBindPersonMappingResponse(
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// GetMasterdataConfig Get the endpoint's master-data opt-in configuration
-	// (GET /endpoints/{externalEndpointId}/masterdata-config)
-	GetMasterdataConfig(ctx context.Context, request GetMasterdataConfigRequestObject) (GetMasterdataConfigResponseObject, error)
+	// PutEndpoint Set the endpoint's master-data opt-in configuration
+	// (PUT /endpoints/{externalEndpointId})
+	PutEndpoint(ctx context.Context, request PutEndpointRequestObject) (PutEndpointResponseObject, error)
 	// StreamInitialLoadEvents Receive the endpoint's canonical set (Server-Sent Events)
 	// (GET /endpoints/{externalEndpointId}/masterdata-initial-load/events)
 	StreamInitialLoadEvents(ctx context.Context, request StreamInitialLoadEventsRequestObject) (StreamInitialLoadEventsResponseObject, error)
@@ -4883,6 +5023,9 @@ type StrictServerInterface interface {
 	// SetInitialLoadState Set the endpoint's initial load state
 	// (PUT /endpoints/{externalEndpointId}/masterdata-initial-load/status)
 	SetInitialLoadState(ctx context.Context, request SetInitialLoadStateRequestObject) (SetInitialLoadStateResponseObject, error)
+	// ReportUserAttention Report that the endpoint's initial load is waiting on a user
+	// (PUT /endpoints/{externalEndpointId}/masterdata-initial-load/user-attention)
+	ReportUserAttention(ctx context.Context, request ReportUserAttentionRequestObject) (ReportUserAttentionResponseObject, error)
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	// (GET /masterdata/events)
 	StreamMasterdataEvents(ctx context.Context, request StreamMasterdataEventsRequestObject) (StreamMasterdataEventsResponseObject, error)
@@ -4975,25 +5118,41 @@ type strictHandler struct {
 	middlewares []StrictMiddlewareFunc
 }
 
-// GetMasterdataConfig operation middleware
-func (sh *strictHandler) GetMasterdataConfig(ctx echo.Context, externalEndpointId ExternalEndpointId) error {
-	var request GetMasterdataConfigRequestObject
+// PutEndpoint operation middleware
+func (sh *strictHandler) PutEndpoint(ctx echo.Context, externalEndpointId ExternalEndpointId) error {
+	var request PutEndpointRequestObject
 
 	request.ExternalEndpointId = externalEndpointId
 
+	var body PutEndpointJSONRequestBody
+	var err error
+	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
+		// Bind only the request body, so that path and query parameters
+		// are not also bound into the body struct.
+		err = binder.BindBody(ctx, &body)
+	} else {
+		// A custom binder is installed on the Echo instance; defer to it
+		// entirely, since echo.Binder does not expose body-only binding.
+		err = ctx.Bind(&body)
+	}
+	if err != nil {
+		return err
+	}
+	request.Body = &body
+
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.GetMasterdataConfig(ctx.Request().Context(), request.(GetMasterdataConfigRequestObject))
+		return sh.ssi.PutEndpoint(ctx.Request().Context(), request.(PutEndpointRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetMasterdataConfig")
+		handler = middleware(handler, "PutEndpoint")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(GetMasterdataConfigResponseObject); ok {
-		return validResponse.VisitGetMasterdataConfigResponse(ctx.Response())
+	} else if validResponse, ok := response.(PutEndpointResponseObject); ok {
+		return validResponse.VisitPutEndpointResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -5085,6 +5244,31 @@ func (sh *strictHandler) SetInitialLoadState(ctx echo.Context, externalEndpointI
 		return err
 	} else if validResponse, ok := response.(SetInitialLoadStateResponseObject); ok {
 		return validResponse.VisitSetInitialLoadStateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// ReportUserAttention operation middleware
+func (sh *strictHandler) ReportUserAttention(ctx echo.Context, externalEndpointId ExternalEndpointId) error {
+	var request ReportUserAttentionRequestObject
+
+	request.ExternalEndpointId = externalEndpointId
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ReportUserAttention(ctx.Request().Context(), request.(ReportUserAttentionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReportUserAttention")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(ReportUserAttentionResponseObject); ok {
+		return validResponse.VisitReportUserAttentionResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
