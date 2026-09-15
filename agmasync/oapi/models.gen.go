@@ -438,8 +438,8 @@ type MappingConflictError struct {
 	Rejection IdMappingRejection `json:"rejection"`
 }
 
-// MasterdataConfig Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
-type MasterdataConfig struct {
+// MasterdataCapabilities Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+type MasterdataCapabilities struct {
 	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
 	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
 
@@ -607,6 +607,12 @@ type Person struct {
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send.
 	Type interface{} `json:"type,omitempty"`
+}
+
+// PutEndpointRequest defines model for PutEndpointRequest.
+type PutEndpointRequest struct {
+	// MasterdataCapabilities Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+	MasterdataCapabilities *MasterdataCapabilities `json:"masterdata_capabilities,omitempty"`
 }
 
 // RevisionConflictError The `412` or `428` of a write: an `Error` carrying the revision the object is currently at, so that the client has the answer a rejected write would otherwise have to fetch separately.
@@ -985,8 +991,8 @@ type BindPersonMappingParams struct {
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
 }
 
-// PutMasterdataConfigJSONRequestBody defines body for PutMasterdataConfig for application/json ContentType.
-type PutMasterdataConfigJSONRequestBody = MasterdataConfig
+// PutEndpointJSONRequestBody defines body for PutEndpoint for application/json ContentType.
+type PutEndpointJSONRequestBody = PutEndpointRequest
 
 // SetInitialLoadStateJSONRequestBody defines body for SetInitialLoadState for application/json ContentType.
 type SetInitialLoadStateJSONRequestBody = InitialLoadStateUpdate

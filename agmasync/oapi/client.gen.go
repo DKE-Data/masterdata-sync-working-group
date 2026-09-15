@@ -90,12 +90,7 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
-	// GetMasterdataConfig Get what the endpoint has declared it can exchange
-	//
-	// Corresponds with GET /endpoints/{externalEndpointId}/masterdata-config (the `GetMasterdataConfig` operationId).
-	GetMasterdataConfig(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PutMasterdataConfigWithBody Set the endpoint's master-data opt-in configuration
+	// PutEndpointWithBody Set the endpoint's master-data opt-in configuration
 	//
 	// Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 	// The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -104,10 +99,10 @@ type ClientInterface interface {
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-	PutMasterdataConfigWithBody(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+	PutEndpointWithBody(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutMasterdataConfig Set the endpoint's master-data opt-in configuration
+	// PutEndpoint Set the endpoint's master-data opt-in configuration
 	//
 	// Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 	// The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -116,8 +111,8 @@ type ClientInterface interface {
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-	PutMasterdataConfig(ctx context.Context, externalEndpointId ExternalEndpointId, body PutMasterdataConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+	PutEndpoint(ctx context.Context, externalEndpointId ExternalEndpointId, body PutEndpointJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamInitialLoadEvents Receive the endpoint's canonical set (Server-Sent Events)
 	//
@@ -502,22 +497,7 @@ type ClientInterface interface {
 	BindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-// GetMasterdataConfig Get what the endpoint has declared it can exchange
-//
-// Corresponds with GET /endpoints/{externalEndpointId}/masterdata-config (the `GetMasterdataConfig` operationId).
-func (c *Client) GetMasterdataConfig(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMasterdataConfigRequest(c.Server, externalEndpointId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// PutMasterdataConfigWithBody Set the endpoint's master-data opt-in configuration
+// PutEndpointWithBody Set the endpoint's master-data opt-in configuration
 //
 // Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 // The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -526,9 +506,9 @@ func (c *Client) GetMasterdataConfig(ctx context.Context, externalEndpointId Ext
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-func (c *Client) PutMasterdataConfigWithBody(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutMasterdataConfigRequestWithBody(c.Server, externalEndpointId, contentType, body)
+// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+func (c *Client) PutEndpointWithBody(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutEndpointRequestWithBody(c.Server, externalEndpointId, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -539,7 +519,7 @@ func (c *Client) PutMasterdataConfigWithBody(ctx context.Context, externalEndpoi
 	return c.Client.Do(req)
 }
 
-// PutMasterdataConfig Set the endpoint's master-data opt-in configuration
+// PutEndpoint Set the endpoint's master-data opt-in configuration
 //
 // Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 // The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -548,9 +528,9 @@ func (c *Client) PutMasterdataConfigWithBody(ctx context.Context, externalEndpoi
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-func (c *Client) PutMasterdataConfig(ctx context.Context, externalEndpointId ExternalEndpointId, body PutMasterdataConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutMasterdataConfigRequest(c.Server, externalEndpointId, body)
+// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+func (c *Client) PutEndpoint(ctx context.Context, externalEndpointId ExternalEndpointId, body PutEndpointJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutEndpointRequest(c.Server, externalEndpointId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1353,53 +1333,19 @@ func (c *Client) BindPersonMapping(ctx context.Context, localId LocalId, agrirou
 	return c.Client.Do(req)
 }
 
-// NewGetMasterdataConfigRequest constructs an http.Request for the GetMasterdataConfig method
-func NewGetMasterdataConfigRequest(server string, externalEndpointId ExternalEndpointId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "externalEndpointId", externalEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/endpoints/%s/masterdata-config", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPutMasterdataConfigRequest calls the generic PutMasterdataConfig builder with application/json body
-func NewPutMasterdataConfigRequest(server string, externalEndpointId ExternalEndpointId, body PutMasterdataConfigJSONRequestBody) (*http.Request, error) {
+// NewPutEndpointRequest calls the generic PutEndpoint builder with application/json body
+func NewPutEndpointRequest(server string, externalEndpointId ExternalEndpointId, body PutEndpointJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPutMasterdataConfigRequestWithBody(server, externalEndpointId, "application/json", bodyReader)
+	return NewPutEndpointRequestWithBody(server, externalEndpointId, "application/json", bodyReader)
 }
 
-// NewPutMasterdataConfigRequestWithBody constructs an http.Request for the PutMasterdataConfig method, with any body, and a specified content type
-func NewPutMasterdataConfigRequestWithBody(server string, externalEndpointId ExternalEndpointId, contentType string, body io.Reader) (*http.Request, error) {
+// NewPutEndpointRequestWithBody constructs an http.Request for the PutEndpoint method, with any body, and a specified content type
+func NewPutEndpointRequestWithBody(server string, externalEndpointId ExternalEndpointId, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1414,7 +1360,7 @@ func NewPutMasterdataConfigRequestWithBody(server string, externalEndpointId Ext
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/endpoints/%s/masterdata-config", pathParam0)
+	operationPath := fmt.Sprintf("/endpoints/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3119,14 +3065,7 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
-	// GetMasterdataConfigWithResponse Get what the endpoint has declared it can exchange
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /endpoints/{externalEndpointId}/masterdata-config (the `GetMasterdataConfig` operationId).
-	GetMasterdataConfigWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*GetMasterdataConfigResponse, error)
-
-	// PutMasterdataConfigWithBodyWithResponse Set the endpoint's master-data opt-in configuration
+	// PutEndpointWithBodyWithResponse Set the endpoint's master-data opt-in configuration
 	//
 	// Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 	// The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -3135,10 +3074,10 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-	PutMasterdataConfigWithBodyWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMasterdataConfigResponse, error)
+	// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+	PutEndpointWithBodyWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutEndpointResponse, error)
 
-	// PutMasterdataConfigWithResponse Set the endpoint's master-data opt-in configuration
+	// PutEndpointWithResponse Set the endpoint's master-data opt-in configuration
 	//
 	// Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 	// The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -3147,8 +3086,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-	PutMasterdataConfigWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, body PutMasterdataConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMasterdataConfigResponse, error)
+	// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+	PutEndpointWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, body PutEndpointJSONRequestBody, reqEditors ...RequestEditorFn) (*PutEndpointResponse, error)
 
 	// StreamInitialLoadEventsWithResponse Receive the endpoint's canonical set (Server-Sent Events)
 	//
@@ -3571,66 +3510,11 @@ type ClientWithResponsesInterface interface {
 	BindPersonMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*BindPersonMappingResponse, error)
 }
 
-type GetMasterdataConfigResponse struct {
+type PutEndpointResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *MasterdataConfig
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetMasterdataConfigResponse) GetJSON200() *MasterdataConfig {
-	return r.JSON200
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r GetMasterdataConfigResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r GetMasterdataConfigResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r GetMasterdataConfigResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetMasterdataConfigResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetMasterdataConfigResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetMasterdataConfigResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type PutMasterdataConfigResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *MasterdataConfig
+	JSON200 *PutEndpointRequest
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *ValidationError
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -3638,27 +3522,27 @@ type PutMasterdataConfigResponse struct {
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r PutMasterdataConfigResponse) GetJSON200() *MasterdataConfig {
+func (r PutEndpointResponse) GetJSON200() *PutEndpointRequest {
 	return r.JSON200
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r PutMasterdataConfigResponse) GetJSON400() *ValidationError {
+func (r PutEndpointResponse) GetJSON400() *ValidationError {
 	return r.JSON400
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r PutMasterdataConfigResponse) GetJSON403() *Forbidden {
+func (r PutEndpointResponse) GetJSON403() *Forbidden {
 	return r.JSON403
 }
 
 // GetBody returns the raw response body bytes
-func (r PutMasterdataConfigResponse) GetBody() []byte {
+func (r PutEndpointResponse) GetBody() []byte {
 	return r.Body
 }
 
 // Status returns HTTPResponse.Status
-func (r PutMasterdataConfigResponse) Status() string {
+func (r PutEndpointResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3666,7 +3550,7 @@ func (r PutMasterdataConfigResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PutMasterdataConfigResponse) StatusCode() int {
+func (r PutEndpointResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3674,7 +3558,7 @@ func (r PutMasterdataConfigResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PutMasterdataConfigResponse) ContentType() string {
+func (r PutEndpointResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5464,20 +5348,7 @@ func (r BindPersonMappingResponse) ContentType() string {
 	return ""
 }
 
-// GetMasterdataConfigWithResponse Get what the endpoint has declared it can exchange
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /endpoints/{externalEndpointId}/masterdata-config (the `GetMasterdataConfig` operationId).
-func (c *ClientWithResponses) GetMasterdataConfigWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, reqEditors ...RequestEditorFn) (*GetMasterdataConfigResponse, error) {
-	rsp, err := c.GetMasterdataConfig(ctx, externalEndpointId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetMasterdataConfigResponse(rsp)
-}
-
-// PutMasterdataConfigWithBodyWithResponse Set the endpoint's master-data opt-in configuration
+// PutEndpointWithBodyWithResponse Set the endpoint's master-data opt-in configuration
 //
 // Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 // The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -5486,16 +5357,16 @@ func (c *ClientWithResponses) GetMasterdataConfigWithResponse(ctx context.Contex
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-func (c *ClientWithResponses) PutMasterdataConfigWithBodyWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutMasterdataConfigResponse, error) {
-	rsp, err := c.PutMasterdataConfigWithBody(ctx, externalEndpointId, contentType, body, reqEditors...)
+// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+func (c *ClientWithResponses) PutEndpointWithBodyWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutEndpointResponse, error) {
+	rsp, err := c.PutEndpointWithBody(ctx, externalEndpointId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePutMasterdataConfigResponse(rsp)
+	return ParsePutEndpointResponse(rsp)
 }
 
-// PutMasterdataConfigWithResponse Set the endpoint's master-data opt-in configuration
+// PutEndpointWithResponse Set the endpoint's master-data opt-in configuration
 //
 // Configures per-entity opt-in. Master-data routes are created only through this explicit opt-in, never by default routing.
 // The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
@@ -5504,13 +5375,13 @@ func (c *ClientWithResponses) PutMasterdataConfigWithBodyWithResponse(ctx contex
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /endpoints/{externalEndpointId}/masterdata-config (the `PutMasterdataConfig` operationId).
-func (c *ClientWithResponses) PutMasterdataConfigWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, body PutMasterdataConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*PutMasterdataConfigResponse, error) {
-	rsp, err := c.PutMasterdataConfig(ctx, externalEndpointId, body, reqEditors...)
+// Corresponds with PUT /endpoints/{externalEndpointId} (the `PutEndpoint` operationId).
+func (c *ClientWithResponses) PutEndpointWithResponse(ctx context.Context, externalEndpointId ExternalEndpointId, body PutEndpointJSONRequestBody, reqEditors ...RequestEditorFn) (*PutEndpointResponse, error) {
+	rsp, err := c.PutEndpoint(ctx, externalEndpointId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePutMasterdataConfigResponse(rsp)
+	return ParsePutEndpointResponse(rsp)
 }
 
 // StreamInitialLoadEventsWithResponse Receive the endpoint's canonical set (Server-Sent Events)
@@ -6179,62 +6050,22 @@ func (c *ClientWithResponses) BindPersonMappingWithResponse(ctx context.Context,
 	return ParseBindPersonMappingResponse(rsp)
 }
 
-// ParseGetMasterdataConfigResponse parses an HTTP response from a GetMasterdataConfigWithResponse call
-func ParseGetMasterdataConfigResponse(rsp *http.Response) (*GetMasterdataConfigResponse, error) {
+// ParsePutEndpointResponse parses an HTTP response from a PutEndpointWithResponse call
+func ParsePutEndpointResponse(rsp *http.Response) (*PutEndpointResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetMasterdataConfigResponse{
+	response := &PutEndpointResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MasterdataConfig
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePutMasterdataConfigResponse parses an HTTP response from a PutMasterdataConfigWithResponse call
-func ParsePutMasterdataConfigResponse(rsp *http.Response) (*PutMasterdataConfigResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PutMasterdataConfigResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MasterdataConfig
+		var dest PutEndpointRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
