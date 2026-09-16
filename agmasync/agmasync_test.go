@@ -56,13 +56,10 @@ func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 	}
 }
 
-func TestOptedInMatchesCollectionNames(t *testing.T) {
-	// The toggles name collections, not entity types: `field-boundaries`, not
-	// `fieldBoundary`. Comparing against the entity type finds nothing, and an
-	// endpoint that gets this wrong concludes it is opted into nothing.
-	cfg := oapi.MasterdataConfig{Toggles: []oapi.EntityTypeToggle{
-		{EntityType: "farms"},
-		{EntityType: "field-boundaries"},
+func TestDeclaredMatchesTypeNames(t *testing.T) {
+	cfg := oapi.MasterdataConfig{Capabilities: []oapi.EntityTypeToggle{
+		{EntityType: "farm"},
+		{EntityType: "fieldBoundary"},
 	}}
 
 	for _, tc := range []struct {
@@ -73,18 +70,35 @@ func TestOptedInMatchesCollectionNames(t *testing.T) {
 		{agmasync.TypeFieldBoundary, true},
 		{agmasync.TypeField, false},
 	} {
-		if got := agmasync.OptedIn(cfg, tc.in); got != tc.want {
-			t.Errorf("OptedIn(%v) = %v, want %v", tc.in, got, tc.want)
+		if got := agmasync.Declared(cfg, tc.in); got != tc.want {
+			t.Errorf("Declared(%v) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
 }
 
-func TestCollectionRoundTrip(t *testing.T) {
-	for _, want := range agmasync.EntityTypes {
-		got, ok := agmasync.ParseCollection(want.Collection())
-		if !ok || got != want {
-			t.Errorf("ParseCollection(%q) = %q, %v; want %q, true",
-				want.Collection(), got, ok, want)
+func TestSelectedTypesReadsTheSelectionInDependencyOrder(t *testing.T) {
+	// What the ROUTE_CHANGED frame carries, read into entity types. Dependency
+	// order matters: it is the order the set is walked in, so parents precede
+	// what references them.
+	selection := oapi.RouteChangedEventData{
+		ExternalId: "ep-a",
+		EntityTypes: []oapi.EntityTypeToggle{
+			{EntityType: "field"},
+			{EntityType: "organization"},
+			{EntityType: "farm"},
+		},
+	}
+
+	got := agmasync.SelectedTypes(selection)
+	want := []agmasync.EntityType{
+		agmasync.TypeOrganization, agmasync.TypeFarm, agmasync.TypeField,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("SelectedTypes = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("SelectedTypes = %v, want %v", got, want)
 		}
 	}
 }

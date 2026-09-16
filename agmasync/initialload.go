@@ -39,50 +39,64 @@ const (
 	StateCompleted = oapi.COMPLETED
 )
 
-// MasterdataConfig reads the endpoint's per-entity opt-in configuration.
+// Declaration builds a masterdata configuration declaring the given entity
+// types.
 //
-// This is the only way to learn what a user agreed to share, and the resource
-// has no write operation at all: opt-in is set by the user in agrirouter,
-// alongside the route to the masterdata hub, so an endpoint that finds itself
-// opted into a type was put there by a person. Opt-in is per endpoint, so what
-// one endpoint exchanges says nothing about another.
+// It closes the set over entity dependencies, since a declaration that is not
+// dependency-closed is rejected: an endpoint that could receive fields but not
+// the farms they hang off could not resolve their references.
+func Declaration(types ...EntityType) oapi.MasterdataConfig {
+	closure := DependencyClosure(types)
+	toggles := make([]oapi.EntityTypeToggle, 0, len(closure))
+	for _, t := range closure {
+		toggles = append(toggles, oapi.EntityTypeToggle{EntityType: string(t)})
+	}
+	return oapi.MasterdataConfig{Capabilities: toggles}
+}
+
+// Declare states which entity types this endpoint is able to exchange.
 //
-// Read this when the endpoint's routes change: a route to the masterdata hub is
-// reported like any other, by ENDPOINTS_LIST_CHANGED, and there is no separate
-// opt-in notification.
+// The declaration must be dependency-closed — see [DependencyClosure] — since an
+// endpoint that could receive fields but not the farms they hang off could not
+// resolve their references.
 //
-// Where a user resolves an initial load is registered with the application, the
-// way a RAC redirect URI is, and is not part of this API.
-//
-// The configuration is always dependency-closed — see [DependencyClosure] — so
-// what arrives can be applied without waiting on a reference the endpoint will
-// never be entitled to.
-//
-// An endpoint opted into nothing has empty toggles rather than no configuration;
-// [ErrNotFound] means no such endpoint.
-func (e *Endpoint) MasterdataConfig(ctx context.Context) (oapi.MasterdataConfig, error) {
-	r, err := e.client.api.GetMasterdataConfigWithResponse(ctx, e.externalID)
+// Withdrawing a type narrows any selection naming it, which for that type has the
+// effect of the user deselecting it. That is the only way a call made here
+// changes what is delivered, and it can only ever remove.
+func (e *Endpoint) Declare(ctx context.Context, cfg oapi.MasterdataConfig) (oapi.MasterdataConfig, error) {
+	r, err := e.client.api.PutEndpointWithResponse(ctx, e.externalID,
+		&oapi.PutEndpointParams{XAgrirouterTenantId: e.tenantID},
+		oapi.PutEndpointJSONRequestBody{
+			ApplicationId:     e.applicationID,
+			SoftwareVersionId: e.softwareVersionID,
+			EndpointType:      e.endpointType,
+			Capabilities:      []oapi.EndpointCapability{},
+			Masterdata:        &cfg,
+		})
 	if err != nil {
 		return oapi.MasterdataConfig{}, transportErr(err)
 	}
 	if resErr := (writeResult{
-		statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404, body: r.Body,
+		statusCode: r.StatusCode(),
+		validation: errorFrom(r.JSON400), forbidden: errorFrom(r.JSON403), body: r.Body,
 	}).err(); resErr != nil {
 		return oapi.MasterdataConfig{}, resErr
 	}
-	if r.JSON200 == nil {
+	ep := firstNonNil(r.JSON200, r.JSON201)
+	if ep == nil || ep.Masterdata == nil {
 		return oapi.MasterdataConfig{}, fmt.Errorf("agmasync: empty configuration response")
 	}
-	return *r.JSON200, nil
+	return *ep.Masterdata, nil
 }
 
 // DependencyClosure expands a set of entity types to the dependency-closed set
-// that an opt-in configuration carries.
+// that a declaration or a selection carries.
 //
-// agrirouter closes opt-in itself, so this does not build a request: it is what
-// a participant uses to reason about what opting into a type will bring with it
-// — when telling a user what to expect, or when checking that its own store can
-// hold everything a choice implies.
+// Both steps must be closed. For a declaration it is what to send: one that is
+// not closed is rejected. For the user's selection agrirouter closes it itself,
+// so this is what a participant uses to reason about what opting into a type
+// will bring with it — when telling a user what to expect, or when checking that
+// its own store can hold everything a choice implies.
 //
 // See "Entity dependencies" in specification.md.
 func DependencyClosure(types []EntityType) []EntityType {
@@ -120,13 +134,37 @@ func DependencyClosure(types []EntityType) []EntityType {
 	return out
 }
 
-// OptedIn reports whether the configuration opts the endpoint into a type.
+// SelectedTypes reads the entity types the user selected, off an
+// [EventRouteChanged] frame.
 //
-// The toggles name collections — `field-boundaries`, not `fieldBoundary` — so
-// comparing against an [EntityType] directly finds nothing.
-func OptedIn(cfg oapi.MasterdataConfig, t EntityType) bool {
-	for _, toggle := range cfg.Toggles {
-		if toggle.EntityType == t.Collection() {
+// The result is in [DependencyOrder], so walking it sends parents before the
+// objects referencing them. An empty result means the endpoint exchanges nothing
+// — the user deselected the last type, or removed the route. That is a statement
+// and not an omission, the frame stating the selection in full.
+//
+// A toggle carries the same value as the entity `type` discriminator, so the
+// comparison is direct. What this adds over a loop at each call site is the
+// ordering.
+func SelectedTypes(s oapi.RouteChangedEventData) []EntityType {
+	out := make([]EntityType, 0, len(s.EntityTypes))
+	for _, typ := range DependencyOrder {
+		for _, entry := range s.EntityTypes {
+			if entry.EntityType == string(typ) {
+				out = append(out, typ)
+				break
+			}
+		}
+	}
+	return out
+}
+
+// Declared reports whether the endpoint declared it can exchange a type.
+//
+// It answers what the software is capable of, never what the user opted it into
+// — see [SelectedTypes] for that.
+func Declared(cfg oapi.MasterdataConfig, t EntityType) bool {
+	for _, toggle := range cfg.Capabilities {
+		if toggle.EntityType == string(t) {
 			return true
 		}
 	}

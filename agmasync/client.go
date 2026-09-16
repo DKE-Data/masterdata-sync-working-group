@@ -98,11 +98,37 @@ type Endpoint struct {
 	// its agrirouter id in a header. The two identifier styles are not
 	// interchangeable, so both are held here.
 	externalID string
+
+	// applicationID, tenantID, softwareVersionID and endpointType are the
+	// endpoint-management fields PutEndpoint requires on every call (it is a
+	// full create-or-update, not a masterdata-only operation). They are fixed
+	// for the lifetime of the endpoint, so they are captured once in [Client.For]
+	// rather than threaded through every call that needs them.
+	applicationID     uuid.UUID
+	tenantID          uuid.UUID
+	softwareVersionID uuid.UUID
+	endpointType      oapi.EndpointTypeToCreate
 }
 
 // For returns a handle on one of the application's endpoints.
-func (c *Client) For(endpointID uuid.UUID, externalEndpointID string) *Endpoint {
-	return &Endpoint{client: c, id: endpointID, externalID: externalEndpointID}
+//
+// applicationID, tenantID, softwareVersionID and endpointType are carried on
+// the handle because [Endpoint.Declare] calls PutEndpoint, which upserts the
+// whole endpoint rather than just its masterdata configuration.
+func (c *Client) For(
+	endpointID uuid.UUID, externalEndpointID string,
+	applicationID, tenantID, softwareVersionID uuid.UUID,
+	endpointType oapi.EndpointTypeToCreate,
+) *Endpoint {
+	return &Endpoint{
+		client:            c,
+		id:                endpointID,
+		externalID:        externalEndpointID,
+		applicationID:     applicationID,
+		tenantID:          tenantID,
+		softwareVersionID: softwareVersionID,
+		endpointType:      endpointType,
+	}
 }
 
 // ID returns the endpoint's agrirouter identifier.
@@ -471,4 +497,13 @@ func convErr(t EntityType, err error) error {
 
 func transportErr(err error) error {
 	return fmt.Errorf("agmasync: request failed: %w", err)
+}
+
+// errorFrom adapts an ErrorResponse (used by the endpoint-management
+// operations) to the Error shape [writeResult] branches on.
+func errorFrom(e *oapi.ErrorResponse) *oapi.Error {
+	if e == nil {
+		return nil
+	}
+	return &oapi.Error{Message: e.Message}
 }
