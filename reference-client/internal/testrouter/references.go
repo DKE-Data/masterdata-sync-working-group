@@ -9,8 +9,8 @@ import (
 
 // reference is a reference to another entity as it travels on the wire.
 type reference struct {
-	AgrirouterID *uuid.UUID `json:"agrirouterId,omitempty"`
-	LocalID      *string    `json:"localId,omitempty"`
+	AgrirouterID *uuid.UUID `json:"agrirouter_id,omitempty"`
+	LocalID      *string    `json:"local_id,omitempty"`
 	Type         *string    `json:"type,omitempty"`
 }
 

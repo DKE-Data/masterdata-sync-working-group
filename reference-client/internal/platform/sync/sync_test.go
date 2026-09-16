@@ -79,10 +79,11 @@ func (h *harness) joinTenant(
 	}
 
 	return &psync.Applier{
-		Store:    db,
-		Tenant:   tenant,
-		Endpoint: client.For(endpointID, externalID),
-		IDs:      &counterIDs{prefix: tenant},
+		Store: db,
+		Tenant: tenant,
+		Endpoint: client.For(endpointID, externalID,
+			uuid.New(), h.tenant, uuid.New(), "cloud_software"),
+		IDs: &counterIDs{prefix: tenant},
 	}
 }
 
@@ -322,14 +323,14 @@ func TestPositionAdvancesOnlyWithTheObjectItCovers(t *testing.T) {
 
 func TestUnmodelledAttributesSurviveARoundTrip(t *testing.T) {
 	// A participant must preserve what it does not model and relay it
-	// unchanged. This platform has no column for specialisedUsageType, so if it
+	// unchanged. This platform has no column for specialised_usage_type, so if it
 	// did not keep the value, sending the record back would erase it for
 	// everybody.
 	h := newHarness(t)
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
 
 	createLocalFarm(t, a, "FRM-1", "Hof Nord", map[string]any{
-		"specialisedUsageType": "dairy",
+		"specialised_usage_type": "dairy",
 	})
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("create: %v", err)
@@ -344,7 +345,7 @@ func TestUnmodelledAttributesSurviveARoundTrip(t *testing.T) {
 		t.Fatalf("loading record: %v", err)
 	}
 
-	raw, ok := record.Unmodelled["specialisedUsageType"]
+	raw, ok := record.Unmodelled["specialised_usage_type"]
 	if !ok {
 		t.Fatal("an attribute the platform does not model was dropped")
 	}
@@ -353,7 +354,7 @@ func TestUnmodelledAttributesSurviveARoundTrip(t *testing.T) {
 		t.Fatalf("decoding: %v", err)
 	}
 	if usage != "dairy" {
-		t.Errorf("specialisedUsageType = %q, want %q relayed unchanged", usage, "dairy")
+		t.Errorf("specialised_usage_type = %q, want %q relayed unchanged", usage, "dairy")
 	}
 }
 

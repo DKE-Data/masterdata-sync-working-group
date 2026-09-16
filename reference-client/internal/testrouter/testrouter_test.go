@@ -57,7 +57,8 @@ func (f *fixture) join(appID, externalID string, types ...agmasync.EntityType) *
 	if err != nil {
 		f.t.Fatalf("building client: %v", err)
 	}
-	return &participant{client: client, endpoint: client.For(endpointID, externalID)}
+	return &participant{client: client, endpoint: client.For(
+		endpointID, externalID, uuid.New(), f.tenant, uuid.New(), "cloud_software")}
 }
 
 func farm(localID, name string) oapi.Entity {
@@ -808,7 +809,7 @@ func TestDeclaringEnablesNothingOnItsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(endpointID, "ep-a")
+	ep := client.For(endpointID, "ep-a", uuid.New(), f.tenant, uuid.New(), "cloud_software")
 
 	// The write echoes the declaration back in full — there is no resource to
 	// read it from afterwards — and it says nothing about what is exchanged: it
@@ -817,8 +818,8 @@ func TestDeclaringEnablesNothingOnItsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("declare: %v", err)
 	}
-	if len(cfg.Toggles) != len(agmasync.EntityTypes) {
-		t.Errorf("declared %d types, want %d", len(cfg.Toggles), len(agmasync.EntityTypes))
+	if len(cfg.Capabilities) != len(agmasync.EntityTypes) {
+		t.Errorf("declared %d types, want %d", len(cfg.Capabilities), len(agmasync.EntityTypes))
 	}
 
 	if _, err := ep.InitialLoadStatus(context.Background()); !errors.Is(err, agmasync.ErrNotFound) {
@@ -858,8 +859,8 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 	}
 
 	frame := next()
-	if frame.ExternalEndpointId != "ep-a" {
-		t.Errorf("externalEndpointId = %q, want %q", frame.ExternalEndpointId, "ep-a")
+	if frame.ExternalId != "ep-a" {
+		t.Errorf("externalEndpointId = %q, want %q", frame.ExternalId, "ep-a")
 	}
 	if frame.EndpointId == uuid.Nil {
 		t.Error("frame names no agrirouter endpoint id")
@@ -949,7 +950,7 @@ func selectionFrames(
 			if ev.Type != agmasync.EventRouteChanged || ev.Selection == nil {
 				continue
 			}
-			if ev.Selection.ExternalEndpointId == externalID {
+			if ev.Selection.ExternalId == externalID {
 				frames <- ev.Selection
 			}
 		}
@@ -1177,7 +1178,7 @@ func TestOptInOverTheControlPlaneBehavesAsInProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(endpointID, "ep-a")
+	ep := client.For(endpointID, "ep-a", uuid.New(), f.tenant, uuid.New(), "cloud_software")
 
 	if code := optInOverHTTP(t, f, "ep-a", "farm"); code != http.StatusOK {
 		t.Fatalf("opt-in status = %d, want 200", code)

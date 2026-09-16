@@ -444,18 +444,18 @@ func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 		}
 	}
 	put("type", string(obj.typ))
-	put("agrirouterId", obj.id)
+	put("agrirouter_id", obj.id)
 	put("active", obj.active)
 	put("revision", obj.revision)
-	put("modifiedAt", obj.modifiedAt)
-	put("tenantId", obj.tenantID)
-	put("sourceEndpointId", obj.sourceEndpointID)
+	put("modified_at", obj.modifiedAt)
+	put("tenant_id", obj.tenantID)
+	put("source_endpoint_id", obj.sourceEndpointID)
 
-	// An absent localId is meaningful: it states that agrirouter does not
+	// An absent local_id is meaningful: it states that agrirouter does not
 	// believe this participant holds the object, which is what makes an unbound
 	// object recognisable as one to create locally and bind.
 	if localID, ok := s.canonical[canonicalKey{ep.appID, obj.id}]; ok {
-		put("localId", localID)
+		put("local_id", localID)
 	}
 
 	raw, err := json.Marshal(out)

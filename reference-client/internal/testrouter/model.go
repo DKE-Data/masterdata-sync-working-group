@@ -26,14 +26,14 @@ import (
 // participant sending one has it ignored rather than applied — `revision` and
 // `tenantId` in particular are compared or discarded, never assigned.
 var envelopeAttributes = map[string]bool{
-	"type":             true,
-	"agrirouterId":     true,
-	"localId":          true,
-	"active":           true,
-	"revision":         true,
-	"modifiedAt":       true,
-	"tenantId":         true,
-	"sourceEndpointId": true,
+	"type":               true,
+	"agrirouter_id":      true,
+	"local_id":           true,
+	"active":             true,
+	"revision":           true,
+	"modified_at":        true,
+	"tenant_id":          true,
+	"source_endpoint_id": true,
 }
 
 // deliveryOrder is the order objects are delivered in, on the initial-load
@@ -65,16 +65,16 @@ type refSlot struct {
 // references nothing: the reference runs from the field to its boundaries.
 var refSlots = map[agmasync.EntityType][]refSlot{
 	agmasync.TypePerson: {
-		{key: "memberships", each: true, attribute: "organizationId"},
+		{key: "memberships", each: true, attribute: "organization_id"},
 	},
 	agmasync.TypeFarm: {
 		{key: "owner"},
-		{key: "partners", each: true, attribute: "partnerId"},
+		{key: "partners", each: true, attribute: "partner_id"},
 	},
 	agmasync.TypeField: {
 		{key: "farm"},
 		{key: "owner"},
-		{key: "fieldBoundaries", each: true},
+		{key: "field_boundaries", each: true},
 	},
 }
 

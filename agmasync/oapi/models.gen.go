@@ -13,6 +13,72 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for EndpointCapabilityDirection.
+const (
+	RECEIVE     EndpointCapabilityDirection = "RECEIVE"
+	SEND        EndpointCapabilityDirection = "SEND"
+	SENDRECEIVE EndpointCapabilityDirection = "SEND_RECEIVE"
+)
+
+// Valid indicates whether the value is a known member of the EndpointCapabilityDirection enum.
+func (e EndpointCapabilityDirection) Valid() bool {
+	switch e {
+	case RECEIVE:
+		return true
+	case SEND:
+		return true
+	case SENDRECEIVE:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EndpointType.
+const (
+	EndpointTypeCloudSoftware            EndpointType = "cloud_software"
+	EndpointTypeCommunicationUnit        EndpointType = "communication_unit"
+	EndpointTypeTelemetryPlatform        EndpointType = "telemetry_platform"
+	EndpointTypeVirtualCommunicationUnit EndpointType = "virtual_communication_unit"
+)
+
+// Valid indicates whether the value is a known member of the EndpointType enum.
+func (e EndpointType) Valid() bool {
+	switch e {
+	case EndpointTypeCloudSoftware:
+		return true
+	case EndpointTypeCommunicationUnit:
+		return true
+	case EndpointTypeTelemetryPlatform:
+		return true
+	case EndpointTypeVirtualCommunicationUnit:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EndpointTypeToCreate.
+const (
+	EndpointTypeToCreateCloudSoftware            EndpointTypeToCreate = "cloud_software"
+	EndpointTypeToCreateFarmingSoftware          EndpointTypeToCreate = "farming_software"
+	EndpointTypeToCreateVirtualCommunicationUnit EndpointTypeToCreate = "virtual_communication_unit"
+)
+
+// Valid indicates whether the value is a known member of the EndpointTypeToCreate enum.
+func (e EndpointTypeToCreate) Valid() bool {
+	switch e {
+	case EndpointTypeToCreateCloudSoftware:
+		return true
+	case EndpointTypeToCreateFarmingSoftware:
+		return true
+	case EndpointTypeToCreateVirtualCommunicationUnit:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InitialLoadState.
 const (
 	COMPLETED             InitialLoadState = "COMPLETED"
@@ -76,8 +142,8 @@ type Address struct {
 
 	// Country ISO 3166-1 alpha-2 country code.
 	Country    *string `json:"country,omitempty"`
-	PoBox      *string `json:"poBox,omitempty"`
-	PostalCode *string `json:"postalCode,omitempty"`
+	PoBox      *string `json:"po_box,omitempty"`
+	PostalCode *string `json:"postal_code,omitempty"`
 	State      *string `json:"state,omitempty"`
 	Street     *string `json:"street,omitempty"`
 }
@@ -89,15 +155,79 @@ type Contact struct {
 	Phone  *string              `json:"phone,omitempty"`
 }
 
+// Endpoint defines model for Endpoint.
+type Endpoint struct {
+	// AllowDeleteByUser Flag indicating whether the user is allowed to delete this endpoint.
+	AllowDeleteByUser *bool                `json:"allow_delete_by_user,omitempty"`
+	ApplicationId     openapi_types.UUID   `json:"application_id"`
+	Capabilities      []EndpointCapability `json:"capabilities"`
+
+	// ConnectionsUri URI pointing to where the user can manage the entity connected to this endpoint, e.g. to disconnect or delete equipment from an equipment vendor.
+	ConnectionsUri *string `json:"connections_uri,omitempty"`
+
+	// EndpointType Type of an endpoint that can be observed in the system. This includes
+	// types that can be created via this G4 API as well as legacy types that
+	// can only be created via the G2/G3 APIs. For values accepted when
+	// creating an endpoint, see `EndpointTypeToCreate`.
+	EndpointType EndpointType       `json:"endpoint_type"`
+	ExternalId   string             `json:"external_id"`
+	Id           openapi_types.UUID `json:"id"`
+
+	// Masterdata Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+	Masterdata *MasterdataConfig `json:"masterdata,omitempty"`
+
+	// OwnerEndpointExternalId External ID of the endpoint that owns (is the parent of) this endpoint, if any.
+	OwnerEndpointExternalId *string            `json:"owner_endpoint_external_id,omitempty"`
+	SoftwareVersionId       openapi_types.UUID `json:"software_version_id"`
+
+	// TenantId The tenant ID of the endpoint
+	TenantId string `json:"tenant_id"`
+}
+
+// EndpointCapability defines model for EndpointCapability.
+type EndpointCapability struct {
+	Direction EndpointCapabilityDirection `json:"direction"`
+
+	// MessageType The message type that the endpoint can send or receive.
+	// See available types here:
+	// https://docs.agrirouter.com/agrirouter-interface-documentation/latest/tmt/overview.html
+	MessageType string `json:"message_type"`
+}
+
+// EndpointCapabilityDirection defines model for EndpointCapability.Direction.
+type EndpointCapabilityDirection string
+
+// EndpointSubscription defines model for EndpointSubscription.
+type EndpointSubscription struct {
+	// MessageType The message type that the endpoint is subscribed to.
+	// See available types here:
+	// https://docs.agrirouter.com/agrirouter-interface-documentation/latest/tmt/overview.html
+	MessageType string `json:"message_type"`
+}
+
+// EndpointType Type of an endpoint that can be observed in the system. This includes
+// types that can be created via this G4 API as well as legacy types that
+// can only be created via the G2/G3 APIs. For values accepted when
+// creating an endpoint, see `EndpointTypeToCreate`.
+type EndpointType string
+
+// EndpointTypeToCreate Type of an endpoint that can be created via this G4 API. Legacy types
+// such as `communication_unit` and `telemetry_platform` cannot be
+// created here; see `EndpointType` for the full set that may be observed.
+//
+// `farming_software` is accepted as a deprecated alias for
+// `cloud_software` and will be removed in a future revision.
+type EndpointTypeToCreate string
+
 // Entity Any master-data entity. Used only on the event stream, which carries every opted-in entity type over a single connection; the typed resources use the concrete schemas directly.
 type Entity struct {
 	union json.RawMessage
 }
 
-// EntityReference A reference to another entity by canonical and/or local id. On send either identifier suffices: a localId is resolved against the sender's own mapping, and is rejected if the target has not been sent yet. On delivery agrirouter populates agrirouterId, since the sender's localId does not resolve in the receiver's namespace.
+// EntityReference A reference to another entity by canonical and/or local id. On send either identifier suffices: a local_id is resolved against the sender's own mapping, and is rejected if the target has not been sent yet. On delivery agrirouter populates agrirouter_id, since the sender's local_id does not resolve in the receiver's namespace.
 type EntityReference struct {
-	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
-	LocalId      *string             `json:"localId,omitempty"`
+	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
+	LocalId      *string             `json:"local_id,omitempty"`
 	union        json.RawMessage
 }
 
@@ -110,7 +240,7 @@ type EntityReference1 = interface{}
 // EntityRequest A lazy-loading request for a single canonical object.
 type EntityRequest struct {
 	// AgrirouterId The canonical identifier of the wanted entity.
-	AgrirouterId openapi_types.UUID `json:"agrirouterId"`
+	AgrirouterId openapi_types.UUID `json:"agrirouter_id"`
 }
 
 // EntityTypeToggle defines model for EntityTypeToggle.
@@ -119,7 +249,7 @@ type EntityTypeToggle struct {
 	//
 	//
 	// Examples: organization, person, farm, field, fieldBoundary
-	EntityType string `json:"entityType"`
+	EntityType string `json:"entity_type"`
 }
 
 // Envelope Fields common to every master-data entity. The concrete entity type is determined by the path; each entity schema pins the `type` discriminator so that objects remain self-describing on the event stream.
@@ -127,28 +257,34 @@ type Envelope struct {
 	Active *bool `json:"active,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
-	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
+	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId    *string    `json:"localId,omitempty"`
-	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
+	LocalId    *string    `json:"local_id,omitempty"`
+	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenantId`.
-	SourceEndpointId *openapi_types.UUID `json:"sourceEndpointId,omitempty"`
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 }
 
 // Error defines model for Error.
 type Error struct {
+	Message string `json:"message"`
+}
+
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
+	// Message A human-readable error message describing what went wrong.
 	Message string `json:"message"`
 }
 
@@ -158,16 +294,16 @@ type Farm struct {
 	Address *Address `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
-	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
+	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// GeoReference A GeoJSON Point (longitude, latitude) locating the farm.
-	GeoReference *Geometry `json:"geoReference,omitempty"`
+	GeoReference *Geometry `json:"geo_reference,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId    *string    `json:"localId,omitempty"`
-	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
+	LocalId    *string    `json:"local_id,omitempty"`
+	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
 	// Owner The organization or person that holds the farm.
@@ -176,19 +312,19 @@ type Farm struct {
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
 	Partners *[]Partner `json:"partners,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenantId`.
-	SourceEndpointId *openapi_types.UUID `json:"sourceEndpointId,omitempty"`
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// SpecialisedUsageType Production orientation of the farm (e.g. arable farming, dairy, vineyard, orchard). Free-form, drawn from AGROVOC where a matching concept exists.
-	SpecialisedUsageType *string `json:"specialisedUsageType,omitempty"`
+	SpecialisedUsageType *string `json:"specialised_usage_type,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send.
 	Type interface{} `json:"type,omitempty"`
@@ -199,7 +335,7 @@ type Field struct {
 	Active *bool `json:"active,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
-	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
+	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// Area Nominal area in square metres.
 	Area *float32 `json:"area,omitempty"`
@@ -208,37 +344,37 @@ type Field struct {
 	Farm *EntityReference `json:"farm,omitempty"`
 
 	// FieldBoundaries References to the field's boundaries.
-	FieldBoundaries *[]EntityReference `json:"fieldBoundaries,omitempty"`
+	FieldBoundaries *[]EntityReference `json:"field_boundaries,omitempty"`
 
 	// HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
-	HarvestPeriod *HarvestPeriod `json:"harvestPeriod,omitempty"`
+	HarvestPeriod *HarvestPeriod `json:"harvest_period,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId *string `json:"localId,omitempty"`
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
+	LocalId *string `json:"local_id,omitempty"`
 
 	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
 	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
-	ModifiedAt *time.Time              `json:"modifiedAt,omitempty"`
+	ModifiedAt *time.Time              `json:"modified_at,omitempty"`
 	Name       string                  `json:"name"`
 
 	// Owner The organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
 	Owner *PartyReference `json:"owner,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// Soil Soil characteristics of a field.
 	Soil *SoilInfo `json:"soil,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenantId`.
-	SourceEndpointId *openapi_types.UUID `json:"sourceEndpointId,omitempty"`
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
 	// Topography Slope / gradient, e.g. 7 (degrees).
 	Topography *float32 `json:"topography,omitempty"`
@@ -252,7 +388,7 @@ type FieldBoundary struct {
 	Active *bool `json:"active,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
-	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
+	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// Boundary A GeoJSON Polygon or MultiPolygon.
 	Boundary Geometry `json:"boundary"`
@@ -261,43 +397,43 @@ type FieldBoundary struct {
 	//
 	//
 	// Examples: CONCEPTUAL, OPERATIONAL, ECONOMIC_DEFINED, ADMINISTRATIVE_RECEIVED
-	BoundaryType *string `json:"boundaryType,omitempty"`
+	BoundaryType *string `json:"boundary_type,omitempty"`
 
 	// CreationMethod [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). How the boundary was produced.
 	//
 	//
 	// Examples: UNKNOWN, MANUAL, DRIVEN, SURVEYED, AUTO_OPERATION, AUTO_IMAGERY, ADMINISTRATIVE
-	CreationMethod *string `json:"creationMethod,omitempty"`
+	CreationMethod *string `json:"creation_method,omitempty"`
 
 	// HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
-	HarvestPeriod *HarvestPeriod `json:"harvestPeriod,omitempty"`
+	HarvestPeriod *HarvestPeriod `json:"harvest_period,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId *string `json:"localId,omitempty"`
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
+	LocalId *string `json:"local_id,omitempty"`
 
 	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
 	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
-	ModifiedAt *time.Time              `json:"modifiedAt,omitempty"`
+	ModifiedAt *time.Time              `json:"modified_at,omitempty"`
 	Obstacles  *[]Obstacle             `json:"obstacles,omitempty"`
 
 	// RegulatoryRequirements [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A regulatory constraint applying to the boundary.
 	//
 	//
 	// Examples: RED_ZONE_NITROGEN, WATER_PROTECTION_AREA
-	RegulatoryRequirements *string `json:"regulatoryRequirements,omitempty"`
+	RegulatoryRequirements *string `json:"regulatory_requirements,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenantId`.
-	SourceEndpointId *openapi_types.UUID `json:"sourceEndpointId,omitempty"`
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send.
 	Type interface{} `json:"type,omitempty"`
@@ -319,37 +455,37 @@ type Geometry struct {
 type HarvestPeriod struct {
 	// Label Human-facing designation, e.g. "2026" or "2025/2026".
 	Label     *string            `json:"label,omitempty"`
-	ValidFrom openapi_types.Date `json:"validFrom"`
+	ValidFrom openapi_types.Date `json:"valid_from"`
 
 	// ValidTo Absent means open / current.
-	ValidTo *openapi_types.Date `json:"validTo,omitempty"`
+	ValidTo *openapi_types.Date `json:"valid_to,omitempty"`
 }
 
 // IdMappingBinding One binding of a local identifier to a canonical object, as carried in bulk on the initial-load confirmation.
 //
 // Both ends belong to the calling application's own store: the object it matched, and what it calls that object. A mapping only ever travels from an application to agrirouter.
 type IdMappingBinding struct {
-	AgrirouterId openapi_types.UUID `json:"agrirouterId"`
-	LocalId      string             `json:"localId"`
+	AgrirouterId openapi_types.UUID `json:"agrirouter_id"`
+	LocalId      string             `json:"local_id"`
 }
 
 // IdMappingRejection A binding that could not be recorded: the pair as submitted, why, and the mapping standing in its way.
 type IdMappingRejection struct {
-	AgrirouterId openapi_types.UUID `json:"agrirouterId"`
+	AgrirouterId openapi_types.UUID `json:"agrirouter_id"`
 
 	// ExistingMapping The mapping that already holds the taken identifier. Both of its ends belong to the rejected endpoint itself, so naming it discloses nothing the endpoint does not already hold, and it is what the endpoint shows the user resolving the conflict. Present for `LOCAL_ID_ALREADY_BOUND` and `AGRIROUTER_ID_ALREADY_BOUND`, absent for the other reasons, where no mapping is in the way.
-	ExistingMapping *IdMappingBinding `json:"existingMapping,omitempty"`
-	LocalId         string            `json:"localId"`
+	ExistingMapping *IdMappingBinding `json:"existing_mapping,omitempty"`
+	LocalId         string            `json:"local_id"`
 
 	// Reason [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). Why a binding could not be recorded.
 	//
-	// `LOCAL_ID_ALREADY_BOUND` — this endpoint already knows a different canonical object by that `localId`. `existingMapping` names it.
+	// `LOCAL_ID_ALREADY_BOUND` — this endpoint already knows a different canonical object by that `local_id`. `existing_mapping` names it.
 	//
-	// `AGRIROUTER_ID_ALREADY_BOUND` — this endpoint already knows that canonical object by a different `localId`. `existingMapping` names it.
+	// `AGRIROUTER_ID_ALREADY_BOUND` — this endpoint already knows that canonical object by a different `local_id`. `existing_mapping` names it.
 	//
 	// `UNKNOWN_OBJECT` — no such canonical object, or the endpoint is not entitled to it. On the per-entity operation this is the `404` instead.
 	//
-	// `DUPLICATE_IN_REQUEST` — the same `localId` or the same `agrirouterId` appears in more than one pair of this request, which would make the outcome depend on the order pairs were applied in. Every pair involved is rejected and none is applied. Bulk path only.
+	// `DUPLICATE_IN_REQUEST` — the same `local_id` or the same `agrirouter_id` appears in more than one pair of this request, which would make the outcome depend on the order pairs were applied in. Every pair involved is rejected and none is applied. Bulk path only.
 	//
 	//
 	// Examples: LOCAL_ID_ALREADY_BOUND, AGRIROUTER_ID_ALREADY_BOUND, UNKNOWN_OBJECT, DUPLICATE_IN_REQUEST
@@ -358,13 +494,13 @@ type IdMappingRejection struct {
 
 // IdMappingRejectionReason [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). Why a binding could not be recorded.
 //
-// `LOCAL_ID_ALREADY_BOUND` — this endpoint already knows a different canonical object by that `localId`. `existingMapping` names it.
+// `LOCAL_ID_ALREADY_BOUND` — this endpoint already knows a different canonical object by that `local_id`. `existing_mapping` names it.
 //
-// `AGRIROUTER_ID_ALREADY_BOUND` — this endpoint already knows that canonical object by a different `localId`. `existingMapping` names it.
+// `AGRIROUTER_ID_ALREADY_BOUND` — this endpoint already knows that canonical object by a different `local_id`. `existing_mapping` names it.
 //
 // `UNKNOWN_OBJECT` — no such canonical object, or the endpoint is not entitled to it. On the per-entity operation this is the `404` instead.
 //
-// `DUPLICATE_IN_REQUEST` — the same `localId` or the same `agrirouterId` appears in more than one pair of this request, which would make the outcome depend on the order pairs were applied in. Every pair involved is rejected and none is applied. Bulk path only.
+// `DUPLICATE_IN_REQUEST` — the same `local_id` or the same `agrirouter_id` appears in more than one pair of this request, which would make the outcome depend on the order pairs were applied in. Every pair involved is rejected and none is applied. Bulk path only.
 //
 // Examples: LOCAL_ID_ALREADY_BOUND, AGRIROUTER_ID_ALREADY_BOUND, UNKNOWN_OBJECT, DUPLICATE_IN_REQUEST
 type IdMappingRejectionReason = string
@@ -373,7 +509,7 @@ type IdMappingRejectionReason = string
 //
 // `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 //
-// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
+// `RECONCILING` — the whole canonical set has been delivered, and agrirouter moves the endpoint here before closing the initial-load stream. agrirouter moves it here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. Moving first is what makes reading it once, as the response ends, enough. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 //
 // `LOADING_TO_AGRIROUTER` — the endpoint has confirmed it reconciled, and is sending the objects it holds that the canonical set did not contain.
 //
@@ -384,14 +520,14 @@ type InitialLoadState string
 
 // InitialLoadStateUpdate The target initial-load `state` for the endpoint. The states are accepted in order, and repeating the one the endpoint is already in is accepted too. `LOADING_FROM_AGRIROUTER` is never a transition an endpoint may make, from any state including from itself.
 type InitialLoadStateUpdate struct {
-	// IdMappings The bindings reconciliation produced: one entry per canonical object the endpoint matched to something it already held. Carried here because matching happens over a whole set, and the semantics are those of the per-entity `id-mapping` operation applied to each pair. Meaningful only on the transition to `LOADING_TO_AGRIROUTER`, which is where reconciliation is asserted to be done, and on a repeat of that transition, where the pairs are applied again and the rejections recomputed. Pairs are applied independently: any that cannot be recorded — because an identifier is already bound, because the canonical object is unknown to the endpoint, or because the request names the same identifier twice — come back in `rejectedIdMappings` rather than failing the transition.
-	IdMappings *[]IdMappingBinding `json:"idMappings,omitempty"`
+	// IdMappings The bindings reconciliation produced: one entry per canonical object the endpoint matched to something it already held. Carried here because matching happens over a whole set, and the semantics are those of the per-entity `id-mapping` operation applied to each pair. Meaningful only on the transition to `LOADING_TO_AGRIROUTER`, which is where reconciliation is asserted to be done, and on a repeat of that transition, where the pairs are applied again and the rejections recomputed. Pairs are applied independently: any that cannot be recorded — because an identifier is already bound, because the canonical object is unknown to the endpoint, or because the request names the same identifier twice — come back in `rejected_id_mappings` rather than failing the transition.
+	IdMappings *[]IdMappingBinding `json:"id_mappings,omitempty"`
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
 	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
-	// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
+	// `RECONCILING` — the whole canonical set has been delivered, and agrirouter moves the endpoint here before closing the initial-load stream. agrirouter moves it here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. Moving first is what makes reading it once, as the response ends, enough. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
 	// `LOADING_TO_AGRIROUTER` — the endpoint has confirmed it reconciled, and is sending the objects it holds that the canonical set did not contain.
 	//
@@ -404,22 +540,22 @@ type InitialLoadStateUpdate struct {
 // InitialLoadStatus The endpoint's initial-load state. One per endpoint, covering every entity type it is opted into; an endpoint opted into no entity type has no initial-load state.
 type InitialLoadStatus struct {
 	// AwaitingUser Whether the endpoint's own software is needing user action — a conflict, a missing required attribute, a granularity mismatch. Raised by the endpoint through the `user-attention` resource and cleared by agrirouter, on the two endpoint-driven transitions only: advancing to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to `COMPLETED`. The step to `RECONCILING` does not, since that is agrirouter reporting it has finished sending and says nothing about whether the user has finished deciding. agrirouter renders the flag as "waiting for you in <app>", linking to the master-data resolution URI supplied for this endpoint.
-	AwaitingUser *bool `json:"awaitingUser,omitempty"`
+	AwaitingUser *bool `json:"awaiting_user,omitempty"`
 
-	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
-	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
+	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `external_id`.
+	EndpointId *openapi_types.UUID `json:"endpoint_id,omitempty"`
 
-	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, disconnected from the hub, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `localId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
-	PreviousLoadCompletedAt *time.Time `json:"previousLoadCompletedAt,omitempty"`
+	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, disconnected from the hub, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `local_id` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
+	PreviousLoadCompletedAt *time.Time `json:"previous_load_completed_at,omitempty"`
 
-	// RejectedIdMappings Bindings supplied on this request that could not be recorded, each with its `reason` and, where one exists, the mapping that stands in its way. They do not fail the transition: one unresolvable pair should not block the load of a set. The endpoint resolves them as it resolves a `409` on the per-entity operation, and rebinds through that operation once it has. Recomputed on every request that carries `idMappings`, including a repeat of the transition, so a retry after a lost response reports the current outcome rather than the first.
-	RejectedIdMappings *[]IdMappingRejection `json:"rejectedIdMappings,omitempty"`
+	// RejectedIdMappings Bindings supplied on this request that could not be recorded, each with its `reason` and, where one exists, the mapping that stands in its way. They do not fail the transition: one unresolvable pair should not block the load of a set. The endpoint resolves them as it resolves a `409` on the per-entity operation, and rebinds through that operation once it has. Recomputed on every request that carries `id_mappings`, including a repeat of the transition, so a retry after a lost response reports the current outcome rather than the first.
+	RejectedIdMappings *[]IdMappingRejection `json:"rejected_id_mappings,omitempty"`
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
 	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
-	// `RECONCILING` — the whole canonical set has been delivered and the initial-load stream closed. agrirouter moves the endpoint here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
+	// `RECONCILING` — the whole canonical set has been delivered, and agrirouter moves the endpoint here before closing the initial-load stream. agrirouter moves it here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. Moving first is what makes reading it once, as the response ends, enough. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
 	// `LOADING_TO_AGRIROUTER` — the endpoint has confirmed it reconciled, and is sending the objects it holds that the canonical set did not contain.
 	//
@@ -427,7 +563,7 @@ type InitialLoadStatus struct {
 	//
 	// The endpoint drives two of these transitions, both through the `status` resource: `RECONCILING` → `LOADING_TO_AGRIROUTER` and `LOADING_TO_AGRIROUTER` → `COMPLETED`.
 	State     InitialLoadState `json:"state"`
-	UpdatedAt *time.Time       `json:"updatedAt,omitempty"`
+	UpdatedAt *time.Time       `json:"updated_at,omitempty"`
 }
 
 // MappingConflictError The `409` of a binding: an `Error` carrying the rejection that caused it. The same shape the bulk path returns per pair, so an endpoint resolves a conflict identically whichever path raised it. As there, the outcome is carried by `rejection.reason`; the `message` of the `Error` is diagnostic and MUST NOT be branched on.
@@ -438,17 +574,18 @@ type MappingConflictError struct {
 	Rejection IdMappingRejection `json:"rejection"`
 }
 
-// MasterdataCapabilities Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
-type MasterdataCapabilities struct {
-	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `externalEndpointId`.
-	EndpointId *openapi_types.UUID `json:"endpointId,omitempty"`
+// MasterdataConfig Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+type MasterdataConfig struct {
+	Capabilities []EntityTypeToggle `json:"capabilities"`
 
-	// ResolutionUrl Where the user resolves initial-load conflicts in the endpoint's own software. Optional, opaque to agrirouter, and not per conflict: it is rendered as a link while the endpoint has `awaitingUser` set.
+	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `external_id`.
+	EndpointId *openapi_types.UUID `json:"endpoint_id,omitempty"`
+
+	// ResolutionUrl Where the user resolves initial-load conflicts in the endpoint's own software. Optional, opaque to agrirouter, and not per conflict: it is rendered as a link while the endpoint has `awaiting_user` set.
 	//
 	//
 	// Examples: https://app.example.com/tenants/42/agrirouter/masterdata
-	ResolutionUrl *string            `json:"resolutionUrl,omitempty"`
-	Toggles       []EntityTypeToggle `json:"toggles"`
+	ResolutionUrl *string `json:"resolution_url,omitempty"`
 }
 
 // Membership A role held by a person in one organization.
@@ -457,10 +594,10 @@ type Membership struct {
 	//
 	//
 	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
-	MemberRole Role `json:"memberRole"`
+	MemberRole Role `json:"member_role"`
 
 	// OrganizationId The organization the person belongs to.
-	OrganizationId EntityReference `json:"organizationId"`
+	OrganizationId EntityReference `json:"organization_id"`
 }
 
 // Obstacle A GeoJSON Feature describing an in-field obstacle whose geometry is a Point, LineString, or Polygon.
@@ -480,39 +617,39 @@ type Organization struct {
 	Address *Address `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
-	AgrirouterId   *openapi_types.UUID `json:"agrirouterId,omitempty"`
-	BillingAddress *Address            `json:"billingAddress,omitempty"`
+	AgrirouterId   *openapi_types.UUID `json:"agrirouter_id,omitempty"`
+	BillingAddress *Address            `json:"billing_address,omitempty"`
 
 	// CommercialRegistryNumber Identifier from the commercial register.
-	CommercialRegistryNumber *string  `json:"commercialRegistryNumber,omitempty"`
+	CommercialRegistryNumber *string  `json:"commercial_registry_number,omitempty"`
 	Contact                  *Contact `json:"contact,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId    *string    `json:"localId,omitempty"`
-	ModifiedAt *time.Time `json:"modifiedAt,omitempty"`
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
+	LocalId    *string    `json:"local_id,omitempty"`
+	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenantId`.
-	SourceEndpointId *openapi_types.UUID `json:"sourceEndpointId,omitempty"`
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId *string `json:"taxId,omitempty"`
+	TaxId *string `json:"tax_id,omitempty"`
 
 	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber *string `json:"taxNumber,omitempty"`
+	TaxNumber *string `json:"tax_number,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
 	// TradeId Numerical identifier assigned by public authorities.
-	TradeId *string `json:"tradeId,omitempty"`
+	TradeId *string `json:"trade_id,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send.
 	Type interface{} `json:"type,omitempty"`
@@ -521,35 +658,35 @@ type Organization struct {
 // Partner A party holding a role on a farm — the contractor that works it, the advisor that reads it. Records a business relationship only. It does NOT grant visibility of the farm: what an endpoint receives is decided by opt-in and routing.
 type Partner struct {
 	// PartnerId The organization or person acting as partner.
-	PartnerId PartyReference `json:"partnerId"`
+	PartnerId PartyReference `json:"partner_id"`
 
 	// PartnerRole [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A role drawn from the ADAPT Role data type.
 	//
 	//
 	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
-	PartnerRole Role `json:"partnerRole"`
+	PartnerRole Role `json:"partner_role"`
 }
 
 // Party Attributes common to every party, whether an organization or a natural person. A farmer carries the fiscal identifiers as much as a company does; only the commercial register entry is specific to organizations.
 type Party struct {
 	Address        *Address `json:"address,omitempty"`
-	BillingAddress *Address `json:"billingAddress,omitempty"`
+	BillingAddress *Address `json:"billing_address,omitempty"`
 	Contact        *Contact `json:"contact,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId *string `json:"taxId,omitempty"`
+	TaxId *string `json:"tax_id,omitempty"`
 
 	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber *string `json:"taxNumber,omitempty"`
+	TaxNumber *string `json:"tax_number,omitempty"`
 
 	// TradeId Numerical identifier assigned by public authorities.
-	TradeId *string `json:"tradeId,omitempty"`
+	TradeId *string `json:"trade_id,omitempty"`
 }
 
 // PartyReference A reference to a party. The slot admits both organizations and persons, so the entity type is required: a receiver that does not hold the target must lazy-load it, and the request endpoints are per entity type. Typed slots such as a field's farm need no discriminator.
 type PartyReference struct {
-	AgrirouterId *openapi_types.UUID `json:"agrirouterId,omitempty"`
-	LocalId      *string             `json:"localId,omitempty"`
+	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
+	LocalId      *string             `json:"local_id,omitempty"`
 	Type         PartyReferenceType  `json:"type"`
 	union        json.RawMessage
 }
@@ -569,41 +706,41 @@ type Person struct {
 	Address *Address `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
-	AgrirouterId   *openapi_types.UUID `json:"agrirouterId,omitempty"`
-	BillingAddress *Address            `json:"billingAddress,omitempty"`
+	AgrirouterId   *openapi_types.UUID `json:"agrirouter_id,omitempty"`
+	BillingAddress *Address            `json:"billing_address,omitempty"`
 	Contact        *Contact            `json:"contact,omitempty"`
-	FirstName      *string             `json:"firstName,omitempty"`
-	LastName       string              `json:"lastName"`
+	FirstName      *string             `json:"first_name,omitempty"`
+	LastName       string              `json:"last_name"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `localId` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId *string `json:"localId,omitempty"`
+	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
+	LocalId *string `json:"local_id,omitempty"`
 
 	// Memberships The organizations this person belongs to, each with the role held there. A person carrying at least one entry is a member.
 	Memberships *[]Membership `json:"memberships,omitempty"`
-	ModifiedAt  *time.Time    `json:"modifiedAt,omitempty"`
+	ModifiedAt  *time.Time    `json:"modified_at,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenantId`.
-	SourceEndpointId *openapi_types.UUID `json:"sourceEndpointId,omitempty"`
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId *string `json:"taxId,omitempty"`
+	TaxId *string `json:"tax_id,omitempty"`
 
 	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber *string `json:"taxNumber,omitempty"`
+	TaxNumber *string `json:"tax_number,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 	Title    *string             `json:"title,omitempty"`
 
 	// TradeId Numerical identifier assigned by public authorities.
-	TradeId *string `json:"tradeId,omitempty"`
+	TradeId *string `json:"trade_id,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send.
 	Type interface{} `json:"type,omitempty"`
@@ -611,14 +748,60 @@ type Person struct {
 
 // PutEndpointRequest defines model for PutEndpointRequest.
 type PutEndpointRequest struct {
-	// MasterdataCapabilities Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
-	MasterdataCapabilities *MasterdataCapabilities `json:"masterdata_capabilities,omitempty"`
+	// AllowDeleteByUser Flag indicating whether the user is allowed to delete this endpoint.
+	// Note that even when this flag is not set, the user can still force deletion of the endpoint. Applications must handle the ENDPOINT_DELETED event on a best-effort basis. It is also possible that an endpoint is deleted immediately after creation due to a race with the user disconnecting the entire application, so applications should not rely on this flag to prevent endpoint deletion entirely.
+	AllowDeleteByUser *bool `json:"allow_delete_by_user,omitempty"`
+
+	// ApplicationId The ID of the application that owns the endpoint
+	ApplicationId openapi_types.UUID `json:"application_id"`
+
+	// Capabilities The effective capabilities of the endpoint, must be subset of the capabilities of software version.
+	Capabilities []EndpointCapability `json:"capabilities"`
+
+	// ConnectionsUri URI pointing to where the user can manage the entity connected to this endpoint, e.g. to disconnect or delete equipment from an equipment vendor. When provided, this URI will be shown when the user attempts to delete the endpoint, instead of the usual deletion dialog, directing them to the vendor's management page.
+	ConnectionsUri *string `json:"connections_uri,omitempty"`
+
+	// EndpointType Type of an endpoint that can be created via this G4 API. Legacy types
+	// such as `communication_unit` and `telemetry_platform` cannot be
+	// created here; see `EndpointType` for the full set that may be observed.
+	//
+	// `farming_software` is accepted as a deprecated alias for
+	// `cloud_software` and will be removed in a future revision.
+	EndpointType EndpointTypeToCreate `json:"endpoint_type"`
+
+	// Masterdata Per-endpoint, per-entity opt-in for master-data exchange. Absence of a toggle for an entity type means the endpoint is not opted in for it.
+	Masterdata *MasterdataConfig `json:"masterdata,omitempty"`
+
+	// Name Optional name of the endpoint, for easier identification in agrirouter web interface.
+	// Does not have to be unique.
+	// If not specified, the name would be generated automatically.
+	//
+	// When provided, must be 1-200 characters long and may contain letters from any
+	// script, digits, spaces, and the following special characters: `-`, `_`, `.`, `,`, `:`, `@`.
+	// Names consisting only of whitespace are not allowed as well, which is not
+	// expressed in the regex pattern.
+	//
+	// It is not guaranteed that this "application-set" name would be used,
+	// because user may override it with "user-set" name in agrirouter web interface.
+	// Name send via this API cannot override "user-set" name, but
+	// it can update "application-set" name at any time and user can choose to
+	// switch name back to "application-set".
+	Name *string `json:"name,omitempty"`
+
+	// OwnerEndpointExternalId Optional external ID of the endpoint that should own (be the parent of) this endpoint. The referenced owner endpoint must belong to the same tenant and the same application as this endpoint, otherwise the request is rejected.
+	// When the owner endpoint is deleted, the endpoints it owns are deleted as well.
+	// Note that the owner endpoint must already be processed internally. Since endpoint state is propagated asynchronously, an owner endpoint that was just created may not yet be resolvable
+	OwnerEndpointExternalId *string `json:"owner_endpoint_external_id,omitempty"`
+
+	// SoftwareVersionId The ID of the software version that owns the endpoint
+	SoftwareVersionId openapi_types.UUID     `json:"software_version_id"`
+	Subscriptions     []EndpointSubscription `json:"subscriptions"`
 }
 
 // RevisionConflictError The `412` or `428` of a write: an `Error` carrying the revision the object is currently at, so that the client has the answer a rejected write would otherwise have to fetch separately.
 type RevisionConflictError struct {
 	// CurrentRevision The canonical object's current `revision`.
-	CurrentRevision int    `json:"currentRevision"`
+	CurrentRevision int    `json:"current_revision"`
 	Message         string `json:"message"`
 }
 
@@ -635,23 +818,23 @@ type RouteChangedEventData struct {
 	//
 	//
 	// Examples: 2026-07-14T09:20:00Z
-	ChangedAt time.Time `json:"changedAt"`
+	ChangedAt time.Time `json:"changed_at"`
 
 	// EndpointId The agrirouter identifier of the endpoint whose selection changed.
-	EndpointId openapi_types.UUID `json:"endpointId"`
+	EndpointId openapi_types.UUID `json:"endpoint_id"`
 
 	// EntityTypes The endpoint's selection as it stands after the change, stated in full rather than as a delta. The application replaces what it held for this endpoint with this list.
 	// An empty array is a statement and not an omission: it says the endpoint exchanges nothing, because the user deselected the last entity type or the route was removed.
 	//
 	//
-	// Examples: [{"entityType":"organization"},{"entityType":"person"},{"entityType":"farm"}]
-	EntityTypes []EntityTypeToggle `json:"entityTypes"`
+	// Examples: [{"entity_type":"organization"},{"entity_type":"person"},{"entity_type":"farm"}]
+	EntityTypes []EntityTypeToggle `json:"entity_types"`
 
 	// EventType Discriminator; matches the `event:` line.
-	EventType RouteChangedEventDataEventType `json:"eventType"`
+	EventType RouteChangedEventDataEventType `json:"event_type"`
 
-	// ExternalEndpointId The application's own identifier for the same endpoint.
-	ExternalEndpointId string `json:"externalEndpointId"`
+	// ExternalId The application's own identifier for the same endpoint.
+	ExternalId string `json:"external_id"`
 }
 
 // RouteChangedEventDataEventType Discriminator; matches the `event:` line.
@@ -660,7 +843,7 @@ type RouteChangedEventDataEventType string
 // SoilInfo Soil characteristics of a field.
 type SoilInfo struct {
 	// RatingPoints Soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
-	RatingPoints *int `json:"ratingPoints,omitempty"`
+	RatingPoints *int `json:"rating_points,omitempty"`
 
 	// Type [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). The soil classification.
 	//
@@ -672,11 +855,11 @@ type SoilInfo struct {
 // AgrirouterEndpointId defines model for AgrirouterEndpointId.
 type AgrirouterEndpointId = openapi_types.UUID
 
+// AgrirouterTenantId defines model for AgrirouterTenantId.
+type AgrirouterTenantId = openapi_types.UUID
+
 // BaseRevision defines model for BaseRevision.
 type BaseRevision = int
-
-// ExternalEndpointId defines model for ExternalEndpointId.
-type ExternalEndpointId = string
 
 // IdMappingAgrirouterId defines model for IdMappingAgrirouterId.
 type IdMappingAgrirouterId = openapi_types.UUID
@@ -686,6 +869,9 @@ type LastEventId = string
 
 // LocalId defines model for LocalId.
 type LocalId = string
+
+// ExternalId defines model for external_id.
+type ExternalId = string
 
 // BaseRevisionRequired The `412` or `428` of a write: an `Error` carrying the revision the object is currently at, so that the client has the answer a rejected write would otherwise have to fetch separately.
 type BaseRevisionRequired = RevisionConflictError
@@ -708,6 +894,12 @@ type RevisionConflict = RevisionConflictError
 // ValidationError defines model for ValidationError.
 type ValidationError = Error
 
+// PutEndpointParams defines parameters for PutEndpoint.
+type PutEndpointParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"X-Agrirouter-TenantId"`
+}
+
 // StreamMasterdataEventsParams defines parameters for StreamMasterdataEvents.
 type StreamMasterdataEventsParams struct {
 	// LastEventID The event id the application saved last from `/masterdata/events` stream, as agrirouter issued it in the `id:` field of an SSE frame. The application MUST send it back exactly as issued, treat it as an opaque string and MUST NOT interpret, compare, construct, or modify it in any way. Its structure is not defined by this API and may change; the example below illustrates its size and shape only.
@@ -723,272 +915,272 @@ type StreamMasterdataEventsParams struct {
 
 // RequestFarmParams defines parameters for RequestFarm.
 type RequestFarmParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // PutFarmParams defines parameters for PutFarm.
 type PutFarmParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // DeactivateFarmParams defines parameters for DeactivateFarm.
 type DeactivateFarmParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // UnbindFarmMappingParams defines parameters for UnbindFarmMapping.
 type UnbindFarmMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // BindFarmMappingParams defines parameters for BindFarmMapping.
 type BindFarmMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // RequestFieldBoundaryParams defines parameters for RequestFieldBoundary.
 type RequestFieldBoundaryParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // PutFieldBoundaryParams defines parameters for PutFieldBoundary.
 type PutFieldBoundaryParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // DeactivateFieldBoundaryParams defines parameters for DeactivateFieldBoundary.
 type DeactivateFieldBoundaryParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // UnbindFieldBoundaryMappingParams defines parameters for UnbindFieldBoundaryMapping.
 type UnbindFieldBoundaryMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // BindFieldBoundaryMappingParams defines parameters for BindFieldBoundaryMapping.
 type BindFieldBoundaryMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // RequestFieldParams defines parameters for RequestField.
 type RequestFieldParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // PutFieldParams defines parameters for PutField.
 type PutFieldParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // DeactivateFieldParams defines parameters for DeactivateField.
 type DeactivateFieldParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // UnbindFieldMappingParams defines parameters for UnbindFieldMapping.
 type UnbindFieldMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // BindFieldMappingParams defines parameters for BindFieldMapping.
 type BindFieldMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // RequestOrganizationParams defines parameters for RequestOrganization.
 type RequestOrganizationParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // PutOrganizationParams defines parameters for PutOrganization.
 type PutOrganizationParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // DeactivateOrganizationParams defines parameters for DeactivateOrganization.
 type DeactivateOrganizationParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // UnbindOrganizationMappingParams defines parameters for UnbindOrganizationMapping.
 type UnbindOrganizationMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // BindOrganizationMappingParams defines parameters for BindOrganizationMapping.
 type BindOrganizationMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // RequestPersonParams defines parameters for RequestPerson.
 type RequestPersonParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // PutPersonParams defines parameters for PutPerson.
 type PutPersonParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // DeactivatePersonParams defines parameters for DeactivatePerson.
 type DeactivatePersonParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `localId`.
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
 }
 
 // UnbindPersonMappingParams defines parameters for UnbindPersonMapping.
 type UnbindPersonMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // BindPersonMappingParams defines parameters for BindPersonMapping.
 type BindPersonMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `sourceEndpointId` of any revision produced. It does not scope `localId`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
 }
 
 // PutEndpointJSONRequestBody defines body for PutEndpoint for application/json ContentType.
@@ -1302,16 +1494,16 @@ func (t EntityReference) MarshalJSON() ([]byte, error) {
 	}
 
 	if t.AgrirouterId != nil {
-		object["agrirouterId"], err = json.Marshal(t.AgrirouterId)
+		object["agrirouter_id"], err = json.Marshal(t.AgrirouterId)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'agrirouterId': %w", err)
+			return nil, fmt.Errorf("error marshaling 'agrirouter_id': %w", err)
 		}
 	}
 
 	if t.LocalId != nil {
-		object["localId"], err = json.Marshal(t.LocalId)
+		object["local_id"], err = json.Marshal(t.LocalId)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'localId': %w", err)
+			return nil, fmt.Errorf("error marshaling 'local_id': %w", err)
 		}
 	}
 	b, err = json.Marshal(object)
@@ -1329,17 +1521,17 @@ func (t *EntityReference) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if raw, found := object["agrirouterId"]; found {
+	if raw, found := object["agrirouter_id"]; found {
 		err = json.Unmarshal(raw, &t.AgrirouterId)
 		if err != nil {
-			return fmt.Errorf("error reading 'agrirouterId': %w", err)
+			return fmt.Errorf("error reading 'agrirouter_id': %w", err)
 		}
 	}
 
-	if raw, found := object["localId"]; found {
+	if raw, found := object["local_id"]; found {
 		err = json.Unmarshal(raw, &t.LocalId)
 		if err != nil {
-			return fmt.Errorf("error reading 'localId': %w", err)
+			return fmt.Errorf("error reading 'local_id': %w", err)
 		}
 	}
 
@@ -1412,16 +1604,16 @@ func (t PartyReference) MarshalJSON() ([]byte, error) {
 	}
 
 	if t.AgrirouterId != nil {
-		object["agrirouterId"], err = json.Marshal(t.AgrirouterId)
+		object["agrirouter_id"], err = json.Marshal(t.AgrirouterId)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'agrirouterId': %w", err)
+			return nil, fmt.Errorf("error marshaling 'agrirouter_id': %w", err)
 		}
 	}
 
 	if t.LocalId != nil {
-		object["localId"], err = json.Marshal(t.LocalId)
+		object["local_id"], err = json.Marshal(t.LocalId)
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'localId': %w", err)
+			return nil, fmt.Errorf("error marshaling 'local_id': %w", err)
 		}
 	}
 
@@ -1445,17 +1637,17 @@ func (t *PartyReference) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if raw, found := object["agrirouterId"]; found {
+	if raw, found := object["agrirouter_id"]; found {
 		err = json.Unmarshal(raw, &t.AgrirouterId)
 		if err != nil {
-			return fmt.Errorf("error reading 'agrirouterId': %w", err)
+			return fmt.Errorf("error reading 'agrirouter_id': %w", err)
 		}
 	}
 
-	if raw, found := object["localId"]; found {
+	if raw, found := object["local_id"]; found {
 		err = json.Unmarshal(raw, &t.LocalId)
 		if err != nil {
-			return fmt.Errorf("error reading 'localId': %w", err)
+			return fmt.Errorf("error reading 'local_id': %w", err)
 		}
 	}
 

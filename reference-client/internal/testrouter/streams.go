@@ -48,15 +48,15 @@ const (
 // could not do if the change were not numbered.
 func routeChangedFrame(ep *endpoint, id string) frame {
 	data, _ := json.Marshal(map[string]any{
-		// eventType repeats the event: line in band, as the other agrirouter
+		// event_type repeats the event: line in band, as the other agrirouter
 		// event streams do, so a frame stays self-describing once it is off the
 		// wire. The entity frames carry no such attribute: what they hold is a
 		// canonical object, discriminated by its own type.
-		"eventType":          eventRouteChanged,
-		"endpointId":         ep.id,
-		"externalEndpointId": ep.externalID,
-		"entityTypes":        selectedTogglesLocked(ep),
-		"changedAt":          ep.selectionChangedAt,
+		"event_type":   eventRouteChanged,
+		"endpoint_id":  ep.id,
+		"external_id":  ep.externalID,
+		"entity_types": selectedTogglesLocked(ep),
+		"changed_at":   ep.selectionChangedAt,
 	})
 	return frame{event: eventRouteChanged, id: id, entity: data}
 }

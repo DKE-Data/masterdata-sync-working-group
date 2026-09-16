@@ -48,8 +48,8 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 		t.Fatalf("receiver client: %v", err)
 	}
 
-	senderEndpoint := sender.For(senderID, "ep-a")
-	receiverEndpoint := receiver.For(receiverID, "ep-b")
+	senderEndpoint := sender.For(senderID, "ep-a", uuid.New(), tenant, uuid.New(), "cloud_software")
+	receiverEndpoint := receiver.For(receiverID, "ep-b", uuid.New(), tenant, uuid.New(), "cloud_software")
 
 	// Declaring comes first and enables nothing: it is what the user's
 	// selection is then drawn from, and a selection naming an undeclared type

@@ -57,7 +57,7 @@ func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 }
 
 func TestDeclaredMatchesTypeNames(t *testing.T) {
-	cfg := oapi.MasterdataCapabilities{Toggles: []oapi.EntityTypeToggle{
+	cfg := oapi.MasterdataConfig{Capabilities: []oapi.EntityTypeToggle{
 		{EntityType: "farm"},
 		{EntityType: "fieldBoundary"},
 	}}
@@ -81,7 +81,7 @@ func TestSelectedTypesReadsTheSelectionInDependencyOrder(t *testing.T) {
 	// order matters: it is the order the set is walked in, so parents precede
 	// what references them.
 	selection := oapi.RouteChangedEventData{
-		ExternalEndpointId: "ep-a",
+		ExternalId: "ep-a",
 		EntityTypes: []oapi.EntityTypeToggle{
 			{EntityType: "field"},
 			{EntityType: "organization"},

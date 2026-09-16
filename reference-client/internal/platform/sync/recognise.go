@@ -117,11 +117,11 @@ func nameFrom(
 	var parts []string
 	switch typ {
 	case agmasync.TypePerson:
-		last, err := read("lastName")
+		last, err := read("last_name")
 		if err != nil {
 			return "", false, err
 		}
-		first, err := read("firstName")
+		first, err := read("first_name")
 		if err != nil {
 			return "", false, err
 		}

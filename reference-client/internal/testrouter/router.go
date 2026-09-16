@@ -396,7 +396,7 @@ func selectedTogglesLocked(ep *endpoint) []oapi.EntityTypeToggle {
 
 // declarationFor renders what the participant said this endpoint can exchange.
 // Step one of the two, and it grants nothing.
-func (r *Router) declarationFor(ep *endpoint) oapi.MasterdataCapabilities {
+func (r *Router) declarationFor(ep *endpoint) oapi.MasterdataConfig {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 
@@ -407,7 +407,7 @@ func (r *Router) declarationFor(ep *endpoint) oapi.MasterdataCapabilities {
 		}
 	}
 	id := ep.id
-	return oapi.MasterdataCapabilities{EndpointId: &id, Toggles: toggles}
+	return oapi.MasterdataConfig{EndpointId: &id, Capabilities: toggles}
 }
 
 // declare records what the endpoint can exchange, and narrows the user's

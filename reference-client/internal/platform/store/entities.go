@@ -39,12 +39,12 @@ type Record struct {
 // columns names the protocol attributes each entity type has real columns for.
 // Everything else on a delivered object falls into Unmodelled.
 var columns = map[agmasync.EntityType][]string{
-	agmasync.TypeOrganization: {"name", "commercialRegistryNumber", "address"},
-	agmasync.TypePerson:       {"lastName", "firstName", "title"},
+	agmasync.TypeOrganization: {"name", "commercial_registry_number", "address"},
+	agmasync.TypePerson:       {"last_name", "first_name", "title"},
 	agmasync.TypeFarm:         {"name", "owner", "address"},
 	agmasync.TypeField:        {"name", "area", "farm"},
 	agmasync.TypeFieldBoundary: {
-		"boundaryType", "creationMethod", "boundary",
+		"boundary_type", "creation_method", "boundary",
 	},
 }
 
@@ -77,8 +77,8 @@ func FromEntity(typ agmasync.EntityType, entity oapi.Entity) (Record, error) {
 	}
 
 	envelope := map[string]bool{
-		"type": true, "agrirouterId": true, "localId": true, "active": true,
-		"revision": true, "modifiedAt": true, "tenantId": true, "sourceEndpointId": true,
+		"type": true, "agrirouter_id": true, "local_id": true, "active": true,
+		"revision": true, "modified_at": true, "tenant_id": true, "source_endpoint_id": true,
 	}
 	modelled := map[string]bool{}
 	for _, name := range columns[typ] {
@@ -120,7 +120,7 @@ func (r Record) ToEntity(localID string) (oapi.Entity, error) {
 	if err != nil {
 		return oapi.Entity{}, err
 	}
-	fields["localId"] = id
+	fields["local_id"] = id
 
 	active, err := json.Marshal(!r.Archived)
 	if err != nil {
@@ -194,15 +194,15 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 	switch r.EntityType {
 	case agmasync.TypeOrganization:
 		str("name", "name")
-		str("commercialRegistryNumber", "commercial_registry_number")
+		str("commercial_registry_number", "commercial_registry_number")
 		city, country, err := addressParts(r.Modelled["address"])
 		if err != nil {
 			return nil, err
 		}
 		out["city"], out["country"] = city, country
 	case agmasync.TypePerson:
-		str("lastName", "last_name")
-		str("firstName", "first_name")
+		str("last_name", "last_name")
+		str("first_name", "first_name")
 		str("title", "title")
 	case agmasync.TypeFarm:
 		str("name", "name")
@@ -236,8 +236,8 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 		}
 		out["farm_local_id"] = farmLocal
 	case agmasync.TypeFieldBoundary:
-		str("boundaryType", "boundary_type")
-		str("creationMethod", "creation_method")
+		str("boundary_type", "boundary_type")
+		str("creation_method", "creation_method")
 		if raw, ok := r.Modelled["boundary"]; ok {
 			out["boundary"] = string(raw)
 		}
@@ -295,8 +295,8 @@ func (t *Tx) resolveRef(
 	}
 	var ref struct {
 		Type         *string    `json:"type"`
-		LocalID      *string    `json:"localId"`
-		AgrirouterID *uuid.UUID `json:"agrirouterId"`
+		LocalID      *string    `json:"local_id"`
+		AgrirouterID *uuid.UUID `json:"agrirouter_id"`
 	}
 	if err := json.Unmarshal(raw, &ref); err != nil {
 		return nil, nil, fmt.Errorf("reading reference: %w", err)
@@ -499,19 +499,19 @@ func rebuildModelled(r *Record, values map[string]sql.NullString) error {
 	case agmasync.TypeOrganization:
 		return errors.Join(
 			str("name", "name"),
-			str("commercial_registry_number", "commercialRegistryNumber"),
+			str("commercial_registry_number", "commercial_registry_number"),
 			address(),
 		)
 	case agmasync.TypePerson:
 		return errors.Join(
-			str("last_name", "lastName"),
-			str("first_name", "firstName"),
+			str("last_name", "last_name"),
+			str("first_name", "first_name"),
 			str("title", "title"),
 		)
 	case agmasync.TypeFarm:
 		var owner error
 		if id, ok := values["owner_local_id"]; ok && id.Valid {
-			ref := map[string]string{"localId": id.String}
+			ref := map[string]string{"local_id": id.String}
 			if kind, ok := values["owner_type"]; ok && kind.Valid {
 				ref["type"] = kind.String
 			}
@@ -530,7 +530,7 @@ func rebuildModelled(r *Record, values map[string]sql.NullString) error {
 		}
 		var farm error
 		if v, ok := values["farm_local_id"]; ok && v.Valid {
-			farm = set("farm", map[string]string{"localId": v.String})
+			farm = set("farm", map[string]string{"local_id": v.String})
 		}
 		return errors.Join(str("name", "name"), area, farm)
 	case agmasync.TypeFieldBoundary:
@@ -539,8 +539,8 @@ func rebuildModelled(r *Record, values map[string]sql.NullString) error {
 			r.Modelled["boundary"] = json.RawMessage(v.String)
 		}
 		return errors.Join(
-			str("boundary_type", "boundaryType"),
-			str("creation_method", "creationMethod"),
+			str("boundary_type", "boundary_type"),
+			str("creation_method", "creation_method"),
 			boundary,
 		)
 	default:

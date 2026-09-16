@@ -272,21 +272,17 @@ func (r *Router) PutEndpoint(
 	if !ok {
 		return oapi.PutEndpoint403JSONResponse{}, nil
 	}
-	ep, err := r.endpointByExternalID(c, req.ExternalEndpointId)
+	ep, err := r.endpointByExternalID(c, req.ExternalId)
 	if err != nil {
 		return oapi.PutEndpoint403JSONResponse{}, nil
 	}
-	if req.Body == nil || req.Body.MasterdataCapabilities == nil {
-		return oapi.PutEndpoint400JSONResponse{
-			ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse{
-				Message: "missing configuration",
-			},
-		}, nil
+	if req.Body == nil || req.Body.Masterdata == nil {
+		return oapi.PutEndpoint400JSONResponse{Message: "missing configuration"}, nil
 	}
-	capabilities := *req.Body.MasterdataCapabilities
+	masterdata := *req.Body.Masterdata
 
-	types := make([]agmasync.EntityType, 0, len(capabilities.Toggles))
-	for _, toggle := range capabilities.Toggles {
+	types := make([]agmasync.EntityType, 0, len(masterdata.Capabilities))
+	for _, toggle := range masterdata.Capabilities {
 		// A toggle carries the entity `type` value, not the collection segment.
 		// Taken strictly: a router that also accepted `field-boundaries` would
 		// let a participant sending the wrong vocabulary pass here and fail
@@ -294,21 +290,26 @@ func (r *Router) PutEndpoint(
 		typ := agmasync.EntityType(toggle.EntityType)
 		if !typ.Valid() {
 			return oapi.PutEndpoint400JSONResponse{
-				ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse{
-					Message: "unknown entity type " + toggle.EntityType,
-				},
+				Message: "unknown entity type " + toggle.EntityType,
 			}, nil
 		}
 		types = append(types, typ)
 	}
 
 	if err := r.declare(ep, types); err != nil {
-		return oapi.PutEndpoint400JSONResponse{
-			ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse{Message: err.Error()},
-		}, nil
+		return oapi.PutEndpoint400JSONResponse{Message: err.Error()}, nil
 	}
 	declared := r.declarationFor(ep)
-	return oapi.PutEndpoint200JSONResponse{MasterdataCapabilities: &declared}, nil
+	return oapi.PutEndpoint200JSONResponse{
+		Id:                ep.id,
+		ExternalId:        ep.externalID,
+		ApplicationId:     req.Body.ApplicationId,
+		SoftwareVersionId: req.Body.SoftwareVersionId,
+		EndpointType:      oapi.EndpointType(req.Body.EndpointType),
+		TenantId:          ep.tenantID.String(),
+		Capabilities:      req.Body.Capabilities,
+		Masterdata:        &declared,
+	}, nil
 }
 
 // GetInitialLoadStatus implements oapi.StrictServerInterface.
@@ -319,7 +320,7 @@ func (r *Router) GetInitialLoadStatus(
 	if !ok {
 		return oapi.GetInitialLoadStatus403JSONResponse{}, nil
 	}
-	ep, err := r.endpointByExternalID(c, req.ExternalEndpointId)
+	ep, err := r.endpointByExternalID(c, req.ExternalId)
 	if err != nil {
 		if errors.Is(err, errForbidden) {
 			return oapi.GetInitialLoadStatus403JSONResponse{}, nil
@@ -344,7 +345,7 @@ func (r *Router) SetInitialLoadState(
 	if !ok {
 		return oapi.SetInitialLoadState403JSONResponse{}, nil
 	}
-	ep, err := r.endpointByExternalID(c, req.ExternalEndpointId)
+	ep, err := r.endpointByExternalID(c, req.ExternalId)
 	if err != nil {
 		if errors.Is(err, errForbidden) {
 			return oapi.SetInitialLoadState403JSONResponse{}, nil
@@ -387,7 +388,7 @@ func (r *Router) ReportUserAttention(
 	if !ok {
 		return oapi.ReportUserAttention403JSONResponse{}, nil
 	}
-	ep, err := r.endpointByExternalID(c, req.ExternalEndpointId)
+	ep, err := r.endpointByExternalID(c, req.ExternalId)
 	if err != nil {
 		if errors.Is(err, errForbidden) {
 			return oapi.ReportUserAttention403JSONResponse{}, nil
@@ -442,7 +443,7 @@ func (r *Router) StreamInitialLoadEvents(
 	if !ok {
 		return oapi.StreamInitialLoadEvents403JSONResponse{}, nil
 	}
-	ep, err := r.endpointByExternalID(c, req.ExternalEndpointId)
+	ep, err := r.endpointByExternalID(c, req.ExternalId)
 	if err != nil {
 		if errors.Is(err, errForbidden) {
 			return oapi.StreamInitialLoadEvents403JSONResponse{}, nil
