@@ -605,7 +605,7 @@ state, and no stream, per entity type. The defined progression is:
 1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; a participant adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The participant is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 
    Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object referenced from the live stream that the set has not delivered yet is [requested](#requesting-objects-lazy-loading).
-2. **`RECONCILING`.** agrirouter closes the stream's HTTP response once it has sent the whole set, and advances the state. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
+2. **`RECONCILING`.** agrirouter advances the state once it has sent the whole set, and closes the stream's HTTP response after it. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
 3. **`LOADING_TO_AGRIROUTER`.** Set by the endpoint to confirm it has finished reconciliation and is sending the bindings it has produced (see [Identifier mapping](#identifier-mapping)). It then sends agrirouter any objects not yet in the SSOT and objects it changed while resolving conflicts. This state cannot be reached without firstly being in `RECONCILING`.
 4. **`COMPLETED`.** Set by the endpoint once it has sent everything. From this point on, initial load is done and further changes are communicated on long-lived `/masterdata/events` stream.
 
@@ -626,6 +626,13 @@ dropped connection ends it the same way an orderly completion does. What the set
 having been sent is recorded in is the endpoint's state — agrirouter advances
 it to `RECONCILING` only after sending everything — so an endpoint that finds it
 still at `LOADING_FROM_AGRIROUTER` connects again and takes the set once more.
+
+Because agrirouter advances the state before closing the response, that read is
+conclusive as soon as the response ends: an endpoint reading
+`LOADING_FROM_AGRIROUTER` there has genuinely been cut short and reconnects
+immediately. It needs no delay before the read and no second read to rule out
+having asked too early, and an endpoint MUST NOT poll the state waiting for a
+set it has already seen the end of.
 
 Entering `LOADING_FROM_AGRIROUTER` and advancing to `RECONCILING` are
 agrirouter's; the two remaining transitions are the endpoint's. The split follows
