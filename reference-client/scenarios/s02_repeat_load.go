@@ -64,6 +64,32 @@ func runRepeatLoad(ctx context.Context, w *World) error {
 	}
 	say.Detail("Beta calls it %q; agrirouter calls it %s", held[0], short(*before.AgrirouterID))
 
+	say.Step("Beta then contributes a farm of its own, Hof West.")
+	if err := beta.AddFarm("beta-farm-2", "Hof West", "Husum"); err != nil {
+		return err
+	}
+	if _, err := beta.Send(ctx, agmasync.TypeFarm, "beta-farm-2"); err != nil {
+		return err
+	}
+	own, err := beta.Row(agmasync.TypeFarm, "beta-farm-2")
+	if err != nil {
+		return err
+	}
+
+	// Its own write is the one thing Beta's live stream will never carry, which
+	// is what makes the next beat matter rather than merely tidy.
+	waiting, err := beta.Deliveries(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ev := range waiting {
+		if ev.Envelope.AgrirouterId != nil && *ev.Envelope.AgrirouterId == *own.AgrirouterID {
+			return errors.New("origin suppression should keep Beta's own write off its stream")
+		}
+	}
+	say.Detail("which is not on Beta's own stream and never will be: origin suppression")
+	say.Detail("withholds from an endpoint the revisions its own writes produced")
+
 	say.Step("Months later the user opts Beta out of master data entirely.")
 	if err := beta.OptOut(ctx); err != nil {
 		return err
@@ -97,12 +123,22 @@ func runRepeatLoad(ctx context.Context, w *World) error {
 	say.Detail("the identifier mapping survived too, so every object arrives carrying")
 	say.Detail("Beta's own localId and is simply applied to the record it names")
 
+	if err := say.Check(second.Received == 2,
+		"the set holds both farms, Beta's own among them"); err != nil {
+		return err
+	}
+	say.Detail("origin suppression does not apply to a set. It exists to avoid handing")
+	say.Detail("an endpoint a revision it already holds, and an endpoint taking the set")
+	say.Detail("has just declared that it does not know what it holds — withholding it")
+	say.Detail("would have Beta report its own farm as missing from the SSOT, and")
+	say.Detail("agrirouter would mint a second canonical object for it")
+
 	after, err := beta.LocalIDs(agmasync.TypeFarm)
 	if err != nil {
 		return err
 	}
-	if err := say.Check(len(after) == 1,
-		"Beta still holds %d farm, not the duplicate a blind load would create",
+	if err := say.Check(len(after) == 2,
+		"Beta still holds %d farms, not the duplicates a blind load would create",
 		len(after)); err != nil {
 		return err
 	}

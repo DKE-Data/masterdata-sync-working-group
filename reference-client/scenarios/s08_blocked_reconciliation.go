@@ -31,6 +31,12 @@ func blockedReconciliation() Scenario {
 // endpoint must not give is a guess: an object it cannot identify, answered with
 // a new local record, is a duplicate, and offering that record back in the push
 // turns one farm into three.
+//
+// The record the person does not pick is not a duplicate either. Two farms share
+// a name here and only one of them is the canonical object; the other is a
+// business the exchange has never been told about, and the push offers it as the
+// new canonical object it is. Recognition decides which of the platform's records
+// are already in the set, not which of them deserve to exist.
 func runBlockedReconciliation(ctx context.Context, w *World) error {
 	say := w.Say
 
@@ -132,19 +138,19 @@ func runBlockedReconciliation(ctx context.Context, w *World) error {
 	if chosen == options["beta-farm-2"] {
 		answer = "beta-farm-2"
 	}
-	merged := "beta-farm-2"
+	other := "beta-farm-2"
 	if answer == "beta-farm-2" {
-		merged = "beta-farm-1"
+		other = "beta-farm-1"
 	}
 
-	say.Step("Beta records the answer: %s is that farm, %s was a duplicate of it.",
-		answer, merged)
+	say.Step("Beta records the answer: %s is that farm, and %s is a business of its "+
+		"own that happens to share the name.", answer, other)
 	if err := beta.Adopt(ctx, agmasync.TypeFarm, answer, blocked.AgrirouterID); err != nil {
 		return err
 	}
-	if err := beta.Delete(agmasync.TypeFarm, merged); err != nil {
-		return err
-	}
+	say.Detail("nothing happens to the other record. The question was which of the two")
+	say.Detail("is the canonical object, not which of the two to throw away: it is a")
+	say.Detail("real farm, and the exchange has simply never been told about it")
 
 	say.Step("With the decision made, Beta runs the load again.")
 	resumed, err := beta.Load(ctx)
@@ -163,19 +169,31 @@ func runBlockedReconciliation(ctx context.Context, w *World) error {
 	say.Detail("the set is not sent a second time: the endpoint is long past")
 	say.Detail("LOADING_FROM_AGRIROUTER, and the load picks up where it stopped")
 
-	if err := say.Check(resumed.Sent == 0,
-		"Beta offers nothing back: the one farm it still holds is the one it just "+
-			"bound, and agrirouter already has it"); err != nil {
+	if err := say.Check(resumed.Sent == 1,
+		"Beta offers exactly one record back: %s, the farm the canonical set did not "+
+			"contain", other); err != nil {
 		return err
 	}
+	say.Detail("the one it bound is not offered: agrirouter already holds that object,")
+	say.Detail("and a send would be claiming it twice")
 
 	row, err := beta.Row(agmasync.TypeFarm, answer)
 	if err != nil {
 		return err
 	}
 	if err := say.Check(row.Bound() && *row.AgrirouterID == blocked.AgrirouterID,
-		"%s is bound to the object it was blocked on, so Beta can now send it", answer,
+		"%s is bound to the object it was blocked on", answer,
 	); err != nil {
+		return err
+	}
+
+	otherRow, err := beta.Row(agmasync.TypeFarm, other)
+	if err != nil {
+		return err
+	}
+	if err := say.Check(otherRow.Bound() && *otherRow.AgrirouterID != blocked.AgrirouterID,
+		"and %s is bound to a canonical object of its own, which is what a second real "+
+			"farm is owed", other); err != nil {
 		return err
 	}
 
@@ -194,25 +212,52 @@ func runBlockedReconciliation(ctx context.Context, w *World) error {
 	//
 	// Alpha is never sent its own farm back — origin suppression withholds an
 	// object from the endpoint whose change produced its current revision — so
-	// anything waiting on Alpha's stream is an object somebody else created. Had
-	// Beta answered an object it could not identify with a record of its own,
-	// that record would have been offered back as new in LOADING_TO_AGRIROUTER,
-	// and it would be sitting here now: a second canonical object for a farm that
-	// already had one, delivered to every other participant, with nothing in the
-	// data to say which of the two is the real one.
-	say.Step("Nothing of Beta's reaches Alpha, because Beta minted nothing.")
+	// anything waiting on Alpha's stream is an object somebody else created. One
+	// farm is waiting, and which one it is, is the whole result: Beta's second
+	// business, under a canonical identifier of its own. Had Beta answered the
+	// object it could not identify with a new local record instead, that record
+	// would have been offered back as new in the same push, and a second canonical
+	// object for Alpha's farm would be sitting here beside this one, with nothing
+	// in the data to say which of the two is the real one.
+	say.Step("One farm of Beta's reaches Alpha, and it is the one Alpha never had.")
 	waiting, err := alpha.Deliveries(ctx)
 	if err != nil {
 		return err
 	}
-	if err := say.Check(len(waiting) == 0,
-		"Alpha is sent no farm it does not already know: one real farm is still "+
-			"one canonical object"); err != nil {
+	if err := say.Check(len(waiting) == 1,
+		"exactly one object is delivered, not two"); err != nil {
 		return err
 	}
-	say.Detail("this is the check that would have caught the guess. A third record")
-	say.Detail("pushed back as new arrives here, and by then it is everybody's")
-	say.Detail("problem rather than Beta's")
+	delivered := waiting[0].Envelope.AgrirouterId
+	if delivered == nil {
+		return errors.New("the delivered farm carries no canonical identifier")
+	}
+	if err := say.Check(*delivered != blocked.AgrirouterID,
+		"and it is a canonical object of its own, not a second copy of the farm the "+
+			"two of them already agree on"); err != nil {
+		return err
+	}
+	say.Detail("this is the check that would have caught the guess. It is not that")
+	say.Detail("nothing may arrive here — a second real farm must — but that what")
+	say.Detail("arrives must never be the farm Alpha already contributed")
+
+	applied, err := alpha.CatchUp(ctx)
+	if err != nil {
+		return err
+	}
+	if err := say.Check(applied.Created == 1,
+		"Alpha creates it and binds it, having no record of that business either"); err != nil {
+		return err
+	}
+	held, err = alpha.LocalIDs(agmasync.TypeFarm)
+	if err != nil {
+		return err
+	}
+	if err := say.Check(len(held) == 2,
+		"so Alpha ends holding two farms for the two that exist. The guess would have "+
+			"made it three"); err != nil {
+		return err
+	}
 
 	alphaRow, err := alpha.Row(agmasync.TypeFarm, "alpha-farm-1")
 	if err != nil {
@@ -222,8 +267,8 @@ func runBlockedReconciliation(ctx context.Context, w *World) error {
 		return errors.New("Alpha's farm lost its binding")
 	}
 	return say.Check(*alphaRow.AgrirouterID == blocked.AgrirouterID,
-		"and it is the object Beta was blocked on, so the two participants hold one "+
-			"farm under their own identifiers and agree what it is")
+		"and its own is still the object Beta was blocked on, so the two participants "+
+			"hold one farm under their own identifiers and agree what it is")
 }
 
 // farmLabel describes one of the platform's own farms by name and city, so the

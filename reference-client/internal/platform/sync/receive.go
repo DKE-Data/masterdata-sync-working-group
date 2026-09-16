@@ -39,6 +39,15 @@ type Receiver struct {
 	// part of the protocol.
 	OnApplied func(agmasync.Event, Outcome)
 
+	// OnCaughtUp is called when the CAUGHT_UP frame ends the backlog, which is
+	// the only thing that says the connection is established and current. A
+	// participant that means to act and then wait for the result — asking for an
+	// object by identifier, say — has nothing else to hang that on: the delivery
+	// it is waiting for is live, so it has to be connected before it asks.
+	//
+	// Narration and sequencing, like OnApplied, and not part of the protocol.
+	OnCaughtUp func()
+
 	// OnSelection is called once per ROUTE_CHANGED frame, with the endpoint's
 	// selection as it stands after the change.
 	//
@@ -135,6 +144,9 @@ func (r *Receiver) consume(ctx context.Context, untilCaughtUp bool) (ReceiveResu
 				res.Position = ev.ID
 			}
 			res.CaughtUp = true
+			if r.OnCaughtUp != nil {
+				r.OnCaughtUp()
+			}
 			if untilCaughtUp {
 				return res, nil
 			}

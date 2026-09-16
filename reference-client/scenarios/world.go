@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
@@ -402,6 +403,33 @@ func (p *Platform) Edit(
 	})
 }
 
+// Carry adds attributes the platform has no columns for, exactly as a delivered
+// object would have brought them.
+//
+// It is how a scenario gives a participant content this sample does not model —
+// a richer product's own fields, or an attribute of the protocol this store
+// simply has nowhere to put. They are held apart from the modelled ones and go
+// back out unchanged, which is what the specification requires of anything a
+// participant does not understand.
+func (p *Platform) Carry(
+	typ agmasync.EntityType, localID string, attributes map[string]any,
+) error {
+	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
+		record, err := tx.LoadRecord(typ, localID)
+		if err != nil {
+			return err
+		}
+		for key, value := range attributes {
+			raw, err := json.Marshal(value)
+			if err != nil {
+				return err
+			}
+			record.Unmodelled[key] = raw
+		}
+		return tx.UpsertRecord(record, localID)
+	})
+}
+
 // AddFarm creates a farm in the platform's own tables.
 func (p *Platform) AddFarm(localID, name, city string) error {
 	p.ids.reserve(localID)
@@ -411,14 +439,70 @@ func (p *Platform) AddFarm(localID, name, city string) error {
 	})
 }
 
-// AddField creates a field on one of the platform's own farms.
+// AddOrganization creates an organization: a party that can hold a farm.
+func (p *Platform) AddOrganization(localID, name, city string) error {
+	p.ids.reserve(localID)
+	return p.Edit(agmasync.TypeOrganization, localID, map[string]any{
+		"name":    name,
+		"address": map[string]string{"city": city},
+	})
+}
+
+// AddPerson creates a person: the other kind of party, which is why a reference
+// to one carries a type discriminator.
+func (p *Platform) AddPerson(localID, lastName, firstName string) error {
+	p.ids.reserve(localID)
+	return p.Edit(agmasync.TypePerson, localID, map[string]any{
+		"last_name":  lastName,
+		"first_name": firstName,
+	})
+}
+
+// AddBoundary creates a field boundary.
+//
+// creationMethod is an extensible enumeration: the values in the specification
+// are those known when it was written, and a participant must relay one it has
+// never seen rather than reject the entity over it.
+func (p *Platform) AddBoundary(localID, boundaryType, creationMethod string) error {
+	p.ids.reserve(localID)
+	return p.Edit(agmasync.TypeFieldBoundary, localID, map[string]any{
+		"boundary_type":   boundaryType,
+		"creation_method": creationMethod,
+		"boundary": map[string]any{
+			"type":        "Polygon",
+			"coordinates": [][][]float64{{{10.1, 54.3}, {10.2, 54.3}, {10.2, 54.4}, {10.1, 54.3}}},
+		},
+	})
+}
+
+// Owned records in the platform's own tables that a farm belongs to a party.
+//
+// The reference is built out of the platform's own identifier for the party and
+// the kind of party it is, which is all a sender needs: agrirouter resolves it
+// against the sender's mapping, so a canonical identifier never has to be held
+// to build one. The type travels because the slot admits either kind — see
+// [Platform.Request].
+func (p *Platform) Owned(farmLocalID string, party agmasync.EntityType, partyLocalID string) error {
+	return p.Edit(agmasync.TypeFarm, farmLocalID, map[string]any{
+		"owner": map[string]string{"type": string(party), "local_id": partyLocalID},
+	})
+}
+
+// AddField creates a field on one of the platform's own farms, or on none where
+// farmLocalID is empty.
+//
+// A field's farm is optional in the canonical model, and systems disagree about
+// that: one requires a farm on every field where another treats it as a
+// convenience. A farmless field is therefore ordinary data rather than a broken
+// object, and what a stricter recipient does with one is its own problem — see
+// scenario 11.
 func (p *Platform) AddField(localID, name string, area float64, farmLocalID string) error {
 	p.ids.reserve(localID)
-	return p.Edit(agmasync.TypeField, localID, map[string]any{
-		"name": name,
-		"area": area,
-		"farm": map[string]string{"local_id": farmLocalID},
-	})
+	attributes := map[string]any{"name": name, "area": area}
+	if farmLocalID != "" {
+		attributes["farm"] = map[string]string{"local_id": farmLocalID}
+	}
+	return p.Edit(agmasync.TypeField, localID, attributes)
 }
 
 // Send offers one of the platform's records to agrirouter and applies the
@@ -451,6 +535,96 @@ func (p *Platform) Delete(typ agmasync.EntityType, localID string) error {
 	})
 }
 
+// Request asks agrirouter for one object by its canonical identifier.
+//
+// It answers 202 and nothing else: the object arrives on the live stream, so a
+// request is followed by [Platform.CatchUp]. The request is per entity type,
+// which is why a reference to a party carries one — see [Platform.Owned].
+func (p *Platform) Request(
+	ctx context.Context, typ agmasync.EntityType, agrirouterID uuid.UUID,
+) error {
+	return p.Applier.Endpoint.Request(ctx, typ, agrirouterID)
+}
+
+// Fetch asks for one object and returns once it has been applied.
+//
+// The two halves are one operation for a participant and two for a reader: a
+// request answers 202 and the object arrives on the live stream, so the
+// participant has to be receiving before it asks. This connects, waits for
+// CAUGHT_UP — the only thing that says the connection is current — asks, and
+// applies what comes back.
+func (p *Platform) Fetch(
+	ctx context.Context, typ agmasync.EntityType, agrirouterID uuid.UUID,
+) (psync.ReceiveResult, error) {
+	streaming, stop := context.WithCancel(ctx)
+	defer stop()
+
+	connected, applied := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	previous := p.Receiver.OnApplied
+	p.Receiver.OnCaughtUp = func() { once.Do(func() { close(connected) }) }
+	p.Receiver.OnApplied = func(ev agmasync.Event, out psync.Outcome) {
+		if previous != nil {
+			previous(ev, out)
+		}
+		if ev.Envelope.AgrirouterId != nil && *ev.Envelope.AgrirouterId == agrirouterID {
+			select {
+			case <-applied:
+			default:
+				close(applied)
+			}
+		}
+	}
+	defer func() { p.Receiver.OnApplied, p.Receiver.OnCaughtUp = previous, nil }()
+
+	type outcome struct {
+		result psync.ReceiveResult
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		result, err := p.Receiver.Run(streaming)
+		done <- outcome{result, err}
+	}()
+
+	select {
+	case <-connected:
+	case finished := <-done:
+		return finished.result, fmt.Errorf("the stream ended before it caught up: %w", finished.err)
+	case <-ctx.Done():
+		return psync.ReceiveResult{}, ctx.Err()
+	}
+
+	if err := p.Request(ctx, typ, agrirouterID); err != nil {
+		return psync.ReceiveResult{}, err
+	}
+
+	select {
+	case <-applied:
+	case finished := <-done:
+		return finished.result, fmt.Errorf(
+			"the stream ended before the requested object arrived: %w", finished.err)
+	case <-ctx.Done():
+		return psync.ReceiveResult{}, ctx.Err()
+	}
+
+	stop()
+	finished := <-done
+	// The loop was told to stop, so the stream ending is this call's own doing
+	// rather than a failure of it.
+	if finished.err != nil && !errors.Is(finished.err, context.Canceled) {
+		return finished.result, finished.err
+	}
+	return finished.result, nil
+}
+
+// ReportAttention tells agrirouter that this endpoint's initial load is waiting
+// on a person. It is one bit and never what it is about.
+func (p *Platform) ReportAttention(ctx context.Context) error {
+	_, err := p.Applier.Endpoint.ReportUserAttention(ctx)
+	return err
+}
+
 // Load drives the endpoint's initial load to completion, with the sample's own
 // recognition step behind it.
 //
@@ -458,12 +632,62 @@ func (p *Platform) Delete(typ agmasync.EntityType, localID string) error {
 // not the participant's: its own declaration is a superset and would have it
 // loading types nobody chose.
 func (p *Platform) Load(ctx context.Context) (psync.LoadResult, error) {
+	return p.LoadWith(ctx, psync.ByName{})
+}
+
+// LoadWith is [Platform.Load] with a different recognition step.
+//
+// Recognition is the one part of a load the protocol does not specify, so it is
+// where a product's own judgement goes — including its judgement that an object
+// it can identify perfectly well is one it cannot store.
+func (p *Platform) LoadWith(
+	ctx context.Context, reconciler psync.Reconciler,
+) (psync.LoadResult, error) {
 	types, err := p.selectedTypes(ctx)
 	if err != nil {
 		return psync.LoadResult{}, err
 	}
-	loader := &psync.Loader{Applier: p.Applier, Reconciler: psync.ByName{}, Types: types}
+	loader := &psync.Loader{Applier: p.Applier, Reconciler: reconciler, Types: types}
 	return loader.Run(ctx)
+}
+
+// Selection is what the user has this endpoint exchanging, as the participant
+// learns it: off the ROUTE_CHANGED frame and from nowhere else.
+func (p *Platform) Selection(ctx context.Context) ([]agmasync.EntityType, error) {
+	return p.selectedTypes(ctx)
+}
+
+// Selections collects the ROUTE_CHANGED frames naming this endpoint that are
+// waiting above its stored position, without applying any of them.
+//
+// It is [Platform.Deliveries] for the one frame that carries no entity, and it
+// is what a scenario needs to show that a frame arrived at all — an emptied
+// selection states itself as an empty list, which is indistinguishable from
+// silence to anything that only looks at the types.
+func (p *Platform) Selections(ctx context.Context) ([]oapi.RouteChangedEventData, error) {
+	from, err := p.Store.Position()
+	if err != nil {
+		return nil, err
+	}
+	stream, err := p.Client.Events(ctx, from)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = stream.Close() }()
+
+	var out []oapi.RouteChangedEventData
+	for ev, err := range stream.Events() {
+		if err != nil {
+			return nil, err
+		}
+		if ev.Type == agmasync.EventCaughtUp {
+			return out, nil
+		}
+		if ev.Selection != nil && ev.Selection.ExternalId == p.ExternalID {
+			out = append(out, *ev.Selection)
+		}
+	}
+	return out, nil
 }
 
 // selectedTypes learns this endpoint's selection off the live stream.

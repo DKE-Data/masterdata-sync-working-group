@@ -19,6 +19,12 @@ func All() []Scenario {
 		resumeAfterDowntime(),
 		mappingRejections(),
 		blockedReconciliation(),
+		requestedObjects(),
+		preservedAttributes(),
+		stricterRecipient(),
+		withdrawalWhileOffline(),
+		splitAndMerge(),
+		unresolvedReference(),
 	}
 }
 
