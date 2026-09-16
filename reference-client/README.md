@@ -46,7 +46,7 @@ default answer stands and the run stays automatable.
 
 | | |
 | --- | --- |
-| [scenarios/](scenarios/) | the seven stories, and the small world they run in |
+| [scenarios/](scenarios/) | the stories above, and the small world they run in |
 | [internal/platform/](internal/platform/) | one plausible FMIS: a SQLite store, and the sync it does over it |
 | [internal/testrouter/](internal/testrouter/) | the agrirouter side, in memory, generated from the same `openapi.yaml` |
 | [cmd/agmactl/](cmd/agmactl/) | single operations from a shell |
