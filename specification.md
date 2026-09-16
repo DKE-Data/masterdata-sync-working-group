@@ -604,7 +604,7 @@ state, and no stream, per entity type. The defined progression is:
 
 1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; a participant adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The participant is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 
-   Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object referenced from the live stream that the set has not delivered yet is [requested](#requesting-objects-lazy-loading).
+   Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object arriving on the live stream may reference one the set has not delivered yet (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
 2. **`RECONCILING`.** agrirouter advances the state once it has sent the whole set, and closes the stream's HTTP response after it. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
 3. **`LOADING_TO_AGRIROUTER`.** Set by the endpoint to confirm it has finished reconciliation and is sending the bindings it has produced (see [Identifier mapping](#identifier-mapping)). It then sends agrirouter any objects not yet in the SSOT and objects it changed while resolving conflicts. This state cannot be reached without firstly being in `RECONCILING`.
 4. **`COMPLETED`.** Set by the endpoint once it has sent everything. From this point on, initial load is done and further changes are communicated on long-lived `/masterdata/events` stream.
@@ -697,6 +697,26 @@ belongs to the application and carries every endpoint it serves (see
 stall it. The consequence for the endpoint is that it reconciles against a set
 that keeps changing under it, and the longer a conflict sits the likelier the
 object it concerns has moved on.
+
+### A live change may reference what the set has not delivered
+
+The initial load stream, transporting the canonical set, and the live stream are each ordered so that references resolve
+within each stream, but not across the 2 streams. Therefore an entity arriving on the live stream might reference another entity that inital load has not delivered yet.
+
+The referenced entity (target) is late rather than absent, and the wait is bounded: being in the set,
+it arrives before agrirouter advances the endpoint to `RECONCILING`.
+
+An endpoint therefore:
+
+- **SHOULD hold the referencing entity rather than request the target** while in `LOADING_FROM_AGRIROUTER`.
+- **[Requests](#requesting-objects-lazy-loading) the target** if it is still absent when inital load moves to `RECONCILING`. The set is complete there, so the referenced entity is genuinely not held.
+
+One reference resolves neither by waiting nor by requesting: a target that is
+[deactivated](#deactivated-objects-are-part-of-the-set) and that the endpoint
+declined to create, both channels answering with the object it ignored. The
+participant leaves the reference unresolved and applies what it can of the
+referencing object (see
+[Differing required/optional attributes](#differing-requiredoptional-attributes)).
 
 ### The set is complete, including the participant's own writes
 
@@ -985,9 +1005,10 @@ alongside the store rather than inside it.
 
 ## Applying what agrirouter returns
 
-Canonical objects reach a participant on two channels: the event stream, and the
-response to the participant's own write. Both carry the same thing — the
-resulting canonical object — and a participant MUST apply both the same way. A
+Canonical objects reach a participant on three channels: the live event stream, an
+[initial-load](#initial-load) stream, and the
+response to the participant's own write. All carry the same thing — the
+resulting canonical object — and a participant MUST apply all three the same way. A
 write response is not merely an acknowledgement. It is the only channel on which
 the writing endpoint learns anything about the revision it just produced, since
 [origin suppression](#loop-prevention) keeps that revision off its own stream,
@@ -998,7 +1019,7 @@ write against a concurrent change rather than rejecting it (see
 
 Two rules follow:
 
-- **Apply is guarded by `revision`.** Within the stream, order suffices: a later frame supersedes an earlier one. Across the two channels it does not, because a response may be processed after a later stream frame has already been applied. A participant MUST NOT apply an object whose `revision` is lower than the one it already holds for that object.
+- **Apply is guarded by `revision`.** Within one stream, order suffices: a later frame supersedes an earlier one. Across channels it does not, because a write response may be processed after a later stream frame has already been applied, and because the initial-load stream is ordered independently of the live stream — a canonical set frame may carry an older revision of an object than a live change already applied. A participant MUST NOT apply an object whose `revision` is lower than the one it already holds for that object.
 - **An unobserved outcome means the object is unknown.** A participant whose write neither succeeded nor failed visibly — typically a connection lost after agrirouter had committed — MUST NOT assume the value it sent is the canonical one. It retries the write or [requests the object](#requesting-objects-lazy-loading); both answer with the current canonical state.
 
 ## Deactivation
@@ -1064,7 +1085,7 @@ delivery, so every object a request can return is one agrirouter would deliver
 anyway. What it addresses is that *delivered* is not *held*:
 
 - a participant that lost an object locally refetches that object, rather than opting the entity type out and back in and taking a full initial load;
-- during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other.
+- during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other. That target is in the set and arrives on its own, so a request should be performed only once the set is complete (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
 
 A request is per entity type, which is why a reference to a party carries a `type`
 discriminator (see [References](#references)).
