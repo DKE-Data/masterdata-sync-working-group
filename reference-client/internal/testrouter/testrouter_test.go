@@ -1218,3 +1218,147 @@ func TestOptInOverTheControlPlaneBehavesAsInProcess(t *testing.T) {
 		t.Errorf("status = %v, want ErrNotFound", err)
 	}
 }
+
+// putEndpointOverHTTP declares an endpoint the way a participant does, and
+// returns the status code with the endpoint the router answered.
+//
+// It goes over HTTP rather than through agmasync because what is under test is
+// the status code and the identifier agrirouter minted, and [agmasync.Endpoint]
+// has neither: Declare returns the masterdata configuration alone, and a handle
+// is built from an id the caller already has.
+func putEndpointOverHTTP(
+	t *testing.T, f *fixture, token, externalID string, tenant uuid.UUID,
+	types ...agmasync.EntityType,
+) (int, oapi.Endpoint) {
+	t.Helper()
+	return putConfigOverHTTP(t, f, token, externalID, tenant, agmasync.Declaration(types...))
+}
+
+// putConfigOverHTTP is [putEndpointOverHTTP] with the declaration given
+// verbatim, for the cases that must send one agmasync would not build:
+// [agmasync.Declaration] closes the set over dependencies, so it cannot express
+// a declaration the router is supposed to reject.
+func putConfigOverHTTP(
+	t *testing.T, f *fixture, token, externalID string, tenant uuid.UUID,
+	cfg oapi.MasterdataConfig,
+) (int, oapi.Endpoint) {
+	t.Helper()
+	body, err := json.Marshal(oapi.PutEndpointRequest{
+		ApplicationId:     uuid.New(),
+		SoftwareVersionId: uuid.New(),
+		EndpointType:      "cloud_software",
+		Capabilities:      []oapi.EndpointCapability{},
+		Masterdata:        &cfg,
+	})
+	if err != nil {
+		t.Fatalf("encoding endpoint: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPut, f.server.URL+"/endpoints/"+externalID,
+		bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Agrirouter-TenantId", tenant.String())
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("putting endpoint: %v", err)
+	}
+	defer res.Body.Close()
+
+	var out oapi.Endpoint
+	if res.StatusCode < 300 {
+		if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+			t.Fatalf("decoding endpoint: %v", err)
+		}
+	}
+	return res.StatusCode, out
+}
+
+func TestPutEndpointCreatesAnEndpointTheRouterHasNotHeardOf(t *testing.T) {
+	// There is no creation resource: an external identifier agrirouter has not
+	// seen is the participant's first call, and PutEndpoint is a create-or-update
+	// rather than a masterdata-only write. A router that refused it would leave a
+	// participant no way to onboard itself.
+	f := newFixture(t)
+
+	code, created := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
+		agmasync.TypeOrganization)
+	if code != http.StatusCreated {
+		t.Fatalf("first put = %d, want 201", code)
+	}
+	if created.Id == uuid.Nil {
+		t.Error("created endpoint carries no agrirouter id")
+	}
+	if created.ExternalId != "ep-new" {
+		t.Errorf("externalId = %q, want %q", created.ExternalId, "ep-new")
+	}
+	if created.TenantId != f.tenant.String() {
+		t.Errorf("tenantId = %q, want %q", created.TenantId, f.tenant)
+	}
+
+	// The endpoint it minted is a whole one, not a placeholder: the user can be
+	// offered what it declared, and the endpoint reaches its initial load.
+	if err := f.router.OptIn("ep-new", agmasync.TypeOrganization); err != nil {
+		t.Fatalf("opting the created endpoint in: %v", err)
+	}
+	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-new"))
+	if err != nil {
+		t.Fatalf("building client: %v", err)
+	}
+	ep := client.For(created.Id, "ep-new", uuid.New(), f.tenant, uuid.New(), "cloud_software")
+	status, err := ep.InitialLoadStatus(context.Background())
+	if err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if status.State != agmasync.StateLoadingFromAgrirouter {
+		t.Errorf("state = %q, want %q", status.State, agmasync.StateLoadingFromAgrirouter)
+	}
+
+	// The second call is the update half, and the identifier is stable: an id
+	// that moved would strand every mapping already made against it.
+	code, again := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
+		agmasync.TypeOrganization, agmasync.TypePerson)
+	if code != http.StatusOK {
+		t.Fatalf("second put = %d, want 200", code)
+	}
+	if again.Id != created.Id {
+		t.Errorf("id changed on update: %v -> %v", created.Id, again.Id)
+	}
+}
+
+func TestPutEndpointWillNotTakeOverAnotherApplicationsEndpoint(t *testing.T) {
+	// Creating is keyed by the bearer token, so an external identifier is only
+	// free for the application that first used it. Answering 404 here would tell
+	// an application which identifiers its competitors hold, so it is a 403 — the
+	// same answer as for an endpoint it may not touch, which is what this is.
+	f := newFixture(t)
+	f.router.AddEndpoint("fmis-a", f.tenant, "ep-a")
+
+	if code, _ := putEndpointOverHTTP(t, f, "fmis-b", "ep-a", f.tenant,
+		agmasync.TypeOrganization); code != http.StatusForbidden {
+		t.Errorf("foreign put = %d, want 403", code)
+	}
+}
+
+func TestPutEndpointRejectedForClosureCreatesNothing(t *testing.T) {
+	// A declaration that is not dependency-closed is a 400, and it must not leave
+	// a half-made endpoint behind: the participant's retry with a closed set has
+	// to be a creation, not an update to something it never successfully made.
+	f := newFixture(t)
+
+	// Fields without the farms they hang off.
+	unclosed := oapi.MasterdataConfig{Capabilities: []oapi.EntityTypeToggle{
+		{EntityType: string(agmasync.TypeField)},
+	}}
+	if code, _ := putConfigOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
+		unclosed); code != http.StatusBadRequest {
+		t.Fatalf("unclosed put = %d, want 400", code)
+	}
+	if code, _ := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
+		agmasync.TypeOrganization); code != http.StatusCreated {
+		t.Errorf("retry after rejection = %d, want 201 — the rejected call left an endpoint", code)
+	}
+}

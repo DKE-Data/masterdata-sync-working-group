@@ -262,18 +262,17 @@ func (r *Router) endpointFrom(ctx context.Context, endpointID uuid.UUID) (*endpo
 
 // PutEndpoint implements oapi.StrictServerInterface.
 //
-// The participant's step. It enables nothing: no route is created, no load
-// starts, and an endpoint declared for everything exchanges nothing until a user
-// selects from it in agrirouter.
+// The participant's step, and a create-or-update: an external identifier the
+// router has not heard of is the participant's first call, and it answers 201.
+//
+// It enables nothing either way: no route is created, no load starts, and an
+// endpoint declared for everything exchanges nothing until a user selects from
+// it in agrirouter.
 func (r *Router) PutEndpoint(
 	ctx context.Context, req oapi.PutEndpointRequestObject,
 ) (oapi.PutEndpointResponseObject, error) {
 	c, ok := echoFrom(ctx)
 	if !ok {
-		return oapi.PutEndpoint403JSONResponse{}, nil
-	}
-	ep, err := r.endpointByExternalID(c, req.ExternalId)
-	if err != nil {
 		return oapi.PutEndpoint403JSONResponse{}, nil
 	}
 	if req.Body == nil || req.Body.Masterdata == nil {
@@ -295,12 +294,36 @@ func (r *Router) PutEndpoint(
 		}
 		types = append(types, typ)
 	}
+	// Closure is checked before anything is created, so a rejected declaration
+	// leaves no endpoint behind. r.declare checks it again, on the update path.
+	if len(agmasync.DependencyClosure(types)) != len(types) {
+		return oapi.PutEndpoint400JSONResponse{Message: errNotClosed.Error()}, nil
+	}
+
+	created := false
+	ep, err := r.endpointByExternalID(c, req.ExternalId)
+	switch {
+	case errors.Is(err, errNotFound):
+		// Not an error: this is the create half. The endpoint belongs to the
+		// application the token names, in the tenant the header names.
+		appID, ok := application(c)
+		if !ok {
+			return oapi.PutEndpoint403JSONResponse{}, nil
+		}
+		ep = r.insertEndpoint(req.ExternalId, appID, req.Params.XAgrirouterTenantId)
+		created = true
+	case err != nil:
+		// The identifier is taken by another application. Saying so would tell
+		// an application about endpoints that are none of its business, so this
+		// is a 403 rather than a 404.
+		return oapi.PutEndpoint403JSONResponse{}, nil
+	}
 
 	if err := r.declare(ep, types); err != nil {
 		return oapi.PutEndpoint400JSONResponse{Message: err.Error()}, nil
 	}
 	declared := r.declarationFor(ep)
-	return oapi.PutEndpoint200JSONResponse{
+	body := oapi.Endpoint{
 		Id:                ep.id,
 		ExternalId:        ep.externalID,
 		ApplicationId:     req.Body.ApplicationId,
@@ -309,7 +332,11 @@ func (r *Router) PutEndpoint(
 		TenantId:          ep.tenantID.String(),
 		Capabilities:      req.Body.Capabilities,
 		Masterdata:        &declared,
-	}, nil
+	}
+	if created {
+		return oapi.PutEndpoint201JSONResponse(body), nil
+	}
+	return oapi.PutEndpoint200JSONResponse(body), nil
 }
 
 // GetInitialLoadStatus implements oapi.StrictServerInterface.
