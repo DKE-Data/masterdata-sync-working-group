@@ -62,13 +62,17 @@ type Recognition struct {
 
 // BlockedObject names a canonical object no decision was reached about.
 //
-// It carries the canonical identifier rather than the object, because that is
-// what asks for it again: the set is delivered once, so an object left undecided
-// comes back through [agmasync.Endpoint.Request], which puts it on the live
-// stream where the receiver applies it like any other delivery.
+// Resolving it is done by identifier, not by content: the set is delivered
+// once, so an object left undecided comes back through
+// [agmasync.Endpoint.Request], which puts it on the live stream where the
+// receiver applies it like any other delivery, and AgrirouterID is what that
+// resolves through. Entity is carried alongside it only because the take saw
+// the object once and would otherwise throw the content away — a person
+// deciding what this canonical object is needs to see it, not just its id.
 type BlockedObject struct {
 	Type         agmasync.EntityType
 	AgrirouterID uuid.UUID
+	Entity       oapi.Entity
 }
 
 // Loader drives an endpoint's initial load from wherever it currently stands to
@@ -331,6 +335,7 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 		case out.Blocked:
 			res.Blocked = append(res.Blocked, BlockedObject{
 				Type: ev.Envelope.Type, AgrirouterID: *ev.Envelope.AgrirouterId,
+				Entity: ev.Entity,
 			})
 		case out.Created:
 			res.Created++

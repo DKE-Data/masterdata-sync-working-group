@@ -219,25 +219,38 @@ func (r *Router) createEndpoint(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, oapi.Error{Message: err.Error()})
 	}
 
+	ep := r.insertEndpoint(req.ExternalID, req.ApplicationID, req.TenantID)
+
+	return ctx.JSON(http.StatusCreated, EndpointResponse{
+		EndpointID: ep.id,
+		ExternalID: ep.externalID,
+	})
+}
+
+// insertEndpoint records an endpoint the router had not heard of, minting the
+// agrirouter identifier for it.
+//
+// PutEndpoint creates through here as a participant does, and the control plane
+// through here as well, so an endpoint is the same thing however it arrived.
+//
+// appID is the application that owns the endpoint, which is what entitlement and
+// the identifier-mapping namespace are keyed by.
+func (r *Router) insertEndpoint(externalID, appID string, tenantID uuid.UUID) *endpoint {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 
 	ep := &endpoint{
 		id:         uuid.New(),
-		externalID: req.ExternalID,
-		appID:      req.ApplicationID,
-		tenantID:   req.TenantID,
+		externalID: externalID,
+		appID:      appID,
+		tenantID:   tenantID,
 		declared:   map[agmasync.EntityType]bool{},
 		toggles:    map[agmasync.EntityType]bool{},
 	}
 	r.store.endpoints[ep.id] = ep
 	r.store.byExternal[ep.externalID] = ep
 	r.store.tenants[ep.tenantID] = true
-
-	return ctx.JSON(http.StatusCreated, EndpointResponse{
-		EndpointID: ep.id,
-		ExternalID: ep.externalID,
-	})
+	return ep
 }
 
 // OptInRequest is the user's opt-in decision, made in agrirouter.
