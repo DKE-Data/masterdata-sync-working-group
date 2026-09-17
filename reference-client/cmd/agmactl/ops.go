@@ -43,7 +43,10 @@ func runStatus(ctx context.Context, e *env, args []string) error {
 		}
 		return err
 	}
+	return printLoadStatus(status)
+}
 
+func printLoadStatus(status oapi.InitialLoadStatus) error {
 	fmt.Printf("load:      %s\n", status.State)
 	if status.AwaitingUser != nil && *status.AwaitingUser {
 		fmt.Println("           awaiting the user")
@@ -59,6 +62,170 @@ func runStatus(ctx context.Context, e *env, args []string) error {
 		}
 	}
 	return nil
+}
+
+// runLoad reads the canonical set an initial load owes this endpoint, prints
+// what arrives, and — having no conflicts of its own to raise, agmactl
+// reconciling against no store at all — carries the load on through to
+// COMPLETED on its own.
+//
+// Unlike the live stream `replay` reads, this one carries a fixed set and no
+// position: it ends once agrirouter has sent everything, which is also when
+// the endpoint moves to RECONCILING. The response ending is not proof the set
+// arrived — a dropped connection ends it exactly as an orderly completion
+// does — so an endpoint still at LOADING_FROM_AGRIROUTER after this exits
+// takes the set again from the beginning by running it again.
+//
+// From RECONCILING it confirms immediately, carrying whatever bindings were
+// given on the command line in place of a store to read them from — see
+// [runConfirm] for their syntax — plus, with -auto, one minted for every
+// object that arrived with no local_id at all: an object agmactl "does not
+// hold" in the sense the specification means (see [printFrame]), which a real
+// participant creates a local record for and binds. agmactl has no record to
+// create, so -auto stands in for that decision by binding the object under
+// its own agrirouter_id, deterministically and collision-free by construction
+// — it is only ever a local id agmactl already knows agrirouter has assigned
+// to exactly this object.
+//
+// Since confirming always advances to LOADING_TO_AGRIROUTER regardless of
+// what it rejects, completing happens right behind it. A binding agrirouter
+// rejects because it needs a person (rather than one this participant's own
+// bookkeeping could resolve) is printed rather than silently completed past:
+// run `agmactl confirm`/`complete` by hand once it is resolved.
+func runLoad(ctx context.Context, e *env, args []string) error {
+	fs := flag.NewFlagSet("load", flag.ContinueOnError)
+	auto := fs.Bool("auto", false,
+		"mint and bind a local id, from the agrirouter id, for every object with none")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	bindings, err := parseBindings(fs.Args())
+	if err != nil {
+		return fmt.Errorf("usage: agmactl load [-auto] [<localId>=<agrirouterId>...]: %w", err)
+	}
+	endpoint, err := e.endpoint()
+	if err != nil {
+		return err
+	}
+	stream, err := endpoint.InitialLoadEvents(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = stream.Close() }()
+
+	for ev, err := range stream.Events() {
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
+		printFrame(ev)
+		if *auto && ev.HasEntity() && ev.Envelope.LocalId == nil && ev.Envelope.AgrirouterId != nil {
+			id := *ev.Envelope.AgrirouterId
+			bindings = append(bindings, agmasync.Binding(id.String(), id))
+		}
+	}
+	fmt.Println("stream ended")
+
+	status, err := endpoint.ConfirmReconciled(ctx, bindings)
+	if err != nil {
+		return err
+	}
+	if err := printLoadStatus(status); err != nil {
+		return err
+	}
+	if status.RejectedIdMappings != nil {
+		for _, r := range *status.RejectedIdMappings {
+			if agmasync.NeedsUser(r) {
+				fmt.Println("waiting on a person: resolve the rejection above, " +
+					"then run `agmactl confirm`/`complete` by hand")
+				return nil
+			}
+		}
+	}
+
+	status, err = endpoint.CompleteInitialLoad(ctx)
+	if err != nil {
+		return err
+	}
+	return printLoadStatus(status)
+}
+
+func parseBindings(args []string) ([]oapi.IdMappingBinding, error) {
+	bindings := make([]oapi.IdMappingBinding, 0, len(args))
+	for _, arg := range args {
+		localID, rawID, ok := strings.Cut(arg, "=")
+		if !ok {
+			return nil, fmt.Errorf("%q is not localId=agrirouterId", arg)
+		}
+		id, err := uuid.Parse(rawID)
+		if err != nil {
+			return nil, fmt.Errorf("%q is not a uuid: %w", rawID, err)
+		}
+		bindings = append(bindings, agmasync.Binding(localID, id))
+	}
+	return bindings, nil
+}
+
+// runConfirm declares that reconciliation is finished, carrying the bindings
+// it produced.
+//
+// agmactl holds no store, so a pair is named on the command line rather than
+// read from one: `localId=agrirouterId` matches one of this participant's own
+// identifiers to the canonical object `load` printed. Given none, it asserts
+// that nothing in the set needed matching — everything in it is new to this
+// endpoint. `load` already does this step on its own; use this to redo it by
+// hand, such as after resolving a rejection that needed a person.
+func runConfirm(ctx context.Context, e *env, args []string) error {
+	bindings, err := parseBindings(args)
+	if err != nil {
+		return fmt.Errorf("usage: agmactl confirm [<localId>=<agrirouterId>...]: %w", err)
+	}
+
+	endpoint, err := e.endpoint()
+	if err != nil {
+		return err
+	}
+	status, err := endpoint.ConfirmReconciled(ctx, bindings)
+	if err != nil {
+		return err
+	}
+	return printLoadStatus(status)
+}
+
+// runComplete declares that the endpoint has sent everything it holds,
+// finishing the initial load.
+func runComplete(ctx context.Context, e *env, args []string) error {
+	if err := wantArgs(args, 0, "complete"); err != nil {
+		return err
+	}
+	endpoint, err := e.endpoint()
+	if err != nil {
+		return err
+	}
+	status, err := endpoint.CompleteInitialLoad(ctx)
+	if err != nil {
+		return err
+	}
+	return printLoadStatus(status)
+}
+
+// runAttention tells agrirouter that this endpoint's reconciliation is
+// waiting on a person.
+func runAttention(ctx context.Context, e *env, args []string) error {
+	if err := wantArgs(args, 0, "attention"); err != nil {
+		return err
+	}
+	endpoint, err := e.endpoint()
+	if err != nil {
+		return err
+	}
+	status, err := endpoint.ReportUserAttention(ctx)
+	if err != nil {
+		return err
+	}
+	return printLoadStatus(status)
 }
 
 func needsUser(r oapi.IdMappingRejection) string {
@@ -272,16 +439,26 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 		"resume from this position; empty asks for everything")
 	follow := fs.Bool("follow", false,
 		"keep the stream open after CAUGHT_UP instead of exiting")
+	auto := fs.Bool("auto", false,
+		"mint and bind a local id, from the agrirouter id, for every arriving object with none")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if err := wantArgs(fs.Args(), 0, "replay [-from <position>] [-follow]"); err != nil {
+	if err := wantArgs(fs.Args(), 0, "replay [-from <position>] [-follow] [-auto]"); err != nil {
 		return err
 	}
 
 	client, err := e.client()
 	if err != nil {
 		return err
+	}
+	// Only needed for -auto: Bind names the acting endpoint in a header, while
+	// the stream itself is the application's and names none.
+	var endpoint *agmasync.Endpoint
+	if *auto {
+		if endpoint, err = e.endpoint(); err != nil {
+			return err
+		}
 	}
 	stream, err := client.Events(ctx, *from)
 	if err != nil {
@@ -299,6 +476,9 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 			return err
 		}
 		printFrame(ev)
+		if *auto && ev.HasEntity() && ev.Envelope.LocalId == nil && ev.Envelope.AgrirouterId != nil {
+			autoBind(ctx, endpoint, ev.Envelope)
+		}
 		if ev.Type == agmasync.EventCaughtUp && !*follow {
 			return nil
 		}
@@ -307,6 +487,26 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 	// participant reconnects from its last durably applied position.
 	fmt.Println("stream ended")
 	return nil
+}
+
+// autoBind binds an arriving object under its own agrirouter id, standing in
+// for the local record a real participant would create and bind instead. A
+// refusal is printed rather than fatal: one object a person needs to resolve
+// (see [agmasync.NeedsUser]) must not end a `replay -follow` watching for
+// everything else.
+func autoBind(ctx context.Context, endpoint *agmasync.Endpoint, env agmasync.Envelope) {
+	id := *env.AgrirouterId
+	if err := endpoint.Bind(ctx, env.Type, id.String(), id); err != nil {
+		var conflict *agmasync.MappingConflict
+		if errors.As(err, &conflict) {
+			fmt.Printf("refused:  %s%s\n", conflict.Rejection.Reason,
+				needsUser(conflict.Rejection))
+			return
+		}
+		fmt.Printf("auto-bind failed: %s\n", err)
+		return
+	}
+	fmt.Printf("bound:    %s %s -> %s\n", env.Type, id, id)
 }
 
 func printFrame(ev agmasync.Event) {
@@ -332,9 +532,9 @@ func printFrame(ev agmasync.Event) {
 		// every tenant it is routed to; a receiver holding several partitions
 		// on this rather than on the connection.
 		env := ev.Envelope
-		fmt.Printf("%-26s %s revision=%s agrirouterId=%s localId=%s tenant=%s\n",
+		fmt.Printf("%-26s %s revision=%s agrirouterId=%s localId=%s tenant=%s endpoint=%s\n",
 			ev.Type, env.Type, intOr(env.Revision, "?"), uuidOr(env.AgrirouterId),
-			stringOr(env.LocalId, "-"), uuidOr(env.TenantId))
+			stringOr(env.LocalId, "-"), uuidOr(env.TenantId), uuidOr(env.SourceEndpointId))
 		if env.LocalId == nil {
 			fmt.Println("                           " +
 				"no localId: agrirouter does not believe you hold this object")

@@ -495,7 +495,7 @@ func (p *Platform) Owned(farmLocalID string, party agmasync.EntityType, partyLoc
 // that: one requires a farm on every field where another treats it as a
 // convenience. A farmless field is therefore ordinary data rather than a broken
 // object, and what a stricter recipient does with one is its own problem — see
-// scenario 11.
+// scenario 12.
 func (p *Platform) AddField(localID, name string, area float64, farmLocalID string) error {
 	p.ids.reserve(localID)
 	attributes := map[string]any{"name": name, "area": area}
@@ -532,6 +532,14 @@ func (p *Platform) Unbind(
 func (p *Platform) Delete(typ agmasync.EntityType, localID string) error {
 	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		return tx.DeleteRecord(typ, localID)
+	})
+}
+
+// Forget loses a record and keeps the binding, as a partial restore does.
+// agrirouter is not told by this either; see [store.Tx.ForgetRecord].
+func (p *Platform) Forget(typ agmasync.EntityType, localID string) error {
+	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
+		return tx.ForgetRecord(typ, localID)
 	})
 }
 
@@ -633,6 +641,19 @@ func (p *Platform) ReportAttention(ctx context.Context) error {
 // loading types nobody chose.
 func (p *Platform) Load(ctx context.Context) (psync.LoadResult, error) {
 	return p.LoadWith(ctx, psync.ByName{})
+}
+
+// LoadSelected is [Platform.Load] for a participant that learned its selection
+// off the frame when it arrived and has since moved past it.
+//
+// [Platform.Selection] reads the frame where it lies, so it answers only while
+// the frame is still above the stored position: a participant that catches up
+// first has consumed it, and what it knows about its selection is what it kept.
+func (p *Platform) LoadSelected(
+	ctx context.Context, types []agmasync.EntityType,
+) (psync.LoadResult, error) {
+	loader := &psync.Loader{Applier: p.Applier, Reconciler: psync.ByName{}, Types: types}
+	return loader.Run(ctx)
 }
 
 // LoadWith is [Platform.Load] with a different recognition step.

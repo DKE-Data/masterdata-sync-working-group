@@ -600,6 +600,43 @@ func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 	return nil
 }
 
+// ForgetRecord removes a record and leaves the binding to the canonical object
+// behind, as a restore that missed the tables the records sit in does.
+//
+// It is not something a platform chooses. [Tx.DeleteRecord] is the deliberate
+// deletion and takes the pair with it; this is the state a partial loss leaves,
+// where the bookkeeping remembers an object the platform no longer holds. The
+// binding is what makes it recoverable: it names the canonical object, which is
+// what a request needs, and agrirouter is not told anything, since the platform
+// wants the object back rather than to say it no longer holds it.
+func (t *Tx) ForgetRecord(typ agmasync.EntityType, localID string) error {
+	table, err := tableOf(typ)
+	if err != nil {
+		return err
+	}
+	if _, err := t.tx.Exec(`
+		DELETE FROM tenant_entity
+		 WHERE tenant_id = ? AND entity_type = ? AND local_id = ?`,
+		t.tenant, string(typ), localID,
+	); err != nil {
+		return fmt.Errorf("releasing %s %q: %w", typ, localID, err)
+	}
+
+	held, err := t.heldByAny(typ, localID)
+	if err != nil {
+		return err
+	}
+	if held {
+		return nil
+	}
+	if _, err := t.tx.Exec(
+		fmt.Sprintf("DELETE FROM %s WHERE local_id = ?", table), localID,
+	); err != nil {
+		return fmt.Errorf("deleting from %s: %w", table, err)
+	}
+	return nil
+}
+
 // heldByAny reports whether any of the product's tenants still holds a record.
 func (t *Tx) heldByAny(typ agmasync.EntityType, localID string) (bool, error) {
 	var one int
