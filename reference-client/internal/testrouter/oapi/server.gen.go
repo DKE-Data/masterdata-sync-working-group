@@ -550,7 +550,7 @@ type InitialLoadStatus struct {
 	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `external_id`.
 	EndpointId *openapi_types.UUID `json:"endpoint_id,omitempty"`
 
-	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, disconnected from the hub, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `local_id` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
+	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, had its masterdata route removed, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `local_id` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
 	PreviousLoadCompletedAt *time.Time `json:"previous_load_completed_at,omitempty"`
 
 	// RejectedIdMappings Bindings supplied on this request that could not be recorded, each with its `reason` and, where one exists, the mapping that stands in its way. They do not fail the transition: one unresolvable pair should not block the load of a set. The endpoint resolves them as it resolves a `409` on the per-entity operation, and rebinds through that operation once it has. Recomputed on every request that carries `id_mappings`, including a repeat of the transition, so a retry after a lost response reports the current outcome rather than the first.
@@ -816,7 +816,7 @@ type RevisionConflictError struct {
 type Role = string
 
 // RouteChangedEventData Data structure for `ROUTE_CHANGED` events on `/masterdata/events`. It states which entity types the user has selected for one of the application's endpoints.
-// One event covers every way the selection changes: the endpoint routed to the masterdata hub for the first time, a further entity type selected on one already routed, a type deselected, and the last one deselected or the route removed.
+// One event covers every way the selection changes: the endpoint given a masterdata route for the first time, a further entity type selected on one already routed, a type deselected, and the last one deselected or the route removed.
 // The event may arrive more than once for one move and MUST be handled idempotently.
 type RouteChangedEventData struct {
 	// ChangedAt When the selection reached this state. Not a delivery timestamp: it is unchanged when the same event is delivered again, and a repeat carrying an older value than one already applied for this endpoint can be discarded.

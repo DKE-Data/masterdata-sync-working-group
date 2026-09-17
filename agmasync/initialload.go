@@ -203,7 +203,7 @@ func (e *Endpoint) InitialLoadStatus(ctx context.Context) (oapi.InitialLoadStatu
 // A participant MUST NOT infer from the arrival of a set that this is a first
 // connection: without this check it creates local duplicates of data it
 // already holds. The marker is previousLoadCompletedAt, which survives an
-// opt-out, a hub disconnection, and endpoint removal, because the identifier
+// opt-out, a disconnection, and endpoint removal, because the identifier
 // mapping does. See "Re-connection" in specification.md.
 func IsRepeatLoad(s oapi.InitialLoadStatus) bool {
 	return s.PreviousLoadCompletedAt != nil

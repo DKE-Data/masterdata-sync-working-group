@@ -1191,7 +1191,7 @@ paths:
         `LOADING_FROM_AGRIROUTER` → `RECONCILING` → `LOADING_TO_AGRIROUTER` →
         `COMPLETED`. Entering `LOADING_FROM_AGRIROUTER` is agrirouter's alone and
         follows from the user's opt-in and from nothing else: the user selecting
-        the endpoint's first entity type, when routing it to the master-data hub,
+        the endpoint's first entity type, when giving it a masterdata route,
         starts it there, and selecting a further entity type returns it there. An
         application cannot enter it, from any state including from itself, and
         there is no operation for asking that the set be sent again. agrirouter
@@ -2439,8 +2439,8 @@ components:
         `/masterdata/events`. It states which entity types the user has selected
         for one of the application's endpoints.
 
-        One event covers every way the selection changes: the endpoint routed to
-        the masterdata hub for the first time, a further entity type selected on
+        One event covers every way the selection changes: the endpoint given a
+        masterdata route for the first time, a further entity type selected on
         one already routed, a type deselected, and the last one deselected or the
         route removed.
 
@@ -2565,7 +2565,7 @@ components:
             When this endpoint last reached `COMPLETED`, present only if it
             has. Its presence means the canonical set now arriving is a repeat
             load — the endpoint was a participant before and has returned, having
-            been deselected, disconnected from the hub, or had a further
+            been deselected, had its masterdata route removed, or had a further
             entity type selected on it. Each of those is the user's act: an
             application cannot ask for the set again. The identifier mapping
             survived all of them, so the objects

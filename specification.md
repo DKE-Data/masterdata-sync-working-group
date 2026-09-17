@@ -158,8 +158,8 @@ second channel and is not merely an acknowledgement — see
 
 Which entity types an endpoint takes part in is settled in two steps by two
 different actors: the participant **declares** what its endpoint is able to
-exchange, and the user **selects**, when routing that endpoint to the master-data
-hub, which of those it does exchange. Neither step is directional in the MVP: a
+exchange, and the user **selects**, when giving that endpoint a masterdata
+route, which of those it does exchange. Neither step is directional in the MVP: a
 selected entity type is exchanged in both directions (see
 [Routing and opt-in](#routing-and-opt-in)).
 
@@ -507,7 +507,7 @@ table durably and to restore it with the rest of its store.
 
 A mapping otherwise outlives the connection that created it: it belongs to the
 participant, and is not discarded when an entity type is opted out, when an
-endpoint is disconnected from the hub, or when an endpoint is removed (see
+endpoint's masterdata route is removed, or when an endpoint is removed (see
 [Disconnection and re-connection](#disconnection-and-re-connection)).
 
 A participant MUST NOT reuse one of its local identifiers for two distinct
@@ -553,7 +553,7 @@ that any user wants it to.
 
 ### Selection: what an endpoint does exchange
 
-The user selects, on the endpoint's route to the masterdata hub, which of the
+The user selects, on the endpoint's masterdata route, which of the
 declared entity types the endpoint exchanges. 
 
 - The selection MUST be a subset of the declaration.
@@ -856,7 +856,7 @@ Three distinct events end participation, at different scopes:
 | Event | Scope |
 |---|---|
 | **Type opt-out** — an entity type no longer exchanged, the user having deselected it or the participant having withdrawn it from the declaration | one entity type |
-| **Hub disconnection** — the endpoint's route to the master-data hub removed | every entity type of that endpoint |
+| **Route removal** — the endpoint's masterdata route removed | every entity type of that endpoint |
 | **Endpoint removal** — the endpoint itself deleted from the tenant | the endpoint |
 
 What each discards:
@@ -864,7 +864,7 @@ What each discards:
 | | Canonical objects | Identifier mapping | Initial-load state |
 |---|---|---|---|
 | Type opt-out | retained | **retained** | retained; discarded with the last entity type |
-| Hub disconnection | retained | **retained** | discarded |
+| Route removal | retained | **retained** | discarded |
 | Endpoint removal | retained | **retained** | discarded |
 
 The initial-load state is per endpoint, so opting one of several entity types
@@ -888,7 +888,7 @@ participant, whose own data comes back unrecognizable.
 
 ### Re-connection
 
-Opting a type back in, or re-routing the endpoint to the hub, runs a full
+Opting a type back in, or re-creating the endpoint's masterdata route, runs a full
 [initial load](#initial-load) of the endpoint, covering every entity
 type it is opted into: agrirouter cannot enumerate what the endpoint missed while
 it was not a participant, so it re-sends the canonical set rather than a delta.

@@ -5,7 +5,7 @@
 
 ## Context
 
-[ADR 01](./01-reference-architecture.md) and [ADR 07](./07-sync-streaming.md) describe steady-state synchronization: once every participant is in step, a change made in one system propagates through the canonical store to the others. But the *first* time an endpoint joins master-data exchange - when the user routes it to the [masterdata hub](./04-routing.md) - there is a bootstrap problem that steady-state sync does not cover.
+[ADR 01](./01-reference-architecture.md) and [ADR 07](./07-sync-streaming.md) describe steady-state synchronization: once every participant is in step, a change made in one system propagates through the canonical store to the others. But the *first* time an endpoint joins master-data exchange - when the user gives it a [masterdata route](./04-routing.md) - there is a bootstrap problem that steady-state sync does not cover.
 
 Note on the naming: the initial load process to fix this is also known as "seeding". This term is not used in the specification to avoid conflating with "seeding" as in "planting seeds", which might be introduced later when we cover other types of data. For exmaple workplans and field operations might refer to _seeding_ in that context. Hence only "initial load" is used in the specs.
 
@@ -33,7 +33,7 @@ flowchart TB
     end
     START(("start"))
     LF["LOADING_FROM_AGRIROUTER"]
-    START -->|"agrirouter:\n endpoint opted into the hub"| LF
+    START -->|"agrirouter:\n endpoint got a masterdata route"| LF
     LF -->|"agrirouter:\n whole canonical set sent"| R
     R -->|"endpoint:\n confirms it has reconciled"| LT
     LT -->|"endpoint:\n has sent everything it holds"| C
@@ -47,14 +47,14 @@ flowchart TB
 
 The flow, per endpoint:
 
-1. **Opt in.** The user routes the endpoint to the [masterdata hub](./04-routing.md) and opts it into one or more entity types. The endpoint enters `LOADING_FROM_AGRIROUTER`.
+1. **Opt in.** The user gives the endpoint a [masterdata route](./04-routing.md) and opts it into one or more entity types. The endpoint enters `LOADING_FROM_AGRIROUTER`.
 2. **Load from agrirouter.** agrirouter sends the endpoint every canonical object of every opted-in type it is entitled to receive, on the endpoint's one stream, ordered so that a referenced object precedes the objects referencing it. This direction is well-defined precisely because [agrirouter is the SSOT](./01-reference-architecture.md) - it already holds the authoritative set to hand over, and the order to hand it over in.
 3. **Set delivered.** agrirouter moves the endpoint to `RECONCILING` once it has sent everything, then closes the HTTP response. This is mechanical and agrirouter drives it: it knows it has sent everything, so nothing needs to be reported back. There is no in-band end marker, because a dropped connection closes the response the same way an orderly finish does; the state is what records that the set was sent, and an endpoint that finds itself still at `LOADING_FROM_AGRIROUTER` connects again. The order matters: closing first would leave a window in which that read says `LOADING_FROM_AGRIROUTER` about a set that did arrive, costing a full redundant re-delivery. Advancing first makes one read, taken as the response ends, conclusive.
 4. **Confirm.** Reconciliation potentially finishes much later. Whatever conflicts it surfaced are settled in the partner's software - by a user where the partner's own rules cannot settle them - on a schedule agrirouter does not control. The endpoint confirms after *that*, moving to `LOADING_TO_AGRIROUTER`. This transition is explicit precisely because agrirouter can see the previous moment and not this one.
 5. **Load to agrirouter.** The endpoint now sends the objects it holds that the canonical set did not contain, plus any it changed while resolving conflicts. Because it reconciled first, it sends genuinely new objects instead of duplicates of ones it just received.
 6. **Complete.** When the endpoint has sent everything, it enters `COMPLETED`, and ordinary steady-state synchronization ([ADR 07](./07-sync-streaming.md)) applies from then on.
 
-The same six steps run again if the endpoint is re-routed to the hub, or if an
+The same six steps run again if the endpoint's masterdata route is re-created, or if an
 entity type is added to it - the set is fixed when a load starts, and there is
 one load per endpoint, so a type opted in later means the load starts over
 covering every opted-in type, from whichever state the endpoint was in. The
@@ -103,7 +103,7 @@ sequenceDiagram
     P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "organizations" }, { entityType: "persons" }, { entityType: "farms" }] }
     AR-->>P: 200 MasterdataConfig
     Note over U,AR: step 2 - the user selects, in agrirouter, which of the declared types this endpoint exchanges
-    U->>AR: create hub route and select organizations, persons, farms
+    U->>AR: create masterdata route and select organizations, persons, farms
     Note over AR: endpoint → LOADING_FROM_AGRIROUTER
     AR->>P: event: ROUTE_CHANGED on /masterdata/events data: { endpointId, externalEndpointId, entityTypes }
 
@@ -284,7 +284,7 @@ flowchart TB
     OPERATING["OPERATING"]
     DOWN["DOWN"]
     CATCHING_UP["CATCHING_UP"]
-    START -->|"opted into the hub"| INITIAL_LOAD
+    START -->|"got a masterdata route"| INITIAL_LOAD
     INITIAL_LOAD -->|"loaded"| OPERATING
     OPERATING -->|"application goes offline"| DOWN
     DOWN -->|"comes back online"| CATCHING_UP

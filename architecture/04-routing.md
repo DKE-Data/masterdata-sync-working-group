@@ -17,51 +17,33 @@ Routing that lets users connect any endpoints to masterdata exchange arbitrarily
 
 ## Decision
 
-To not deal with "split brain" complexity whilst also keeping same UX in regards to representing data flows, we decided to create a special "masterdata hub" block in the UI that would visually resemble endpoints, but located differently on the canvas. This hub would not participate in normal routing and normal processes involving endpoints and hence is not referred to as "endpoint". Instead, it would serve as a way to connect endpoints with masterdata exchange. The masterdata hub is always available in all tenants by default.
+Each endpoint gets its own **masterdata route**: a direct connection between that endpoint and masterdata exchange, independent of every other endpoint's route. There is no shared object that endpoints route to and no per-tenant cap to enforce, so split brain cannot arise - every routed endpoint reads and writes the same canonical store.
 
-By creating arrows to the masterdata hub, users can control which endpoints (devices, cloud software) are participating in masterdata exchange, in the same way that they already control which endpoints are talking to each other directly.
+A masterdata route carries a selection of which entity types the endpoint exchanges. By creating the route on an endpoint and selecting entity types on it, users control whether that endpoint participates in masterdata exchange and what it exchanges, in the same way they already control which endpoints talk to each other directly.
 
 ```mermaid
 flowchart TB
     Aplatform["Platform A endpoint"]
     Bplatform["Platform B endpoint"]
-    MasterdataHub["Masterdata hub"]
-    Aplatform <-->|"hubRoute(endpoint,hub)"| MasterdataHub
-    Bplatform <-->|"hubRoute(endpoint,hub)"| MasterdataHub
-    %% ceasg:{"id":"hr01a8qx"} %%
-    %% mermaid-flow:pos Aplatform=102,59 Bplatform=389,62 MasterdataHub=239,-97
+    Masterdata(("Masterdata exchange"))
+    Aplatform <-->|"masterdata route: types"| Masterdata
+    Bplatform <-->|"masterdata route: types"| Masterdata
 ```
 
-This creates a new type of entity for agrirouter: `hub`.
+The masterdata route is a new type of route, `masterdataRoute(endpointId, types)`, not a new kind of endpoint or a shared entity - it is not visible as an endpoint from any API perspective, including G4. It differs from the normal `route(sourceEndpointId, recipientEndpointId)` used between endpoints:
+- it is not directional - an endpoint's masterdata route is either present or absent, not source/recipient
+- it names one endpoint and a set of entity types, rather than a pair of endpoints
+- it is created and edited by the user in agrirouter; remote application connection (RAC) does not cover it, since the selection is the user's to make, not the partner's
 
-A `hub` is NOT an endpoint, but in many ways it behaves like one.
-
-Where `hub` behaves like an endpoint:
-- shown in the UI as a block that resembles an endpoint (but in a different location than normal endpoints)
-- routes can be established with any **compatible** endpoint
-
-Where `hub` differs from an endpoint:
-- only one hub of a particular type can exist in a tenant (i.e. one `masterdata hub` per tenant) - this avoids the "split brain" situation described above
-- it is not visible as an endpoint from any API perspective, including G4, and needs to be represented there as a special case wherever routes are listed or drawn
-- remote application connection (RAC) does not cover it: an endpoint is connected to the masterdata hub, and opted into entity types, by the user in agrirouter, and not from a partner's own screens
-- it is not backed by a remote application, but by `agrirouter` itself
-
-Note that the name `hub` implies a central point that fans out data to all connected participants indiscriminately, and the single hub in a tenant does exactly that. "Single" here means one hub per tenant, the way an endpoint belongs to a tenant, not one hub per agrirouter. It would therefore be incorrect to say "our system communicates with the agrirouter masterdata hub", since no such global hub exists. You can say "the user routed our endpoint to the masterdata hub in their tenant", or "our system communicates with the masterdata API of agrirouter".
-
-The hub also requires a new type of route: `HubRoute(endpointId, 'masterdata')`, connecting an endpoint to the hub. It differs from the normal `route(sourceEndpointId, recipientEndpointId)` used between endpoints:
-- it is not directional - an endpoint is either connected to the hub or not
-
-If a user disconnects an endpoint from the masterdata hub after data from that endpoint has already been written to the SSOT, it might be tempting to clean out the data owned by that endpoint. This would be complex and potentially not what the user expects, so the data should remain. The endpoint's identifier mapping remains with it, so that reconnecting is a matched re-load rather than a fresh reconciliation ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
+If a user removes an endpoint's masterdata route after data from that endpoint has already been written to the SSOT, it might be tempting to clean out the data owned by that endpoint. This would be complex and potentially not what the user expects, so the data should remain. The endpoint's identifier mapping remains with it, so that re-adding the route is a matched re-load rather than a fresh reconciliation ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
 
 ### Not in MVP: "read only" routes
 
-A `HubRoute` could carry a direction, letting a user connect an endpoint so that it receives master data without being allowed to write it back. **This is out of scope for the MVP: every `HubRoute` is read/write.**
+A masterdata route could carry a direction, letting a user connect an endpoint so that it receives master data without being allowed to write it back. **This is out of scope for the MVP: every masterdata route is read/write.**
 
-Supporting it would require additional error handling, plus a way to inform applications that the user set their endpoint to "read only" towards the masterdata hub, so that they do not attempt to write there. That is meaningful extra complexity for partner implementations, and it can be added later without changing the routing model described above.
+Supporting it would require additional error handling, plus a way to inform applications that the user set their endpoint to "read only" for masterdata exchange, so that they do not attempt to write there. That is meaningful extra complexity for partner implementations, and it can be added later without changing the routing model described above.
 
 ## Consequences
 
-- a new type of entity, `hub`, is introduced. For now it is only used for masterdata exchange, where it matches explicit UX requirements, but the same requirements may appear in other cases and we may want to reuse it there
-- from the user perspective, masterdata exchange is controlled much the same way as other data flows, by visually connecting blocks with arrows. The only difference is a new block that is not technically an endpoint,
-
-
+- a masterdata route is per endpoint, not a shared object: there is no separate entity for masterdata exchange itself, so nothing new needs representing in G4 or in any endpoint listing
+- from the user's perspective, masterdata exchange is controlled the same way as other data flows: giving an endpoint a route and selecting which entity types flow on it. There is no additional block to learn - the route lives directly on the endpoint
