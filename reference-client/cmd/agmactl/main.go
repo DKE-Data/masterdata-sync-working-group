@@ -46,6 +46,12 @@ type env struct {
 	endpointID string
 	externalID string
 
+	// instance names a refclient to address instead of spelling out its
+	// external identifier. It is a convenience for the demo and nothing more:
+	// refclient derives its external id from its tenant and its instance name,
+	// so knowing both is knowing the id, and neither has to be read out of a log.
+	instance string
+
 	// applicationID, tenantID, softwareVersionID and endpointType are only
 	// needed by the "declare" command, which goes through PutEndpoint — a full
 	// endpoint upsert rather than a masterdata-only call. They are empty (zero
@@ -90,8 +96,8 @@ func commands() []command {
 			runAttention},
 		{"replay", "replay [-from <position>] [-follow] [-auto]",
 			"read the live stream and print what arrives", runReplay},
-		{"select", "select [<type>[,<type>...]]",
-			"stand in for the user's selection (test router only)", runSelect},
+		{"route", "route [<type>[,<type>...]]",
+			"stand in for the user's routing decision (test router only)", runRoute},
 	}
 }
 
@@ -105,6 +111,8 @@ func main() {
 		"the acting endpoint's agrirouter id (AGMASYNC_ENDPOINT_ID)")
 	flag.StringVar(&e.externalID, "external", os.Getenv("AGMASYNC_EXTERNAL_ENDPOINT_ID"),
 		"the acting endpoint's own id (AGMASYNC_EXTERNAL_ENDPOINT_ID)")
+	flag.StringVar(&e.instance, "instance", os.Getenv("REFCLIENT_INSTANCE"),
+		"address a refclient by name instead of by -external; needs -tenant (REFCLIENT_INSTANCE)")
 	flag.StringVar(&e.applicationID, "application", os.Getenv("AGMASYNC_APPLICATION_ID"),
 		"the application id PutEndpoint requires (AGMASYNC_APPLICATION_ID); only needed by \"declare\"")
 	flag.StringVar(&e.tenantID, "tenant", os.Getenv("AGMASYNC_TENANT_ID"),
@@ -122,6 +130,17 @@ func main() {
 	}
 	if e.baseURL == "" {
 		e.baseURL = "http://localhost:8080"
+	}
+	if e.externalID == "" && e.instance != "" {
+		if e.tenantID == "" {
+			fmt.Fprintln(os.Stderr, "agmactl: -instance needs -tenant")
+			os.Exit(2)
+		}
+		// The same shape refclient builds for itself. An external identifier is
+		// agrirouter-wide rather than per tenant, which is why the tenant is in
+		// it: two people demonstrating this against one shared agrirouter would
+		// otherwise be naming, and taking, one endpoint.
+		e.externalID = fmt.Sprintf("refclient:tenant:%s:%s", e.tenantID, e.instance)
 	}
 
 	name, args := flag.Arg(0), flag.Args()[1:]

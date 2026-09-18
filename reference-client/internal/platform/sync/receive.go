@@ -91,7 +91,31 @@ type ReceiveResult struct {
 // position reached, which is safe to keep once everything before it has been
 // applied.
 func (r *Receiver) CatchUp(ctx context.Context) (ReceiveResult, error) {
-	return r.consume(ctx, true)
+	return r.consume(ctx, true, nil)
+}
+
+// RunFromStart applies the stream from the beginning, ignoring the position the
+// participant has stored.
+//
+// It is recovery, not routine: asking for everything again costs a redelivery
+// of the whole backlog, which is idempotent — every apply is revision-guarded,
+// so what has already been applied is recognised as older and skipped.
+//
+// What it is for is the frame that never arrived. Routing reaches a participant
+// on the stream and nowhere else: there is no operation that reads it back, and
+// catch-up restates it only for endpoints whose routing changed *above* the
+// participant's position. So an endpoint that took a position past a
+// ROUTE_CHANGED it failed to record has no way to ask what it is routed to —
+// except to ask for the stream from the beginning, where every routing change
+// is above the position again.
+//
+// The positions it records on the way are the frames' own, so they run behind
+// the position it started from until the replay catches up. That is safe rather
+// than merely tolerable: a position behind the truth costs redelivery, which
+// the specification requires a participant to tolerate anyway.
+func (r *Receiver) RunFromStart(ctx context.Context) (ReceiveResult, error) {
+	beginning := ""
+	return r.consume(ctx, false, &beginning)
 }
 
 // Run applies frames until the context is cancelled or the stream ends.
@@ -100,20 +124,31 @@ func (r *Receiver) CatchUp(ctx context.Context) (ReceiveResult, error) {
 // and the answer is to connect again from the last durably applied position.
 // This returns instead of reconnecting so that the caller owns the backoff.
 func (r *Receiver) Run(ctx context.Context) (ReceiveResult, error) {
-	return r.consume(ctx, false)
+	return r.consume(ctx, false, nil)
 }
 
-func (r *Receiver) consume(ctx context.Context, untilCaughtUp bool) (ReceiveResult, error) {
+// consume applies frames from the given position, or from the stored one where
+// none is given.
+func (r *Receiver) consume(
+	ctx context.Context, untilCaughtUp bool, start *string,
+) (ReceiveResult, error) {
 	var res ReceiveResult
 
 	// The position is read from the store and passed back exactly as agrirouter
 	// issued it. Nothing here parses or compares one: an empty position asks for
 	// everything, and any other value is opaque.
-	from, err := r.Store.Position()
-	if err != nil {
-		return res, err
+	from := ""
+	if start != nil {
+		from = *start
+	} else {
+		var err error
+		if from, err = r.Store.Position(); err != nil {
+			return res, err
+		}
 	}
 	res.Position = from
+
+	var err error
 
 	stream, err := r.Client.Events(ctx, from)
 	if err != nil {

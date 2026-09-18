@@ -547,15 +547,20 @@ func printFrame(ev agmasync.Event) {
 	}
 }
 
-// runSelect stands in for the user's selection, which has no participant-facing
-// operation at all.
+// runRoute stands in for the user's routing decision, which has no
+// participant-facing operation at all.
 //
 // It exists on the test router's control plane and nowhere else. Against a real
-// agrirouter there is nothing for this command to call: a user makes the
-// selection in agrirouter, and the participant learns of it on the stream.
-func runSelect(ctx context.Context, e *env, args []string) error {
+// agrirouter there is nothing for this command to call: a user routes an
+// endpoint in agrirouter, and the participant learns of it on the stream.
+//
+// Which is why it is a command here rather than a button in the reference
+// client. A participant that could route itself would be a participant nobody
+// had to trust, and a sample offering the affordance only against the test
+// router would teach a shape that does not exist in production.
+func runRoute(ctx context.Context, e *env, args []string) error {
 	if len(args) > 1 {
-		return errors.New("usage: agmactl select [<type>[,<type>...]]")
+		return errors.New("usage: agmactl route [<type>[,<type>...]]")
 	}
 	list := ""
 	if len(args) == 1 {
@@ -591,11 +596,11 @@ func runSelect(ctx context.Context, e *env, args []string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("selection refused: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("routing refused: HTTP %d", resp.StatusCode)
 	}
 
-	fmt.Printf("selected: %s\n", orNone(strings.Join(names, ", ")))
-	fmt.Println("          a widened selection starts an initial load; watch `agmactl status`")
+	fmt.Printf("routed: %s\n", orNone(strings.Join(names, ", ")))
+	fmt.Println("        a widened routing starts an initial load; watch `agmactl status`")
 	return nil
 }
 

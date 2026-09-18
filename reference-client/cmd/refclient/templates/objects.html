@@ -1,0 +1,79 @@
+{{define "objects.html"}}
+{{template "head" .}}
+
+<h2>Send something</h2>
+{{if not .Types}}
+<p class="muted">
+  This endpoint is routed to nothing, so there is nothing it may send. The
+  routing is the user's decision, made in agrirouter.
+</p>
+{{else}}
+<div class="card">
+  <form method="post" action="/objects">
+    <div class="field">
+      <label for="type">Type</label>
+      <select name="type" id="type">
+        {{range .Types}}<option value="{{.}}">{{.}}</option>{{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label for="local_id">Local id</label>
+      <input type="text" name="local_id" id="local_id" placeholder="leave empty and this platform mints one">
+    </div>
+    <div class="field">
+      <label for="attributes">Attributes (JSON)</label>
+      <textarea name="attributes" id="attributes" rows="5">{"name": "Hof Nord"}</textarea>
+    </div>
+    <button type="submit">Store and send</button>
+  </form>
+</div>
+{{end}}
+
+{{range $group := .Groups}}
+<h2>
+  {{$group.Type}}
+  {{if not $group.Routed}}<span class="tag">not routed</span>{{end}}
+</h2>
+<table>
+  <tr>
+    <th>Local id</th><th>agrirouter id</th><th>Revision</th>
+    <th>Attributes</th><th></th>
+  </tr>
+  {{range $group.Records}}
+  <tr>
+    <td class="mono">{{.LocalID}}{{if .Archived}} <span class="tag">archived</span>{{end}}</td>
+    <td class="mono">
+      {{.AgrirouterID}}
+      {{if .Unbound}}<br><span class="tag">unbound</span>{{end}}
+    </td>
+    <td class="mono">{{.Revision}}</td>
+    <td>{{template "attributes" .Attributes}}</td>
+    <td>
+      {{if .Unbound}}
+      {{/* Not Deactivate: that is a send, and an unbound record has nothing to
+           send it about. All that is left to do with one is drop it. */}}
+      <form class="inline" method="post" action="/objects/delete">
+        <input type="hidden" name="type" value="{{$group.Type}}">
+        <input type="hidden" name="local_id" value="{{.LocalID}}">
+        <button type="submit">Delete</button>
+      </form>
+      {{else if and (not .Archived) $group.Routed}}
+      <form class="inline" method="post" action="/objects/deactivate">
+        <input type="hidden" name="type" value="{{$group.Type}}">
+        <input type="hidden" name="local_id" value="{{.LocalID}}">
+        <button type="submit">Deactivate</button>
+      </form>
+      {{end}}
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{else}}
+<p class="muted">
+  This platform holds nothing yet. Send something above, or wait for the other
+  participant to.
+</p>
+{{end}}
+
+{{template "foot" .}}
+{{end}}

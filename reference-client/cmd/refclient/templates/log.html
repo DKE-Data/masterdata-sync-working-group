@@ -1,0 +1,33 @@
+{{define "log.html"}}
+{{template "head" .}}
+
+<h2>What this participant has done</h2>
+<p class="muted">
+  Narration, and nothing the protocol reads. New entries appear as they happen.
+</p>
+
+<table>
+  <tr><th>Time</th><th>What</th><th></th></tr>
+  <tbody id="live"></tbody>
+  {{range .Entries}}
+  <tr><td class="mono">{{clock .At}}</td><td><span class="tag">{{.Kind}}</span></td><td>{{.Text}}</td></tr>
+  {{else}}
+  <tr><td colspan="3" class="muted">Nothing yet.</td></tr>
+  {{end}}
+</table>
+
+<script>
+  // The newest entry goes on top, which is the order the page is rendered in.
+  new EventSource("/events").onmessage = function (e) {
+    const entry = JSON.parse(e.data)
+    const row = document.getElementById("live").insertRow(0)
+    row.insertCell().outerHTML = '<td class="mono"></td>'
+    row.cells[0].textContent = entry.at
+    row.insertCell().innerHTML = '<span class="tag"></span>'
+    row.cells[1].firstChild.textContent = entry.kind
+    row.insertCell().textContent = entry.text
+  }
+</script>
+
+{{template "foot" .}}
+{{end}}

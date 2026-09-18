@@ -189,3 +189,24 @@ CREATE TABLE IF NOT EXISTS agmasync_stream (
     id            INTEGER PRIMARY KEY CHECK (id = 1),
     last_event_id TEXT NOT NULL
 );
+
+-- agmasync_route holds what the user has routed each of this platform's
+-- endpoints to exchange, as the last ROUTE_CHANGED frame stated it.
+--
+-- It has to be kept for the same reason the position does. The frame states the
+-- whole routing rather than a delta, and catch-up restates it only for
+-- endpoints whose routing changed above the participant's position — so a
+-- participant that took the position and forgot the routing has no way to ask
+-- for it again. It is also not the same thing as the endpoint's declaration,
+-- which is a superset: loading against the declaration offers agrirouter back
+-- types nobody asked for.
+--
+-- Per endpoint, unlike the position: routing is a decision made about one
+-- endpoint in one tenant, while one stream carries them all.
+CREATE TABLE IF NOT EXISTS agmasync_route (
+    endpoint_id  TEXT PRIMARY KEY,
+    -- The routed entity types, comma-separated in their wire spelling. A list
+    -- in a column is the sample keeping its schema readable; nothing reads it
+    -- but the platform itself.
+    entity_types TEXT NOT NULL
+);

@@ -1,0 +1,87 @@
+{{define "decisions.html"}}
+{{template "head" .}}
+
+<h2>Waiting on you</h2>
+<p class="muted">
+  agrirouter provides the canonical set and adjudicates nothing, so whether an
+  object in it is one this platform already holds is a judgement only a person
+  can make. While a question is open the load is stopped — not slowed. Left
+  unanswered for {{.Timeout}}, the object is given up on rather than guessed at:
+  the load stops short of reconciled, agrirouter is told a person is needed, and
+  the object has to be asked for again.
+</p>
+
+{{range .Questions}}
+<div class="card">
+  <p>
+    <strong>{{.Type}}</strong> <span class="mono">{{.AgrirouterID}}</span>
+    arrived without a local id, which says agrirouter does not believe this
+    platform holds it.
+  </p>
+  <table>
+    <tr><th>The delivered object</th></tr>
+    <tr><td>{{template "attributes" .Attributes}}</td></tr>
+  </table>
+
+  <form method="post" action="/decisions">
+    <input type="hidden" name="id" value="{{.ID}}">
+    <div class="field">
+      <label>Is it one of these records?</label>
+      {{range .Candidates}}
+      <label style="text-transform:none;letter-spacing:0;color:inherit">
+        <input type="radio" name="local_id" value="{{.LocalID}}">
+        <span class="mono">{{.LocalID}}</span> — {{template "attributes" .Attributes}}
+      </label>
+      {{end}}
+    </div>
+    <button type="submit" name="kind" value="match">This one — bind it</button>
+    <button type="submit" name="kind" value="create">None of them — create a new record</button>
+    <button type="submit" name="kind" value="block">I cannot tell — leave it</button>
+  </form>
+</div>
+{{else}}
+<p class="muted">Nothing is waiting.</p>
+{{end}}
+
+{{if .Blocked}}
+<h2>Left undecided</h2>
+<p class="muted">
+  The canonical set is delivered once, so these do not come back on their own.
+  Asking for one puts it on the live stream, where it is applied like any other
+  delivery.
+</p>
+<table>
+  <tr><th>Type</th><th>agrirouter id</th><th></th></tr>
+  {{range .Blocked}}
+  <tr>
+    <td>{{.Type}}</td>
+    <td class="mono">{{.AgrirouterID}}</td>
+    <td>
+      <form class="inline" method="post" action="/decisions/request">
+        <input type="hidden" name="type" value="{{.Type}}">
+        <input type="hidden" name="agrirouter_id" value="{{.AgrirouterID}}">
+        <button type="submit">Ask for it again</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+{{if .Answered}}
+<h2>Already decided</h2>
+<table>
+  <tr><th>Time</th><th>Type</th><th>agrirouter id</th><th>Decision</th></tr>
+  {{range .Answered}}
+  <tr>
+    <td class="mono">{{clock .When}}</td>
+    <td>{{.Type}}</td>
+    <td class="mono">{{.AgrirouterID}}</td>
+    <td>{{.Kind}}{{if .LocalID}} <span class="mono">{{.LocalID}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+{{template "foot" .}}
+{{end}}

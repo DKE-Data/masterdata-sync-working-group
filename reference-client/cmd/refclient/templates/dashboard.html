@@ -1,0 +1,72 @@
+{{define "dashboard.html"}}
+{{template "head" .}}
+
+<h2>Where this participant stands</h2>
+<table class="facts">
+  <tr><td>agrirouter</td><td class="mono">{{.BaseURL}}</td></tr>
+  <tr><td>Tenant</td><td class="mono">{{.Tenant}}</td></tr>
+  <tr><td>Endpoint</td><td class="mono">{{.EndpointID}}</td></tr>
+  <tr>
+    <td>Routed to exchange</td>
+    <td>
+      {{range .Routed}}<span class="tag">{{.}}</span> {{else}}<span class="muted">nothing yet</span>{{end}}
+      <div class="muted" style="font-size:13px;margin-top:4px">
+        The user's decision, made in agrirouter. This participant learns of it on
+        the stream and cannot make it for them.
+      </div>
+    </td>
+  </tr>
+  <tr><td>Initial load</td><td class="mono">{{.LoadState}}</td></tr>
+  <tr>
+    <td>Delivery position</td>
+    <td class="mono">{{if .Position}}{{.Position}}{{else}}<span class="muted">none — asks for everything</span>{{end}}</td>
+  </tr>
+  <tr>
+    <td>Stream</td>
+    <td>{{if .CaughtUp}}caught up{{else}}<span class="muted">not currently caught up</span>{{end}}</td>
+  </tr>
+  {{if .LastErr}}<tr><td>Last failure</td><td>{{.LastErr}}</td></tr>{{end}}
+</table>
+
+{{if .Pending}}
+<div class="problem">
+  {{.Pending}} object(s) in the initial load are waiting on a person.
+  <a href="/decisions">Answer them</a> — the load is stopped until you do.
+</div>
+{{end}}
+
+{{if .RoutingUnknown}}
+<div class="problem">
+  agrirouter says this endpoint owes an initial load, but nothing here says what
+  it is routed to. The <code>ROUTE_CHANGED</code> frame that would have said so
+  never arrived, or arrived and was not recorded — and there is no operation
+  that reads routing back, so running the load again will not find it.
+  Reconnecting from the beginning is what restates it.
+</div>
+{{end}}
+
+<h2>If something did not happen on its own</h2>
+<p class="muted">
+  Neither of these is part of ordinary running. The routing frame starts a load,
+  and startup runs whatever was owed while this participant was down.
+</p>
+<form class="inline" method="post" action="/load">
+  <button type="submit">Run the initial load now</button>
+</form>
+<form class="inline" method="post" action="/load/replay">
+  <button type="submit">Reconnect from the beginning</button>
+</form>
+<p class="muted" style="font-size:13px">
+  The first uses the routing shown above and is safe to press at any time: the
+  loader re-enters at whatever state the endpoint is actually in, and does
+  nothing where the load is already complete. The second asks for the whole
+  stream again, which is how routing that went missing comes back — everything
+  is redelivered, and what is already held is recognised as older and skipped.
+</p>
+
+<h2>Lately</h2>
+{{template "entries" .Entries}}
+<p><a href="/log">The whole log</a></p>
+
+{{template "foot" .}}
+{{end}}
