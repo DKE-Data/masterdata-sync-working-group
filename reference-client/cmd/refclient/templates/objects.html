@@ -1,63 +1,106 @@
 {{define "objects.html"}}
 {{template "head" .}}
 
-<h2>Send something</h2>
-{{if not .Types}}
-<p class="muted">
-  This endpoint is routed to nothing, so there is nothing it may send. The
-  routing is the user's decision, made in agrirouter.
-</p>
-{{else}}
+<h2>Create an object</h2>
 <div class="card">
-  <form method="post" action="/objects">
+  {{/* Choosing the type reloads the page, because the fields below are this
+       platform's own per type and come from the server that knows them. The
+       button is what works without scripting; the select only saves a click. */}}
+  <form method="get" action="/objects" class="typepick">
     <div class="field">
-      <label for="type">Type</label>
-      <select name="type" id="type">
-        {{range .Types}}<option value="{{.}}">{{.}}</option>{{end}}
+      <label for="new">Entity type</label>
+      <select name="new" id="new" onchange="this.form.submit()">
+        {{$sel := .NewType}}
+        {{range .Types}}
+        <option value="{{.}}" {{if eq . $sel}}selected{{end}}>{{.}}</option>
+        {{end}}
       </select>
     </div>
+    <button type="submit">Show fields</button>
+  </form>
+
+  <form method="post" action="/objects">
+    <input type="hidden" name="type" value="{{.NewType}}">
+    {{range .Fields}}
     <div class="field">
-      <label for="local_id">Local id</label>
-      <input type="text" name="local_id" id="local_id" placeholder="leave empty and this platform mints one">
+      <label for="{{.Name}}">
+        {{.Label}}{{if .Required}} <span class="req">required</span>{{end}}
+      </label>
+
+      {{if eq .Kind "ref"}}
+      <select name="{{.Name}}" id="{{.Name}}">
+        <option value="">— none —</option>
+        {{range .Choices}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
+      </select>
+
+      {{else if eq .Kind "enum"}}
+      {{/* An input with a datalist, not a select: these enumerations are
+           extensible, so the documented values are offered and a new one is
+           still typeable. */}}
+      <input type="text" name="{{.Name}}" id="{{.Name}}" list="{{.Name}}-list"
+             autocomplete="off">
+      <datalist id="{{.Name}}-list">
+        {{range .Examples}}<option value="{{.}}">{{end}}
+      </datalist>
+
+      {{else if eq .Kind "geometry"}}
+      <textarea name="{{.Name}}" id="{{.Name}}" rows="4">{{$.SampleGeo}}</textarea>
+
+      {{else if eq .Kind "number"}}
+      <input type="number" step="any" name="{{.Name}}" id="{{.Name}}"
+             placeholder="{{.Placeholder}}">
+
+      {{else}}
+      <input type="text" name="{{.Name}}" id="{{.Name}}"
+             placeholder="{{.Placeholder}}">
+      {{end}}
+
+      {{if .Hint}}<div class="muted hint">{{.Hint}}</div>{{end}}
     </div>
-    <div class="field">
-      <label for="attributes">Attributes (JSON)</label>
-      <textarea name="attributes" id="attributes" rows="5">{"name": "Hof Nord"}</textarea>
-    </div>
-    <button type="submit">Store and send</button>
+    {{else}}
+    <p class="muted">This platform models no attributes for {{.NewType}}.</p>
+    {{end}}
+
+    <button type="submit">Create {{.NewType}}</button>
+    <span class="muted hint">
+      {{if .NewRouted}}routed — sent to agrirouter{{else}}not routed — stored here only{{end}}
+    </span>
   </form>
 </div>
-{{end}}
 
+<h2>What this platform holds</h2>
 {{range $group := .Groups}}
-<h2>
+<h3>
   {{$group.Type}}
   {{if not $group.Routed}}<span class="tag">not routed</span>{{end}}
-</h2>
+</h3>
 <table>
   <tr>
-    <th>Local id</th><th>agrirouter id</th><th>Revision</th>
-    <th>Attributes</th><th></th>
+    <th>Name</th><th>Local id</th><th>agrirouter id</th><th>Revision</th><th></th>
   </tr>
   {{range $group.Records}}
   <tr>
-    <td class="mono">{{.LocalID}}{{if .Archived}} <span class="tag">archived</span>{{end}}</td>
+    <td>
+      <a href="/objects/{{$group.Type}}/{{.LocalID}}">{{if .Name}}{{.Name}}{{else}}(unnamed){{end}}</a>
+      {{if .Archived}} <span class="tag">archived</span>{{end}}
+    </td>
+    <td class="mono">{{.LocalID}}</td>
     <td class="mono">
       {{.AgrirouterID}}
       {{if .Unbound}}<br><span class="tag">unbound</span>{{end}}
     </td>
     <td class="mono">{{.Revision}}</td>
-    <td>{{template "attributes" .Attributes}}</td>
     <td>
-      {{if .Unbound}}
-      {{/* Not Deactivate: that is a send, and an unbound record has nothing to
-           send it about. All that is left to do with one is drop it. */}}
+      {{if .Deletable}}
+      {{/* Not Deactivate: that states the entity is inactive in the world and
+           travels to everyone, which is not what a local tidy-up means. Where
+           the record is bound, deleting unbinds it first. */}}
       <form class="inline" method="post" action="/objects/delete">
         <input type="hidden" name="type" value="{{$group.Type}}">
         <input type="hidden" name="local_id" value="{{.LocalID}}">
-        <button type="submit">Delete</button>
+        <button type="submit">Delete{{if .Unbinds}} (unbinds){{end}}</button>
       </form>
-      {{else if and (not .Archived) $group.Routed}}
+      {{else if not .Archived}}
       <form class="inline" method="post" action="/objects/deactivate">
         <input type="hidden" name="type" value="{{$group.Type}}">
         <input type="hidden" name="local_id" value="{{.LocalID}}">
@@ -69,10 +112,7 @@
   {{end}}
 </table>
 {{else}}
-<p class="muted">
-  This platform holds nothing yet. Send something above, or wait for the other
-  participant to.
-</p>
+<p class="muted">Nothing here yet.</p>
 {{end}}
 
 {{template "foot" .}}

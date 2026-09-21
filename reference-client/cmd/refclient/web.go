@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,7 +39,9 @@ func (in *instance) handler() http.Handler {
 	mux.HandleFunc("GET /{$}", in.showDashboard)
 	mux.HandleFunc("POST /load", in.postLoad)
 	mux.HandleFunc("POST /load/replay", in.postReplay)
+	mux.HandleFunc("POST /declare", in.postDeclare)
 	mux.HandleFunc("GET /objects", in.showObjects)
+	mux.HandleFunc("GET /objects/{type}/{localId}", in.showObject)
 	mux.HandleFunc("POST /objects", in.postObject)
 	mux.HandleFunc("POST /objects/deactivate", in.postDeactivate)
 	mux.HandleFunc("POST /objects/delete", in.postDelete)
@@ -113,10 +116,67 @@ func (in *instance) page(section string) page {
 func (in *instance) showDashboard(w http.ResponseWriter, r *http.Request) {
 	p := in.page("dashboard")
 	p.Notice, p.Problem = r.URL.Query().Get("ok"), r.URL.Query().Get("err")
+
+	declared := in.declaredTypes()
+	capabilities := make([]capability, 0, len(agmasync.EntityTypes))
+	for _, typ := range agmasync.EntityTypes {
+		capabilities = append(capabilities, capability{
+			Type: typ, Declared: slices.Contains(declared, typ),
+		})
+	}
+
 	in.render(w, "dashboard.html", struct {
 		page
-		Entries []logEntry
-	}{p, first(in.log.recent(), 12)})
+		// Declared is what is configured now, and Capabilities every type with
+		// a tick beside it — the reading and the editing of one fact.
+		Declared     []agmasync.EntityType
+		Capabilities []capability
+		Editing      bool
+		Entries      []logEntry
+	}{
+		p, declared, capabilities,
+		r.URL.Query().Get("edit") == "capabilities",
+		first(in.log.recent(), 12),
+	})
+}
+
+// capability is one entity type on the declaration form: what this
+// participant's software can exchange, and whether it currently says so.
+type capability struct {
+	Type     agmasync.EntityType
+	Declared bool
+}
+
+// postDeclare restates the declaration from what was ticked.
+//
+// Nothing ticked is a declaration of nothing, which is a thing a participant
+// may say — and the reason this does not treat the empty form as a mistake.
+func (in *instance) postDeclare(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		redirect(w, r, "/", "", err.Error())
+		return
+	}
+
+	var types []agmasync.EntityType
+	for _, name := range r.PostForm["type"] {
+		typ, err := agmasyncType(name)
+		if err != nil {
+			redirect(w, r, "/", "", err.Error())
+			return
+		}
+		types = append(types, typ)
+	}
+
+	if err := in.declare(r.Context(), types); err != nil {
+		redirect(w, r, "/", "", err.Error())
+		return
+	}
+
+	names := make([]string, 0, len(types))
+	for _, typ := range agmasync.DependencyClosure(types) {
+		names = append(names, string(typ))
+	}
+	redirect(w, r, "/", "declared: "+orNone(strings.Join(names, ", ")), "")
 }
 
 // postLoad runs the initial load now, against the routing this participant
@@ -130,7 +190,7 @@ func (in *instance) showDashboard(w http.ResponseWriter, r *http.Request) {
 // already complete.
 func (in *instance) postLoad(w http.ResponseWriter, r *http.Request) {
 	in.wantLoad(nil)
-	redirect(w, r, "/", "running the initial load; watch the log", "")
+	redirect(w, r, "/", "running the initial load", "")
 }
 
 // postReplay asks for the stream from the beginning.
@@ -142,9 +202,7 @@ func (in *instance) postLoad(w http.ResponseWriter, r *http.Request) {
 // it.
 func (in *instance) postReplay(w http.ResponseWriter, r *http.Request) {
 	in.replayFromStart()
-	redirect(w, r, "/",
-		"reconnecting from the beginning; everything is redelivered and what is "+
-			"already held is recognised as older and skipped", "")
+	redirect(w, r, "/", "reconnecting from the beginning", "")
 }
 
 // objectsView is the platform's own records beside what agrirouter calls them —
@@ -152,8 +210,21 @@ func (in *instance) postReplay(w http.ResponseWriter, r *http.Request) {
 // the line is the thing worth seeing.
 type objectsView struct {
 	page
-	Types  []agmasync.EntityType
-	Groups []objectGroup
+
+	// Types are every type a record may be created as, which is not the same as
+	// the types that can be sent. Creating is the platform's own act; sending is
+	// what the user routed. NewType is the one the form is currently showing.
+	Types   []agmasync.EntityType
+	NewType agmasync.EntityType
+
+	// NewRouted says a record of NewType leaves as soon as it is created. It
+	// changes what the button promises, so the screen says which it will be
+	// before the click rather than after.
+	NewRouted bool
+
+	Fields    []formField
+	SampleGeo string
+	Groups    []objectGroup
 }
 
 type objectGroup struct {
@@ -167,23 +238,77 @@ type objectGroup struct {
 }
 
 type objectRow struct {
+	Type         agmasync.EntityType
+	Name         string
 	LocalID      string
 	AgrirouterID string
 	Revision     string
 	Archived     bool
+	Bound        bool
 	Unbound      bool
 	Attributes   []attribute
+
+	// Deletable says the record can be dropped here, and Unbinds that dropping
+	// it declares to agrirouter that this platform no longer holds the object.
+	// Both follow from the record and the routing together; see
+	// [instance.deleteRecord], which decides the same thing again on the post.
+	Deletable bool
+	Unbinds   bool
+}
+
+// deletability works out which of [instance.deleteRecord]'s three cases a
+// record is in, so the screen offers the button exactly where the post will
+// accept it.
+func (row *objectRow) deletability(routed bool) {
+	switch {
+	case !row.Bound:
+		// Never sent, or already unbound: nothing to tell anyone about.
+		row.Deletable, row.Unbinds = true, false
+	case routed:
+		// Deactivation is available and is the operation that fits.
+		row.Deletable, row.Unbinds = false, false
+	default:
+		row.Deletable, row.Unbinds = true, true
+	}
+}
+
+// defaultNewType picks the type the create form opens on: the first routed one
+// in dependency order, so what is typed first is what everything else refers
+// to, and an organization where nothing is routed at all.
+func defaultNewType(routed []agmasync.EntityType) agmasync.EntityType {
+	for _, typ := range agmasync.DependencyOrder {
+		if slices.Contains(routed, typ) {
+			return typ
+		}
+	}
+	return agmasync.TypeOrganization
 }
 
 func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 	p := in.page("objects")
 	p.Notice, p.Problem = r.URL.Query().Get("ok"), r.URL.Query().Get("err")
 
-	// Offered types are the routed ones, not every type the model has. Sending a
-	// type the user has not routed is refused by agrirouter, so a form offering
-	// it would be teaching a send that cannot happen.
-	view := objectsView{page: p, Types: p.Routed}
+	// Every type can be created. Which of them leaves the platform is the
+	// routing, and the form says so rather than hiding the types it cannot send:
+	// a farm management system whose user cannot enter a farm because of what
+	// agrirouter was told is not a farm management system.
+	newType := agmasync.EntityType(r.URL.Query().Get("new"))
+	if !newType.Valid() {
+		newType = defaultNewType(p.Routed)
+	}
+
+	view := objectsView{
+		page:      p,
+		Types:     agmasync.EntityTypes,
+		NewType:   newType,
+		NewRouted: slices.Contains(p.Routed, newType),
+		SampleGeo: sampleGeometry,
+	}
 	err := in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
+		var err error
+		if view.Fields, err = fillChoices(tx, formFields(newType)); err != nil {
+			return err
+		}
 		for _, typ := range agmasync.DependencyOrder {
 			localIDs, err := tx.LocalIDs(typ)
 			if err != nil {
@@ -199,6 +324,7 @@ func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					return err
 				}
+				row.deletability(group.Routed)
 				group.Records = append(group.Records, row)
 			}
 			view.Groups = append(view.Groups, group)
@@ -212,7 +338,7 @@ func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func objectRowOf(tx *store.Tx, typ agmasync.EntityType, localID string) (objectRow, error) {
-	out := objectRow{LocalID: localID, AgrirouterID: "—", Revision: "—"}
+	out := objectRow{Type: typ, LocalID: localID, AgrirouterID: "—", Revision: "—"}
 
 	record, err := tx.LoadRecord(typ, localID)
 	if err != nil {
@@ -220,10 +346,12 @@ func objectRowOf(tx *store.Tx, typ agmasync.EntityType, localID string) (objectR
 	}
 	out.Archived = record.Archived
 	out.Attributes = attributesOfRecord(record)
+	out.Name = nameOfRecord(record)
 
 	switch row, err := tx.SyncRow(typ, localID); {
 	case err == nil:
 		out.Unbound = row.Unbound
+		out.Bound = row.Bound()
 		if row.AgrirouterID != nil {
 			out.AgrirouterID = row.AgrirouterID.String()
 		}
@@ -243,32 +371,231 @@ func (in *instance) postObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The form only offers routed types, but a page held open across a routing
-	// change still posts the old ones. Saying so here is kinder than the 403
-	// agrirouter would answer with, and stops the record being written for a
-	// send that cannot happen.
-	routed, err := in.routedTypes()
-	if err != nil {
+	if err := r.ParseForm(); err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
-	if !slices.Contains(routed, typ) {
-		redirect(w, r, "/objects", "", fmt.Sprintf(
-			"this endpoint is not routed to exchange %s: agrirouter refuses it", typ))
+	attributes, err := attributesFromForm(typ, r.PostForm)
+	if err != nil {
+		// Back to the form for this type, so what was rejected is in front of
+		// the person who typed it.
+		redirect(w, r, "/objects?new="+string(typ), "", err.Error())
 		return
 	}
 
-	localID, err := in.send(r.Context(), typ,
-		strings.TrimSpace(r.FormValue("local_id")),
-		[]byte(strings.TrimSpace(r.FormValue("attributes"))))
+	localID, sent, err := in.create(r.Context(), typ, attributes)
 	if err != nil {
+		if localID == "" {
+			redirect(w, r, "/objects?new="+string(typ), "", err.Error())
+			return
+		}
 		// The record was written even where the send failed, which is why this
 		// says which record rather than only what went wrong.
 		redirect(w, r, "/objects", "",
 			fmt.Sprintf("%s %s was stored but not sent: %v", typ, localID, err))
 		return
 	}
-	redirect(w, r, "/objects", fmt.Sprintf("%s %s sent", typ, localID), "")
+
+	what := fmt.Sprintf("%s %s created and sent", typ, localID)
+	if !sent {
+		what = fmt.Sprintf("%s %s created; %s is not routed", typ, localID, typ)
+	}
+	redirect(w, r, objectPath(typ, localID), what, "")
+}
+
+// objectPath is where one record lives on these screens.
+func objectPath(typ agmasync.EntityType, localID string) string {
+	return "/objects/" + url.PathEscape(string(typ)) + "/" + url.PathEscape(localID)
+}
+
+// objectView is one record in full: what the platform holds, what agrirouter
+// calls it, and what it points at.
+type objectView struct {
+	page
+	Row    objectRow
+	Routed bool
+
+	// Modelled is the record's attributes in the order the create form asks for
+	// them, labelled the way it labels them. The same fields, read back.
+	Modelled []detailAttr
+
+	// Unmodelled is what arrived that this platform has no column for, kept and
+	// relayed unchanged. It is shown apart because that distinction is the whole
+	// point of the split — and on a record created here it is always empty.
+	Unmodelled []attribute
+}
+
+// detailAttr is one attribute as the detail screen shows it.
+type detailAttr struct {
+	Label string
+	Value string
+
+	// Link is set where the attribute is a reference, so the target is one
+	// click away rather than an identifier to go and find.
+	Link string
+
+	// Pretty is set for geometry, which is shown indented over several lines
+	// instead of squeezed onto one.
+	Pretty string
+}
+
+func (in *instance) showObject(w http.ResponseWriter, r *http.Request) {
+	typ, err := agmasyncType(r.PathValue("type"))
+	if err != nil {
+		redirect(w, r, "/objects", "", err.Error())
+		return
+	}
+	localID := r.PathValue("localId")
+
+	p := in.page("objects")
+	p.Notice, p.Problem = r.URL.Query().Get("ok"), r.URL.Query().Get("err")
+	view := objectView{page: p, Routed: slices.Contains(p.Routed, typ)}
+
+	err = in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
+		row, err := objectRowOf(tx, typ, localID)
+		if err != nil {
+			return err
+		}
+		row.deletability(view.Routed)
+		view.Row = row
+
+		record, err := tx.LoadRecord(typ, localID)
+		if err != nil {
+			return err
+		}
+		view.Modelled = detailAttrs(tx, record)
+		view.Unmodelled = unmodelledAttrs(record)
+		return nil
+	})
+	switch {
+	case isNotFound(err):
+		redirect(w, r, "/objects", "",
+			fmt.Sprintf("no %s called %q here", typ, localID))
+		return
+	case err != nil:
+		view.Problem = err.Error()
+	}
+	in.render(w, "object.html", view)
+}
+
+// detailAttrs reads a record back through the same field list the create form
+// is built from, so a person sees what they typed under the label they typed it
+// under. An attribute the form does not know about cannot occur here: both come
+// from [formFields].
+func detailAttrs(tx *store.Tx, record store.Record) []detailAttr {
+	var out []detailAttr
+	for _, field := range formFields(record.EntityType) {
+		raw, ok := valueAt(record.Modelled, field.Name)
+		if !ok {
+			continue
+		}
+
+		attr := detailAttr{Label: field.Label, Value: compact(raw)}
+		switch field.Kind {
+		case "ref":
+			targetType, targetID := refTarget(raw)
+			if targetID == "" {
+				break
+			}
+			attr.Value = targetID
+			if targetType.Valid() {
+				attr.Link = objectPath(targetType, targetID)
+				if name, err := displayName(tx, targetType, targetID); err == nil && name != "" {
+					attr.Value = fmt.Sprintf("%s — %s", name, targetID)
+				}
+			}
+		case "geometry":
+			// Summarised, then shown. Indenting a polygon puts every coordinate
+			// on a line of its own, which is a lot of screen for the one thing
+			// nobody reads off a page — while the shape and the size of it are
+			// what a person actually wants to know at a glance.
+			attr.Value = geometrySummary(raw)
+			attr.Pretty = string(raw)
+		}
+		out = append(out, attr)
+	}
+	return out
+}
+
+// valueAt reads an attribute by the same dotted path the form writes it under.
+func valueAt(modelled map[string]json.RawMessage, path string) (json.RawMessage, bool) {
+	parent, leaf, nested := strings.Cut(path, ".")
+	raw, ok := modelled[parent]
+	if !ok || !nested {
+		return raw, ok
+	}
+	var child map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &child); err != nil {
+		return nil, false
+	}
+	value, ok := child[leaf]
+	return value, ok
+}
+
+// geometrySummary says what shape a boundary is and how big the geometry is,
+// which is what can usefully be read off a screen. The coordinates themselves
+// are shown underneath, unaltered, because this is a sample and what went over
+// the wire is the point of it.
+func geometrySummary(raw json.RawMessage) string {
+	var geometry struct {
+		Type        string `json:"type"`
+		Coordinates any    `json:"coordinates"`
+	}
+	if err := json.Unmarshal(raw, &geometry); err != nil {
+		return ""
+	}
+	name := geometry.Type
+	if name == "" {
+		name = "geometry"
+	}
+	points := countPoints(geometry.Coordinates)
+	if points == 0 {
+		return name
+	}
+	return fmt.Sprintf("%s — %d points", name, points)
+}
+
+// countPoints walks a GeoJSON coordinate array, whose nesting depth is the
+// geometry's own: a position is a pair of numbers however deep it sits.
+func countPoints(coordinates any) int {
+	list, ok := coordinates.([]any)
+	if !ok {
+		return 0
+	}
+	if len(list) > 0 {
+		if _, isNumber := list[0].(float64); isNumber {
+			return 1
+		}
+	}
+	total := 0
+	for _, item := range list {
+		total += countPoints(item)
+	}
+	return total
+}
+
+func refTarget(raw json.RawMessage) (agmasync.EntityType, string) {
+	var ref struct {
+		Type    string `json:"type"`
+		LocalID string `json:"local_id"`
+	}
+	if err := json.Unmarshal(raw, &ref); err != nil {
+		return "", ""
+	}
+	return agmasync.EntityType(ref.Type), ref.LocalID
+}
+
+func unmodelledAttrs(record store.Record) []attribute {
+	var out []attribute
+	names := make([]string, 0, len(record.Unmodelled))
+	for name := range record.Unmodelled {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		out = append(out, attribute{Name: name, Value: compact(record.Unmodelled[name])})
+	}
+	return out
 }
 
 func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {
@@ -294,13 +621,12 @@ func (in *instance) postDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	localID := r.FormValue("local_id")
 
-	if err := in.deleteRecord(typ, localID); err != nil {
+	if err := in.deleteRecord(r.Context(), typ, localID); err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
 	redirect(w, r, "/objects",
-		fmt.Sprintf("%s %s deleted; agrirouter was not told, "+
-			"because there is no mapping left to tell it about", typ, localID), "")
+		fmt.Sprintf("%s %s deleted", typ, localID), "")
 }
 
 type decisionsView struct {
@@ -417,13 +743,22 @@ func (in *instance) render(w http.ResponseWriter, name string, data any) {
 
 // redirect answers a form post with a fresh GET, so that a reload does not
 // repeat whatever it did.
+// redirect sends the browser on with the outcome of what it just did.
+//
+// The path may already carry a query — the create form comes back to the type
+// it was filled in for — so the separator is whichever of ? and & the path has
+// not used yet.
 func redirect(w http.ResponseWriter, r *http.Request, path, notice, problem string) {
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
 	query := ""
 	switch {
 	case problem != "":
-		query = "?err=" + urlValue(problem)
+		query = separator + "err=" + urlValue(problem)
 	case notice != "":
-		query = "?ok=" + urlValue(notice)
+		query = separator + "ok=" + urlValue(notice)
 	}
 	http.Redirect(w, r, path+query, http.StatusSeeOther)
 }

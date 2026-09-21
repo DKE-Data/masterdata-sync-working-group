@@ -26,10 +26,10 @@ import (
 // reason this exists, and the reason it blocks: a load with a question
 // outstanding is stopped, exactly as it is in scenario 8.
 //
-// It asks only where there is something to decide. An object arriving for a type
-// this platform holds no unbound record of has no candidate to be confused with,
-// so it is created without troubling anybody — which is what makes an empty
-// participant's first load run start to finish on its own.
+// It asks only where there is something to decide. An object the platform holds
+// no plausible record for is created without troubling anybody — which is what
+// makes an empty participant's first load run start to finish on its own — and
+// one a rule can settle is settled by the rule. See [inbox.Recognise].
 type inbox struct {
 	ctx     context.Context
 	timeout time.Duration
@@ -60,6 +60,7 @@ type decision struct {
 // candidate is one of this platform's own records the object might be.
 type candidate struct {
 	LocalID    string
+	Name       string
 	Attributes []attribute
 }
 
@@ -95,16 +96,36 @@ func newInbox(ctx context.Context, timeout time.Duration, log *eventLog) *inbox 
 // It reads through the transaction the object is being applied in, so the
 // candidates it offers include records this same load has already created, and
 // so the answer commits with the object or not at all.
+//
+// A person is asked only where the platform cannot tell on its own, which is
+// what makes the question worth reading. [psync.ByName] goes first and settles
+// the unambiguous case; what reaches a person is an object with more than one
+// record answering to it, or one whose name is close to a record's without
+// being it — "Hof Nord" against "Hof Nord GmbH", which no rule should decide.
+// An object resembling nothing held is created, and silently: offering a farm
+// called "Nordacker" as a candidate for one called "Südfeld" is noise, and
+// noise is what makes a person stop reading the questions.
 func (i *inbox) Recognise(
 	tx *store.Tx, env agmasync.Envelope, entity oapi.Entity,
 ) (psync.Recognition, error) {
-	candidates, err := unboundRecords(tx, env.Type)
+	// The zero Recognition from ByName means one of two different things — no
+	// name to match on, or no record matching it — and neither is an answer on
+	// its own. Only the match is taken from here.
+	matched, err := (psync.ByName{}).Recognise(tx, env, entity)
+	if err != nil {
+		return psync.Recognition{}, err
+	}
+	if matched.LocalID != "" {
+		return matched, nil
+	}
+
+	candidates, err := plausibleRecords(tx, env.Type, entity)
 	if err != nil {
 		return psync.Recognition{}, err
 	}
 	if len(candidates) == 0 {
-		// Nothing to confuse it with. The platform does not hold this object, and
-		// saying so costs nobody's attention.
+		// Nothing it could plausibly be. The platform does not hold this object,
+		// and saying so costs nobody's attention.
 		return psync.Recognition{}, nil
 	}
 
@@ -253,10 +274,68 @@ func unboundRecords(tx *store.Tx, typ agmasync.EntityType) ([]candidate, error) 
 		}
 		out = append(out, candidate{
 			LocalID:    localID,
+			Name:       nameOfRecord(record),
 			Attributes: attributesOfRecord(record),
 		})
 	}
 	return out, nil
+}
+
+// plausibleRecords narrows the unbound records to the ones worth putting in
+// front of a person for this object.
+//
+// Plausible means the names are close: equal once case and space are set aside
+// — which only happens here when several records share the name, since a single
+// exact match was already taken by [psync.ByName] — or one name contained in
+// the other, which is the shape a legal form or a farm's suffix gives it.
+//
+// An object with no name at all matches nothing and is created. That is the
+// same stance [psync.ByName] takes on field boundaries, and for the same
+// reason: there is nothing to compare, so there is no question to ask.
+func plausibleRecords(
+	tx *store.Tx, typ agmasync.EntityType, entity oapi.Entity,
+) ([]candidate, error) {
+	delivered, err := store.FromEntity(typ, entity)
+	if err != nil {
+		return nil, err
+	}
+	wanted := nameOfRecord(delivered)
+	if wanted == "" {
+		return nil, nil
+	}
+
+	held, err := unboundRecords(tx, typ)
+	if err != nil {
+		return nil, err
+	}
+	var out []candidate
+	for _, record := range held {
+		if alike(wanted, record.Name) {
+			out = append(out, record)
+		}
+	}
+	return out, nil
+}
+
+// alike is this sample's whole notion of resemblance, and a deliberately crude
+// one: a real platform weighs addresses, registry numbers and geometries. What
+// it is here to do is keep the obviously unrelated out of a person's way.
+func alike(a, b string) bool {
+	a, b = normalise(a), normalise(b)
+	if a == "" || b == "" {
+		return false
+	}
+	// Short names make containment meaningless — every "Hof" is inside every
+	// other — so below this length only equality counts.
+	const shortest = 4
+	if len(a) < shortest || len(b) < shortest {
+		return a == b
+	}
+	return strings.Contains(a, b) || strings.Contains(b, a)
+}
+
+func normalise(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
 // attributesOf renders a delivered object for a person to look at.

@@ -2,21 +2,16 @@
 {{template "head" .}}
 
 <h2>Waiting on you</h2>
-<p class="muted">
-  agrirouter provides the canonical set and adjudicates nothing, so whether an
-  object in it is one this platform already holds is a judgement only a person
-  can make. While a question is open the load is stopped — not slowed. Left
-  unanswered for {{.Timeout}}, the object is given up on rather than guessed at:
-  the load stops short of reconciled, agrirouter is told a person is needed, and
-  the object has to be asked for again.
+<p class="muted hint">
+  The load is stopped until these are answered. Unanswered for {{.Timeout}}, an
+  object is left undecided.
 </p>
 
 {{range .Questions}}
 <div class="card">
   <p>
     <strong>{{.Type}}</strong> <span class="mono">{{.AgrirouterID}}</span>
-    arrived without a local id, which says agrirouter does not believe this
-    platform holds it.
+    arrived without a local id.
   </p>
   <table>
     <tr><th>The delivered object</th></tr>
@@ -30,7 +25,8 @@
       {{range .Candidates}}
       <label style="text-transform:none;letter-spacing:0;color:inherit">
         <input type="radio" name="local_id" value="{{.LocalID}}">
-        <span class="mono">{{.LocalID}}</span> — {{template "attributes" .Attributes}}
+        {{if .Name}}<strong>{{.Name}}</strong> {{end}}<span class="mono">{{.LocalID}}</span>
+        <br>{{template "attributes" .Attributes}}
       </label>
       {{end}}
     </div>
@@ -45,11 +41,7 @@
 
 {{if .Blocked}}
 <h2>Left undecided</h2>
-<p class="muted">
-  The canonical set is delivered once, so these do not come back on their own.
-  Asking for one puts it on the live stream, where it is applied like any other
-  delivery.
-</p>
+<p class="muted hint">These do not come back on their own.</p>
 <table>
   <tr><th>Type</th><th>agrirouter id</th><th></th></tr>
   {{range .Blocked}}

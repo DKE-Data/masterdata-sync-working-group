@@ -8,7 +8,6 @@
   body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #182018; }
   header { background: #1d3320; color: #fff; padding: 12px 24px; }
   header h1 { font-size: 17px; margin: 0; font-weight: 600; }
-  header .sample { font-size: 13px; opacity: .75; margin-top: 2px; }
   nav { background: #2a4a2e; padding: 0 24px; }
   nav a { color: #cfe0d0; text-decoration: none; display: inline-block; padding: 9px 14px; }
   nav a.on { background: #fff; color: #1d3320; font-weight: 600; }
@@ -32,15 +31,28 @@
   .field { margin-bottom: 10px; max-width: 560px; }
   .field label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5c6b5c; margin-bottom: 3px; }
   .tag { font-size: 12px; padding: 1px 7px; border-radius: 9px; background: #e4eae4; }
+  h3 { font-size: 14px; margin: 18px 0 6px; font-weight: 600; }
+  a { color: #1d5c2a; }
+  .hint { font-size: 13px; }
+  .field .hint { margin-top: 3px; }
+  label.tick { display: inline-block; margin: 0 16px 10px 0; font-size: 14px; }
+  label.tick input { margin-right: 5px; }
+  .req { font-weight: 400; color: #9a5b52; letter-spacing: 0; text-transform: none; }
+  .typepick { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 4px;
+              padding-bottom: 12px; border-bottom: 1px solid #e2e6e2; }
+  .typepick .field { margin-bottom: 0; width: 280px; }
+  .detail { margin-bottom: 12px; }
+  .detail:last-child { margin-bottom: 0; }
+  .detail-label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+                  color: #5c6b5c; margin-bottom: 1px; }
+  pre.geo { background: #f4f7f4; border: 1px solid #e2e6e2; border-radius: 3px;
+            padding: 8px 10px; margin: 2px 0 0; max-width: 700px;
+            white-space: pre-wrap; word-break: break-all; }
 </style>
 </head>
 <body>
 <header>
   <h1>{{.Instance}} <span class="muted">— endpoint {{.ExternalID}}</span></h1>
-  <div class="sample">
-    A sample participant. It is here to be run against, not to be copied:
-    the protocol layer worth importing is the agmasync module.
-  </div>
 </header>
 <nav>
   <a href="/" {{if eq .Section "dashboard"}}class="on"{{end}}>Dashboard</a>

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +59,11 @@ type instance struct {
 	// answer to a frame that has just widened it.
 	routed []agmasync.EntityType
 
+	// declared is what this endpoint last told agrirouter it can exchange. It is
+	// held here because nothing reads it back: the declaration travels on
+	// PutEndpoint and agrirouter answers with the endpoint, not with the list.
+	declared []agmasync.EntityType
+
 	// routingUnknown is the disagreement worth showing: agrirouter says this
 	// endpoint owes a load, and this participant has not been told what it is
 	// routed to. It means a ROUTE_CHANGED went missing, which is recoverable
@@ -79,7 +85,8 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 	}
 
 	log := newEventLog()
-	endpointID, created, err := onboardPatiently(ctx, cfg, cfg.httpClient(ctx), log)
+	endpointID, created, err := onboardPatiently(
+		ctx, cfg, cfg.httpClient(ctx), log, cfg.masterdata)
 	if err != nil {
 		_ = db.Close()
 		return nil, err
@@ -103,6 +110,7 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 		client:     client,
 		loads:      make(chan struct{}, 1),
 	}
+	in.declared = cfg.masterdata
 	in.endpoint = client.For(endpointID, cfg.externalID(),
 		cfg.applicationID, cfg.tenantID, cfg.softwareVersionID, endpointType)
 
@@ -300,9 +308,8 @@ func (in *instance) runLoad(ctx context.Context) {
 		in.mu.Unlock()
 
 		if owed {
-			in.log.say("load", "agrirouter says a load is owed, but nothing here "+
-				"says what this endpoint is routed to — the routing frame went "+
-				"missing, and only the stream restates it")
+			in.log.say("load",
+				"a load is owed but the routing is unknown; replay the stream")
 		}
 		in.setState("")
 		return
@@ -457,6 +464,83 @@ func (in *instance) send(
 	return localID, nil
 }
 
+// declare restates what this participant's software can exchange.
+//
+// It is PutEndpoint again, the same call onboarding makes, because the
+// declaration is part of the endpoint rather than a resource of its own — so
+// stating it is stating the whole endpoint, and what is not named is withdrawn.
+//
+// Withdrawing is the part with consequences. A type dropped here is dropped
+// from the user's routing too: they cannot have selected what the participant
+// no longer says it can exchange, and agrirouter narrows their selection to
+// match. Widening is the harmless direction — it enables nothing on its own,
+// and what the endpoint exchanges is still the user's choice.
+func (in *instance) declare(ctx context.Context, types []agmasync.EntityType) error {
+	if _, _, err := onboard(ctx, in.cfg, in.cfg.httpClient(ctx), types); err != nil {
+		return err
+	}
+
+	// What went out is the closure, not the ticks: a declaration naming fields
+	// names the farms they hang off. Reading it back from the same helper keeps
+	// the screen honest about what agrirouter was actually told.
+	declared := agmasync.DependencyClosure(types)
+	in.mu.Lock()
+	in.declared = declared
+	in.mu.Unlock()
+
+	names := make([]string, 0, len(declared))
+	for _, typ := range declared {
+		names = append(names, string(typ))
+	}
+	in.log.say("declare", "declared: "+orNone(strings.Join(names, ", ")))
+	return nil
+}
+
+// declaredTypes is what the screens show as ticked.
+func (in *instance) declaredTypes() []agmasync.EntityType {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	return in.declared
+}
+
+// create stores a record the platform's user just filled in, and offers it to
+// agrirouter where the user has routed its type.
+//
+// The routing is the only thing that decides whether anything leaves. A farm
+// management system creates the objects its user creates whatever agrirouter
+// knows about; exchanging them is a separate decision, made elsewhere, and a
+// platform that refused to create what it cannot send would be letting
+// agrirouter run its data model.
+//
+// An unrouted record is stored with no binding, which is exactly the state an
+// initial load offers back later: routing the type afterwards sends it then.
+func (in *instance) create(
+	ctx context.Context, typ agmasync.EntityType, attributes []byte,
+) (string, bool, error) {
+	routed, err := in.routedTypes()
+	if err != nil {
+		return "", false, err
+	}
+	if slices.Contains(routed, typ) {
+		localID, err := in.send(ctx, typ, "", attributes)
+		return localID, true, err
+	}
+
+	localID := in.ids.New(typ)
+	record, err := recordFrom(typ, localID, attributes)
+	if err != nil {
+		return "", false, err
+	}
+	if err := in.store.Tx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
+		return tx.UpsertRecord(record, localID)
+	}); err != nil {
+		return "", false, err
+	}
+	in.log.say("create", fmt.Sprintf(
+		"%s %s created; %s is not routed, nothing sent", typ, localID, typ))
+	return localID, false, nil
+}
+
 func (in *instance) deactivate(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) error {
@@ -472,35 +556,80 @@ func (in *instance) deactivate(
 	return nil
 }
 
-// deleteRecord drops a record this platform holds and nothing else.
+// deleteRecord drops a record this platform holds, telling agrirouter first
+// where there is anything to tell.
 //
-// Only an unbound one. A local deletion says nothing to agrirouter, which goes
-// on holding the canonical object and the mapping to it, so deleting a bound
-// record would leave that mapping naming a record that is gone and the object's
-// next change arriving under an identifier resolving to nothing. What removes a
-// bound record for everybody is Deactivate, and what ends the claim without
-// removing anything is an unbind — which this sample does not offer.
+// Deleting a record is the platform's own act and the protocol models nothing
+// of it: agrirouter never removes a canonical object, and deactivation — which
+// does travel — says the entity is inactive in the world, which is a different
+// claim and not one to make on the platform's behalf just because its user
+// tidied up.
 //
-// An unbound record has no such mapping to leave behind: agrirouter refused the
-// pair or was told the platform no longer holds it. Nothing can be sent about it
-// and nothing can be recognised as it, so deleting is all that is left to do
-// with it.
-func (in *instance) deleteRecord(typ agmasync.EntityType, localID string) error {
-	if err := in.store.Tx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
+// What matters is the mapping. A local deletion that leaves one standing leaves
+// agrirouter resolving this platform's identifier to a record that is gone, and
+// the object's next change arriving under an identifier that resolves to
+// nothing. So the three cases differ by whether a mapping exists and whether
+// deactivation is available instead:
+//
+//   - Nothing bound — never sent, or already unbound. Delete and tell nobody:
+//     there is no mapping to leave behind.
+//   - Bound, type not routed. Unbind first, which is exactly the declaration
+//     the specification provides for a record its user deleted locally, and
+//     then delete. Deactivation is not an option here — the endpoint cannot
+//     send about a type it is not routed to — so refusing would leave the
+//     record with nothing that can be done to it at all.
+//   - Bound, type routed. Refused. Deactivation is available and is what a
+//     platform means when an entity is gone in the world; unbinding instead
+//     would silently keep the object alive for every other participant while
+//     this one stopped hearing about it.
+func (in *instance) deleteRecord(
+	ctx context.Context, typ agmasync.EntityType, localID string,
+) error {
+	var bound bool
+	if err := in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
 		row, err := tx.SyncRow(typ, localID)
-		switch {
-		case err == nil && !row.Unbound:
-			return fmt.Errorf(
-				"%s %q is bound to %s: deactivate it rather than deleting it here",
-				typ, localID, row.AgrirouterID)
-		case err != nil && !errors.Is(err, store.ErrNotFound):
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				return nil
+			}
 			return err
 		}
+		bound = row.Bound()
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	told := false
+	if bound {
+		routed, err := in.routedTypes()
+		if err != nil {
+			return err
+		}
+		if slices.Contains(routed, typ) {
+			return fmt.Errorf(
+				"%s %q is bound and %s is routed: deactivate it instead",
+				typ, localID, typ)
+		}
+		// agrirouter first. A platform that dropped the record locally but
+		// failed to say so would leave the pair standing with nothing behind it.
+		if err := in.applier.Unbind(ctx, typ, localID); err != nil {
+			return fmt.Errorf("unbinding before deleting: %w", err)
+		}
+		told = true
+	}
+
+	if err := in.store.Tx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
 		return tx.DeleteRecord(typ, localID)
 	}); err != nil {
 		return err
 	}
-	in.log.say("delete", fmt.Sprintf("%s %s deleted locally", typ, localID))
+
+	what := fmt.Sprintf("%s %s deleted", typ, localID)
+	if told {
+		what = fmt.Sprintf("%s %s unbound and deleted", typ, localID)
+	}
+	in.log.say("delete", what)
 	return nil
 }
 

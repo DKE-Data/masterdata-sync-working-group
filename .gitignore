@@ -1,3 +1,4 @@
 # build artifacts from the RFC generator
 RFC.html
 RFC.xml
+reference-client/env/qa.env

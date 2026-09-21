@@ -12,6 +12,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/google/uuid"
+	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
@@ -43,6 +44,25 @@ type config struct {
 	// that expires and renews. Nil where token is set.
 	oauth *clientcredentials.Config
 
+	// oauthClientID is kept beside it because the authorization step names the
+	// client in a URL rather than presenting a token.
+	oauthClientID string
+
+	// authorizeURL is agrirouter's own front end, where a user authorizes this
+	// application for their farming business. Empty where there is nothing to
+	// authorize against — the test router grants by existing.
+	authorizeURL string
+
+	// publicURL is this participant as a browser reaches it, which is where
+	// agrirouter sends the person back. It differs from addr wherever a port is
+	// published under another number, which is every container.
+	publicURL string
+
+	// masterdata is what this participant declares it can exchange, at startup.
+	// The screens can restate it afterwards; this is what an instance comes up
+	// saying, so a restart does not silently widen what a person narrowed.
+	masterdata []agmasync.EntityType
+
 	// decisionTimeout bounds how long a reconciliation waits for a person before
 	// giving up on the object and leaving it for one. Without it a load parks a
 	// database transaction for as long as nobody is looking.
@@ -62,8 +82,10 @@ func (c config) externalID() string {
 
 func loadConfig() (config, error) {
 	var c config
+	var err error
 	var tenant, application, softwareVersion string
-	var oauthTokenURL, oauthClientID, oauthClientSecret string
+	var oauthTokenURL, oauthClientID, oauthClientSecret, oauthScopes string
+	var masterdata string
 
 	flag.StringVar(&c.instance, "instance", env("REFCLIENT_INSTANCE", "alpha"),
 		"what to call this participant (REFCLIENT_INSTANCE)")
@@ -87,6 +109,14 @@ func loadConfig() (config, error) {
 		"OAuth client id (AGMASYNC_OAUTH_CLIENT_ID)")
 	flag.StringVar(&oauthClientSecret, "oauth-client-secret", env("AGMASYNC_OAUTH_CLIENT_SECRET", ""),
 		"OAuth client secret (AGMASYNC_OAUTH_CLIENT_SECRET)")
+	flag.StringVar(&oauthScopes, "oauth-scopes", env("AGMASYNC_OAUTH_SCOPES", ""),
+		"comma-separated scopes to request; empty asks for none (AGMASYNC_OAUTH_SCOPES)")
+	flag.StringVar(&c.authorizeURL, "authorize-url", env("AGRIROUTER_APP_URL", ""),
+		"agrirouter's front end, where a user authorizes this application (AGRIROUTER_APP_URL)")
+	flag.StringVar(&c.publicURL, "public-url", env("REFCLIENT_PUBLIC_URL", ""),
+		"this participant as a browser reaches it (REFCLIENT_PUBLIC_URL); default http://localhost<addr>")
+	flag.StringVar(&masterdata, "masterdata", env("AGMASYNC_MASTERDATA", ""),
+		"entity types to declare at startup, comma-separated; empty declares all (AGMASYNC_MASTERDATA)")
 	flag.DurationVar(&c.decisionTimeout, "decision-timeout",
 		envDuration("REFCLIENT_DECISION_TIMEOUT", 2*time.Minute),
 		"how long reconciliation waits for a person (REFCLIENT_DECISION_TIMEOUT)")
@@ -95,13 +125,22 @@ func loadConfig() (config, error) {
 	if c.instance == "" {
 		return c, errors.New("an instance name is required: pass -instance")
 	}
+	if c.masterdata, err = entityTypeList(masterdata); err != nil {
+		return c, err
+	}
 	if c.dbPath == "" {
 		c.dbPath = c.instance + ".db"
 	}
 
-	var err error
-	if c.tenantID, err = required("tenant", tenant); err != nil {
-		return c, err
+	// The tenant is required only where nothing can supply it. Authorizing
+	// answers "which farming business" as its whole point, so an instance with
+	// somewhere to be authorized may start without one and learn it there.
+	switch {
+	case tenant == "" && c.authorizeURL != "":
+	default:
+		if c.tenantID, err = required("tenant", tenant); err != nil {
+			return c, err
+		}
 	}
 	if c.applicationID, err = required("application", application); err != nil {
 		return c, err
@@ -126,17 +165,43 @@ func loadConfig() (config, error) {
 			ClientID:     oauthClientID,
 			ClientSecret: oauthClientSecret,
 			TokenURL:     oauthTokenURL,
-			// Both are needed: the endpoint is created and routed through one,
-			// and everything the participant then exchanges through the other.
-			Scopes: []string{"manage_endpoints", "masterdata"},
+			// Asked for only where a deployment wants them named. openapi.yaml
+			// documents two — manage_endpoints to create and configure the
+			// endpoint, masterdata for what it then exchanges — but the running
+			// agrirouters grant by client registration and answer invalid_scope
+			// to a request naming them. Empty is what works, and what the
+			// monorepo's own system tests send.
+			Scopes: scopeList(oauthScopes),
+			// Stated rather than probed. Left unset, the library tries the
+			// Authorization header, and on *any* error retries with the
+			// credentials in the body and reports that second failure — so a
+			// rejected client id comes back as whatever the token endpoint says
+			// about a request with no Authorization header, which is a sentence
+			// about the wrong request. agrirouter takes client_secret_basic.
+			AuthStyle: oauth2.AuthStyleInHeader,
 		}
 		c.token = ""
+		c.oauthClientID = oauthClientID
 	case c.token == "":
 		return c, errors.New(
 			"credentials are required: pass -token for the test router, " +
 				"or -oauth-token-url with -oauth-client-id and -oauth-client-secret")
 	}
 	return c, nil
+}
+
+// callbackURL is where agrirouter sends the person back to.
+//
+// The participant's own address and no path under it: the redirect has to match
+// one registered for the OAuth client, and what is registered is the
+// application's address rather than a route this sample invented. The tenant
+// arrives as a query parameter, so the landing page is the one that reads it.
+func (c config) callbackURL() string {
+	base := c.publicURL
+	if base == "" {
+		base = "http://localhost" + c.addr
+	}
+	return strings.TrimSuffix(base, "/")
 }
 
 // httpClient is the client both the agmasync client and onboarding use.
@@ -162,6 +227,41 @@ func (c config) options(ctx context.Context) []agmasync.Option {
 		opts = append(opts, agmasync.WithBearerToken(c.token))
 	}
 	return opts
+}
+
+// entityTypeList reads a comma-separated list of entity types, defaulting to
+// every type this platform models — which is what a sample that has columns for
+// all of them can honestly say.
+func entityTypeList(list string) ([]agmasync.EntityType, error) {
+	if strings.TrimSpace(list) == "" {
+		return agmasync.EntityTypes, nil
+	}
+	var out []agmasync.EntityType
+	for _, name := range strings.Split(list, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		typ := agmasync.EntityType(name)
+		if !typ.Valid() {
+			return nil, fmt.Errorf("%w: %q", agmasync.ErrUnknownEntityType, name)
+		}
+		out = append(out, typ)
+	}
+	return out, nil
+}
+
+// scopeList reads the scopes to request, if any. A scope named here is one the
+// token endpoint must know: an unregistered name is refused outright rather
+// than narrowed to what the client may have.
+func scopeList(list string) []string {
+	var out []string
+	for _, scope := range strings.Split(list, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			out = append(out, scope)
+		}
+	}
+	return out
 }
 
 func required(name, value string) (uuid.UUID, error) {
