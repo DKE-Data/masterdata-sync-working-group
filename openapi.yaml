@@ -1100,6 +1100,7 @@ paths:
 
   /endpoints/{external_id}/masterdata-initial-load/events:
     parameters:
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/external_id'
     get:
       tags: [InitialLoad]
@@ -1179,6 +1180,7 @@ paths:
 
   /endpoints/{external_id}/masterdata-initial-load/status:
     parameters:
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/external_id'
     get:
       tags: [InitialLoad]
@@ -1291,6 +1293,7 @@ paths:
 
   /endpoints/{external_id}/masterdata-initial-load/user-attention:
     parameters:
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/external_id'
     put:
       tags: [InitialLoad]
@@ -1360,7 +1363,7 @@ components:
 
   parameters:
     AgrirouterTenantId:
-      name: X-Agrirouter-TenantId
+      name: x-agrirouter-tenant-id
       in: header
       required: true
       schema:

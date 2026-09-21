@@ -1260,7 +1260,7 @@ func putConfigOverHTTP(
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-Agrirouter-TenantId", tenant.String())
+	req.Header.Set("x-agrirouter-tenant-id", tenant.String())
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

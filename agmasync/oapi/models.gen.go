@@ -897,7 +897,36 @@ type ValidationError = Error
 // PutEndpointParams defines parameters for PutEndpoint.
 type PutEndpointParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"X-Agrirouter-TenantId"`
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// StreamInitialLoadEventsParams defines parameters for StreamInitialLoadEvents.
+type StreamInitialLoadEventsParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// GetInitialLoadStatusParams defines parameters for GetInitialLoadStatus.
+type GetInitialLoadStatusParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// SetInitialLoadStateParams defines parameters for SetInitialLoadState.
+type SetInitialLoadStateParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// ReportUserAttentionParams defines parameters for ReportUserAttention.
+type ReportUserAttentionParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // StreamMasterdataEventsParams defines parameters for StreamMasterdataEvents.

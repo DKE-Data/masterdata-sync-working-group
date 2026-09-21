@@ -8,7 +8,6 @@ import (
 	"io"
 	"iter"
 	"net/http"
-	"net/url"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/tmaxmax/go-sse"
@@ -178,17 +177,16 @@ func errIsStreamEnd(err error) bool {
 // assume it observed every intermediate change. Catch-up ends with an
 // [EventCaughtUp] frame.
 func (c *Client) Events(ctx context.Context, lastEventID string) (*Stream, error) {
-	u, err := url.JoinPath(c.baseURL, "masterdata", "events")
-	if err != nil {
-		return nil, fmt.Errorf("agmasync: building stream URL: %w", err)
-	}
-
-	header := http.Header{}
+	var params oapi.StreamMasterdataEventsParams
 	if lastEventID != "" {
 		// Passed back exactly as agrirouter issued it in the frame's id field.
-		header.Set("Last-Event-ID", lastEventID)
+		params.LastEventID = &lastEventID
 	}
-	return c.openStream(ctx, u, header, true)
+	resp, err := c.api.StreamMasterdataEvents(ctx, &params, acceptEventStream)
+	if err != nil {
+		return nil, fmt.Errorf("agmasync: opening stream: %w", err)
+	}
+	return openStream(resp, true)
 }
 
 // InitialLoadEvents opens this endpoint's initial-load stream and collects the
@@ -213,34 +211,43 @@ func (c *Client) Events(ctx context.Context, lastEventID string) (*Stream, error
 // drops before the set is complete is recovered by connecting again and taking
 // the set from the beginning.
 func (e *Endpoint) InitialLoadEvents(ctx context.Context) (*Stream, error) {
-	u, err := url.JoinPath(
-		e.client.baseURL, "endpoints", e.externalID, "masterdata-initial-load", "events")
-	if err != nil {
-		return nil, fmt.Errorf("agmasync: building stream URL: %w", err)
-	}
-	return e.client.openStream(ctx, u, http.Header{}, false)
-}
-
-func (c *Client) openStream(
-	ctx context.Context, u string, header http.Header, positioned bool,
-) (*Stream, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, fmt.Errorf("agmasync: building stream request: %w", err)
-	}
-	for k, vs := range header {
-		for _, v := range vs {
-			req.Header.Add(k, v)
-		}
-	}
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Cache-Control", "no-store")
-
-	resp, err := c.http.Do(req)
+	resp, err := e.client.api.StreamInitialLoadEvents(ctx, e.externalID,
+		&oapi.StreamInitialLoadEventsParams{XAgrirouterTenantId: e.tenantID},
+		acceptEventStream)
 	if err != nil {
 		return nil, fmt.Errorf("agmasync: opening stream: %w", err)
 	}
+	return openStream(resp, false)
+}
 
+// acceptEventStream asks the two stream operations for the media type they
+// answer in, and says the response must not be cached.
+//
+// The generated client sets neither: Accept is not a parameter any operation
+// declares, and no-store is about how this response must be handled rather than
+// about the request. Everything the operations do declare — the tenant on the
+// initial-load stream, Last-Event-ID on the live one — comes from the generated
+// params, so there is no header named by hand here that openapi.yaml also names.
+var acceptEventStream oapi.RequestEditorFn = func(
+	_ context.Context, req *http.Request,
+) error {
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Cache-Control", "no-store")
+	return nil
+}
+
+// openStream turns the response of one of the generated stream operations into
+// a [Stream].
+//
+// Its callers reach for the generated low-level method rather than the
+// WithResponse wrapper the rest of this package uses: the wrapper reads the
+// whole body and closes it, which for a stream means waiting for agrirouter to
+// finish, buffering everything, and handing back nothing that can be read frame
+// by frame.
+//
+// positioned says whether the stream carries a delivery position, which the
+// live stream does and the initial-load stream does not.
+func openStream(resp *http.Response, positioned bool) (*Stream, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		_ = resp.Body.Close()

@@ -122,7 +122,7 @@ type ClientInterface interface {
 	// This stream is independent of the application's steady-state stream `/masterdata/events`, which keeps running throughout and is not deduplicated against this one.
 	//
 	// Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/events (the `StreamInitialLoadEvents` operationId).
-	StreamInitialLoadEvents(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StreamInitialLoadEvents(ctx context.Context, externalId ExternalId, params *StreamInitialLoadEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInitialLoadStatus Get the endpoint's initial load status
 	//
@@ -130,7 +130,7 @@ type ClientInterface interface {
 	// Initial load is one state and one stream per endpoint, not per entity type, which is why selecting a further type restarts it from whatever state the endpoint is in: the set is fixed when a load starts, and agrirouter cannot enumerate what the endpoint missed while the type was not selected, so the whole set — every selected type — is sent again. Deselecting a type stops its delivery and leaves this state as it is; deselecting the last one discards it, and the endpoint is then `404`. Neither the canonical objects nor the application's identifier mapping are discarded by a deselection, so a repeat load arrives matched, and `previous_load_completed_at` below marks it as a repeat.
 	//
 	// Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/status (the `GetInitialLoadStatus` operationId).
-	GetInitialLoadStatus(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetInitialLoadStatus(ctx context.Context, externalId ExternalId, params *GetInitialLoadStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetInitialLoadStateWithBody Set the endpoint's initial load state
 	//
@@ -147,7 +147,7 @@ type ClientInterface interface {
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-	SetInitialLoadStateWithBody(ctx context.Context, externalId ExternalId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	SetInitialLoadStateWithBody(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SetInitialLoadState Set the endpoint's initial load state
 	//
@@ -164,7 +164,7 @@ type ClientInterface interface {
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-	SetInitialLoadState(ctx context.Context, externalId ExternalId, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	SetInitialLoadState(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReportUserAttention Report that the endpoint's initial load is waiting on a user
 	//
@@ -177,7 +177,7 @@ type ClientInterface interface {
 	// agrirouter learns *that* a person is needed and never what for: it is one bit per endpoint, not a conflict list. Nothing in the protocol branches on it, so an endpoint that never calls this costs precision rather than correctness.
 	//
 	// Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
-	ReportUserAttention(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReportUserAttention(ctx context.Context, externalId ExternalId, params *ReportUserAttentionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	//
@@ -547,8 +547,8 @@ func (c *Client) PutEndpoint(ctx context.Context, externalId ExternalId, params 
 // This stream is independent of the application's steady-state stream `/masterdata/events`, which keeps running throughout and is not deduplicated against this one.
 //
 // Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/events (the `StreamInitialLoadEvents` operationId).
-func (c *Client) StreamInitialLoadEvents(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStreamInitialLoadEventsRequest(c.Server, externalId)
+func (c *Client) StreamInitialLoadEvents(ctx context.Context, externalId ExternalId, params *StreamInitialLoadEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStreamInitialLoadEventsRequest(c.Server, externalId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -565,8 +565,8 @@ func (c *Client) StreamInitialLoadEvents(ctx context.Context, externalId Externa
 // Initial load is one state and one stream per endpoint, not per entity type, which is why selecting a further type restarts it from whatever state the endpoint is in: the set is fixed when a load starts, and agrirouter cannot enumerate what the endpoint missed while the type was not selected, so the whole set — every selected type — is sent again. Deselecting a type stops its delivery and leaves this state as it is; deselecting the last one discards it, and the endpoint is then `404`. Neither the canonical objects nor the application's identifier mapping are discarded by a deselection, so a repeat load arrives matched, and `previous_load_completed_at` below marks it as a repeat.
 //
 // Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/status (the `GetInitialLoadStatus` operationId).
-func (c *Client) GetInitialLoadStatus(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetInitialLoadStatusRequest(c.Server, externalId)
+func (c *Client) GetInitialLoadStatus(ctx context.Context, externalId ExternalId, params *GetInitialLoadStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetInitialLoadStatusRequest(c.Server, externalId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -592,8 +592,8 @@ func (c *Client) GetInitialLoadStatus(ctx context.Context, externalId ExternalId
 // Takes any type of body and a specified content type.
 //
 // Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-func (c *Client) SetInitialLoadStateWithBody(ctx context.Context, externalId ExternalId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetInitialLoadStateRequestWithBody(c.Server, externalId, contentType, body)
+func (c *Client) SetInitialLoadStateWithBody(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetInitialLoadStateRequestWithBody(c.Server, externalId, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -619,8 +619,8 @@ func (c *Client) SetInitialLoadStateWithBody(ctx context.Context, externalId Ext
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-func (c *Client) SetInitialLoadState(ctx context.Context, externalId ExternalId, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetInitialLoadStateRequest(c.Server, externalId, body)
+func (c *Client) SetInitialLoadState(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetInitialLoadStateRequest(c.Server, externalId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -642,8 +642,8 @@ func (c *Client) SetInitialLoadState(ctx context.Context, externalId ExternalId,
 // agrirouter learns *that* a person is needed and never what for: it is one bit per endpoint, not a conflict list. Nothing in the protocol branches on it, so an endpoint that never calls this costs precision rather than correctness.
 //
 // Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
-func (c *Client) ReportUserAttention(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReportUserAttentionRequest(c.Server, externalId)
+func (c *Client) ReportUserAttention(ctx context.Context, externalId ExternalId, params *ReportUserAttentionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportUserAttentionRequest(c.Server, externalId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1377,12 +1377,12 @@ func NewPutEndpointRequestWithBody(server string, externalId ExternalId, params 
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-TenantId", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-TenantId", headerParam0)
+		req.Header.Set("x-agrirouter-tenant-id", headerParam0)
 
 	}
 
@@ -1390,7 +1390,7 @@ func NewPutEndpointRequestWithBody(server string, externalId ExternalId, params 
 }
 
 // NewStreamInitialLoadEventsRequest constructs an http.Request for the StreamInitialLoadEvents method
-func NewStreamInitialLoadEventsRequest(server string, externalId ExternalId) (*http.Request, error) {
+func NewStreamInitialLoadEventsRequest(server string, externalId ExternalId, params *StreamInitialLoadEventsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1420,11 +1420,24 @@ func NewStreamInitialLoadEventsRequest(server string, externalId ExternalId) (*h
 		return nil, err
 	}
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewGetInitialLoadStatusRequest constructs an http.Request for the GetInitialLoadStatus method
-func NewGetInitialLoadStatusRequest(server string, externalId ExternalId) (*http.Request, error) {
+func NewGetInitialLoadStatusRequest(server string, externalId ExternalId, params *GetInitialLoadStatusParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1454,22 +1467,35 @@ func NewGetInitialLoadStatusRequest(server string, externalId ExternalId) (*http
 		return nil, err
 	}
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewSetInitialLoadStateRequest calls the generic SetInitialLoadState builder with application/json body
-func NewSetInitialLoadStateRequest(server string, externalId ExternalId, body SetInitialLoadStateJSONRequestBody) (*http.Request, error) {
+func NewSetInitialLoadStateRequest(server string, externalId ExternalId, params *SetInitialLoadStateParams, body SetInitialLoadStateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewSetInitialLoadStateRequestWithBody(server, externalId, "application/json", bodyReader)
+	return NewSetInitialLoadStateRequestWithBody(server, externalId, params, "application/json", bodyReader)
 }
 
 // NewSetInitialLoadStateRequestWithBody constructs an http.Request for the SetInitialLoadState method, with any body, and a specified content type
-func NewSetInitialLoadStateRequestWithBody(server string, externalId ExternalId, contentType string, body io.Reader) (*http.Request, error) {
+func NewSetInitialLoadStateRequestWithBody(server string, externalId ExternalId, params *SetInitialLoadStateParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1501,11 +1527,24 @@ func NewSetInitialLoadStateRequestWithBody(server string, externalId ExternalId,
 
 	req.Header.Add("Content-Type", contentType)
 
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam0)
+
+	}
+
 	return req, nil
 }
 
 // NewReportUserAttentionRequest constructs an http.Request for the ReportUserAttention method
-func NewReportUserAttentionRequest(server string, externalId ExternalId) (*http.Request, error) {
+func NewReportUserAttentionRequest(server string, externalId ExternalId, params *ReportUserAttentionParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1533,6 +1572,19 @@ func NewReportUserAttentionRequest(server string, externalId ExternalId) (*http.
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam0)
+
 	}
 
 	return req, nil
@@ -3108,7 +3160,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/events (the `StreamInitialLoadEvents` operationId).
-	StreamInitialLoadEventsWithResponse(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*StreamInitialLoadEventsResponse, error)
+	StreamInitialLoadEventsWithResponse(ctx context.Context, externalId ExternalId, params *StreamInitialLoadEventsParams, reqEditors ...RequestEditorFn) (*StreamInitialLoadEventsResponse, error)
 
 	// GetInitialLoadStatusWithResponse Get the endpoint's initial load status
 	//
@@ -3118,7 +3170,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/status (the `GetInitialLoadStatus` operationId).
-	GetInitialLoadStatusWithResponse(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*GetInitialLoadStatusResponse, error)
+	GetInitialLoadStatusWithResponse(ctx context.Context, externalId ExternalId, params *GetInitialLoadStatusParams, reqEditors ...RequestEditorFn) (*GetInitialLoadStatusResponse, error)
 
 	// SetInitialLoadStateWithBodyWithResponse Set the endpoint's initial load state
 	//
@@ -3135,7 +3187,7 @@ type ClientWithResponsesInterface interface {
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-	SetInitialLoadStateWithBodyWithResponse(ctx context.Context, externalId ExternalId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error)
+	SetInitialLoadStateWithBodyWithResponse(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error)
 
 	// SetInitialLoadStateWithResponse Set the endpoint's initial load state
 	//
@@ -3152,7 +3204,7 @@ type ClientWithResponsesInterface interface {
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-	SetInitialLoadStateWithResponse(ctx context.Context, externalId ExternalId, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error)
+	SetInitialLoadStateWithResponse(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error)
 
 	// ReportUserAttentionWithResponse Report that the endpoint's initial load is waiting on a user
 	//
@@ -3167,7 +3219,7 @@ type ClientWithResponsesInterface interface {
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
-	ReportUserAttentionWithResponse(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*ReportUserAttentionResponse, error)
+	ReportUserAttentionWithResponse(ctx context.Context, externalId ExternalId, params *ReportUserAttentionParams, reqEditors ...RequestEditorFn) (*ReportUserAttentionResponse, error)
 
 	// StreamMasterdataEventsWithResponse Receive master-data changes (Server-Sent Events)
 	//
@@ -5422,8 +5474,8 @@ func (c *ClientWithResponses) PutEndpointWithResponse(ctx context.Context, exter
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/events (the `StreamInitialLoadEvents` operationId).
-func (c *ClientWithResponses) StreamInitialLoadEventsWithResponse(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*StreamInitialLoadEventsResponse, error) {
-	rsp, err := c.StreamInitialLoadEvents(ctx, externalId, reqEditors...)
+func (c *ClientWithResponses) StreamInitialLoadEventsWithResponse(ctx context.Context, externalId ExternalId, params *StreamInitialLoadEventsParams, reqEditors ...RequestEditorFn) (*StreamInitialLoadEventsResponse, error) {
+	rsp, err := c.StreamInitialLoadEvents(ctx, externalId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5438,8 +5490,8 @@ func (c *ClientWithResponses) StreamInitialLoadEventsWithResponse(ctx context.Co
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with GET /endpoints/{external_id}/masterdata-initial-load/status (the `GetInitialLoadStatus` operationId).
-func (c *ClientWithResponses) GetInitialLoadStatusWithResponse(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*GetInitialLoadStatusResponse, error) {
-	rsp, err := c.GetInitialLoadStatus(ctx, externalId, reqEditors...)
+func (c *ClientWithResponses) GetInitialLoadStatusWithResponse(ctx context.Context, externalId ExternalId, params *GetInitialLoadStatusParams, reqEditors ...RequestEditorFn) (*GetInitialLoadStatusResponse, error) {
+	rsp, err := c.GetInitialLoadStatus(ctx, externalId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5461,8 +5513,8 @@ func (c *ClientWithResponses) GetInitialLoadStatusWithResponse(ctx context.Conte
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-func (c *ClientWithResponses) SetInitialLoadStateWithBodyWithResponse(ctx context.Context, externalId ExternalId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error) {
-	rsp, err := c.SetInitialLoadStateWithBody(ctx, externalId, contentType, body, reqEditors...)
+func (c *ClientWithResponses) SetInitialLoadStateWithBodyWithResponse(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error) {
+	rsp, err := c.SetInitialLoadStateWithBody(ctx, externalId, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5484,8 +5536,8 @@ func (c *ClientWithResponses) SetInitialLoadStateWithBodyWithResponse(ctx contex
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/status (the `SetInitialLoadState` operationId).
-func (c *ClientWithResponses) SetInitialLoadStateWithResponse(ctx context.Context, externalId ExternalId, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error) {
-	rsp, err := c.SetInitialLoadState(ctx, externalId, body, reqEditors...)
+func (c *ClientWithResponses) SetInitialLoadStateWithResponse(ctx context.Context, externalId ExternalId, params *SetInitialLoadStateParams, body SetInitialLoadStateJSONRequestBody, reqEditors ...RequestEditorFn) (*SetInitialLoadStateResponse, error) {
+	rsp, err := c.SetInitialLoadState(ctx, externalId, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -5505,8 +5557,8 @@ func (c *ClientWithResponses) SetInitialLoadStateWithResponse(ctx context.Contex
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /endpoints/{external_id}/masterdata-initial-load/user-attention (the `ReportUserAttention` operationId).
-func (c *ClientWithResponses) ReportUserAttentionWithResponse(ctx context.Context, externalId ExternalId, reqEditors ...RequestEditorFn) (*ReportUserAttentionResponse, error) {
-	rsp, err := c.ReportUserAttention(ctx, externalId, reqEditors...)
+func (c *ClientWithResponses) ReportUserAttentionWithResponse(ctx context.Context, externalId ExternalId, params *ReportUserAttentionParams, reqEditors ...RequestEditorFn) (*ReportUserAttentionResponse, error) {
+	rsp, err := c.ReportUserAttention(ctx, externalId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

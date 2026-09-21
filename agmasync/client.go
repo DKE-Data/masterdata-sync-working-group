@@ -16,9 +16,12 @@ import (
 // application and carries all of them. Operations that act as a particular
 // endpoint hang off [Client.For] instead.
 type Client struct {
-	api     *oapi.ClientWithResponses
-	http    *http.Client
-	baseURL string
+	api *oapi.ClientWithResponses
+
+	// http is kept because [WithBearerToken] wraps its transport, and because
+	// the generated client is built over it. Nothing here builds a request
+	// with it directly — every call, streams included, goes through api.
+	http *http.Client
 }
 
 // Option configures a [Client].
@@ -63,10 +66,7 @@ func (t *bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // NewClient builds a client against the given agrirouter base URL.
 func NewClient(baseURL string, opts ...Option) (*Client, error) {
-	c := &Client{
-		http:    &http.Client{},
-		baseURL: baseURL,
-	}
+	c := &Client{http: &http.Client{}}
 	for _, o := range opts {
 		o(c)
 	}

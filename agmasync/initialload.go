@@ -182,7 +182,8 @@ func Declared(cfg oapi.MasterdataConfig, t EntityType) bool {
 // Returns [ErrNotFound] for an endpoint opted into no entity type, which has no
 // initial-load state at all.
 func (e *Endpoint) InitialLoadStatus(ctx context.Context) (oapi.InitialLoadStatus, error) {
-	r, err := e.client.api.GetInitialLoadStatusWithResponse(ctx, e.externalID)
+	r, err := e.client.api.GetInitialLoadStatusWithResponse(ctx, e.externalID,
+		&oapi.GetInitialLoadStatusParams{XAgrirouterTenantId: e.tenantID})
 	if err != nil {
 		return oapi.InitialLoadStatus{}, transportErr(err)
 	}
@@ -223,7 +224,8 @@ func IsRepeatLoad(s oapi.InitialLoadStatus) bool {
 func (e *Endpoint) SetInitialLoadState(
 	ctx context.Context, upd oapi.InitialLoadStateUpdate,
 ) (oapi.InitialLoadStatus, error) {
-	r, err := e.client.api.SetInitialLoadStateWithResponse(ctx, e.externalID, upd)
+	r, err := e.client.api.SetInitialLoadStateWithResponse(ctx, e.externalID,
+		&oapi.SetInitialLoadStateParams{XAgrirouterTenantId: e.tenantID}, upd)
 	if err != nil {
 		return oapi.InitialLoadStatus{}, transportErr(err)
 	}
@@ -312,7 +314,8 @@ func (e *Endpoint) CompleteInitialLoad(ctx context.Context) (oapi.InitialLoadSta
 // the flag, so an endpoint that never calls this costs precision rather than
 // correctness.
 func (e *Endpoint) ReportUserAttention(ctx context.Context) (oapi.InitialLoadStatus, error) {
-	r, err := e.client.api.ReportUserAttentionWithResponse(ctx, e.externalID)
+	r, err := e.client.api.ReportUserAttentionWithResponse(ctx, e.externalID,
+		&oapi.ReportUserAttentionParams{XAgrirouterTenantId: e.tenantID})
 	if err != nil {
 		return oapi.InitialLoadStatus{}, transportErr(err)
 	}

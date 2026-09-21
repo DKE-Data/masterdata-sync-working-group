@@ -902,7 +902,36 @@ type ValidationError = Error
 // PutEndpointParams defines parameters for PutEndpoint.
 type PutEndpointParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"X-Agrirouter-TenantId"`
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// StreamInitialLoadEventsParams defines parameters for StreamInitialLoadEvents.
+type StreamInitialLoadEventsParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// GetInitialLoadStatusParams defines parameters for GetInitialLoadStatus.
+type GetInitialLoadStatusParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// SetInitialLoadStateParams defines parameters for SetInitialLoadState.
+type SetInitialLoadStateParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// ReportUserAttentionParams defines parameters for ReportUserAttention.
+type ReportUserAttentionParams struct {
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // StreamMasterdataEventsParams defines parameters for StreamMasterdataEvents.
@@ -1673,16 +1702,16 @@ type ServerInterface interface {
 	PutEndpoint(ctx echo.Context, externalId ExternalId, params PutEndpointParams) error
 	// StreamInitialLoadEvents Receive the endpoint's canonical set (Server-Sent Events)
 	// (GET /endpoints/{external_id}/masterdata-initial-load/events)
-	StreamInitialLoadEvents(ctx echo.Context, externalId ExternalId) error
+	StreamInitialLoadEvents(ctx echo.Context, externalId ExternalId, params StreamInitialLoadEventsParams) error
 	// GetInitialLoadStatus Get the endpoint's initial load status
 	// (GET /endpoints/{external_id}/masterdata-initial-load/status)
-	GetInitialLoadStatus(ctx echo.Context, externalId ExternalId) error
+	GetInitialLoadStatus(ctx echo.Context, externalId ExternalId, params GetInitialLoadStatusParams) error
 	// SetInitialLoadState Set the endpoint's initial load state
 	// (PUT /endpoints/{external_id}/masterdata-initial-load/status)
-	SetInitialLoadState(ctx echo.Context, externalId ExternalId) error
+	SetInitialLoadState(ctx echo.Context, externalId ExternalId, params SetInitialLoadStateParams) error
 	// ReportUserAttention Report that the endpoint's initial load is waiting on a user
 	// (PUT /endpoints/{external_id}/masterdata-initial-load/user-attention)
-	ReportUserAttention(ctx echo.Context, externalId ExternalId) error
+	ReportUserAttention(ctx echo.Context, externalId ExternalId, params ReportUserAttentionParams) error
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	// (GET /masterdata/events)
 	StreamMasterdataEvents(ctx echo.Context, params StreamMasterdataEventsParams) error
@@ -1783,22 +1812,22 @@ func (w *ServerInterfaceWrapper) PutEndpoint(ctx echo.Context) error {
 	var params PutEndpointParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-TenantId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-TenantId")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
 		var XAgrirouterTenantId AgrirouterTenantId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-TenantId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-TenantId", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-TenantId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
 		}
 
 		params.XAgrirouterTenantId = XAgrirouterTenantId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-TenantId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -1817,8 +1846,30 @@ func (w *ServerInterfaceWrapper) StreamInitialLoadEvents(ctx echo.Context) error
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter external_id: %s", err))
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StreamInitialLoadEventsParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.StreamInitialLoadEvents(ctx, externalId)
+	err = w.Handler.StreamInitialLoadEvents(ctx, externalId, params)
 	return err
 }
 
@@ -1833,8 +1884,30 @@ func (w *ServerInterfaceWrapper) GetInitialLoadStatus(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter external_id: %s", err))
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetInitialLoadStatusParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetInitialLoadStatus(ctx, externalId)
+	err = w.Handler.GetInitialLoadStatus(ctx, externalId, params)
 	return err
 }
 
@@ -1849,8 +1922,30 @@ func (w *ServerInterfaceWrapper) SetInitialLoadState(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter external_id: %s", err))
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SetInitialLoadStateParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.SetInitialLoadState(ctx, externalId)
+	err = w.Handler.SetInitialLoadState(ctx, externalId, params)
 	return err
 }
 
@@ -1865,8 +1960,30 @@ func (w *ServerInterfaceWrapper) ReportUserAttention(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter external_id: %s", err))
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReportUserAttentionParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ReportUserAttention(ctx, externalId)
+	err = w.Handler.ReportUserAttention(ctx, externalId, params)
 	return err
 }
 
@@ -3270,6 +3387,7 @@ func (response PutEndpoint504Response) VisitPutEndpointResponse(w http.ResponseW
 
 type StreamInitialLoadEventsRequestObject struct {
 	ExternalId ExternalId `json:"external_id"`
+	Params     StreamInitialLoadEventsParams
 }
 
 type StreamInitialLoadEventsResponseObject interface {
@@ -3349,6 +3467,7 @@ func (response StreamInitialLoadEvents404JSONResponse) VisitStreamInitialLoadEve
 
 type GetInitialLoadStatusRequestObject struct {
 	ExternalId ExternalId `json:"external_id"`
+	Params     GetInitialLoadStatusParams
 }
 
 type GetInitialLoadStatusResponseObject interface {
@@ -3399,6 +3518,7 @@ func (response GetInitialLoadStatus404JSONResponse) VisitGetInitialLoadStatusRes
 
 type SetInitialLoadStateRequestObject struct {
 	ExternalId ExternalId `json:"external_id"`
+	Params     SetInitialLoadStateParams
 	Body       *SetInitialLoadStateJSONRequestBody
 }
 
@@ -3480,6 +3600,7 @@ func (response SetInitialLoadState409JSONResponse) VisitSetInitialLoadStateRespo
 
 type ReportUserAttentionRequestObject struct {
 	ExternalId ExternalId `json:"external_id"`
+	Params     ReportUserAttentionParams
 }
 
 type ReportUserAttentionResponseObject interface {
@@ -5450,10 +5571,11 @@ func (sh *strictHandler) PutEndpoint(ctx echo.Context, externalId ExternalId, pa
 }
 
 // StreamInitialLoadEvents operation middleware
-func (sh *strictHandler) StreamInitialLoadEvents(ctx echo.Context, externalId ExternalId) error {
+func (sh *strictHandler) StreamInitialLoadEvents(ctx echo.Context, externalId ExternalId, params StreamInitialLoadEventsParams) error {
 	var request StreamInitialLoadEventsRequestObject
 
 	request.ExternalId = externalId
+	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.StreamInitialLoadEvents(ctx.Request().Context(), request.(StreamInitialLoadEventsRequestObject))
@@ -5475,10 +5597,11 @@ func (sh *strictHandler) StreamInitialLoadEvents(ctx echo.Context, externalId Ex
 }
 
 // GetInitialLoadStatus operation middleware
-func (sh *strictHandler) GetInitialLoadStatus(ctx echo.Context, externalId ExternalId) error {
+func (sh *strictHandler) GetInitialLoadStatus(ctx echo.Context, externalId ExternalId, params GetInitialLoadStatusParams) error {
 	var request GetInitialLoadStatusRequestObject
 
 	request.ExternalId = externalId
+	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.GetInitialLoadStatus(ctx.Request().Context(), request.(GetInitialLoadStatusRequestObject))
@@ -5500,10 +5623,11 @@ func (sh *strictHandler) GetInitialLoadStatus(ctx echo.Context, externalId Exter
 }
 
 // SetInitialLoadState operation middleware
-func (sh *strictHandler) SetInitialLoadState(ctx echo.Context, externalId ExternalId) error {
+func (sh *strictHandler) SetInitialLoadState(ctx echo.Context, externalId ExternalId, params SetInitialLoadStateParams) error {
 	var request SetInitialLoadStateRequestObject
 
 	request.ExternalId = externalId
+	request.Params = params
 
 	var body SetInitialLoadStateJSONRequestBody
 	var err error
@@ -5541,10 +5665,11 @@ func (sh *strictHandler) SetInitialLoadState(ctx echo.Context, externalId Extern
 }
 
 // ReportUserAttention operation middleware
-func (sh *strictHandler) ReportUserAttention(ctx echo.Context, externalId ExternalId) error {
+func (sh *strictHandler) ReportUserAttention(ctx echo.Context, externalId ExternalId, params ReportUserAttentionParams) error {
 	var request ReportUserAttentionRequestObject
 
 	request.ExternalId = externalId
+	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
 		return sh.ssi.ReportUserAttention(ctx.Request().Context(), request.(ReportUserAttentionRequestObject))
