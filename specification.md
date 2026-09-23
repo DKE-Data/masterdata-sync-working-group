@@ -231,6 +231,13 @@ interchangeable in both directions:
   [identifier mapping](#identifier-mapping). If it does not resolve — the target has
   not been sent yet — the request MUST be rejected, and the participant MUST send the
   target before the object referencing it.
+  A participant may also hold an object whose target it does not hold, the
+  reference having been delivered without a `localId` (see
+  [Identifier mapping](#identifier-mapping)). It cannot name that target in either
+  identifier, and where the slot is a required attribute — a farm's `owner` — it has
+  no valid write at all. It MUST
+  [request](#requesting-objects-lazy-loading) the target, create it locally, and
+  bind the identifier it issues, before writing the object that references it.
 - **On delivery**, agrirouter MUST populate `agrirouterId`, and MUST replace the
   `localId` with the receiving endpoint's own identifier for the target, omitting it
   when there is none. It MUST NOT be left as the sender's: a receiving endpoint
@@ -1085,7 +1092,8 @@ delivery, so every object a request can return is one agrirouter would deliver
 anyway. What it addresses is that *delivered* is not *held*:
 
 - a participant that lost an object locally refetches that object, rather than opting the entity type out and back in and taking a full initial load;
-- during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other. That target is in the set and arrives on its own, so a request should be performed only once the set is complete (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
+- during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other. That target is in the set and arrives on its own, so a request should be performed only once the set is complete (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered));
+- a participant holding an object whose reference target it does not hold requests that target, creates it locally, and binds it, which is what makes the referencing object writable again (see [References](#references)).
 
 A request is per entity type, which is why a reference to a party carries a `type`
 discriminator (see [References](#references)).

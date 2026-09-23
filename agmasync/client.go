@@ -169,7 +169,11 @@ var serverAssigned = []string{
 // owner becomes `"owner":{"type":""}`, since the generated Farm carries a
 // PartyReference by value, and agrirouter rejects that reference as naming
 // neither an agrirouterId nor a localId — where the body as the sender built
-// it would have said plainly that the owner is missing. And an attribute the
+// it would have said plainly that the owner is missing. Either way the write
+// fails, owner being required: what differs is whether the participant is told
+// which owner is wrong or that it has none. It has none until it requests the
+// target, creates it locally, and binds it — see [Endpoint.Request] and
+// "References" in specification.md. And an attribute the
 // model does not name is dropped, the generated types having no place to put
 // it, which would silently undo the relaying of unmodelled attributes that a
 // participant is obliged to do.
@@ -476,6 +480,12 @@ func (e *Endpoint) Deactivate(
 // stream has not reached yet. A participant that has lost too many objects to
 // name asks for the whole canonical set instead. See "Requesting objects (lazy
 // loading)" in specification.md.
+//
+// It is also the way out of holding an object whose reference target it does
+// not hold — a farm delivered with an owner reference carrying no localId.
+// Neither identifier names that target on a send, so the object stays
+// unwritable until the target is requested, created locally, and bound with
+// [Endpoint.Bind]. See "References" in specification.md.
 func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.UUID) error {
 	body := oapi.EntityRequest{AgrirouterId: agrirouterID}
 
