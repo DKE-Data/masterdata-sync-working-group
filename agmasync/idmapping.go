@@ -36,7 +36,7 @@ func (e *Endpoint) Bind(
 	switch t {
 	case TypeOrganization:
 		r, err := e.client.api.BindOrganizationMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindOrganizationMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.BindOrganizationMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -44,7 +44,7 @@ func (e *Endpoint) Bind(
 
 	case TypePerson:
 		r, err := e.client.api.BindPersonMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindPersonMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.BindPersonMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -52,7 +52,7 @@ func (e *Endpoint) Bind(
 
 	case TypeFarm:
 		r, err := e.client.api.BindFarmMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindFarmMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.BindFarmMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -60,7 +60,7 @@ func (e *Endpoint) Bind(
 
 	case TypeField:
 		r, err := e.client.api.BindFieldMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindFieldMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.BindFieldMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -68,7 +68,7 @@ func (e *Endpoint) Bind(
 
 	case TypeFieldBoundary:
 		r, err := e.client.api.BindFieldBoundaryMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindFieldBoundaryMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.BindFieldBoundaryMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -105,7 +105,7 @@ func (e *Endpoint) Unbind(
 	switch t {
 	case TypeOrganization:
 		r, err := e.client.api.UnbindOrganizationMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindOrganizationMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.UnbindOrganizationMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -114,7 +114,7 @@ func (e *Endpoint) Unbind(
 
 	case TypePerson:
 		r, err := e.client.api.UnbindPersonMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindPersonMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.UnbindPersonMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -123,7 +123,7 @@ func (e *Endpoint) Unbind(
 
 	case TypeFarm:
 		r, err := e.client.api.UnbindFarmMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindFarmMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.UnbindFarmMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -132,7 +132,7 @@ func (e *Endpoint) Unbind(
 
 	case TypeField:
 		r, err := e.client.api.UnbindFieldMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindFieldMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.UnbindFieldMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -141,7 +141,7 @@ func (e *Endpoint) Unbind(
 
 	case TypeFieldBoundary:
 		r, err := e.client.api.UnbindFieldBoundaryMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindFieldBoundaryMappingParams{XAgrirouterEndpointId: e.id})
+			&oapi.UnbindFieldBoundaryMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}

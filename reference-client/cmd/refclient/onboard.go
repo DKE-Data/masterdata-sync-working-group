@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -110,25 +107,6 @@ func onboard(
 	// x-agrirouter-tenant-id, which is what a deployed agrirouter reads, so
 	// PutEndpointParams below carries it and nothing has to be added here.
 
-	// The declaration, under the name and shape the live g4 API knows it by.
-	//
-	// openapi.yaml calls the field `masterdata` and its list `capabilities`; the
-	// deployed API calls them `masterdata_capabilities` and `toggles`, and
-	// forwards them to the masterdata service — where an absent field is a
-	// no-op. So a declaration in the specification's shape is accepted, answered
-	// 200, and configures nothing, which is the worst of the three outcomes.
-	//
-	// Both go out, as with the tenant header: whichever end is reading gets the
-	// name it knows and ignores the other.
-	live, err := liveDeclaration(c, types)
-	if err != nil {
-		return uuid.Nil, false, err
-	}
-	opts = append(opts, oapi.WithRequestEditorFn(
-		func(_ context.Context, req *http.Request) error {
-			return addField(req, "masterdata_capabilities", live)
-		}))
-
 	api, err := oapi.NewClientWithResponses(c.baseURL, opts...)
 	if err != nil {
 		return uuid.Nil, false, err
@@ -143,6 +121,17 @@ func onboard(
 	// the caller thought to. An endpoint able to receive one and not the other
 	// could not resolve the references it was sent.
 	declaration := agmasync.Declaration(types...)
+
+	// Where a user is sent to answer what an initial load stopped for, which for
+	// this participant is the decisions screen. agrirouter renders it as a link
+	// while the endpoint has awaiting_user set, so an endpoint that reports
+	// needing a person and offers nowhere to go is a dead end on somebody else's
+	// screen.
+	if base := c.callbackURL(); base != "" {
+		resolution := base + "/decisions"
+		declaration.ResolutionUrl = &resolution
+	}
+
 	res, err := api.PutEndpointWithResponse(ctx, c.externalID(),
 		&oapi.PutEndpointParams{XAgrirouterTenantId: c.tenantID},
 		oapi.PutEndpointJSONRequestBody{
@@ -189,63 +178,3 @@ func onboard(
 	}
 }
 
-// liveDeclaration renders the declaration the way the deployed API reads it.
-//
-// The resolution URL goes with it: it is where a user is sent to answer what an
-// initial load stopped for, which for this participant is the decisions screen.
-// agrirouter shows it as a link while the endpoint has awaiting_user set, so an
-// endpoint that reports needing a person and offers nowhere to go is a dead end
-// on somebody else's screen.
-func liveDeclaration(c config, types []agmasync.EntityType) (json.RawMessage, error) {
-	type toggle struct {
-		EntityType string `json:"entity_type"`
-	}
-	closure := agmasync.DependencyClosure(types)
-	toggles := make([]toggle, 0, len(closure))
-	for _, typ := range closure {
-		toggles = append(toggles, toggle{EntityType: string(typ)})
-	}
-
-	body := struct {
-		Toggles       []toggle `json:"toggles"`
-		ResolutionURL string   `json:"resolution_url,omitempty"`
-	}{Toggles: toggles}
-	if base := c.callbackURL(); base != "" {
-		body.ResolutionURL = base + "/decisions"
-	}
-	return json.Marshal(body)
-}
-
-// addField puts one more field into a JSON body the generated client has
-// already rendered.
-//
-// Editing the bytes rather than the struct because the struct is generated from
-// a specification that does not have the field. GetBody is reset along with the
-// body: without it a redirect or a retry replays the original.
-func addField(req *http.Request, name string, value json.RawMessage) error {
-	if req.Body == nil {
-		return nil
-	}
-	raw, err := io.ReadAll(req.Body)
-	if err != nil {
-		return fmt.Errorf("reading the request body to add %s: %w", name, err)
-	}
-	_ = req.Body.Close()
-
-	var body map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return fmt.Errorf("the request body is not a JSON object: %w", err)
-	}
-	body[name] = value
-
-	patched, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-	req.Body = io.NopCloser(bytes.NewReader(patched))
-	req.ContentLength = int64(len(patched))
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(patched)), nil
-	}
-	return nil
-}

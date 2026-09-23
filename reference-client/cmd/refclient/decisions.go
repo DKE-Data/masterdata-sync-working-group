@@ -31,9 +31,13 @@ import (
 // makes an empty participant's first load run start to finish on its own — and
 // one a rule can settle is settled by the rule. See [inbox.Recognise].
 type inbox struct {
-	ctx     context.Context
-	timeout time.Duration
-	log     *eventLog
+	ctx context.Context
+	log *eventLog
+
+	// attention is agrirouter's "waiting for you in <app>", raised when a
+	// question goes to a person and shared with the loader so that one load
+	// costs one report however many questions it asks. See [psync.Attention].
+	attention *psync.Attention
 
 	mu      sync.Mutex
 	pending map[string]*decision
@@ -84,9 +88,11 @@ type answered struct {
 	When         time.Time
 }
 
-func newInbox(ctx context.Context, timeout time.Duration, log *eventLog) *inbox {
+func newInbox(
+	ctx context.Context, log *eventLog, attention *psync.Attention,
+) *inbox {
 	return &inbox{
-		ctx: ctx, timeout: timeout, log: log,
+		ctx: ctx, log: log, attention: attention,
 		pending: map[string]*decision{},
 	}
 }
@@ -148,6 +154,28 @@ func (i *inbox) Recognise(
 		"%s %s needs a person: %d record(s) it could be",
 		d.Type, d.AgrirouterID, len(d.Candidates)))
 
+	// Raised here, with the question on the screen and nobody yet at it. Waiting
+	// for the answer to come back and reporting then would put agrirouter's
+	// "waiting for you in <app>" up at the moment the waiting stopped, and leave
+	// it down for however long it actually lasted — which, for the person who
+	// never comes, is for as long as the object sits unanswered.
+	//
+	// The instance's context rather than the load's, there being no load context
+	// to reach from a [psync.Reconciler]: what it is for is not outliving the
+	// process, and it does not.
+	//
+	// Logged either way. A flag that failed to go up is invisible otherwise —
+	// agrirouter does not hand it back — and the question sitting on the screen
+	// looks the same whether or not agrirouter knows about it.
+	if err := i.attention.Raise(i.ctx); err != nil {
+		i.log.say("reconcile", fmt.Sprintf(
+			"could not tell agrirouter a person is needed: %v", err))
+	} else {
+		// True of the question that raised it and of every one after, the report
+		// being one bit for the whole load.
+		i.log.say("reconcile", "agrirouter has been told a person is needed")
+	}
+
 	select {
 	case a := <-d.answer:
 		i.settled(d, a)
@@ -162,17 +190,6 @@ func (i *inbox) Recognise(
 		default:
 			return psync.Recognition{AwaitingUser: true}, nil
 		}
-
-	case <-time.After(i.timeout):
-		// Nobody is looking. Guessing would be the one thing worse than waiting,
-		// so the object is left undecided: the load stops short of reconciled,
-		// agrirouter is told a person is needed, and the object is asked for again
-		// once there is one.
-		i.settled(d, answer{Kind: "timed out"})
-		i.log.say("reconcile", fmt.Sprintf(
-			"%s %s went unanswered for %s and was left for a person",
-			d.Type, d.AgrirouterID, i.timeout))
-		return psync.Recognition{Blocked: true, AwaitingUser: true}, nil
 
 	case <-i.ctx.Done():
 		// Shutting down mid-question. Blocked rather than guessed, so the load

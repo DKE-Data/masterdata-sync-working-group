@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/google/uuid"
@@ -62,11 +61,6 @@ type config struct {
 	// The screens can restate it afterwards; this is what an instance comes up
 	// saying, so a restart does not silently widen what a person narrowed.
 	masterdata []agmasync.EntityType
-
-	// decisionTimeout bounds how long a reconciliation waits for a person before
-	// giving up on the object and leaving it for one. Without it a load parks a
-	// database transaction for as long as nobody is looking.
-	decisionTimeout time.Duration
 }
 
 // externalID is this participant's own name for its endpoint, and the only
@@ -117,9 +111,6 @@ func loadConfig() (config, error) {
 		"this participant as a browser reaches it (REFCLIENT_PUBLIC_URL); default http://localhost<addr>")
 	flag.StringVar(&masterdata, "masterdata", env("AGMASYNC_MASTERDATA", ""),
 		"entity types to declare at startup, comma-separated; empty declares all (AGMASYNC_MASTERDATA)")
-	flag.DurationVar(&c.decisionTimeout, "decision-timeout",
-		envDuration("REFCLIENT_DECISION_TIMEOUT", 2*time.Minute),
-		"how long reconciliation waits for a person (REFCLIENT_DECISION_TIMEOUT)")
 	flag.Parse()
 
 	if c.instance == "" {
@@ -280,12 +271,4 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func envDuration(key string, fallback time.Duration) time.Duration {
-	v, err := time.ParseDuration(env(key, ""))
-	if err != nil {
-		return fallback
-	}
-	return v
 }

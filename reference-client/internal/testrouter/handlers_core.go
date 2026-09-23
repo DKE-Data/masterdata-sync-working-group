@@ -129,6 +129,9 @@ func (r *Router) doPut(
 	if err != nil {
 		return nil, false, err
 	}
+	if err := rejectServerAssigned(raw); err != nil {
+		return nil, false, err
+	}
 
 	r.observer.record("put", map[string]any{
 		"externalEndpointId": ep.externalID,

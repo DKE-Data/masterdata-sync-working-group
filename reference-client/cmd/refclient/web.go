@@ -636,7 +636,6 @@ type decisionsView struct {
 	// print a slice where the count belongs.
 	Questions []*decision
 	Answered  []answered
-	Timeout   time.Duration
 }
 
 func (in *instance) showDecisions(w http.ResponseWriter, r *http.Request) {
@@ -646,7 +645,6 @@ func (in *instance) showDecisions(w http.ResponseWriter, r *http.Request) {
 		page:      p,
 		Questions: in.inbox.Pending(),
 		Answered:  in.inbox.Answered(),
-		Timeout:   in.cfg.decisionTimeout,
 	})
 }
 

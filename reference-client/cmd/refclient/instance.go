@@ -31,6 +31,11 @@ type instance struct {
 	log   *eventLog
 	inbox *inbox
 
+	// attention is held here because two parts need the one flag: the inbox
+	// raises it when it puts a question to a person, and the loader of the
+	// moment reports what it raised.
+	attention *psync.Attention
+
 	endpointID uuid.UUID
 	client     *agmasync.Client
 	endpoint   *agmasync.Endpoint
@@ -103,9 +108,11 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 		return nil, err
 	}
 
+	attention := &psync.Attention{}
 	in := &instance{
 		cfg: cfg, store: db, log: log,
-		inbox:      newInbox(ctx, cfg.decisionTimeout, log),
+		attention:  attention,
+		inbox:      newInbox(ctx, log, attention),
 		endpointID: endpointID,
 		client:     client,
 		loads:      make(chan struct{}, 1),
@@ -322,9 +329,21 @@ func (in *instance) runLoad(ctx context.Context) {
 	loader := &psync.Loader{
 		Applier:    in.applier,
 		Reconciler: in.inbox,
+		Attention:  in.attention,
 		Types:      types,
 	}
 	res, err := loader.Run(ctx)
+
+	// Said before the load's own outcome, and said whatever that outcome is. A
+	// flag that failed to go up is a fault of its own — the user is waiting and
+	// agrirouter is not showing it — and reporting it only on the runs that
+	// finished would hide it on exactly the runs where a person was most likely
+	// to have been asked.
+	if res.UserAttentionErr != nil {
+		in.log.say("load", fmt.Sprintf(
+			"could not tell agrirouter a person is needed: %v", res.UserAttentionErr))
+	}
+
 	if err != nil {
 		if ctx.Err() != nil {
 			return
@@ -345,10 +364,6 @@ func (in *instance) runLoad(ctx context.Context) {
 	for _, rejected := range res.Rejected {
 		in.log.say("load", fmt.Sprintf("agrirouter refused a binding: %s %s",
 			rejected.LocalId, rejected.Reason))
-	}
-	if res.UserAttentionErr != nil {
-		in.log.say("load", fmt.Sprintf(
-			"could not tell agrirouter a person is needed: %v", res.UserAttentionErr))
 	}
 }
 

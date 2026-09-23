@@ -209,7 +209,7 @@ type ClientInterface interface {
 
 	// PutFarmWithBody Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -218,7 +218,7 @@ type ClientInterface interface {
 
 	// PutFarm Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -227,7 +227,7 @@ type ClientInterface interface {
 
 	// DeactivateFarm Deactivate a farm
 	//
-	// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/farms/{local_id}/deactivation (the `DeactivateFarm` operationId).
 	DeactivateFarm(ctx context.Context, localId LocalId, params *DeactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -270,7 +270,7 @@ type ClientInterface interface {
 
 	// PutFieldBoundaryWithBody Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -279,7 +279,7 @@ type ClientInterface interface {
 
 	// PutFieldBoundary Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -288,7 +288,7 @@ type ClientInterface interface {
 
 	// DeactivateFieldBoundary Deactivate a field boundary
 	//
-	// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/field-boundaries/{local_id}/deactivation (the `DeactivateFieldBoundary` operationId).
 	DeactivateFieldBoundary(ctx context.Context, localId LocalId, params *DeactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -331,7 +331,7 @@ type ClientInterface interface {
 
 	// PutFieldWithBody Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -340,7 +340,7 @@ type ClientInterface interface {
 
 	// PutField Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -349,7 +349,7 @@ type ClientInterface interface {
 
 	// DeactivateField Deactivate a field
 	//
-	// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/fields/{local_id}/deactivation (the `DeactivateField` operationId).
 	DeactivateField(ctx context.Context, localId LocalId, params *DeactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -392,7 +392,7 @@ type ClientInterface interface {
 
 	// PutOrganizationWithBody Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -401,7 +401,7 @@ type ClientInterface interface {
 
 	// PutOrganization Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -410,7 +410,7 @@ type ClientInterface interface {
 
 	// DeactivateOrganization Deactivate an organization
 	//
-	// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/organizations/{local_id}/deactivation (the `DeactivateOrganization` operationId).
 	DeactivateOrganization(ctx context.Context, localId LocalId, params *DeactivateOrganizationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -453,7 +453,7 @@ type ClientInterface interface {
 
 	// PutPersonWithBody Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -462,7 +462,7 @@ type ClientInterface interface {
 
 	// PutPerson Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -471,7 +471,7 @@ type ClientInterface interface {
 
 	// DeactivatePerson Deactivate a person
 	//
-	// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/persons/{local_id}/deactivation (the `DeactivatePerson` operationId).
 	DeactivatePerson(ctx context.Context, localId LocalId, params *DeactivatePersonParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -714,7 +714,7 @@ func (c *Client) RequestFarm(ctx context.Context, params *RequestFarmParams, bod
 
 // PutFarmWithBody Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -733,7 +733,7 @@ func (c *Client) PutFarmWithBody(ctx context.Context, localId LocalId, params *P
 
 // PutFarm Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -752,7 +752,7 @@ func (c *Client) PutFarm(ctx context.Context, localId LocalId, params *PutFarmPa
 
 // DeactivateFarm Deactivate a farm
 //
-// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/farms/{local_id}/deactivation (the `DeactivateFarm` operationId).
 func (c *Client) DeactivateFarm(ctx context.Context, localId LocalId, params *DeactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -845,7 +845,7 @@ func (c *Client) RequestFieldBoundary(ctx context.Context, params *RequestFieldB
 
 // PutFieldBoundaryWithBody Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -864,7 +864,7 @@ func (c *Client) PutFieldBoundaryWithBody(ctx context.Context, localId LocalId, 
 
 // PutFieldBoundary Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -883,7 +883,7 @@ func (c *Client) PutFieldBoundary(ctx context.Context, localId LocalId, params *
 
 // DeactivateFieldBoundary Deactivate a field boundary
 //
-// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/field-boundaries/{local_id}/deactivation (the `DeactivateFieldBoundary` operationId).
 func (c *Client) DeactivateFieldBoundary(ctx context.Context, localId LocalId, params *DeactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -976,7 +976,7 @@ func (c *Client) RequestField(ctx context.Context, params *RequestFieldParams, b
 
 // PutFieldWithBody Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -995,7 +995,7 @@ func (c *Client) PutFieldWithBody(ctx context.Context, localId LocalId, params *
 
 // PutField Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1014,7 +1014,7 @@ func (c *Client) PutField(ctx context.Context, localId LocalId, params *PutField
 
 // DeactivateField Deactivate a field
 //
-// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/fields/{local_id}/deactivation (the `DeactivateField` operationId).
 func (c *Client) DeactivateField(ctx context.Context, localId LocalId, params *DeactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1107,7 +1107,7 @@ func (c *Client) RequestOrganization(ctx context.Context, params *RequestOrganiz
 
 // PutOrganizationWithBody Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1126,7 +1126,7 @@ func (c *Client) PutOrganizationWithBody(ctx context.Context, localId LocalId, p
 
 // PutOrganization Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1145,7 +1145,7 @@ func (c *Client) PutOrganization(ctx context.Context, localId LocalId, params *P
 
 // DeactivateOrganization Deactivate an organization
 //
-// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/organizations/{local_id}/deactivation (the `DeactivateOrganization` operationId).
 func (c *Client) DeactivateOrganization(ctx context.Context, localId LocalId, params *DeactivateOrganizationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1238,7 +1238,7 @@ func (c *Client) RequestPerson(ctx context.Context, params *RequestPersonParams,
 
 // PutPersonWithBody Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1257,7 +1257,7 @@ func (c *Client) PutPersonWithBody(ctx context.Context, localId LocalId, params 
 
 // PutPerson Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1276,7 +1276,7 @@ func (c *Client) PutPerson(ctx context.Context, localId LocalId, params *PutPers
 
 // DeactivatePerson Deactivate a person
 //
-// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/persons/{local_id}/deactivation (the `DeactivatePerson` operationId).
 func (c *Client) DeactivatePerson(ctx context.Context, localId LocalId, params *DeactivatePersonParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1673,12 +1673,21 @@ func NewRequestFarmRequestWithBody(server string, params *RequestFarmParams, con
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -1733,22 +1742,31 @@ func NewPutFarmRequestWithBody(server string, localId LocalId, params *PutFarmPa
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -1791,22 +1809,31 @@ func NewDeactivateFarmRequest(server string, localId LocalId, params *Deactivate
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -1856,12 +1883,21 @@ func NewUnbindFarmMappingRequest(server string, localId LocalId, agrirouterId Id
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -1910,12 +1946,21 @@ func NewBindFarmMappingRequest(server string, localId LocalId, agrirouterId IdMa
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -1963,12 +2008,21 @@ func NewRequestFieldBoundaryRequestWithBody(server string, params *RequestFieldB
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2023,22 +2077,31 @@ func NewPutFieldBoundaryRequestWithBody(server string, localId LocalId, params *
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2081,22 +2144,31 @@ func NewDeactivateFieldBoundaryRequest(server string, localId LocalId, params *D
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2146,12 +2218,21 @@ func NewUnbindFieldBoundaryMappingRequest(server string, localId LocalId, agriro
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2200,12 +2281,21 @@ func NewBindFieldBoundaryMappingRequest(server string, localId LocalId, agrirout
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2253,12 +2343,21 @@ func NewRequestFieldRequestWithBody(server string, params *RequestFieldParams, c
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2313,22 +2412,31 @@ func NewPutFieldRequestWithBody(server string, localId LocalId, params *PutField
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2371,22 +2479,31 @@ func NewDeactivateFieldRequest(server string, localId LocalId, params *Deactivat
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2436,12 +2553,21 @@ func NewUnbindFieldMappingRequest(server string, localId LocalId, agrirouterId I
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2490,12 +2616,21 @@ func NewBindFieldMappingRequest(server string, localId LocalId, agrirouterId IdM
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2543,12 +2678,21 @@ func NewRequestOrganizationRequestWithBody(server string, params *RequestOrganiz
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2603,22 +2747,31 @@ func NewPutOrganizationRequestWithBody(server string, localId LocalId, params *P
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2661,22 +2814,31 @@ func NewDeactivateOrganizationRequest(server string, localId LocalId, params *De
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2726,12 +2888,21 @@ func NewUnbindOrganizationMappingRequest(server string, localId LocalId, agrirou
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2780,12 +2951,21 @@ func NewBindOrganizationMappingRequest(server string, localId LocalId, agriroute
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2833,12 +3013,21 @@ func NewRequestPersonRequestWithBody(server string, params *RequestPersonParams,
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -2893,22 +3082,31 @@ func NewPutPersonRequestWithBody(server string, localId LocalId, params *PutPers
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -2951,22 +3149,31 @@ func NewDeactivatePersonRequest(server string, localId LocalId, params *Deactiva
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 		if params.XAgrirouterBaseRevision != nil {
-			var headerParam1 string
+			var headerParam2 string
 
-			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-BaseRevision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
 			if err != nil {
 				return nil, err
 			}
 
-			req.Header.Set("X-Agrirouter-BaseRevision", headerParam1)
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
 		}
 
 	}
@@ -3016,12 +3223,21 @@ func NewUnbindPersonMappingRequest(server string, localId LocalId, agrirouterId 
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -3070,12 +3286,21 @@ func NewBindPersonMappingRequest(server string, localId LocalId, agrirouterId Id
 
 		var headerParam0 string
 
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "X-Agrirouter-EndpointId", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
 		if err != nil {
 			return nil, err
 		}
 
-		req.Header.Set("X-Agrirouter-EndpointId", headerParam0)
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
 
 	}
 
@@ -3253,7 +3478,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFarmWithBodyWithResponse Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3262,7 +3487,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFarmWithResponse Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3271,7 +3496,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateFarmWithResponse Deactivate a farm
 	//
-	// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3320,7 +3545,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldBoundaryWithBodyWithResponse Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3329,7 +3554,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldBoundaryWithResponse Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3338,7 +3563,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateFieldBoundaryWithResponse Deactivate a field boundary
 	//
-	// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3387,7 +3612,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldWithBodyWithResponse Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3396,7 +3621,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldWithResponse Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3405,7 +3630,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateFieldWithResponse Deactivate a field
 	//
-	// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3454,7 +3679,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutOrganizationWithBodyWithResponse Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3463,7 +3688,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutOrganizationWithResponse Send (create or update) an organization
 	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3472,7 +3697,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateOrganizationWithResponse Deactivate an organization
 	//
-	// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3521,7 +3746,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutPersonWithBodyWithResponse Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3530,7 +3755,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutPersonWithResponse Send (create or update) a person
 	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3539,7 +3764,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivatePersonWithResponse Deactivate a person
 	//
-	// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -5615,7 +5840,7 @@ func (c *ClientWithResponses) RequestFarmWithResponse(ctx context.Context, param
 
 // PutFarmWithBodyWithResponse Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5630,7 +5855,7 @@ func (c *ClientWithResponses) PutFarmWithBodyWithResponse(ctx context.Context, l
 
 // PutFarmWithResponse Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5645,7 +5870,7 @@ func (c *ClientWithResponses) PutFarmWithResponse(ctx context.Context, localId L
 
 // DeactivateFarmWithResponse Deactivate a farm
 //
-// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5724,7 +5949,7 @@ func (c *ClientWithResponses) RequestFieldBoundaryWithResponse(ctx context.Conte
 
 // PutFieldBoundaryWithBodyWithResponse Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5739,7 +5964,7 @@ func (c *ClientWithResponses) PutFieldBoundaryWithBodyWithResponse(ctx context.C
 
 // PutFieldBoundaryWithResponse Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5754,7 +5979,7 @@ func (c *ClientWithResponses) PutFieldBoundaryWithResponse(ctx context.Context, 
 
 // DeactivateFieldBoundaryWithResponse Deactivate a field boundary
 //
-// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5833,7 +6058,7 @@ func (c *ClientWithResponses) RequestFieldWithResponse(ctx context.Context, para
 
 // PutFieldWithBodyWithResponse Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5848,7 +6073,7 @@ func (c *ClientWithResponses) PutFieldWithBodyWithResponse(ctx context.Context, 
 
 // PutFieldWithResponse Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5863,7 +6088,7 @@ func (c *ClientWithResponses) PutFieldWithResponse(ctx context.Context, localId 
 
 // DeactivateFieldWithResponse Deactivate a field
 //
-// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5942,7 +6167,7 @@ func (c *ClientWithResponses) RequestOrganizationWithResponse(ctx context.Contex
 
 // PutOrganizationWithBodyWithResponse Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5957,7 +6182,7 @@ func (c *ClientWithResponses) PutOrganizationWithBodyWithResponse(ctx context.Co
 
 // PutOrganizationWithResponse Send (create or update) an organization
 //
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5972,7 +6197,7 @@ func (c *ClientWithResponses) PutOrganizationWithResponse(ctx context.Context, l
 
 // DeactivateOrganizationWithResponse Deactivate an organization
 //
-// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -6051,7 +6276,7 @@ func (c *ClientWithResponses) RequestPersonWithResponse(ctx context.Context, par
 
 // PutPersonWithBodyWithResponse Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -6066,7 +6291,7 @@ func (c *ClientWithResponses) PutPersonWithBodyWithResponse(ctx context.Context,
 
 // PutPersonWithResponse Send (create or update) a person
 //
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
+// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical revision) do not create a new revision and are not forwarded.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -6081,7 +6306,7 @@ func (c *ClientWithResponses) PutPersonWithResponse(ctx context.Context, localId
 
 // DeactivatePersonWithResponse Deactivate a person
 //
-// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //

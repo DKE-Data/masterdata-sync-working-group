@@ -270,13 +270,13 @@ type Envelope struct {
 	LocalId    *string    `json:"local_id,omitempty"`
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -317,7 +317,7 @@ type Farm struct {
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
 	Partners *[]Partner `json:"partners,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
@@ -326,7 +326,7 @@ type Farm struct {
 	// SpecialisedUsageType Production orientation of the farm (e.g. arable farming, dairy, vineyard, orchard). Free-form, drawn from AGROVOC where a matching concept exists.
 	SpecialisedUsageType *string `json:"specialised_usage_type,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -367,7 +367,7 @@ type Field struct {
 	// Owner The organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
 	Owner *PartyReference `json:"owner,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// Soil Soil characteristics of a field.
@@ -376,7 +376,7 @@ type Field struct {
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -429,13 +429,13 @@ type FieldBoundary struct {
 	// Examples: RED_ZONE_NITROGEN, WATER_PROTECTION_AREA
 	RegulatoryRequirements *string `json:"regulatory_requirements,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -636,7 +636,7 @@ type Organization struct {
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
@@ -648,7 +648,7 @@ type Organization struct {
 	// TaxNumber Identifier assigned by tax authorities.
 	TaxNumber *string `json:"tax_number,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -726,7 +726,7 @@ type Person struct {
 	Memberships *[]Membership `json:"memberships,omitempty"`
 	ModifiedAt  *time.Time    `json:"modified_at,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `X-Agrirouter-BaseRevision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
 	Revision *int `json:"revision,omitempty"`
 
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
@@ -738,7 +738,7 @@ type Person struct {
 	// TaxNumber Identifier assigned by tax authorities.
 	TaxNumber *string `json:"tax_number,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `X-Agrirouter-EndpointId`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -828,7 +828,7 @@ type RouteChangedEventData struct {
 	// EndpointId The agrirouter identifier of the endpoint whose selection changed.
 	EndpointId openapi_types.UUID `json:"endpoint_id"`
 
-	// EntityTypes The endpoint's selection as it stands after the change, stated in full rather than as a delta. The application replaces what it held for this endpoint with this list.
+	// EntityTypes The endpoint's selection as it stands after the change, stated in full rather than as a delta.
 	// An empty array is a statement and not an omission: it says the endpoint exchanges nothing, because the user deselected the last entity type or the route was removed.
 	//
 	//
@@ -902,35 +902,30 @@ type ValidationError = Error
 // PutEndpointParams defines parameters for PutEndpoint.
 type PutEndpointParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // StreamInitialLoadEventsParams defines parameters for StreamInitialLoadEvents.
 type StreamInitialLoadEventsParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // GetInitialLoadStatusParams defines parameters for GetInitialLoadStatus.
 type GetInitialLoadStatusParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // SetInitialLoadStateParams defines parameters for SetInitialLoadState.
 type SetInitialLoadStateParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // ReportUserAttentionParams defines parameters for ReportUserAttention.
 type ReportUserAttentionParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	// Required on every endpoint-scoped resource, which is every path under `/endpoints/`. Those address an endpoint by the application's own `external_id`, and an external ID is unique within a tenant rather than across agrirouter, so the tenant is half of what resolves the endpoint and a request without it cannot be answered.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
@@ -952,7 +947,10 @@ type RequestFarmParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // PutFarmParams defines parameters for PutFarm.
@@ -960,14 +958,17 @@ type PutFarmParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // DeactivateFarmParams defines parameters for DeactivateFarm.
@@ -975,14 +976,17 @@ type DeactivateFarmParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // UnbindFarmMappingParams defines parameters for UnbindFarmMapping.
@@ -990,7 +994,10 @@ type UnbindFarmMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // BindFarmMappingParams defines parameters for BindFarmMapping.
@@ -998,7 +1005,10 @@ type BindFarmMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // RequestFieldBoundaryParams defines parameters for RequestFieldBoundary.
@@ -1006,7 +1016,10 @@ type RequestFieldBoundaryParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // PutFieldBoundaryParams defines parameters for PutFieldBoundary.
@@ -1014,14 +1027,17 @@ type PutFieldBoundaryParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // DeactivateFieldBoundaryParams defines parameters for DeactivateFieldBoundary.
@@ -1029,14 +1045,17 @@ type DeactivateFieldBoundaryParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // UnbindFieldBoundaryMappingParams defines parameters for UnbindFieldBoundaryMapping.
@@ -1044,7 +1063,10 @@ type UnbindFieldBoundaryMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // BindFieldBoundaryMappingParams defines parameters for BindFieldBoundaryMapping.
@@ -1052,7 +1074,10 @@ type BindFieldBoundaryMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // RequestFieldParams defines parameters for RequestField.
@@ -1060,7 +1085,10 @@ type RequestFieldParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // PutFieldParams defines parameters for PutField.
@@ -1068,14 +1096,17 @@ type PutFieldParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // DeactivateFieldParams defines parameters for DeactivateField.
@@ -1083,14 +1114,17 @@ type DeactivateFieldParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // UnbindFieldMappingParams defines parameters for UnbindFieldMapping.
@@ -1098,7 +1132,10 @@ type UnbindFieldMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // BindFieldMappingParams defines parameters for BindFieldMapping.
@@ -1106,7 +1143,10 @@ type BindFieldMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // RequestOrganizationParams defines parameters for RequestOrganization.
@@ -1114,7 +1154,10 @@ type RequestOrganizationParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // PutOrganizationParams defines parameters for PutOrganization.
@@ -1122,14 +1165,17 @@ type PutOrganizationParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // DeactivateOrganizationParams defines parameters for DeactivateOrganization.
@@ -1137,14 +1183,17 @@ type DeactivateOrganizationParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // UnbindOrganizationMappingParams defines parameters for UnbindOrganizationMapping.
@@ -1152,7 +1201,10 @@ type UnbindOrganizationMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // BindOrganizationMappingParams defines parameters for BindOrganizationMapping.
@@ -1160,7 +1212,10 @@ type BindOrganizationMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // RequestPersonParams defines parameters for RequestPerson.
@@ -1168,7 +1223,10 @@ type RequestPersonParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // PutPersonParams defines parameters for PutPerson.
@@ -1176,14 +1234,17 @@ type PutPersonParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // DeactivatePersonParams defines parameters for DeactivatePerson.
@@ -1191,14 +1252,17 @@ type DeactivatePersonParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
 	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
 	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"X-Agrirouter-BaseRevision,omitempty"`
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // UnbindPersonMappingParams defines parameters for UnbindPersonMapping.
@@ -1206,7 +1270,10 @@ type UnbindPersonMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // BindPersonMappingParams defines parameters for BindPersonMapping.
@@ -1214,7 +1281,10 @@ type BindPersonMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"X-Agrirouter-EndpointId"`
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
 // PutEndpointJSONRequestBody defines body for PutEndpoint for application/json ContentType.
@@ -2024,22 +2094,39 @@ func (w *ServerInterfaceWrapper) RequestFarm(ctx echo.Context) error {
 	var params RequestFarmParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2062,34 +2149,51 @@ func (w *ServerInterfaceWrapper) PutFarm(ctx echo.Context) error {
 	var params PutFarmParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2115,34 +2219,51 @@ func (w *ServerInterfaceWrapper) DeactivateFarm(ctx echo.Context) error {
 	var params DeactivateFarmParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2176,22 +2297,39 @@ func (w *ServerInterfaceWrapper) UnbindFarmMapping(ctx echo.Context) error {
 	var params UnbindFarmMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2222,22 +2360,39 @@ func (w *ServerInterfaceWrapper) BindFarmMapping(ctx echo.Context) error {
 	var params BindFarmMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2253,22 +2408,39 @@ func (w *ServerInterfaceWrapper) RequestFieldBoundary(ctx echo.Context) error {
 	var params RequestFieldBoundaryParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2291,34 +2463,51 @@ func (w *ServerInterfaceWrapper) PutFieldBoundary(ctx echo.Context) error {
 	var params PutFieldBoundaryParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2344,34 +2533,51 @@ func (w *ServerInterfaceWrapper) DeactivateFieldBoundary(ctx echo.Context) error
 	var params DeactivateFieldBoundaryParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2405,22 +2611,39 @@ func (w *ServerInterfaceWrapper) UnbindFieldBoundaryMapping(ctx echo.Context) er
 	var params UnbindFieldBoundaryMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2451,22 +2674,39 @@ func (w *ServerInterfaceWrapper) BindFieldBoundaryMapping(ctx echo.Context) erro
 	var params BindFieldBoundaryMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2482,22 +2722,39 @@ func (w *ServerInterfaceWrapper) RequestField(ctx echo.Context) error {
 	var params RequestFieldParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2520,34 +2777,51 @@ func (w *ServerInterfaceWrapper) PutField(ctx echo.Context) error {
 	var params PutFieldParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2573,34 +2847,51 @@ func (w *ServerInterfaceWrapper) DeactivateField(ctx echo.Context) error {
 	var params DeactivateFieldParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2634,22 +2925,39 @@ func (w *ServerInterfaceWrapper) UnbindFieldMapping(ctx echo.Context) error {
 	var params UnbindFieldMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2680,22 +2988,39 @@ func (w *ServerInterfaceWrapper) BindFieldMapping(ctx echo.Context) error {
 	var params BindFieldMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2711,22 +3036,39 @@ func (w *ServerInterfaceWrapper) RequestOrganization(ctx echo.Context) error {
 	var params RequestOrganizationParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2749,34 +3091,51 @@ func (w *ServerInterfaceWrapper) PutOrganization(ctx echo.Context) error {
 	var params PutOrganizationParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2802,34 +3161,51 @@ func (w *ServerInterfaceWrapper) DeactivateOrganization(ctx echo.Context) error 
 	var params DeactivateOrganizationParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -2863,22 +3239,39 @@ func (w *ServerInterfaceWrapper) UnbindOrganizationMapping(ctx echo.Context) err
 	var params UnbindOrganizationMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2909,22 +3302,39 @@ func (w *ServerInterfaceWrapper) BindOrganizationMapping(ctx echo.Context) error
 	var params BindOrganizationMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2940,22 +3350,39 @@ func (w *ServerInterfaceWrapper) RequestPerson(ctx echo.Context) error {
 	var params RequestPersonParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -2978,34 +3405,51 @@ func (w *ServerInterfaceWrapper) PutPerson(ctx echo.Context) error {
 	var params PutPersonParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -3031,34 +3475,51 @@ func (w *ServerInterfaceWrapper) DeactivatePerson(ctx echo.Context) error {
 	var params DeactivatePersonParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
 	}
-	// ------------- Optional header parameter "X-Agrirouter-BaseRevision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-BaseRevision")]; found {
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
 		var XAgrirouterBaseRevision BaseRevision
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-BaseRevision, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-BaseRevision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-BaseRevision: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
 		}
 
 		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
@@ -3092,22 +3553,39 @@ func (w *ServerInterfaceWrapper) UnbindPersonMapping(ctx echo.Context) error {
 	var params UnbindPersonMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -3138,22 +3616,39 @@ func (w *ServerInterfaceWrapper) BindPersonMapping(ctx echo.Context) error {
 	var params BindPersonMappingParams
 
 	headers := ctx.Request().Header
-	// ------------- Required header parameter "X-Agrirouter-EndpointId" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("X-Agrirouter-EndpointId")]; found {
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
 		var XAgrirouterEndpointId AgrirouterEndpointId
 		n := len(valueList)
 		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for X-Agrirouter-EndpointId, got %d", n))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
 		}
 
-		err = runtime.BindStyledParameterWithOptions("simple", "X-Agrirouter-EndpointId", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter X-Agrirouter-EndpointId: %s", err))
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
 		}
 
 		params.XAgrirouterEndpointId = XAgrirouterEndpointId
 	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter X-Agrirouter-EndpointId is required, but not found"))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments

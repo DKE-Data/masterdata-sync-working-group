@@ -594,3 +594,92 @@ func TestRejectedBindingIsDroppedLocallyAndNotSentAsNew(t *testing.T) {
 		t.Error("a record whose binding was rejected must not be sent as new")
 	}
 }
+
+// asksAPerson is a recogniser that does what a product's does: it puts the
+// object in front of somebody and waits. What it records is what agrirouter
+// showed while it was waiting, which is the thing a flag raised off the
+// returned Recognition cannot get right.
+type asksAPerson struct {
+	attention *psync.Attention
+	endpoint  *agmasync.Endpoint
+
+	asked  int
+	flagUp bool
+}
+
+func (a *asksAPerson) Recognise(
+	tx *store.Tx, env agmasync.Envelope, entity oapi.Entity,
+) (psync.Recognition, error) {
+	a.asked++
+	a.attention.Raise(context.Background())
+
+	// Read with the question still open and unanswered — the interval the flag
+	// exists to describe.
+	status, err := a.endpoint.InitialLoadStatus(context.Background())
+	if err != nil {
+		return psync.Recognition{}, err
+	}
+	if status.AwaitingUser != nil && *status.AwaitingUser {
+		a.flagUp = true
+	}
+
+	// Nobody answered, so the object is left for whoever does.
+	return psync.Recognition{Blocked: true, AwaitingUser: true}, nil
+}
+
+func TestTheFlagIsUpWhileTheQuestionIsOpenAndNotOnlyOnceItIsAnswered(t *testing.T) {
+	// A recogniser that asks a person is waiting from the moment it asks, and
+	// has returned nothing yet. Raising the flag from what recognition returns
+	// puts agrirouter's "waiting for you in <app>" up when the waiting ends —
+	// and, for a recogniser that gives up on a timeout, only once that timeout
+	// has run. The endpoint shares the flag with the loader instead and raises
+	// it when it asks.
+	h := newHarness(t)
+	contributed(t, h, "Hof Nord")
+
+	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
+	createLocalFarm(t, b, "B-1", "Hof Nord GmbH", nil)
+
+	attention := &psync.Attention{}
+	asking := &asksAPerson{attention: attention, endpoint: b.Endpoint}
+	l := loader(b)
+	l.Reconciler, l.Attention = asking, attention
+
+	res, err := l.Run(context.Background())
+	if err != nil {
+		t.Fatalf("initial load: %v", err)
+	}
+	if asking.asked == 0 {
+		t.Fatal("the recogniser was never asked, so the test proves nothing")
+	}
+	if !asking.flagUp {
+		t.Error("agrirouter still showed nobody waiting while the question was open")
+	}
+
+	// And what the load reports is what was raised, including on the ending this
+	// recogniser produces: stopped at RECONCILING with the object undecided.
+	if !res.AwaitingUser {
+		t.Error("the load must report the flag its recogniser raised")
+	}
+	if res.UserAttentionErr != nil {
+		t.Errorf("reporting a person was needed failed: %v", res.UserAttentionErr)
+	}
+	if len(res.Blocked) != 1 {
+		t.Fatalf("blocked %+v, want the object left for a person", res.Blocked)
+	}
+	if res.State != agmasync.StateReconciling {
+		t.Errorf("state = %q, want the load left short of reconciled", res.State)
+	}
+
+	// One report, however many questions were asked, and none repeated on a
+	// later take of the set.
+	reports := 0
+	for _, obs := range h.router.Observations() {
+		if obs.Kind == "userAttention" {
+			reports++
+		}
+	}
+	if reports != 1 {
+		t.Errorf("agrirouter was told %d times, want one report for the load", reports)
+	}
+}

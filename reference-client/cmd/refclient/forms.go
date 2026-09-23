@@ -94,10 +94,16 @@ func formFields(typ agmasync.EntityType) []formField {
 		return []formField{
 			{Name: "name", Label: "Name", Kind: "text",
 				Placeholder: "Hof Nord", Required: true},
+			// Required because the protocol requires it. A farm without an
+			// owner is not a farm this platform can send at all, so accepting
+			// one here would only hold a record back for a 400 later — and the
+			// order it imposes, a party before the farm it holds, is the
+			// protocol's own.
 			{Name: "owner", Label: "Owner", Kind: "ref",
 				RefTypes: []agmasync.EntityType{
 					agmasync.TypeOrganization, agmasync.TypePerson},
-				Hint: "an organization or a person held here"},
+				Hint:     "an organization or a person held here",
+				Required: true},
 			{Name: "address.city", Label: "City", Kind: "text", Placeholder: "Osnabrück"},
 		}
 	case agmasync.TypeField:
