@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
@@ -14,6 +15,14 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
+
+// defaultPrimaryColor is the green the screens have always been.
+const defaultPrimaryColor = "#1d3320"
+
+// colorPattern is what may reach the stylesheet, since the value is written
+// into one: a hex colour or a bare CSS colour name, and nothing that could
+// close a declaration and start another.
+var colorPattern = regexp.MustCompile(`^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]+)$`)
 
 // config is everything one instance needs to be a participant.
 //
@@ -61,6 +70,10 @@ type config struct {
 	// The screens can restate it afterwards; this is what an instance comes up
 	// saying, so a restart does not silently widen what a person narrowed.
 	masterdata []agmasync.EntityType
+
+	// primaryColor is what the screens are coloured with, so that two
+	// participants open in two tabs can be told apart at a glance.
+	primaryColor string
 }
 
 // externalID is this participant's own name for its endpoint, and the only
@@ -111,10 +124,15 @@ func loadConfig() (config, error) {
 		"this participant as a browser reaches it (REFCLIENT_PUBLIC_URL); default http://localhost<addr>")
 	flag.StringVar(&masterdata, "masterdata", env("AGMASYNC_MASTERDATA", ""),
 		"entity types to declare at startup, comma-separated; empty declares all (AGMASYNC_MASTERDATA)")
+	flag.StringVar(&c.primaryColor, "primary-color", env("REFCLIENT_PRIMARY_COLOR", defaultPrimaryColor),
+		"colour the screens are themed with, as #rgb, #rrggbb or a CSS colour name (REFCLIENT_PRIMARY_COLOR)")
 	flag.Parse()
 
 	if c.instance == "" {
 		return c, errors.New("an instance name is required: pass -instance")
+	}
+	if !colorPattern.MatchString(c.primaryColor) {
+		return c, fmt.Errorf("-primary-color is not a colour: %q", c.primaryColor)
 	}
 	if c.masterdata, err = entityTypeList(masterdata); err != nil {
 		return c, err

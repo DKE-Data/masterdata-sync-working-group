@@ -5,12 +5,17 @@
 <meta charset="utf-8">
 <title>{{.Instance}} — AgmaSync reference client</title>
 <style>
+  :root {
+    --primary: {{.PrimaryColor}};
+    --primary-nav: color-mix(in srgb, var(--primary) 84%, #fff);
+    --primary-faint: color-mix(in srgb, var(--primary) 22%, #fff);
+  }
   body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #182018; }
-  header { background: #1d3320; color: #fff; padding: 12px 24px; }
+  header { background: var(--primary); color: #fff; padding: 12px 24px; }
   header h1 { font-size: 17px; margin: 0; font-weight: 600; }
-  nav { background: #2a4a2e; padding: 0 24px; }
-  nav a { color: #cfe0d0; text-decoration: none; display: inline-block; padding: 9px 14px; }
-  nav a.on { background: #fff; color: #1d3320; font-weight: 600; }
+  nav { background: var(--primary-nav); padding: 0 24px; }
+  nav a { color: var(--primary-faint); text-decoration: none; display: inline-block; padding: 9px 14px; }
+  nav a.on { background: #fff; color: var(--primary); font-weight: 600; }
   main { padding: 20px 24px 48px; max-width: 1080px; }
   h2 { font-size: 16px; margin: 28px 0 8px; }
   h2:first-child { margin-top: 0; }
@@ -23,6 +28,7 @@
   .notice { background: #e8f3e8; border: 1px solid #b9d6ba; }
   .problem { background: #fbeceb; border: 1px solid #e3b6b2; }
   .muted { color: #5c6b5c; }
+  header .muted { color: color-mix(in srgb, var(--primary) 35%, #fff); }
   form.inline { display: inline; }
   button { font: inherit; padding: 3px 10px; cursor: pointer; }
   input[type=text], textarea, select { font: inherit; padding: 5px; width: 100%; box-sizing: border-box; }
@@ -32,7 +38,7 @@
   .field label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5c6b5c; margin-bottom: 3px; }
   .tag { font-size: 12px; padding: 1px 7px; border-radius: 9px; background: #e4eae4; }
   h3 { font-size: 14px; margin: 18px 0 6px; font-weight: 600; }
-  a { color: #1d5c2a; }
+  a { color: var(--primary); }
   .hint { font-size: 13px; }
   .field .hint { margin-top: 3px; }
   label.tick { display: inline-block; margin: 0 16px 10px 0; font-size: 14px; }

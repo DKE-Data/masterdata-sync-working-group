@@ -23,8 +23,18 @@ import (
 //go:embed templates/*.html
 var templateFiles embed.FS
 
+// displayLocation is the timezone the UI renders timestamps in, regardless
+// of how they were stored.
+var displayLocation = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
 var templates = template.Must(template.New("").Funcs(template.FuncMap{
-	"clock": func(t time.Time) string { return t.Format("15:04:05") },
+	"clock": func(t time.Time) string { return t.In(displayLocation).Format("15:04:05") },
 }).ParseFS(templateFiles, "templates/*.html"))
 
 // handler builds the screens.
@@ -62,6 +72,10 @@ type page struct {
 	ExternalID string
 	BaseURL    string
 
+	// PrimaryColor themes the screens, so two participants side by side are
+	// told apart by more than the name in the header.
+	PrimaryColor template.CSS
+
 	Routed    []agmasync.EntityType
 	LoadState string
 	Position  string
@@ -87,7 +101,8 @@ func (in *instance) page(section string) page {
 	p := page{
 		Instance: in.cfg.instance, Tenant: in.cfg.tenantID,
 		EndpointID: in.endpointID, ExternalID: in.cfg.externalID(),
-		BaseURL: in.cfg.baseURL,
+		BaseURL:      in.cfg.baseURL,
+		PrimaryColor: template.CSS(in.cfg.primaryColor),
 		// A state of "" is an endpoint routed to nothing, which has no
 		// initial-load state at all rather than an empty one.
 		LoadState:      orNone(in.state),
@@ -719,7 +734,7 @@ func (in *instance) streamEvents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			payload, err := json.Marshal(map[string]string{
-				"at": entry.At.Format("15:04:05"), "kind": entry.Kind, "text": entry.Text,
+				"at": entry.At.In(displayLocation).Format("15:04:05"), "kind": entry.Kind, "text": entry.Text,
 			})
 			if err != nil {
 				continue
@@ -796,7 +811,6 @@ func (in *instance) serve(ctx context.Context) error {
 		_ = server.Shutdown(shutdown)
 	}()
 
-	in.log.say("serving", "screens on "+in.cfg.addr)
 	if err := server.ListenAndServe(); err != nil && !isClosed(err) {
 		return err
 	}

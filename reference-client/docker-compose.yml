@@ -97,6 +97,9 @@ services:
       # than the one it listens on.
       AGRIROUTER_APP_URL: ${AGRIROUTER_APP_URL:-}
       REFCLIENT_PUBLIC_URL: ${ALPHA_PUBLIC_URL:-http://localhost:${ALPHA_PORT:-8081}}
+      # The screens are themed with this, so the two tabs a demo has open are
+      # told apart before the header is read.
+      REFCLIENT_PRIMARY_COLOR: "#1d3320"
     ports:
       - "${ALPHA_PORT:-8081}:8080"
     volumes:
@@ -122,6 +125,7 @@ services:
       # than the one it listens on.
       AGRIROUTER_APP_URL: ${AGRIROUTER_APP_URL:-}
       REFCLIENT_PUBLIC_URL: ${BETA_PUBLIC_URL:-http://localhost:${BETA_PORT:-8082}}
+      REFCLIENT_PRIMARY_COLOR: "#1d2f5c"
     ports:
       - "${BETA_PORT:-8082}:8080"
     volumes:
