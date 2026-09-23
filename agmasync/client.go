@@ -194,6 +194,29 @@ func writable(v any) (io.Reader, error) {
 	return bytes.NewReader(body), nil
 }
 
+// applied reads the canonical object a write answered with, from the response
+// body rather than from the generated typed value the client decoded it into.
+//
+// The typed value loses the same attributes marshalling one would invent, for
+// the same reason: a generated struct has nowhere to put an attribute the model
+// does not name, so decoding into it drops one. That loss is not confined to
+// the response. A participant applies what a write returns exactly as it
+// applies a delivery, so an attribute dropped here is absent from the store,
+// and absent from the next write of that object — the relaying of unmodelled
+// attributes undone a revision later, by the write path that took care to
+// preserve it. A merged response, which carries content the sender never sent,
+// is where the difference is widest.
+//
+// This is what the event stream already does with a delivered object, and the
+// two paths carry the same canonical objects.
+func applied(t EntityType, body []byte) (oapi.Entity, error) {
+	var out oapi.Entity
+	if err := json.Unmarshal(body, &out); err != nil {
+		return oapi.Entity{}, convErr(t, err)
+	}
+	return out, nil
+}
+
 // Put sends an entity — a creation or an update.
 //
 // base is the revision the participant edited from, and travels in the
@@ -220,7 +243,6 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 	localID := *env.LocalId
 
 	var res writeResult
-	var out oapi.Entity
 
 	switch env.Type {
 	case TypeOrganization:
@@ -244,10 +266,6 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
 			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if v := firstNonNil(r.JSON200, r.JSON201); v != nil {
-			out, err = FromOrganization(*v)
-		}
-
 	case TypePerson:
 		if _, cErr := ent.AsPerson(); cErr != nil {
 			return oapi.Entity{}, convErr(env.Type, cErr)
@@ -269,10 +287,6 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
 			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if v := firstNonNil(r.JSON200, r.JSON201); v != nil {
-			out, err = FromPerson(*v)
-		}
-
 	case TypeFarm:
 		if _, cErr := ent.AsFarm(); cErr != nil {
 			return oapi.Entity{}, convErr(env.Type, cErr)
@@ -294,10 +308,6 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
 			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if v := firstNonNil(r.JSON200, r.JSON201); v != nil {
-			out, err = FromFarm(*v)
-		}
-
 	case TypeField:
 		if _, cErr := ent.AsField(); cErr != nil {
 			return oapi.Entity{}, convErr(env.Type, cErr)
@@ -319,10 +329,6 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
 			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if v := firstNonNil(r.JSON200, r.JSON201); v != nil {
-			out, err = FromField(*v)
-		}
-
 	case TypeFieldBoundary:
 		if _, cErr := ent.AsFieldBoundary(); cErr != nil {
 			return oapi.Entity{}, convErr(env.Type, cErr)
@@ -344,10 +350,6 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
 			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if v := firstNonNil(r.JSON200, r.JSON201); v != nil {
-			out, err = FromFieldBoundary(*v)
-		}
-
 	default:
 		return oapi.Entity{}, fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, env.Type)
 	}
@@ -355,10 +357,7 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 	if resErr := res.err(); resErr != nil {
 		return oapi.Entity{}, resErr
 	}
-	if err != nil {
-		return oapi.Entity{}, convErr(env.Type, err)
-	}
-	return out, nil
+	return applied(env.Type, res.body)
 }
 
 // Deactivate signals that an entity was deactivated in its source system.
@@ -382,8 +381,6 @@ func (e *Endpoint) Deactivate(
 	ctx context.Context, t EntityType, localID string, base *int,
 ) (oapi.Entity, error) {
 	var res writeResult
-	var out oapi.Entity
-	var err error
 
 	switch t {
 	case TypeOrganization:
@@ -400,10 +397,6 @@ func (e *Endpoint) Deactivate(
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if r.JSON200 != nil {
-			out, err = FromOrganization(*r.JSON200)
-		}
-
 	case TypePerson:
 		r, hErr := e.client.api.DeactivatePersonWithResponse(ctx, localID,
 			&oapi.DeactivatePersonParams{
@@ -418,10 +411,6 @@ func (e *Endpoint) Deactivate(
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if r.JSON200 != nil {
-			out, err = FromPerson(*r.JSON200)
-		}
-
 	case TypeFarm:
 		r, hErr := e.client.api.DeactivateFarmWithResponse(ctx, localID,
 			&oapi.DeactivateFarmParams{
@@ -436,10 +425,6 @@ func (e *Endpoint) Deactivate(
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if r.JSON200 != nil {
-			out, err = FromFarm(*r.JSON200)
-		}
-
 	case TypeField:
 		r, hErr := e.client.api.DeactivateFieldWithResponse(ctx, localID,
 			&oapi.DeactivateFieldParams{
@@ -454,10 +439,6 @@ func (e *Endpoint) Deactivate(
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if r.JSON200 != nil {
-			out, err = FromField(*r.JSON200)
-		}
-
 	case TypeFieldBoundary:
 		r, hErr := e.client.api.DeactivateFieldBoundaryWithResponse(ctx, localID,
 			&oapi.DeactivateFieldBoundaryParams{
@@ -472,10 +453,6 @@ func (e *Endpoint) Deactivate(
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
-		if r.JSON200 != nil {
-			out, err = FromFieldBoundary(*r.JSON200)
-		}
-
 	default:
 		return oapi.Entity{}, fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, t)
 	}
@@ -483,10 +460,7 @@ func (e *Endpoint) Deactivate(
 	if resErr := res.err(); resErr != nil {
 		return oapi.Entity{}, resErr
 	}
-	if err != nil {
-		return oapi.Entity{}, convErr(t, err)
-	}
-	return out, nil
+	return applied(t, res.body)
 }
 
 // Request asks for a single entity by its canonical identifier.
