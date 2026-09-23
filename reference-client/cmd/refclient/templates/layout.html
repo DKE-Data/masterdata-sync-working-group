@@ -63,7 +63,7 @@
 <nav>
   <a href="/" {{if eq .Section "dashboard"}}class="on"{{end}}>Dashboard</a>
   <a href="/objects" {{if eq .Section "objects"}}class="on"{{end}}>Objects</a>
-  <a href="/decisions" {{if eq .Section "decisions"}}class="on"{{end}}>Decisions{{if .Pending}} ({{.Pending}}){{end}}</a>
+  <a href="/decisions" {{if eq .Section "decisions"}}class="on"{{end}}>Conflicts{{if .Pending}} ({{.Pending}}){{end}}</a>
   <a href="/log" {{if eq .Section "log"}}class="on"{{end}}>Log</a>
 </nav>
 <main>

@@ -77,7 +77,7 @@ type answer struct {
 	// LocalID names the record the object was recognised as. Empty with kind
 	// "create".
 	LocalID string
-	Kind    string // "match", "create" or "block"
+	Kind    string // "match" or "create"
 }
 
 type answered struct {
@@ -185,8 +185,6 @@ func (i *inbox) Recognise(
 			// binding, for the same reason a created one does: agrirouter holds no
 			// identifier of ours for it yet.
 			return psync.Recognition{LocalID: a.LocalID, AwaitingUser: true}, nil
-		case "block":
-			return psync.Recognition{Blocked: true, AwaitingUser: true}, nil
 		default:
 			return psync.Recognition{AwaitingUser: true}, nil
 		}

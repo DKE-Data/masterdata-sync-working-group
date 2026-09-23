@@ -665,6 +665,10 @@ func (in *instance) showDecisions(w http.ResponseWriter, r *http.Request) {
 
 func (in *instance) postDecision(w http.ResponseWriter, r *http.Request) {
 	a := answer{Kind: r.FormValue("kind"), LocalID: r.FormValue("local_id")}
+	if a.Kind != "match" && a.Kind != "create" {
+		redirect(w, r, "/decisions", "", "a decision must be match or create")
+		return
+	}
 	if a.Kind == "match" && a.LocalID == "" {
 		redirect(w, r, "/decisions", "", "no record was chosen")
 		return
