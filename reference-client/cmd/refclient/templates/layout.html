@@ -1,0 +1,87 @@
+{{define "head"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{.Instance}} — AgmaSync reference client</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #182018; }
+  header { background: #1d3320; color: #fff; padding: 12px 24px; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  nav { background: #2a4a2e; padding: 0 24px; }
+  nav a { color: #cfe0d0; text-decoration: none; display: inline-block; padding: 9px 14px; }
+  nav a.on { background: #fff; color: #1d3320; font-weight: 600; }
+  main { padding: 20px 24px 48px; max-width: 1080px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  h2:first-child { margin-top: 0; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+  th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid #e2e6e2; vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5c6b5c; }
+  code, .mono { font-family: ui-monospace, monospace; font-size: 13px; }
+  .facts td:first-child { color: #5c6b5c; width: 190px; }
+  .notice, .problem { padding: 8px 12px; margin-bottom: 14px; border-radius: 3px; }
+  .notice { background: #e8f3e8; border: 1px solid #b9d6ba; }
+  .problem { background: #fbeceb; border: 1px solid #e3b6b2; }
+  .muted { color: #5c6b5c; }
+  form.inline { display: inline; }
+  button { font: inherit; padding: 3px 10px; cursor: pointer; }
+  input[type=text], textarea, select { font: inherit; padding: 5px; width: 100%; box-sizing: border-box; }
+  textarea { font-family: ui-monospace, monospace; font-size: 13px; }
+  .card { border: 1px solid #d6ddd6; border-radius: 4px; padding: 14px 16px; margin-bottom: 14px; }
+  .field { margin-bottom: 10px; max-width: 560px; }
+  .field label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #5c6b5c; margin-bottom: 3px; }
+  .tag { font-size: 12px; padding: 1px 7px; border-radius: 9px; background: #e4eae4; }
+  h3 { font-size: 14px; margin: 18px 0 6px; font-weight: 600; }
+  a { color: #1d5c2a; }
+  .hint { font-size: 13px; }
+  .field .hint { margin-top: 3px; }
+  label.tick { display: inline-block; margin: 0 16px 10px 0; font-size: 14px; }
+  label.tick input { margin-right: 5px; }
+  .req { font-weight: 400; color: #9a5b52; letter-spacing: 0; text-transform: none; }
+  .typepick { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 4px;
+              padding-bottom: 12px; border-bottom: 1px solid #e2e6e2; }
+  .typepick .field { margin-bottom: 0; width: 280px; }
+  .detail { margin-bottom: 12px; }
+  .detail:last-child { margin-bottom: 0; }
+  .detail-label { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+                  color: #5c6b5c; margin-bottom: 1px; }
+  pre.geo { background: #f4f7f4; border: 1px solid #e2e6e2; border-radius: 3px;
+            padding: 8px 10px; margin: 2px 0 0; max-width: 700px;
+            white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{.Instance}} <span class="muted">— endpoint {{.ExternalID}}</span></h1>
+</header>
+<nav>
+  <a href="/" {{if eq .Section "dashboard"}}class="on"{{end}}>Dashboard</a>
+  <a href="/objects" {{if eq .Section "objects"}}class="on"{{end}}>Objects</a>
+  <a href="/decisions" {{if eq .Section "decisions"}}class="on"{{end}}>Decisions{{if .Pending}} ({{.Pending}}){{end}}</a>
+  <a href="/log" {{if eq .Section "log"}}class="on"{{end}}>Log</a>
+</nav>
+<main>
+{{if .Notice}}<div class="notice">{{.Notice}}</div>{{end}}
+{{if .Problem}}<div class="problem">{{.Problem}}</div>{{end}}
+{{end}}
+
+{{define "foot"}}
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "entries"}}
+<table>
+  <tr><th>Time</th><th>What</th><th></th></tr>
+  {{range .}}
+  <tr><td class="mono">{{clock .At}}</td><td><span class="tag">{{.Kind}}</span></td><td>{{.Text}}</td></tr>
+  {{else}}
+  <tr><td colspan="3" class="muted">Nothing yet.</td></tr>
+  {{end}}
+</table>
+{{end}}
+
+{{define "attributes"}}
+{{range .}}<span class="mono">{{.Name}}</span>: {{.Value}}<br>{{else}}<span class="muted">no attributes</span>{{end}}
+{{end}}

@@ -1,0 +1,78 @@
+{{define "decisions.html"}}
+{{template "head" .}}
+
+<h2>Waiting on you</h2>
+<p class="muted hint">
+  The load is stopped until these are answered.
+</p>
+
+{{range .Questions}}
+<div class="card">
+  <p>
+    <strong>{{.Type}}</strong> <span class="mono">{{.AgrirouterID}}</span>
+    arrived without a local id.
+  </p>
+  <table>
+    <tr><th>The delivered object</th></tr>
+    <tr><td>{{template "attributes" .Attributes}}</td></tr>
+  </table>
+
+  <form method="post" action="/decisions">
+    <input type="hidden" name="id" value="{{.ID}}">
+    <div class="field">
+      <label>Is it one of these records?</label>
+      {{range .Candidates}}
+      <label style="text-transform:none;letter-spacing:0;color:inherit">
+        <input type="radio" name="local_id" value="{{.LocalID}}">
+        {{if .Name}}<strong>{{.Name}}</strong> {{end}}<span class="mono">{{.LocalID}}</span>
+        <br>{{template "attributes" .Attributes}}
+      </label>
+      {{end}}
+    </div>
+    <button type="submit" name="kind" value="match">This one — bind it</button>
+    <button type="submit" name="kind" value="create">None of them — create a new record</button>
+    <button type="submit" name="kind" value="block">I cannot tell — leave it</button>
+  </form>
+</div>
+{{else}}
+<p class="muted">Nothing is waiting.</p>
+{{end}}
+
+{{if .Blocked}}
+<h2>Left undecided</h2>
+<p class="muted hint">These do not come back on their own.</p>
+<table>
+  <tr><th>Type</th><th>agrirouter id</th><th></th></tr>
+  {{range .Blocked}}
+  <tr>
+    <td>{{.Type}}</td>
+    <td class="mono">{{.AgrirouterID}}</td>
+    <td>
+      <form class="inline" method="post" action="/decisions/request">
+        <input type="hidden" name="type" value="{{.Type}}">
+        <input type="hidden" name="agrirouter_id" value="{{.AgrirouterID}}">
+        <button type="submit">Ask for it again</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+{{if .Answered}}
+<h2>Already decided</h2>
+<table>
+  <tr><th>Time</th><th>Type</th><th>agrirouter id</th><th>Decision</th></tr>
+  {{range .Answered}}
+  <tr>
+    <td class="mono">{{clock .When}}</td>
+    <td>{{.Type}}</td>
+    <td class="mono">{{.AgrirouterID}}</td>
+    <td>{{.Kind}}{{if .LocalID}} <span class="mono">{{.LocalID}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+{{template "foot" .}}
+{{end}}

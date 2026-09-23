@@ -1,0 +1,152 @@
+# Two participants and an agrirouter to exchange through.
+#
+#   docker compose up -d
+#   docker compose run --rm agmactl -instance alpha route farm
+#   docker compose run --rm agmactl -instance beta  route farm
+#
+# Then open http://localhost:8081 and http://localhost:8082, send a farm from
+# one and watch it arrive at the other under the other's own local id.
+#
+# The routing step is a command rather than a button because it is the user's
+# decision, made in agrirouter. There is no participant-facing operation for it
+# at all, and a screen offering one here would teach a shape that does not exist
+# against a real agrirouter — where this same command has nothing to call.
+#
+# Run it from this directory; the build context is the repository root, which is
+# where the agmasync module beside this one lives.
+#
+#   docker compose down      keeps both databases
+#   docker compose down -v   discards them, which is the only full reset: the
+#                            test router holds everything in memory, so
+#                            restarting it invalidates every endpoint it issued
+#                            and a surviving database would go on naming them.
+#
+# ---- Running against a real agrirouter ----
+#
+# Everything below that could differ between agrirouters is a variable with the
+# test router's value as its default, so the line above stays a line. To point
+# the same two participants at QA or production, copy env/agrirouter.env.example,
+# fill it in, and name it:
+#
+#   docker compose --env-file env/qa.env up -d alpha beta
+#
+# Name the two participants rather than bringing everything up: the local test
+# router is of no use against a real agrirouter, and starting it would only
+# confuse which one is being talked to. Nothing depends on it — a participant
+# retries onboarding until its agrirouter answers — so it is the services named
+# here that decide what runs.
+#
+# The credentials are the switch that matters. The test router takes a static
+# bearer token it treats as the application id; a real agrirouter takes OAuth
+# client credentials, and the participant uses whichever it was given.
+#
+# The names in that file are deliberately not the AGMASYNC_* ones the program
+# reads. A variable set in the shell beats one read from an --env-file, and
+# AGMASYNC_URL is exactly what a shell running agmactl already has set — so
+# naming them alike would let a local export quietly redirect the containers.
+
+name: agmasync-demo
+
+# Shared by both participants. Not the environment: a service's own
+# `environment` replaces this one rather than merging into it, so each spells
+# out its own — which is where the two differ anyway, and the difference is the
+# thing to be able to see.
+x-refclient: &refclient
+  build:
+    context: ..
+    dockerfile: reference-client/Dockerfile
+
+services:
+  testrouter:
+    build:
+      context: ..
+      dockerfile: reference-client/Dockerfile
+    entrypoint: ["/testrouter"]
+    environment:
+      TESTROUTER_ADDR: ":8080"
+    ports:
+      # Host ports are overridable because 8080 is a busy number — a test router
+      # already running outside Docker is the likely reason this is not free,
+      # and that one refuses to be replaced by this one. Inside the network the
+      # port is always 8080, so nothing else moves when these do.
+      - "${TESTROUTER_PORT:-8080}:8080"
+
+  alpha:
+    <<: *refclient
+    command: ["-instance", "alpha", "-db", "/data/alpha.db"]
+    environment:
+      AGMASYNC_URL: ${AGRIROUTER_URL:-http://testrouter:8080}
+      AGMASYNC_TENANT_ID: ${AGRIROUTER_TENANT_ID:-3f2504e0-4f89-11d3-9a0c-0305e82c3301}
+      REFCLIENT_ADDR: ":8080"
+      # Two participants means two applications, not two endpoints of one. The
+      # live stream is per application and so is the identifier mapping, so
+      # instances sharing this value would share both — and would demonstrate
+      # something the protocol does not do.
+      AGMASYNC_APPLICATION_ID: ${ALPHA_APPLICATION_ID:-11111111-1111-4111-8111-111111111111}
+      AGMASYNC_SOFTWARE_VERSION_ID: ${ALPHA_SOFTWARE_VERSION_ID:-}
+      # One of these two, never both: an empty token with an OAuth token URL
+      # set is how a participant is told to use the latter.
+      AGMASYNC_TOKEN: ${ALPHA_TOKEN-11111111-1111-4111-8111-111111111111}
+      AGMASYNC_OAUTH_TOKEN_URL: ${ALPHA_OAUTH_TOKEN_URL:-}
+      AGMASYNC_OAUTH_CLIENT_ID: ${ALPHA_OAUTH_CLIENT_ID:-}
+      AGMASYNC_OAUTH_CLIENT_SECRET: ${ALPHA_OAUTH_CLIENT_SECRET:-}
+      AGMASYNC_OAUTH_SCOPES: ${OAUTH_SCOPES:-}
+      # Where a user authorizes this application for their farming business,
+      # and where agrirouter sends them back to afterwards. The second is this
+      # participant as a browser reaches it, which is the published port rather
+      # than the one it listens on.
+      AGRIROUTER_APP_URL: ${AGRIROUTER_APP_URL:-}
+      REFCLIENT_PUBLIC_URL: ${ALPHA_PUBLIC_URL:-http://localhost:${ALPHA_PORT:-8081}}
+    ports:
+      - "${ALPHA_PORT:-8081}:8080"
+    volumes:
+      - alpha-data:/data
+
+  beta:
+    <<: *refclient
+    command: ["-instance", "beta", "-db", "/data/beta.db"]
+    environment:
+      AGMASYNC_URL: ${AGRIROUTER_URL:-http://testrouter:8080}
+      AGMASYNC_TENANT_ID: ${AGRIROUTER_TENANT_ID:-3f2504e0-4f89-11d3-9a0c-0305e82c3301}
+      REFCLIENT_ADDR: ":8080"
+      AGMASYNC_APPLICATION_ID: ${BETA_APPLICATION_ID:-22222222-2222-4222-8222-222222222222}
+      AGMASYNC_SOFTWARE_VERSION_ID: ${BETA_SOFTWARE_VERSION_ID:-}
+      AGMASYNC_TOKEN: ${BETA_TOKEN-22222222-2222-4222-8222-222222222222}
+      AGMASYNC_OAUTH_TOKEN_URL: ${BETA_OAUTH_TOKEN_URL:-}
+      AGMASYNC_OAUTH_CLIENT_ID: ${BETA_OAUTH_CLIENT_ID:-}
+      AGMASYNC_OAUTH_CLIENT_SECRET: ${BETA_OAUTH_CLIENT_SECRET:-}
+      AGMASYNC_OAUTH_SCOPES: ${OAUTH_SCOPES:-}
+      # Where a user authorizes this application for their farming business,
+      # and where agrirouter sends them back to afterwards. The second is this
+      # participant as a browser reaches it, which is the published port rather
+      # than the one it listens on.
+      AGRIROUTER_APP_URL: ${AGRIROUTER_APP_URL:-}
+      REFCLIENT_PUBLIC_URL: ${BETA_PUBLIC_URL:-http://localhost:${BETA_PORT:-8082}}
+    ports:
+      - "${BETA_PORT:-8082}:8080"
+    volumes:
+      - beta-data:/data
+
+  # A shell, not a service. It starts nothing and is not brought up with the
+  # stack: `docker compose run --rm agmactl ...` is how the user's decisions
+  # get made, and how anything else is looked at from outside a participant.
+  #
+  # It follows the same -env-file as the participants, so it addresses whichever
+  # agrirouter they do. Its `route` command is the one thing that does not
+  # travel: routing is the user's decision, made in agrirouter, and the control
+  # plane it calls exists only on the test router.
+  agmactl:
+    build:
+      context: ..
+      dockerfile: reference-client/Dockerfile
+    profiles: ["tools"]
+    entrypoint: ["/agmactl"]
+    environment:
+      AGMASYNC_URL: ${AGRIROUTER_URL:-http://testrouter:8080}
+      # The same tenant the participants are in, which is what turns
+      # `-instance alpha` into the external id alpha onboarded under.
+      AGMASYNC_TENANT_ID: ${AGRIROUTER_TENANT_ID:-3f2504e0-4f89-11d3-9a0c-0305e82c3301}
+
+volumes:
+  alpha-data:
+  beta-data:

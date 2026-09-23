@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	// Aliased: this package is itself called sync, and an unqualified mention of
+	// the name below should read as the standard library's.
+	stdsync "sync"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
@@ -27,6 +30,86 @@ type Reconciler interface {
 	Recognise(
 		tx *store.Tx, env agmasync.Envelope, entity oapi.Entity,
 	) (Recognition, error)
+}
+
+// Attention is the initial load's user-attention flag: the one bit an endpoint
+// raises to say this load is waiting on a person, which has agrirouter show
+// "waiting for you in <app>" instead of its own "this application is working
+// through your data". agrirouter clears it; nothing here reads it back.
+//
+// It exists as a thing the recogniser holds rather than as something [Loader]
+// derives from [Recognition], because a recogniser that puts the question to a
+// person is waiting at the moment it asks and has not returned anything yet. A
+// flag raised off the returned Recognition goes up when the answer arrives —
+// which is to say once the person has finished — or, for a recogniser that
+// gives up on a timeout, only after that timeout has run. Both raise the flag
+// over an interval nobody was waiting in and leave it down over the one they
+// were.
+//
+// The zero value is usable and a nil *Attention is a no-op, which is what a
+// recogniser making its own decisions wants. [Loader.Run] binds it to the
+// endpoint whose load is running and forgets what the last load raised — the
+// flag does not survive a load, agrirouter having cleared it on the way to
+// LOADING_TO_AGRIROUTER or COMPLETED, so a later load must be free to raise it
+// again.
+type Attention struct {
+	mu       stdsync.Mutex
+	endpoint *agmasync.Endpoint
+	raised   bool
+	err      error
+}
+
+// Raise tells agrirouter that a person is needed, once per load.
+//
+// The error is returned for logging and must not be acted on: the flag upgrades
+// a label in agrirouter's UI and nothing in the protocol branches on it, so a
+// caller that cannot raise it has lost precision and not correctness. Dropping
+// the load over a label would be the worse trade by a long way. It is returned
+// at all because the alternative is a report that fails in silence — the flag
+// is not readable back, so nothing else would ever notice. It is kept as well,
+// and surfaces as [LoadResult.UserAttentionErr].
+//
+// The report is recorded as made only once agrirouter has it, so a failed
+// attempt leaves the next conflict to try again rather than making the loss
+// permanent. The lock is held across the call for the same reason the guard
+// exists at all: two objects needing a person at once should still cost one
+// report.
+func (a *Attention) Raise(ctx context.Context) error {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.raised {
+		return nil
+	}
+	if a.endpoint == nil {
+		// Nothing to report to. A recogniser only runs inside a load, which binds
+		// the endpoint before anything is applied, so this is a recogniser used
+		// outside one rather than a flag that failed to go up.
+		a.err = errors.New(
+			"sync: a person is needed, but no initial load is running to report it against")
+		return a.err
+	}
+	if _, err := a.endpoint.ReportUserAttention(ctx); err != nil {
+		a.err = err
+		return err
+	}
+	a.raised = true
+	a.err = nil
+	return nil
+}
+
+func (a *Attention) begin(endpoint *agmasync.Endpoint) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.endpoint, a.raised, a.err = endpoint, false, nil
+}
+
+func (a *Attention) reached() (raised bool, err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.raised, a.err
 }
 
 // ref names one of the platform's records the way everything else does: by
@@ -105,6 +188,13 @@ type Loader struct {
 	// Empty means the endpoint takes part in nothing and Run does nothing.
 	Types []agmasync.EntityType
 
+	// Attention is the user-attention flag, shared with a [Reconciler] that puts
+	// questions to a person so it can raise it while one is outstanding rather
+	// than after it is answered. A Loader without one still raises the flag off
+	// what recognition returns, which is what a recogniser deciding on its own
+	// terms — [ByName] and its n:1 mismatch — needs and all it needs.
+	Attention *Attention
+
 	// Attempts caps how many times the canonical set is taken before the load is
 	// given up on. Default 3.
 	Attempts int
@@ -129,8 +219,10 @@ type LoadResult struct {
 	Received, Created, Matched, Ignored, Superseded int
 
 	// AwaitingUser is true where recognising something needed a person and
-	// agrirouter was told so. It is not raised locally without that, since the
-	// flag is agrirouter's to display and nothing here reads it back.
+	// agrirouter was told so — whether the recogniser said so on the way back or
+	// raised it through [Loader.Attention] while the question was still open. It
+	// is not raised locally without agrirouter having it, since the flag is
+	// agrirouter's to display and nothing here reads it back.
 	AwaitingUser bool
 
 	// UserAttentionErr is why agrirouter could not be told, where a person was
@@ -173,9 +265,19 @@ type LoadResult struct {
 // An endpoint opted into nothing has no initial-load state at all, and Run does
 // nothing rather than failing: an empty [Loader.Types] already says the endpoint
 // does not take part.
-func (l *Loader) Run(ctx context.Context) (LoadResult, error) {
+func (l *Loader) Run(ctx context.Context) (res LoadResult, err error) {
 	ep := l.Applier.Endpoint
-	var res LoadResult
+
+	// Bound here and read on every exit, so that a flag the recogniser raised
+	// while parked on a question is reported however the load ends — including
+	// the ending that matters most for it, the one that stops at RECONCILING
+	// with objects nobody decided.
+	attention := l.Attention
+	if attention == nil {
+		attention = &Attention{}
+	}
+	attention.begin(ep)
+	defer func() { res.AwaitingUser, res.UserAttentionErr = attention.reached() }()
 
 	// What the set will contain, and so what may be bound and offered back. The
 	// selection is dependency-closed, so walking it in dependency order is
@@ -219,7 +321,7 @@ func (l *Loader) Run(ctx context.Context) (LoadResult, error) {
 				"sync: the canonical set did not arrive complete in %d attempts", res.Attempts)
 		}
 		res.Attempts++
-		if incomplete, err = l.takeCanonicalSet(ctx, &res); err != nil {
+		if incomplete, err = l.takeCanonicalSet(ctx, &res, attention); err != nil {
 			return res, err
 		}
 
@@ -300,7 +402,9 @@ func (l *Loader) attempts() int {
 // it. That is the second return; the first is why this takeCanonicalSet was incomplete,
 // which is kept rather than discarded so that a takeCanonicalSet failing the same way every
 // time is reported as that failure instead of as a bare attempt count.
-func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incomplete, err error) {
+func (l *Loader) takeCanonicalSet(
+	ctx context.Context, res *LoadResult, attention *Attention,
+) (incomplete, err error) {
 	stream, err := l.Applier.Endpoint.InitialLoadEvents(ctx)
 	if err != nil {
 		return nil, err
@@ -346,7 +450,7 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 		case out.Superseded:
 			res.Superseded++
 		}
-		if out.AwaitingUser && !res.AwaitingUser {
+		if out.AwaitingUser {
 			// Raised as the conflict surfaces rather than once the set is
 			// complete, because that is when the user is first waiting: from
 			// here on agrirouter shows "waiting for you in <app>" instead of its
@@ -355,18 +459,15 @@ func (l *Loader) takeCanonicalSet(ctx context.Context, res *LoadResult) (incompl
 			// while this request is in flight. The confirmation clears it — the
 			// endpoint raises, agrirouter clears.
 			//
-			// Recorded as raised only once agrirouter has it. Marking it first
-			// would make a failed report permanent: the guard above is what stops
-			// the raise repeating, so the next conflict — and every conflict in
-			// every later take, this being one of the few things not reset per
-			// take — would skip a report that never got through, while the result
-			// went on claiming a person had been asked for.
-			if _, err := l.Applier.Endpoint.ReportUserAttention(ctx); err != nil {
-				res.UserAttentionErr = err
-			} else {
-				res.AwaitingUser = true
-				res.UserAttentionErr = nil
-			}
+			// This is the late end of "as it surfaces": a recogniser that had to
+			// ask a person raised the flag itself when it asked, and [Attention]
+			// has already sent the report by the time the answer arrives here.
+			// What is left for this is the recogniser that decides alone and says
+			// on the way back that the decision was a person's to make.
+			//
+			// The error is on the result rather than handled here; see
+			// [Attention.Raise].
+			_ = attention.Raise(ctx)
 		}
 	}
 	return nil, nil

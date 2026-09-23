@@ -1,0 +1,81 @@
+{{define "dashboard.html"}}
+{{template "head" .}}
+
+<h2>Where this participant stands</h2>
+<table class="facts">
+  <tr><td>agrirouter</td><td class="mono">{{.BaseURL}}</td></tr>
+  <tr><td>Tenant</td><td class="mono">{{.Tenant}}</td></tr>
+  <tr><td>Endpoint</td><td class="mono">{{.EndpointID}}</td></tr>
+  <tr>
+    <td>Routed to exchange</td>
+    <td>
+      {{range .Routed}}<span class="tag">{{.}}</span> {{else}}<span class="muted">nothing yet</span>{{end}}
+    </td>
+  </tr>
+  <tr><td>Initial load</td><td class="mono">{{.LoadState}}</td></tr>
+  <tr>
+    <td>Delivery position</td>
+    <td class="mono">{{if .Position}}{{.Position}}{{else}}<span class="muted">none — asks for everything</span>{{end}}</td>
+  </tr>
+  <tr>
+    <td>Stream</td>
+    <td>{{if .CaughtUp}}caught up{{else}}<span class="muted">not currently caught up</span>{{end}}</td>
+  </tr>
+  {{if .LastErr}}<tr><td>Last failure</td><td>{{.LastErr}}</td></tr>{{end}}
+</table>
+
+{{if .Pending}}
+<div class="problem">
+  {{.Pending}} object(s) waiting on a person. <a href="/decisions">Answer them</a> — the load is stopped.
+</div>
+{{end}}
+
+{{if .RoutingUnknown}}
+<div class="problem">
+  A load is owed but nothing here says what this endpoint is routed to. Reconnect
+  from the beginning to get the routing back.
+</div>
+{{end}}
+
+<h2>Masterdata capabilities</h2>
+{{if .Editing}}
+<div class="card">
+  <form method="post" action="/declare">
+    {{range .Capabilities}}
+    <label class="tick">
+      <input type="checkbox" name="type" value="{{.Type}}" {{if .Declared}}checked{{end}}>
+      {{.Type}}
+    </label>
+    {{end}}
+    <div>
+      <button type="submit">Save</button>
+      <a href="/" class="muted hint">Cancel</a>
+      <span class="muted hint">
+        Dependencies come along: a field brings its farm, person and organization.
+      </span>
+    </div>
+  </form>
+</div>
+{{else}}
+<p>
+  {{range .Declared}}<span class="tag">{{.}}</span>
+  {{else}}<span class="muted">nothing declared</span>{{end}}
+</p>
+<p><a href="/?edit=capabilities">Edit</a></p>
+{{end}}
+
+<h2>Recovery</h2>
+<form class="inline" method="post" action="/load">
+  <button type="submit">Run the initial load now</button>
+</form>
+<form class="inline" method="post" action="/load/replay">
+  <button type="submit">Reconnect from the beginning</button>
+</form>
+<p class="muted hint">Both are safe to press at any time.</p>
+
+<h2>Lately</h2>
+{{template "entries" .Entries}}
+<p><a href="/log">The whole log</a></p>
+
+{{template "foot" .}}
+{{end}}

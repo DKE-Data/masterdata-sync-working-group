@@ -65,6 +65,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Organizations]
@@ -76,7 +77,7 @@ paths:
         `agrirouter_id` is assigned. The mapping is keyed by the application, not
         the endpoint: a `local_id` names the same record whichever of the
         application's endpoints sends it. An update carries the revision it was
-        edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
@@ -116,6 +117,7 @@ paths:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/IdMappingAgrirouterId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     put:
       tags: [Organizations]
       summary: Bind a local identifier to an existing organization
@@ -179,6 +181,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Organizations]
@@ -189,7 +192,7 @@ paths:
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
         deactivation is a write like any other and carries the revision it was
-        made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
         object is a conflict, and only one of the two succeeds. On an object
         that is already inactive the header is ignored.
       operationId: deactivateOrganization
@@ -212,6 +215,7 @@ paths:
   /masterdata/organizations/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     post:
       tags: [Organizations]
       summary: Request an organization (lazy loading)
@@ -243,6 +247,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Persons]
@@ -254,7 +259,7 @@ paths:
         `agrirouter_id` is assigned. The mapping is keyed by the application, not
         the endpoint: a `local_id` names the same record whichever of the
         application's endpoints sends it. An update carries the revision it was
-        edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
@@ -294,6 +299,7 @@ paths:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/IdMappingAgrirouterId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     put:
       tags: [Persons]
       summary: Bind a local identifier to an existing person
@@ -357,6 +363,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Persons]
@@ -367,7 +374,7 @@ paths:
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
         deactivation is a write like any other and carries the revision it was
-        made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
         object is a conflict, and only one of the two succeeds. On an object
         that is already inactive the header is ignored.
       operationId: deactivatePerson
@@ -390,6 +397,7 @@ paths:
   /masterdata/persons/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     post:
       tags: [Persons]
       summary: Request a person (lazy loading)
@@ -421,6 +429,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Farms]
@@ -432,7 +441,7 @@ paths:
         `agrirouter_id` is assigned. The mapping is keyed by the application, not
         the endpoint: a `local_id` names the same record whichever of the
         application's endpoints sends it. An update carries the revision it was
-        edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
@@ -472,6 +481,7 @@ paths:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/IdMappingAgrirouterId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     put:
       tags: [Farms]
       summary: Bind a local identifier to an existing farm
@@ -535,6 +545,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Farms]
@@ -545,7 +556,7 @@ paths:
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
         deactivation is a write like any other and carries the revision it was
-        made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
         object is a conflict, and only one of the two succeeds. On an object
         that is already inactive the header is ignored.
       operationId: deactivateFarm
@@ -568,6 +579,7 @@ paths:
   /masterdata/farms/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     post:
       tags: [Farms]
       summary: Request a farm (lazy loading)
@@ -599,6 +611,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [Fields]
@@ -610,7 +623,7 @@ paths:
         `agrirouter_id` is assigned. The mapping is keyed by the application, not
         the endpoint: a `local_id` names the same record whichever of the
         application's endpoints sends it. An update carries the revision it was
-        edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
@@ -650,6 +663,7 @@ paths:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/IdMappingAgrirouterId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     put:
       tags: [Fields]
       summary: Bind a local identifier to an existing field
@@ -713,6 +727,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [Fields]
@@ -723,7 +738,7 @@ paths:
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
         deactivation is a write like any other and carries the revision it was
-        made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
         object is a conflict, and only one of the two succeeds. On an object
         that is already inactive the header is ignored.
       operationId: deactivateField
@@ -746,6 +761,7 @@ paths:
   /masterdata/fields/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     post:
       tags: [Fields]
       summary: Request a field (lazy loading)
@@ -777,6 +793,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     put:
       tags: [FieldBoundaries]
@@ -788,7 +805,7 @@ paths:
         `agrirouter_id` is assigned. The mapping is keyed by the application, not
         the endpoint: a `local_id` names the same record whichever of the
         application's endpoints sends it. An update carries the revision it was
-        edited from in `X-Agrirouter-BaseRevision`; agrirouter merges a stale
+        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
         revision) do not create a new revision and are not forwarded.
@@ -828,6 +845,7 @@ paths:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/IdMappingAgrirouterId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     put:
       tags: [FieldBoundaries]
       summary: Bind a local identifier to an existing field boundary
@@ -891,6 +909,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     post:
       tags: [FieldBoundaries]
@@ -901,7 +920,7 @@ paths:
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
         deactivation is a write like any other and carries the revision it was
-        made from in `X-Agrirouter-BaseRevision`; a concurrent edit to the
+        made from in `x-agrirouter-base-revision`; a concurrent edit to the
         object is a conflict, and only one of the two succeeds. On an object
         that is already inactive the header is ignored.
       operationId: deactivateFieldBoundary
@@ -924,6 +943,7 @@ paths:
   /masterdata/field-boundaries/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
     post:
       tags: [FieldBoundaries]
       summary: Request a field boundary (lazy loading)
@@ -1100,6 +1120,7 @@ paths:
 
   /endpoints/{external_id}/masterdata-initial-load/events:
     parameters:
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/external_id'
     get:
       tags: [InitialLoad]
@@ -1179,6 +1200,7 @@ paths:
 
   /endpoints/{external_id}/masterdata-initial-load/status:
     parameters:
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/external_id'
     get:
       tags: [InitialLoad]
@@ -1291,6 +1313,7 @@ paths:
 
   /endpoints/{external_id}/masterdata-initial-load/user-attention:
     parameters:
+      - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/external_id'
     put:
       tags: [InitialLoad]
@@ -1360,7 +1383,7 @@ components:
 
   parameters:
     AgrirouterTenantId:
-      name: X-Agrirouter-TenantId
+      name: x-agrirouter-tenant-id
       in: header
       required: true
       schema:
@@ -1398,7 +1421,7 @@ components:
       schema:
         type: string
     AgrirouterEndpointId:
-      name: X-Agrirouter-EndpointId
+      name: x-agrirouter-endpoint-id
       in: header
       required: true
       description: >
@@ -1419,7 +1442,7 @@ components:
         type: string
         format: uuid
     BaseRevision:
-      name: X-Agrirouter-BaseRevision
+      name: x-agrirouter-base-revision
       in: header
       required: false
       description: >
@@ -1536,7 +1559,7 @@ components:
             $ref: '#/components/schemas/Error'
     RevisionConflict:
       description: >
-        The write could not be applied against its `X-Agrirouter-BaseRevision`:
+        The write could not be applied against its `x-agrirouter-base-revision`:
         the base is behind the current revision and the changes since overlap
         with the client's, so no merge is possible; or the base is one
         agrirouter never issued for this object; or a base was given for a
@@ -1551,7 +1574,7 @@ components:
     BaseRevisionRequired:
       description: >
         The object exists and the request carried no
-        `X-Agrirouter-BaseRevision`. Concurrency control is not optional on an
+        `x-agrirouter-base-revision`. Concurrency control is not optional on an
         update. The body carries the current revision so the client can obtain
         the object and write again with a base.
       content:
@@ -1765,7 +1788,7 @@ components:
           description: >
             Monotonic per-object counter maintained by agrirouter. Never taken
             from the body: the revision a write was made from travels in the
-            `X-Agrirouter-BaseRevision` header, where it is compared and
+            `x-agrirouter-base-revision` header, where it is compared and
             discarded.
         modified_at:
           type: string
@@ -1778,7 +1801,7 @@ components:
           description: >
             The tenant the object belongs to. Assigned by agrirouter; a value
             sent by a participant is ignored. On send the tenant follows from
-            the endpoint named in `X-Agrirouter-EndpointId`.
+            the endpoint named in `x-agrirouter-endpoint-id`.
 
 
             One application stream carries every tenant the application is
@@ -2464,8 +2487,7 @@ components:
             $ref: '#/components/schemas/EntityTypeToggle'
           description: >
             The endpoint's selection as it stands after the change, stated in
-            full rather than as a delta. The application replaces what it held
-            for this endpoint with this list.
+            full rather than as a delta.
 
             An empty array is a statement and not an omission: it says the
             endpoint exchanges nothing, because the user deselected the last

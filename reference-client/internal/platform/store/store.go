@@ -13,6 +13,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/google/uuid"
@@ -31,6 +32,11 @@ var ErrNotFound = errors.New("not found")
 // Store is the platform's database.
 type Store struct {
 	db *sql.DB
+
+	// ro serves reads that must not queue behind the writer. It is the same
+	// handle as db for an in-memory database, where a second connection would be
+	// a second, empty database rather than another view of this one.
+	ro *sql.DB
 }
 
 // Open opens the database at path and applies the schema.
@@ -39,8 +45,16 @@ type Store struct {
 // bookkeeping tables visible: stop the process, start it again, and the
 // platform still knows what agrirouter calls its records and where its stream
 // left off.
+//
+// A file-backed database is opened in WAL mode with a second, read-only pool
+// beside the writer. Neither is required by the specification and neither
+// changes what is stored: they exist because a reconciliation that waits for a
+// person holds its transaction open for as long as the person takes, and
+// something has to be able to read the platform's tables meanwhile — the screen
+// asking the question, for one. In the journal mode SQLite starts in, that read
+// would wait for the answer it is trying to collect.
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
@@ -51,11 +65,45 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("applying schema: %w", err)
 	}
-	return &Store{db: db}, nil
+
+	s := &Store{db: db, ro: db}
+	if inMemory(path) {
+		return s, nil
+	}
+
+	// WAL is a property of the file rather than of the connection, so this is
+	// set once and outlives the process that set it.
+	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
+		return nil, fmt.Errorf("enabling WAL: %w", err)
+	}
+	ro, err := sql.Open("sqlite", dsn(path))
+	if err != nil {
+		return nil, fmt.Errorf("opening database for reading: %w", err)
+	}
+	s.ro = ro
+	return s, nil
+}
+
+// dsn adds a busy timeout, which is per connection and so cannot be set once
+// for a pool by executing it.
+func dsn(path string) string {
+	if inMemory(path) {
+		return path
+	}
+	return "file:" + path + "?_pragma=busy_timeout(10000)"
+}
+
+func inMemory(path string) bool {
+	return path == ":memory:" || strings.Contains(path, "mode=memory")
 }
 
 // Close releases the database.
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	if s.ro != s.db {
+		_ = s.ro.Close()
+	}
+	return s.db.Close()
+}
 
 // Tx runs fn in a transaction, on behalf of one of the product's tenants,
 // rolling back on error.
@@ -81,6 +129,22 @@ func (s *Store) Tx(tenant string, fn func(*Tx) error) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// ReadTx runs fn against the read pool, for work that only looks.
+//
+// It is not a weaker Tx and it is not an optimisation: it exists so that
+// reading cannot be blocked by a write that is waiting for a person. Writing
+// through it is a mistake the database will refuse under concurrency rather
+// than one this signature prevents, so the rule is the caller's to keep.
+func (s *Store) ReadTx(tenant string, fn func(*Tx) error) error {
+	tx, err := s.ro.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning read transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	return fn(&Tx{tx: tx, tenant: tenant})
 }
 
 // Tx is a transaction over the platform's database, on behalf of one tenant.
@@ -298,6 +362,52 @@ func (t *Tx) SetPosition(lastEventID string) error {
 		ON CONFLICT (id) DO UPDATE SET last_event_id = excluded.last_event_id`, lastEventID)
 	if err != nil {
 		return fmt.Errorf("writing position: %w", err)
+	}
+	return nil
+}
+
+// Route reads what one endpoint is routed to exchange, as the last
+// ROUTE_CHANGED frame stated it. An endpoint that has never been routed has no
+// row and no types, which is not an error: it is an endpoint that exchanges
+// nothing.
+func (t *Tx) Route(endpointID uuid.UUID) ([]agmasync.EntityType, error) {
+	var list string
+	err := t.tx.QueryRow(`
+		SELECT entity_types FROM agmasync_route WHERE endpoint_id = ?`,
+		endpointID.String()).Scan(&list)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading routing: %w", err)
+	}
+
+	var out []agmasync.EntityType
+	for _, name := range strings.Split(list, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			out = append(out, agmasync.EntityType(name))
+		}
+	}
+	return out, nil
+}
+
+// SetRoute records what an endpoint is routed to exchange.
+//
+// Call it in the transaction the frame's position is written in. The frame
+// states the whole routing, so this replaces what was held rather than merging
+// with it — an empty list is the statement that the endpoint exchanges nothing,
+// and it is the one that must survive, since it is how a withdrawal arrives.
+func (t *Tx) SetRoute(endpointID uuid.UUID, types []agmasync.EntityType) error {
+	names := make([]string, 0, len(types))
+	for _, typ := range types {
+		names = append(names, string(typ))
+	}
+	_, err := t.tx.Exec(`
+		INSERT INTO agmasync_route (endpoint_id, entity_types) VALUES (?, ?)
+		ON CONFLICT (endpoint_id) DO UPDATE SET entity_types = excluded.entity_types`,
+		endpointID.String(), strings.Join(names, ","))
+	if err != nil {
+		return fmt.Errorf("writing routing: %w", err)
 	}
 	return nil
 }

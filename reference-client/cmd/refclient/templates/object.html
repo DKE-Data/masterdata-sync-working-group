@@ -1,0 +1,83 @@
+{{define "object.html"}}
+{{template "head" .}}
+
+<p class="muted"><a href="/objects">← everything this platform holds</a></p>
+
+<h2>
+  {{if .Row.Name}}{{.Row.Name}}{{else}}(unnamed){{end}}
+  <span class="tag">{{.Row.Type}}</span>
+  {{if .Row.Archived}}<span class="tag">archived</span>{{end}}
+  {{if .Row.Unbound}}<span class="tag">unbound</span>{{end}}
+  {{if not .Routed}}<span class="tag">not routed</span>{{end}}
+</h2>
+
+<div class="card">
+  {{range .Modelled}}
+  <div class="detail">
+    <div class="detail-label">{{.Label}}</div>
+    {{if .Link}}<div><a href="{{.Link}}">{{.Value}}</a></div>
+    {{else}}{{if .Value}}<div>{{.Value}}</div>{{end}}
+    {{if .Pretty}}<pre class="mono geo">{{.Pretty}}</pre>{{end}}{{end}}
+  </div>
+  {{else}}
+  <p class="muted">Nothing filled in.</p>
+  {{end}}
+</div>
+
+<h2>What agrirouter calls it</h2>
+<table class="facts">
+  <tr><td>Local id</td><td class="mono">{{.Row.LocalID}}</td></tr>
+  <tr><td>agrirouter id</td><td class="mono">{{.Row.AgrirouterID}}</td></tr>
+  <tr><td>Revision</td><td class="mono">{{.Row.Revision}}</td></tr>
+  <tr>
+    <td>Standing</td>
+    <td>
+      {{if .Row.Unbound}}Unbound — nothing can be sent about it.
+      {{else if .Row.Bound}}Bound.
+      {{else}}Never sent.{{end}}
+    </td>
+  </tr>
+</table>
+
+<h2>Kept but not modelled</h2>
+{{if .Unmodelled}}
+<p class="muted hint">Attributes this platform has no column for, relayed unchanged.</p>
+<table>
+  <tr><th>Attribute</th><th>Value</th></tr>
+  {{range .Unmodelled}}
+  <tr><td class="mono">{{.Name}}</td><td class="mono">{{.Value}}</td></tr>
+  {{end}}
+</table>
+{{else}}
+<p class="muted">None.</p>
+{{end}}
+
+<h2>What can be done with it</h2>
+<div>
+  {{if .Row.Deletable}}
+  <form class="inline" method="post" action="/objects/delete">
+    <input type="hidden" name="type" value="{{.Row.Type}}">
+    <input type="hidden" name="local_id" value="{{.Row.LocalID}}">
+    <button type="submit">Delete</button>
+  </form>
+  <span class="muted hint">
+    {{if .Row.Unbinds}}Unbinds at agrirouter, then drops it here.
+    {{else}}Local only.{{end}}
+  </span>
+  {{else if not .Row.Archived}}
+  <form class="inline" method="post" action="/objects/deactivate">
+    <input type="hidden" name="type" value="{{.Row.Type}}">
+    <input type="hidden" name="local_id" value="{{.Row.LocalID}}">
+    <button type="submit">Deactivate</button>
+  </form>
+  <span class="muted hint">Travels to every routed participant.</span>
+  {{else}}
+  {{/* Bound, routed and already archived: deactivation is idempotent and
+       repeating it produces no revision and tells nobody, so there is nothing
+       left to offer. */}}
+  <span class="muted">Already deactivated.</span>
+  {{end}}
+</div>
+
+{{template "foot" .}}
+{{end}}
