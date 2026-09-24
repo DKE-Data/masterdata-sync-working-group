@@ -129,7 +129,11 @@ func (r *Router) doPut(
 	if err != nil {
 		return nil, false, err
 	}
-	if err := rejectServerAssigned(raw); err != nil {
+	sent, err := decodeSentIdentity(raw)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := sent.checkRequest(typ, ep.tenantID); err != nil {
 		return nil, false, err
 	}
 
@@ -140,7 +144,7 @@ func (r *Router) doPut(
 		"baseRevision":       base,
 	})
 
-	obj, created, err := r.store.put(ep, typ, localID, raw, base)
+	obj, created, err := r.store.put(ep, typ, localID, raw, base, sent)
 	if err != nil {
 		return nil, false, err
 	}

@@ -196,8 +196,16 @@ Envelope fields:
 - `active` (boolean): whether the entity is currently active. Deactivation is expressed through the deactivation operation (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)). It is never taken from a sent object: the revision a participant edited from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded (see [Concurrency control](#concurrency-control)).
 - `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
-- `tenantId` (string): the tenant the object belongs to ({{?RFC4122}}). It is set by agrirouter and MUST NOT be sent by a participant; on send the tenant follows from the acting endpoint, and any value a sender supplies is ignored. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
+- `tenantId` (string): the tenant the object belongs to ({{?RFC4122}}). It is set by agrirouter; on send the tenant follows from the acting endpoint, and a value a sender supplies MUST be that tenant. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
 - `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision. It always belongs to `tenantId`. It is the key [origin suppression](#loop-prevention) is decided on.
+
+`type`, `agrirouterId`, `revision`, `modifiedAt`, `tenantId`, and
+`sourceEndpointId` are assigned by agrirouter, and a participant MAY send an
+object back exactly as it was delivered. `revision`, `modifiedAt`, and
+`sourceEndpointId` are ignored on send. `type`, `agrirouterId`, and `tenantId`
+MUST match the object written — the path's entity type, the object the
+`localId` is bound to, and the acting endpoint's tenant — or the write is
+rejected with `400`.
 
 ### References
 

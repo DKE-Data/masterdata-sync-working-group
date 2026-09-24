@@ -1448,8 +1448,8 @@ components:
       description: >
         The `revision` the client edited from — the base of this write. It is
         a precondition on the request, not part of the entity, which is why it
-        travels as a header: `revision` in the body stays `readOnly` and
-        server-assigned, and a client-supplied revision is compared, never
+        travels as a header: `revision` in the body stays server-assigned and
+        is ignored on send, and a client-supplied revision is compared, never
         assigned.
 
 
@@ -1758,12 +1758,21 @@ components:
         Fields common to every master-data entity. The concrete entity type is
         determined by the path; each entity schema pins the `type` discriminator
         so that objects remain self-describing on the event stream.
+
+
+        agrirouter assigns `agrirouter_id`, `revision`, `modified_at`,
+        `tenant_id`, `source_endpoint_id`, and `type`. An object may be sent
+        back as it was delivered, these included: `revision`, `modified_at`,
+        and `source_endpoint_id` are ignored on send; `agrirouter_id`,
+        `tenant_id`, and `type` must match the object written, or the write
+        is a 400.
       properties:
         agrirouter_id:
           type: string
           format: uuid
-          readOnly: true
-          description: Canonical identifier, assigned by agrirouter. Absent on first send.
+          description: >
+            Canonical identifier, assigned by agrirouter. Absent on first send.
+            If sent, it must be the object `local_id` is bound to.
         local_id:
           type: string
           description: >
@@ -1784,24 +1793,22 @@ components:
           default: true
         revision:
           type: integer
-          readOnly: true
           description: >
             Monotonic per-object counter maintained by agrirouter. Never taken
             from the body: the revision a write was made from travels in the
             `x-agrirouter-base-revision` header, where it is compared and
-            discarded.
+            discarded. Ignored on send.
         modified_at:
           type: string
           format: date-time
-          readOnly: true
+          description: Assigned by agrirouter. Ignored on send.
         tenant_id:
           type: string
           format: uuid
-          readOnly: true
           description: >
-            The tenant the object belongs to. Assigned by agrirouter; a value
-            sent by a participant is ignored. On send the tenant follows from
-            the endpoint named in `x-agrirouter-endpoint-id`.
+            The tenant the object belongs to. Assigned by agrirouter. On send
+            the tenant follows from the endpoint named in
+            `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 
 
             One application stream carries every tenant the application is
@@ -1811,10 +1818,9 @@ components:
         source_endpoint_id:
           type: string
           format: uuid
-          readOnly: true
           description: >
             The agrirouter identifier of the endpoint whose change produced this
-            revision. It always belongs to `tenant_id`.
+            revision. It always belongs to `tenant_id`. Ignored on send.
 
 
     Address:
@@ -1876,9 +1882,9 @@ components:
           properties:
             type:
               const: organization
-              readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
+                If sent, it must match the path.
             name:
               type: string
             commercial_registry_number:
@@ -1920,9 +1926,9 @@ components:
           properties:
             type:
               const: person
-              readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
+                If sent, it must match the path.
             title:
               type: string
             first_name:
@@ -2003,9 +2009,9 @@ components:
           properties:
             type:
               const: farm
-              readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
+                If sent, it must match the path.
             owner:
               $ref: '#/components/schemas/PartyReference'
               description: The organization or person that holds the farm.
@@ -2065,9 +2071,9 @@ components:
           properties:
             type:
               const: field
-              readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
+                If sent, it must match the path.
             name:
               type: string
             area:
@@ -2134,9 +2140,9 @@ components:
           properties:
             type:
               const: fieldBoundary
-              readOnly: true
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
+                If sent, it must match the path.
             boundary:
               $ref: '#/components/schemas/Geometry'
               description: A GeoJSON Polygon or MultiPolygon.

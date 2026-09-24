@@ -16,9 +16,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestPutSendsNothingAgrirouterAssigns pins the six `readOnly` properties out
-// of a write.
-func TestPutSendsNothingAgrirouterAssigns(t *testing.T) {
+// TestPutSendsBackWhatAgrirouterAssigns pins the six agrirouter-assigned
+// properties into a write: a participant sends back what it was delivered, and
+// agrirouter decides which of them to check and which to ignore.
+func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 	bodies := make(chan map[string]json.RawMessage, 1)
 	srv := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -64,20 +65,24 @@ func TestPutSendsNothingAgrirouterAssigns(t *testing.T) {
 	}
 
 	sent := <-bodies
-	for _, name := range []string{
-		"agrirouter_id", "modified_at", "revision", "source_endpoint_id",
-		"tenant_id", "type",
+	for name, want := range map[string]any{
+		"agrirouter_id":      agrirouterID,
+		"modified_at":        modifiedAt,
+		"revision":           revision,
+		"source_endpoint_id": sourceEndpointID,
+		"tenant_id":          tenantID,
+		"type":               "organization",
+		"local_id":           localID,
+		"name":               "Hof Nord",
 	} {
-		if raw, found := sent[name]; found {
-			t.Errorf("Put sent %s = %s, want it stripped: agrirouter assigns it", name, raw)
+		wantRaw, err := json.Marshal(want)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-
-	// And the other direction, so stripping cannot be mistaken for a fix by
-	// sending an empty object: what the participant does own still travels.
-	for _, name := range []string{"local_id", "name"} {
-		if _, found := sent[name]; !found {
-			t.Errorf("Put did not send %s, which is the participant's to set", name)
+		if raw, found := sent[name]; !found {
+			t.Errorf("Put did not send %s, want it sent back as delivered", name)
+		} else if string(raw) != string(wantRaw) {
+			t.Errorf("Put sent %s = %s, want %s", name, raw, wantRaw)
 		}
 	}
 }

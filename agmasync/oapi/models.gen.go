@@ -253,25 +253,29 @@ type EntityTypeToggle struct {
 }
 
 // Envelope Fields common to every master-data entity. The concrete entity type is determined by the path; each entity schema pins the `type` discriminator so that objects remain self-describing on the event stream.
+//
+// agrirouter assigns `agrirouter_id`, `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, and `type`. An object may be sent back as it was delivered, these included: `revision`, `modified_at`, and `source_endpoint_id` are ignored on send; `agrirouter_id`, `tenant_id`, and `type` must match the object written, or the write is a 400.
 type Envelope struct {
 	Active *bool `json:"active,omitempty"`
 
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
+	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId    *string    `json:"local_id,omitempty"`
+	LocalId *string `json:"local_id,omitempty"`
+
+	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -293,7 +297,7 @@ type Farm struct {
 	Active  *bool    `json:"active,omitempty"`
 	Address *Address `json:"address,omitempty"`
 
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
+	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// GeoReference A GeoJSON Point (longitude, latitude) locating the farm.
@@ -302,7 +306,9 @@ type Farm struct {
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId    *string    `json:"local_id,omitempty"`
+	LocalId *string `json:"local_id,omitempty"`
+
+	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
@@ -312,29 +318,29 @@ type Farm struct {
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
 	Partners *[]Partner `json:"partners,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// SpecialisedUsageType Production orientation of the farm (e.g. arable farming, dairy, vineyard, orchard). Free-form, drawn from AGROVOC where a matching concept exists.
 	SpecialisedUsageType *string `json:"specialised_usage_type,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send.
-	Type interface{} `json:"type,omitempty"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
+	Type interface{} `json:"type"`
 }
 
 // Field A named physical space where production agriculture takes place, used to partition and identify data.
 type Field struct {
 	Active *bool `json:"active,omitempty"`
 
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
+	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// Area Nominal area in square metres.
@@ -355,23 +361,25 @@ type Field struct {
 	LocalId *string `json:"local_id,omitempty"`
 
 	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
-	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
-	ModifiedAt *time.Time              `json:"modified_at,omitempty"`
-	Name       string                  `json:"name"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// ModifiedAt Assigned by agrirouter. Ignored on send.
+	ModifiedAt *time.Time `json:"modified_at,omitempty"`
+	Name       string     `json:"name"`
 
 	// Owner The organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
 	Owner *PartyReference `json:"owner,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
 
 	// Soil Soil characteristics of a field.
 	Soil *SoilInfo `json:"soil,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -379,15 +387,15 @@ type Field struct {
 	// Topography Slope / gradient, e.g. 7 (degrees).
 	Topography *float32 `json:"topography,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send.
-	Type interface{} `json:"type,omitempty"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
+	Type interface{} `json:"type"`
 }
 
 // FieldBoundary A geometry identifying the geo-spatial coordinates of a field, including its outer boundary and any obstacles left out. A field may have several boundaries that differ in geometry by intended use.
 type FieldBoundary struct {
 	Active *bool `json:"active,omitempty"`
 
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
+	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// Boundary A GeoJSON Polygon or MultiPolygon.
@@ -414,9 +422,11 @@ type FieldBoundary struct {
 	LocalId *string `json:"local_id,omitempty"`
 
 	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
-	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
-	ModifiedAt *time.Time              `json:"modified_at,omitempty"`
-	Obstacles  *[]Obstacle             `json:"obstacles,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// ModifiedAt Assigned by agrirouter. Ignored on send.
+	ModifiedAt *time.Time  `json:"modified_at,omitempty"`
+	Obstacles  *[]Obstacle `json:"obstacles,omitempty"`
 
 	// RegulatoryRequirements [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A regulatory constraint applying to the boundary.
 	//
@@ -424,19 +434,19 @@ type FieldBoundary struct {
 	// Examples: RED_ZONE_NITROGEN, WATER_PROTECTION_AREA
 	RegulatoryRequirements *string `json:"regulatory_requirements,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send.
-	Type interface{} `json:"type,omitempty"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
+	Type interface{} `json:"type"`
 }
 
 // Geometry A GeoJSON geometry (RFC 7946). Positions are [longitude, latitude] and, optionally, altitude.
@@ -616,7 +626,7 @@ type Organization struct {
 	Active  *bool    `json:"active,omitempty"`
 	Address *Address `json:"address,omitempty"`
 
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
+	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId   *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 	BillingAddress *Address            `json:"billing_address,omitempty"`
 
@@ -627,14 +637,16 @@ type Organization struct {
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId    *string    `json:"local_id,omitempty"`
+	LocalId *string `json:"local_id,omitempty"`
+
+	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
@@ -643,7 +655,7 @@ type Organization struct {
 	// TaxNumber Identifier assigned by tax authorities.
 	TaxNumber *string `json:"tax_number,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -651,8 +663,8 @@ type Organization struct {
 	// TradeId Numerical identifier assigned by public authorities.
 	TradeId *string `json:"trade_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send.
-	Type interface{} `json:"type,omitempty"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
+	Type interface{} `json:"type"`
 }
 
 // Partner A party holding a role on a farm — the contractor that works it, the advisor that reads it. Records a business relationship only. It does NOT grant visibility of the farm: what an endpoint receives is decided by opt-in and routing.
@@ -705,7 +717,7 @@ type Person struct {
 	Active  *bool    `json:"active,omitempty"`
 	Address *Address `json:"address,omitempty"`
 
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send.
+	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId   *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 	BillingAddress *Address            `json:"billing_address,omitempty"`
 	Contact        *Contact            `json:"contact,omitempty"`
@@ -719,12 +731,14 @@ type Person struct {
 
 	// Memberships The organizations this person belongs to, each with the role held there. A person carrying at least one entry is a member.
 	Memberships *[]Membership `json:"memberships,omitempty"`
-	ModifiedAt  *time.Time    `json:"modified_at,omitempty"`
 
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded.
+	// ModifiedAt Assigned by agrirouter. Ignored on send.
+	ModifiedAt *time.Time `json:"modified_at,omitempty"`
+
+	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
 
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`.
+	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
@@ -733,7 +747,7 @@ type Person struct {
 	// TaxNumber Identifier assigned by tax authorities.
 	TaxNumber *string `json:"tax_number,omitempty"`
 
-	// TenantId The tenant the object belongs to. Assigned by agrirouter; a value sent by a participant is ignored. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`.
+	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
@@ -742,8 +756,8 @@ type Person struct {
 	// TradeId Numerical identifier assigned by public authorities.
 	TradeId *string `json:"trade_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send.
-	Type interface{} `json:"type,omitempty"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
+	Type interface{} `json:"type"`
 }
 
 // PutEndpointRequest defines model for PutEndpointRequest.
@@ -958,7 +972,7 @@ type PutFarmParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -976,7 +990,7 @@ type DeactivateFarmParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1027,7 +1041,7 @@ type PutFieldBoundaryParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1045,7 +1059,7 @@ type DeactivateFieldBoundaryParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1096,7 +1110,7 @@ type PutFieldParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1114,7 +1128,7 @@ type DeactivateFieldParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1165,7 +1179,7 @@ type PutOrganizationParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1183,7 +1197,7 @@ type DeactivateOrganizationParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1234,7 +1248,7 @@ type PutPersonParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//
@@ -1252,7 +1266,7 @@ type DeactivatePersonParams struct {
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays `readOnly` and server-assigned, and a client-supplied revision is compared, never assigned.
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
 	//
 	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
 	//

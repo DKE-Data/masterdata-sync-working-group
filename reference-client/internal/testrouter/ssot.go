@@ -115,7 +115,7 @@ func newStore(hub *hub, obs *observer) *store {
 // put creates or updates a canonical object. It implements "Concurrency
 // control" and the loop prevention rules that go with it.
 func (s *store) put(
-	ep *endpoint, typ agmasync.EntityType, localID string, body []byte, base *int,
+	ep *endpoint, typ agmasync.EntityType, localID string, body []byte, base *int, sent sentIdentity,
 ) (*object, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -134,6 +134,9 @@ func (s *store) put(
 	active := activeOf(body)
 
 	objID, known := s.local[localKey{ep.appID, typ, localID}]
+	if err := sent.checkBinding(localID, objID, known); err != nil {
+		return nil, false, err
+	}
 	if !known {
 		// A base on a write that resolves to nothing is a `412`: the
 		// participant believes it is updating an object agrirouter does not

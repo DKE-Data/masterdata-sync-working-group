@@ -148,6 +148,63 @@ func TestNoOpWriteProducesNoRevision(t *testing.T) {
 	}
 }
 
+func TestSendingBackTheDeliveredObjectIsANoOp(t *testing.T) {
+	// A platform that stores what it receives and sends what it stores sends
+	// every agrirouter-assigned field back. Those that go stale are ignored;
+	// those that identify the object are accepted because they still match.
+	f := newFixture(t)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
+
+	created, err := p.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	base := revisionOf(t, created)
+
+	again, err := p.endpoint.Put(context.Background(), created, &base)
+	if err != nil {
+		t.Fatalf("sending back the delivered object: %v", err)
+	}
+	if after := revisionOf(t, again); after != base {
+		t.Errorf("revision moved from %d to %d on sending back what was delivered", base, after)
+	}
+}
+
+func TestAssignedFieldsNamingAnotherObjectAreRejected(t *testing.T) {
+	f := newFixture(t)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
+
+	created, err := p.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	base := revisionOf(t, created)
+	createdFarm, err := created.AsFarm()
+	if err != nil {
+		t.Fatalf("reading farm: %v", err)
+	}
+
+	otherID := uuid.New()
+	unbound := "FRM-2"
+	for name, edit := range map[string]func(*oapi.Farm){
+		"agrirouter_id":    func(fm *oapi.Farm) { fm.AgrirouterId = &otherID },
+		"tenant_id":        func(fm *oapi.Farm) { fm.TenantId = &otherID },
+		"unbound local_id": func(fm *oapi.Farm) { fm.LocalId = &unbound },
+	} {
+		t.Run(name, func(t *testing.T) {
+			edited := createdFarm
+			edit(&edited)
+			ent, err := agmasync.FromFarm(edited)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := p.endpoint.Put(context.Background(), ent, &base); !errors.Is(err, agmasync.ErrValidation) {
+				t.Errorf("error = %v, want ErrValidation", err)
+			}
+		})
+	}
+}
+
 func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	// Two participants editing different attributes of one entity both succeed,
 	// and the second gets back content it did not send — which is why a write

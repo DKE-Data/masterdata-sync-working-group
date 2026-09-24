@@ -140,29 +140,14 @@ func (e *Endpoint) ID() uuid.UUID { return e.id }
 // ExternalID returns the application's own identifier for the endpoint.
 func (e *Endpoint) ExternalID() string { return e.externalID }
 
-// serverAssigned are the entity properties agrirouter owns: `readOnly` in
-// openapi.yaml, on every entity type, and the same six for all of them.
-//
-// They are stripped from a write rather than merely ignored on one. agrirouter
-// validates requests against the schema and refuses a body carrying any of
-// them — "readOnly property \"type\" in request" — so a participant that sends
-// back what it was delivered cannot write at all. Which is the ordinary case
-// and not a strange one: every one of these arrives on the object, and a
-// platform that stores what it receives and sends what it stores has them to
-// hand without ever having set one.
-var serverAssigned = []string{
-	"agrirouter_id", "modified_at", "revision", "source_endpoint_id",
-	"tenant_id", "type",
-}
-
 // writable renders an entity as the request body a write may carry.
 //
 // It goes out as the entity's own JSON rather than as the typed value, and the
-// entity is what it is given for that reason. The generated models carry no
-// notion of `readOnly`: `type` in particular is a plain required string that
-// marshals on every send, so stripping has to happen somewhere, and here —
-// under the one operation that sends an entity — is the only place a caller
-// cannot forget it.
+// entity is what it is given for that reason. The fields agrirouter assigns
+// travel with it untouched: a participant may send back what it was delivered,
+// agrirouter ignoring `revision`, `modified_at`, and `source_endpoint_id` and
+// checking that `type`, `tenant_id`, and `agrirouter_id` name the object
+// written.
 //
 // Marshalling the typed value instead loses on both sides of what the model
 // says. A required attribute the sender does not hold is invented: an absent
@@ -178,20 +163,7 @@ var serverAssigned = []string{
 // it, which would silently undo the relaying of unmodelled attributes that a
 // participant is obliged to do.
 func writable(v any) (io.Reader, error) {
-	raw, err := json.Marshal(v)
-	if err != nil {
-		return nil, fmt.Errorf("agmasync: rendering the entity: %w", err)
-	}
-
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil {
-		return nil, fmt.Errorf("agmasync: rendering the entity: %w", err)
-	}
-	for _, name := range serverAssigned {
-		delete(fields, name)
-	}
-
-	body, err := json.Marshal(fields)
+	body, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("agmasync: rendering the entity: %w", err)
 	}
