@@ -301,8 +301,8 @@ func canonicalFarmLabel(entity oapi.Entity) string {
 		return "unknown"
 	}
 	city := ""
-	if farm.Address != nil && farm.Address.City != nil {
-		city = *farm.Address.City
+	if address, err := farm.Address.Get(); err == nil {
+		city, _ = address.City.Get()
 	}
 	return fmt.Sprintf("%q in %s", farm.Name, city)
 }

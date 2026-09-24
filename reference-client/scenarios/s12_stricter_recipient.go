@@ -253,7 +253,8 @@ func (r requiresFarm) Recognise(
 		if err != nil {
 			return psync.Recognition{}, err
 		}
-		if field.Farm == nil || (field.Farm.AgrirouterId == nil && field.Farm.LocalId == nil) {
+		farm, err := field.Farm.Get()
+		if err != nil || (farm.AgrirouterId == nil && farm.LocalId == nil) {
 			return psync.Recognition{Blocked: true, AwaitingUser: true}, nil
 		}
 	}
@@ -263,10 +264,11 @@ func (r requiresFarm) Recognise(
 // areaOf reads a canonical field's area, which Beta copies into its own record
 // along with everything else it can store.
 func areaOf(field oapi.Field) float64 {
-	if field.Area == nil {
+	area, err := field.Area.Get()
+	if err != nil {
 		return 0
 	}
-	return float64(*field.Area)
+	return float64(area)
 }
 
 // caughtFieldOf names the field Beta has just been delivered: the one it holds

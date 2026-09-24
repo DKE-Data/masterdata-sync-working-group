@@ -416,7 +416,6 @@ func (p *Platform) Edit(
 				EntityType: typ,
 				LocalID:    localID,
 				Modelled:   map[string]json.RawMessage{},
-				Unmodelled: map[string]json.RawMessage{},
 			}
 		}
 		for key, value := range changes {
@@ -430,31 +429,75 @@ func (p *Platform) Edit(
 	})
 }
 
-// Carry adds attributes the platform has no columns for, exactly as a delivered
-// object would have brought them.
+// Supplement writes attributes this sample has no columns for, as the richer
+// product a scenario's participant stands in for would fill them from its own
+// screens. They go to agrirouter and nowhere else: the platform's record is
+// sent with them added, and what comes back is applied like any write
+// response, which keeps the columns and drops the rest.
 //
-// It is how a scenario gives a participant content this sample does not model —
-// a richer product's own fields, or an attribute of the protocol this store
-// simply has nowhere to put. They are held apart from the modelled ones and go
-// back out unchanged, which is what the specification requires of anything a
-// participant does not understand.
-func (p *Platform) Carry(
-	typ agmasync.EntityType, localID string, attributes map[string]any,
-) error {
-	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
-		record, err := tx.LoadRecord(typ, localID)
-		if err != nil {
+// It answers with the resulting canonical object, attribute by attribute.
+func (p *Platform) Supplement(
+	ctx context.Context, typ agmasync.EntityType, localID string, attributes map[string]any,
+) (map[string]json.RawMessage, error) {
+	var record store.Record
+	var row store.SyncRow
+	err := p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
+		var err error
+		if record, err = tx.LoadRecord(typ, localID); err != nil {
 			return err
 		}
-		for key, value := range attributes {
-			raw, err := json.Marshal(value)
-			if err != nil {
-				return err
-			}
-			record.Unmodelled[key] = raw
-		}
-		return tx.UpsertRecord(record, localID)
+		row, err = tx.SyncRow(typ, localID)
+		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	entity, err := record.ToEntity(localID)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := entity.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	for key, value := range attributes {
+		if fields[key], err = json.Marshal(value); err != nil {
+			return nil, err
+		}
+	}
+	if raw, err = json.Marshal(fields); err != nil {
+		return nil, err
+	}
+	if err := entity.UnmarshalJSON(raw); err != nil {
+		return nil, err
+	}
+
+	result, err := p.Applier.Endpoint.Put(ctx, entity, row.Revision)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.Applier.Apply(result, ""); err != nil {
+		return nil, err
+	}
+	if raw, err = result.MarshalJSON(); err != nil {
+		return nil, err
+	}
+	var out map[string]json.RawMessage
+	return out, json.Unmarshal(raw, &out)
+}
+
+// Canonical reads an object as agrirouter holds it, by sending the platform's
+// record back as it is. Where the platform is up to date that write changes
+// nothing, and the answer to it is the whole current object.
+func (p *Platform) Canonical(
+	ctx context.Context, typ agmasync.EntityType, localID string,
+) (map[string]json.RawMessage, error) {
+	return p.Supplement(ctx, typ, localID, nil)
 }
 
 // AddFarm creates a farm in the platform's own tables.

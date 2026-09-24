@@ -158,10 +158,13 @@ func (e *Endpoint) ExternalID() string { return e.externalID }
 // fails, owner being required: what differs is whether the participant is told
 // which owner is wrong or that it has none. It has none until it requests the
 // target, creates it locally, and binds it — see [Endpoint.Request] and
-// "References" in specification.md. And an attribute the
-// model does not name is dropped, the generated types having no place to put
-// it, which would silently undo the relaying of unmodelled attributes that a
-// participant is obliged to do.
+// "References" in specification.md.
+//
+// And the body says exactly what the write changes. A write is a merge patch:
+// an attribute left out is kept, and null removes one. The entity's own JSON
+// carries that distinction as the caller made it, where a typed value only
+// carries it as far as the caller used the nullable fields correctly. See
+// "Writing an entity" in specification.md.
 func writable(v any) (io.Reader, error) {
 	body, err := json.Marshal(v)
 	if err != nil {
@@ -173,15 +176,12 @@ func writable(v any) (io.Reader, error) {
 // applied reads the canonical object a write answered with, from the response
 // body rather than from the generated typed value the client decoded it into.
 //
-// The typed value loses the same attributes marshalling one would invent, for
-// the same reason: a generated struct has nowhere to put an attribute the model
-// does not name, so decoding into it drops one. That loss is not confined to
-// the response. A participant applies what a write returns exactly as it
-// applies a delivery, so an attribute dropped here is absent from the store,
-// and absent from the next write of that object — the relaying of unmodelled
-// attributes undone a revision later, by the write path that took care to
-// preserve it. A merged response, which carries content the sender never sent,
-// is where the difference is widest.
+// The response is the whole canonical object, not an echo of the write: it
+// carries the attributes the write left out and, after a merge, content the
+// sender never sent. A participant applies it exactly as it applies a
+// delivery, so it has to arrive as agrirouter sent it — a generated struct has
+// nowhere to put an attribute the model does not name, and decoding into one
+// would drop it.
 //
 // This is what the event stream already does with a delivered object, and the
 // two paths carry the same canonical objects.
@@ -199,6 +199,11 @@ func applied(t EntityType, body []byte) (oapi.Entity, error) {
 // x-agrirouter-base-revision header. It is nil only for a create: on an update
 // a missing base is rejected with [ErrBaseRevisionRequired], because omitting
 // it would opt the participant out of concurrency control.
+//
+// ent is a merge patch: an attribute it leaves out is left as it is, and one
+// sent as null is removed. Build it as JSON, or with the generated models'
+// nullable fields, to say either. Required attributes are required on every
+// write. See "Writing an entity" in specification.md.
 //
 // The returned entity is the resulting canonical object and MUST be applied
 // exactly as an object delivered on the stream is. It is not an

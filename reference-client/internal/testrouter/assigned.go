@@ -30,10 +30,8 @@ func decodeSentIdentity(raw []byte) (sentIdentity, error) {
 
 // checkRequest refuses a type or tenant_id the request itself contradicts.
 //
-// The body arrives re-marshalled from the generated server's typed value, where
-// `type` is a plain required string: a client that left it out is
-// indistinguishable from one that sent "", so the empty string counts as
-// absent.
+// Clients generated with `type` as a plain required string send "" when they
+// never set it, so the empty string counts as absent.
 func (s sentIdentity) checkRequest(typ agmasync.EntityType, tenantID uuid.UUID) error {
 	if s.Type != nil && *s.Type != "" && *s.Type != string(typ) {
 		return fmt.Errorf("type %q does not match the path, which writes a %s", *s.Type, typ)

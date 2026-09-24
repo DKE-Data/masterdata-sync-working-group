@@ -59,12 +59,7 @@ CREATE TABLE IF NOT EXISTS organization (
     -- The two are mapped at the edge rather than conflated: deactivation is a
     -- lifecycle transition of the canonical object, and how a product expresses
     -- it locally is its own business.
-    archived                    INTEGER NOT NULL DEFAULT 0,
-    -- unmodelled holds the attributes this platform does not understand, as
-    -- JSON. The specification requires a participant to preserve what it does
-    -- not model and relay it unchanged, so dropping them would corrupt the
-    -- exchange for every other participant that does model them.
-    unmodelled                  TEXT NOT NULL DEFAULT '{}'
+    archived                    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS person (
@@ -72,8 +67,7 @@ CREATE TABLE IF NOT EXISTS person (
     last_name   TEXT NOT NULL,
     first_name  TEXT,
     title       TEXT,
-    archived    INTEGER NOT NULL DEFAULT 0,
-    unmodelled  TEXT NOT NULL DEFAULT '{}'
+    archived    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS farm (
@@ -85,8 +79,7 @@ CREATE TABLE IF NOT EXISTS farm (
     owner_type      TEXT,
     owner_local_id  TEXT,
     city            TEXT,
-    archived        INTEGER NOT NULL DEFAULT 0,
-    unmodelled      TEXT NOT NULL DEFAULT '{}'
+    archived        INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS field (
@@ -94,8 +87,7 @@ CREATE TABLE IF NOT EXISTS field (
     name           TEXT NOT NULL,
     area           REAL,
     farm_local_id  TEXT,
-    archived       INTEGER NOT NULL DEFAULT 0,
-    unmodelled     TEXT NOT NULL DEFAULT '{}'
+    archived       INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS field_boundary (
@@ -103,8 +95,7 @@ CREATE TABLE IF NOT EXISTS field_boundary (
     boundary_type    TEXT,
     creation_method  TEXT,
     boundary         TEXT,
-    archived         INTEGER NOT NULL DEFAULT 0,
-    unmodelled       TEXT NOT NULL DEFAULT '{}'
+    archived         INTEGER NOT NULL DEFAULT 0
 );
 
 -- tenant_entity says which of the product's tenants hold a record. It is the

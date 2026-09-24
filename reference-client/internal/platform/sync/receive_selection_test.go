@@ -105,7 +105,6 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 			EntityType: agmasync.TypeOrganization,
 			LocalID:    "SEL-MARK",
 			Modelled:   map[string]json.RawMessage{"name": mustJSON(t, "ep-a")},
-			Unmodelled: map[string]json.RawMessage{},
 		}, "SEL-MARK")
 	}
 

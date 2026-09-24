@@ -22,9 +22,8 @@ import (
 // turns them into an entity is one function at the bottom of this file.
 //
 // Only the modelled attributes are offered. What this platform has no column
-// for it cannot ask a person for either — it preserves and relays such
-// attributes when they arrive from elsewhere, which is [store.Record.Unmodelled]
-// and not something a form can originate.
+// for it cannot ask a person for either, and does not keep when it arrives
+// from elsewhere: its writes leave such attributes out, which keeps them.
 
 // formField is one input on the create form.
 type formField struct {

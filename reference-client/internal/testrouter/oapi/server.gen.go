@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -158,21 +159,21 @@ func (e RouteChangedEventDataEventType) Valid() bool {
 
 // Address defines model for Address.
 type Address struct {
-	City *string `json:"city,omitempty"`
+	City nullable.Nullable[string] `json:"city,omitempty"`
 
 	// Country ISO 3166-1 alpha-2 country code.
-	Country    *string `json:"country,omitempty"`
-	PoBox      *string `json:"po_box,omitempty"`
-	PostalCode *string `json:"postal_code,omitempty"`
-	State      *string `json:"state,omitempty"`
-	Street     *string `json:"street,omitempty"`
+	Country    nullable.Nullable[string] `json:"country,omitempty"`
+	PoBox      nullable.Nullable[string] `json:"po_box,omitempty"`
+	PostalCode nullable.Nullable[string] `json:"postal_code,omitempty"`
+	State      nullable.Nullable[string] `json:"state,omitempty"`
+	Street     nullable.Nullable[string] `json:"street,omitempty"`
 }
 
 // Contact defines model for Contact.
 type Contact struct {
-	Email  *openapi_types.Email `json:"email,omitempty"`
-	Mobile *string              `json:"mobile,omitempty"`
-	Phone  *string              `json:"phone,omitempty"`
+	Email  nullable.Nullable[openapi_types.Email] `json:"email,omitempty"`
+	Mobile nullable.Nullable[string]              `json:"mobile,omitempty"`
+	Phone  nullable.Nullable[string]              `json:"phone,omitempty"`
 }
 
 // Endpoint defines model for Endpoint.
@@ -275,6 +276,8 @@ type EntityTypeToggle struct {
 // Envelope Fields common to every master-data entity. The concrete entity type is determined by the path; each entity schema pins the `type` discriminator so that objects remain self-describing on the event stream.
 //
 // agrirouter assigns `agrirouter_id`, `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, and `type`. An object may be sent back as it was delivered, these included: `revision`, `modified_at`, and `source_endpoint_id` are ignored on send; `agrirouter_id`, `tenant_id`, and `type` must match the object written, or the write is a 400.
+//
+// An optional attribute declared nullable accepts `null` on a write, where it removes the attribute. agrirouter never delivers `null`: an attribute absent from a delivered object is unset.
 type Envelope struct {
 	Active *bool `json:"active,omitempty"`
 
@@ -314,14 +317,14 @@ type ErrorResponse struct {
 
 // Farm A grouping of fields that the farmer considers part of the same management group.
 type Farm struct {
-	Active  *bool    `json:"active,omitempty"`
-	Address *Address `json:"address,omitempty"`
+	Active  *bool                      `json:"active,omitempty"`
+	Address nullable.Nullable[Address] `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// GeoReference A GeoJSON Point (longitude, latitude) locating the farm.
-	GeoReference *Geometry `json:"geo_reference,omitempty"`
+	GeoReference nullable.Nullable[Geometry] `json:"geo_reference,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
@@ -336,7 +339,7 @@ type Farm struct {
 	Owner PartyReference `json:"owner"`
 
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
-	Partners *[]Partner `json:"partners,omitempty"`
+	Partners nullable.Nullable[[]Partner] `json:"partners,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
@@ -345,7 +348,7 @@ type Farm struct {
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// SpecialisedUsageType Production orientation of the farm (e.g. arable farming, dairy, vineyard, orchard). Free-form, drawn from AGROVOC where a matching concept exists.
-	SpecialisedUsageType *string `json:"specialised_usage_type,omitempty"`
+	SpecialisedUsageType nullable.Nullable[string] `json:"specialised_usage_type,omitempty"`
 
 	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
@@ -364,37 +367,33 @@ type Field struct {
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
 	// Area Nominal area in square metres.
-	Area *float32 `json:"area,omitempty"`
+	Area nullable.Nullable[float32] `json:"area,omitempty"`
 
 	// Farm The farm this field belongs to.
-	Farm *EntityReference `json:"farm,omitempty"`
+	Farm nullable.Nullable[EntityReference] `json:"farm,omitempty"`
 
 	// FieldBoundaries References to the field's boundaries.
-	FieldBoundaries *[]EntityReference `json:"field_boundaries,omitempty"`
-
-	// HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
-	HarvestPeriod *HarvestPeriod `json:"harvest_period,omitempty"`
+	FieldBoundaries nullable.Nullable[[]EntityReference] `json:"field_boundaries,omitempty"`
+	HarvestPeriod   nullable.Nullable[HarvestPeriod]     `json:"harvest_period,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
 
-	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	// Metadata Additional key/value metadata. A participant leaves the keys it does not understand out of its writes, which keeps them.
+	Metadata nullable.Nullable[map[string]interface{}] `json:"metadata,omitempty"`
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
 	// Owner The organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
-	Owner *PartyReference `json:"owner,omitempty"`
+	Owner nullable.Nullable[PartyReference] `json:"owner,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
-	Revision *int `json:"revision,omitempty"`
-
-	// Soil Soil characteristics of a field.
-	Soil *SoilInfo `json:"soil,omitempty"`
+	Revision *int                        `json:"revision,omitempty"`
+	Soil     nullable.Nullable[SoilInfo] `json:"soil,omitempty"`
 
 	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
@@ -405,7 +404,7 @@ type Field struct {
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
 	// Topography Slope / gradient, e.g. 7 (degrees).
-	Topography *float32 `json:"topography,omitempty"`
+	Topography nullable.Nullable[float32] `json:"topography,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
 	Type interface{} `json:"type"`
@@ -425,34 +424,32 @@ type FieldBoundary struct {
 	//
 	//
 	// Examples: CONCEPTUAL, OPERATIONAL, ECONOMIC_DEFINED, ADMINISTRATIVE_RECEIVED
-	BoundaryType *string `json:"boundary_type,omitempty"`
+	BoundaryType nullable.Nullable[string] `json:"boundary_type,omitempty"`
 
 	// CreationMethod [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). How the boundary was produced.
 	//
 	//
 	// Examples: UNKNOWN, MANUAL, DRIVEN, SURVEYED, AUTO_OPERATION, AUTO_IMAGERY, ADMINISTRATIVE
-	CreationMethod *string `json:"creation_method,omitempty"`
-
-	// HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
-	HarvestPeriod *HarvestPeriod `json:"harvest_period,omitempty"`
+	CreationMethod nullable.Nullable[string]        `json:"creation_method,omitempty"`
+	HarvestPeriod  nullable.Nullable[HarvestPeriod] `json:"harvest_period,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
 
-	// Metadata Additional key/value metadata. Participants MUST preserve and relay metadata they do not understand.
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	// Metadata Additional key/value metadata. A participant leaves the keys it does not understand out of its writes, which keeps them.
+	Metadata nullable.Nullable[map[string]interface{}] `json:"metadata,omitempty"`
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
-	ModifiedAt *time.Time  `json:"modified_at,omitempty"`
-	Obstacles  *[]Obstacle `json:"obstacles,omitempty"`
+	ModifiedAt *time.Time                    `json:"modified_at,omitempty"`
+	Obstacles  nullable.Nullable[[]Obstacle] `json:"obstacles,omitempty"`
 
 	// RegulatoryRequirements [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A regulatory constraint applying to the boundary.
 	//
 	//
 	// Examples: RED_ZONE_NITROGEN, WATER_PROTECTION_AREA
-	RegulatoryRequirements *string `json:"regulatory_requirements,omitempty"`
+	RegulatoryRequirements nullable.Nullable[string] `json:"regulatory_requirements,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
@@ -484,11 +481,11 @@ type Geometry struct {
 // HarvestPeriod Canonical harvest period as an interval. A discrete year is mapped to an interval on send; `label` may round-trip the native presentation.
 type HarvestPeriod struct {
 	// Label Human-facing designation, e.g. "2026" or "2025/2026".
-	Label     *string            `json:"label,omitempty"`
-	ValidFrom openapi_types.Date `json:"valid_from"`
+	Label     nullable.Nullable[string] `json:"label,omitempty"`
+	ValidFrom openapi_types.Date        `json:"valid_from"`
 
 	// ValidTo Absent means open / current.
-	ValidTo *openapi_types.Date `json:"valid_to,omitempty"`
+	ValidTo nullable.Nullable[openapi_types.Date] `json:"valid_to,omitempty"`
 }
 
 // IdMappingBinding One binding of a local identifier to a canonical object, as carried in bulk on the initial-load confirmation.
@@ -668,16 +665,16 @@ type Obstacle struct {
 
 // Organization A legal entity that may hold land and to which persons may belong. It plays no fixed role: whether it acts as a contractor or as a client follows from the relations it stands in, not from an attribute.
 type Organization struct {
-	Active  *bool    `json:"active,omitempty"`
-	Address *Address `json:"address,omitempty"`
+	Active  *bool                      `json:"active,omitempty"`
+	Address nullable.Nullable[Address] `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
-	AgrirouterId   *openapi_types.UUID `json:"agrirouter_id,omitempty"`
-	BillingAddress *Address            `json:"billing_address,omitempty"`
+	AgrirouterId   *openapi_types.UUID        `json:"agrirouter_id,omitempty"`
+	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
 
 	// CommercialRegistryNumber Identifier from the commercial register.
-	CommercialRegistryNumber *string  `json:"commercial_registry_number,omitempty"`
-	Contact                  *Contact `json:"contact,omitempty"`
+	CommercialRegistryNumber nullable.Nullable[string]  `json:"commercial_registry_number,omitempty"`
+	Contact                  nullable.Nullable[Contact] `json:"contact,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
@@ -695,10 +692,10 @@ type Organization struct {
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId *string `json:"tax_id,omitempty"`
+	TaxId nullable.Nullable[string] `json:"tax_id,omitempty"`
 
 	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber *string `json:"tax_number,omitempty"`
+	TaxNumber nullable.Nullable[string] `json:"tax_number,omitempty"`
 
 	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
@@ -706,7 +703,7 @@ type Organization struct {
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
 	// TradeId Numerical identifier assigned by public authorities.
-	TradeId *string `json:"trade_id,omitempty"`
+	TradeId nullable.Nullable[string] `json:"trade_id,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
 	Type interface{} `json:"type"`
@@ -726,18 +723,18 @@ type Partner struct {
 
 // Party Attributes common to every party, whether an organization or a natural person. A farmer carries the fiscal identifiers as much as a company does; only the commercial register entry is specific to organizations.
 type Party struct {
-	Address        *Address `json:"address,omitempty"`
-	BillingAddress *Address `json:"billing_address,omitempty"`
-	Contact        *Contact `json:"contact,omitempty"`
+	Address        nullable.Nullable[Address] `json:"address,omitempty"`
+	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
+	Contact        nullable.Nullable[Contact] `json:"contact,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId *string `json:"tax_id,omitempty"`
+	TaxId nullable.Nullable[string] `json:"tax_id,omitempty"`
 
 	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber *string `json:"tax_number,omitempty"`
+	TaxNumber nullable.Nullable[string] `json:"tax_number,omitempty"`
 
 	// TradeId Numerical identifier assigned by public authorities.
-	TradeId *string `json:"trade_id,omitempty"`
+	TradeId nullable.Nullable[string] `json:"trade_id,omitempty"`
 }
 
 // PartyReference A reference to a party. The slot admits both organizations and persons, so the entity type is required: a receiver that does not hold the target must lazy-load it, and the request endpoints are per entity type. Typed slots such as a field's farm need no discriminator.
@@ -759,15 +756,15 @@ type PartyReference1 = interface{}
 
 // Person A natural person. A person may hold land, and may belong to one or more organizations through `memberships`.
 type Person struct {
-	Active  *bool    `json:"active,omitempty"`
-	Address *Address `json:"address,omitempty"`
+	Active  *bool                      `json:"active,omitempty"`
+	Address nullable.Nullable[Address] `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
-	AgrirouterId   *openapi_types.UUID `json:"agrirouter_id,omitempty"`
-	BillingAddress *Address            `json:"billing_address,omitempty"`
-	Contact        *Contact            `json:"contact,omitempty"`
-	FirstName      *string             `json:"first_name,omitempty"`
-	LastName       string              `json:"last_name"`
+	AgrirouterId   *openapi_types.UUID        `json:"agrirouter_id,omitempty"`
+	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
+	Contact        nullable.Nullable[Contact] `json:"contact,omitempty"`
+	FirstName      nullable.Nullable[string]  `json:"first_name,omitempty"`
+	LastName       string                     `json:"last_name"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
@@ -775,7 +772,7 @@ type Person struct {
 	LocalId *string `json:"local_id,omitempty"`
 
 	// Memberships The organizations this person belongs to, each with the role held there. A person carrying at least one entry is a member.
-	Memberships *[]Membership `json:"memberships,omitempty"`
+	Memberships nullable.Nullable[[]Membership] `json:"memberships,omitempty"`
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
@@ -787,19 +784,19 @@ type Person struct {
 	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
 
 	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId *string `json:"tax_id,omitempty"`
+	TaxId nullable.Nullable[string] `json:"tax_id,omitempty"`
 
 	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber *string `json:"tax_number,omitempty"`
+	TaxNumber nullable.Nullable[string] `json:"tax_number,omitempty"`
 
 	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
 	//
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
-	Title    *string             `json:"title,omitempty"`
+	TenantId *openapi_types.UUID       `json:"tenant_id,omitempty"`
+	Title    nullable.Nullable[string] `json:"title,omitempty"`
 
 	// TradeId Numerical identifier assigned by public authorities.
-	TradeId *string `json:"trade_id,omitempty"`
+	TradeId nullable.Nullable[string] `json:"trade_id,omitempty"`
 
 	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
 	Type interface{} `json:"type"`
@@ -902,13 +899,13 @@ type RouteChangedEventDataEventType string
 // SoilInfo Soil characteristics of a field.
 type SoilInfo struct {
 	// RatingPoints Soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
-	RatingPoints *int `json:"rating_points,omitempty"`
+	RatingPoints nullable.Nullable[int] `json:"rating_points,omitempty"`
 
 	// Type [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). The soil classification.
 	//
 	//
 	// Examples: SAND, LOAMY_SAND, HEAVY_LOAMY_SAND, SANDY_TO_SILTY_LOAM, CLAYEY_LOAM, CLAY
-	Type *string `json:"type,omitempty"`
+	Type nullable.Nullable[string] `json:"type,omitempty"`
 }
 
 // AgrirouterEndpointId defines model for AgrirouterEndpointId.

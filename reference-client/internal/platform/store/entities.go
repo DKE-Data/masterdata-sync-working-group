@@ -15,29 +15,24 @@ import (
 // Record is one of the platform's own records, as the sync code handles it.
 //
 // It is deliberately not an oapi entity. The platform stores what it models in
-// its own columns and everything else in Unmodelled, and turning one into the
-// other is the codec's job — which is where a real integration's mapping work
-// actually is.
+// its own columns and nothing else, and turning one into the other is the
+// codec's job — which is where a real integration's mapping work actually is.
+//
+// What it does not model it does not keep. A write only changes what it
+// carries, so leaving an attribute out of every write is what keeps it for the
+// participants that do model it. See "Writing an entity" in specification.md.
 type Record struct {
 	EntityType agmasync.EntityType
 	LocalID    string
 	Archived   bool
 
 	// Modelled holds the attributes this platform has columns for, keyed by
-	// their protocol names.
+	// their protocol names. One it holds no value for is absent.
 	Modelled map[string]json.RawMessage
-
-	// Unmodelled holds the attributes it does not, exactly as they arrived.
-	//
-	// Keeping them is not optional: the specification requires a participant to
-	// preserve what it does not understand and relay it unchanged. A platform
-	// that drops them silently degrades every other participant's data each
-	// time it touches an object.
-	Unmodelled map[string]json.RawMessage
 }
 
 // columns names the protocol attributes each entity type has real columns for.
-// Everything else on a delivered object falls into Unmodelled.
+// Everything else on a delivered object is left to agrirouter.
 var columns = map[agmasync.EntityType][]string{
 	agmasync.TypeOrganization: {"name", "commercial_registry_number", "address"},
 	agmasync.TypePerson:       {"last_name", "first_name", "title"},
@@ -52,7 +47,7 @@ var columns = map[agmasync.EntityType][]string{
 //
 // The envelope is stripped: type, identifiers, revision and the rest are
 // agrirouter's bookkeeping and belong in agmasync_object, not in the platform's
-// tables. What remains is divided by whether this platform models it.
+// tables. Of what remains, the platform takes what it models.
 func FromEntity(typ agmasync.EntityType, entity oapi.Entity) (Record, error) {
 	raw, err := entity.MarshalJSON()
 	if err != nil {
@@ -88,32 +83,58 @@ func FromEntity(typ agmasync.EntityType, entity oapi.Entity) (Record, error) {
 	out := Record{
 		EntityType: typ,
 		Modelled:   map[string]json.RawMessage{},
-		Unmodelled: map[string]json.RawMessage{},
 	}
 	for key, value := range all {
-		switch {
-		case envelope[key]:
-			continue
-		case modelled[key]:
+		if modelled[key] && !envelope[key] {
 			out.Modelled[key] = value
-		default:
-			out.Unmodelled[key] = value
 		}
 	}
 	return out, nil
 }
 
+// modelledAddress names the parts of an address each entity type has columns
+// for.
+var modelledAddress = map[agmasync.EntityType][]string{
+	agmasync.TypeOrganization: {"city", "country"},
+	agmasync.TypeFarm:         {"city"},
+}
+
+// notNullable are the modelled attributes a write never sends as null: the ones
+// the protocol requires, which are never removed, and references, where an
+// empty column does not say the reference was cleared — it is also what an
+// unresolved one leaves behind — and so must not remove the canonical one.
+var notNullable = map[string]bool{
+	"name": true, "last_name": true, "boundary": true, "owner": true, "farm": true,
+}
+
 // ToEntity is FromEntity in reverse: the platform's own record as an entity to send.
 //
-// The unmodelled attributes go back out exactly as they came in, which is what
-// relaying them unchanged means in practice.
+// A write is a merge patch, so the entity says what this platform holds and
+// nothing more. Every modelled attribute goes out: with its value, or as null
+// where the platform holds none, since leaving it out would keep whatever
+// agrirouter has. An address goes out as the parts the platform models, which
+// leaves the rest of it alone. Unmodelled attributes are left out, and kept.
 func (r Record) ToEntity(localID string) (oapi.Entity, error) {
 	fields := map[string]json.RawMessage{}
-	for k, v := range r.Unmodelled {
-		fields[k] = v
-	}
 	for k, v := range r.Modelled {
 		fields[k] = v
+	}
+	for _, name := range columns[r.EntityType] {
+		if _, held := fields[name]; held || notNullable[name] || name == "address" {
+			continue
+		}
+		fields[name] = json.RawMessage("null")
+	}
+	if parts := modelledAddress[r.EntityType]; len(parts) > 0 {
+		address, err := addressPatch(r.Modelled["address"], parts)
+		if err != nil {
+			return oapi.Entity{}, err
+		}
+		if address == nil {
+			delete(fields, "address")
+		} else {
+			fields["address"] = address
+		}
 	}
 
 	id, err := json.Marshal(localID)
@@ -146,6 +167,36 @@ func (r Record) ToEntity(localID string) (oapi.Entity, error) {
 	return entity, nil
 }
 
+// addressPatch renders the address the platform holds as the parts it models,
+// null for those it holds no value for. It is nil when the platform holds none
+// of them: merging nulls into an address agrirouter does not hold would create
+// an empty one. The cost is that clearing the last modelled part of an address
+// leaves it in place — which this platform's screens never do, having no edit
+// form.
+func addressPatch(raw json.RawMessage, parts []string) (json.RawMessage, error) {
+	held := map[string]json.RawMessage{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &held); err != nil {
+			return nil, fmt.Errorf("reading address: %w", err)
+		}
+	}
+	out := map[string]json.RawMessage{}
+	holdsAny := false
+	for _, part := range parts {
+		value, ok := held[part]
+		if !ok || string(value) == "null" {
+			out[part] = json.RawMessage("null")
+			continue
+		}
+		out[part] = value
+		holdsAny = true
+	}
+	if !holdsAny {
+		return nil, nil
+	}
+	return json.Marshal(out)
+}
+
 // tableOf maps an entity type to the platform's table for it.
 func tableOf(typ agmasync.EntityType) (string, error) {
 	switch typ {
@@ -176,7 +227,11 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 	out := map[string]any{}
 
 	var errs []error
+	// Every column is written, NULL for an attribute the record does not
+	// carry: a delivered object is whole, so an attribute absent from it has
+	// been removed, and a column still holding it would send it back.
 	str := func(key, column string) {
+		out[column] = nil
 		raw, ok := r.Modelled[key]
 		if !ok {
 			return
@@ -221,6 +276,7 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 		out["owner_type"], out["owner_local_id"] = ownerType, ownerLocal
 	case agmasync.TypeField:
 		str("name", "name")
+		out["area"] = nil
 		if raw, ok := r.Modelled["area"]; ok {
 			var area *float64
 			if err := json.Unmarshal(raw, &area); err != nil {
@@ -238,6 +294,7 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 	case agmasync.TypeFieldBoundary:
 		str("boundary_type", "boundary_type")
 		str("creation_method", "creation_method")
+		out["boundary"] = nil
 		if raw, ok := r.Modelled["boundary"]; ok {
 			out["boundary"] = string(raw)
 		}
@@ -349,12 +406,7 @@ func (t *Tx) UpsertRecord(r Record, localID string) error {
 		return err
 	}
 
-	unmodelled, err := json.Marshal(r.Unmodelled)
-	if err != nil {
-		return fmt.Errorf("encoding unmodelled attributes: %w", err)
-	}
 	values["archived"] = boolToInt(r.Archived)
-	values["unmodelled"] = string(unmodelled)
 
 	names := []string{"local_id"}
 	placeholders := []string{"?"}
@@ -402,13 +454,12 @@ func (t *Tx) LoadRecord(typ agmasync.EntityType, localID string) (Record, error)
 
 	names := scanColumns(typ)
 	query := fmt.Sprintf(
-		"SELECT archived, unmodelled, %s FROM %s WHERE local_id = ?",
+		"SELECT archived, %s FROM %s WHERE local_id = ?",
 		join(names), table)
 
 	var archived int
-	var unmodelled string
 	scanned := make([]sql.NullString, len(names))
-	targets := []any{&archived, &unmodelled}
+	targets := []any{&archived}
 	for i := range scanned {
 		targets = append(targets, &scanned[i])
 	}
@@ -425,10 +476,6 @@ func (t *Tx) LoadRecord(typ agmasync.EntityType, localID string) (Record, error)
 		LocalID:    localID,
 		Archived:   archived != 0,
 		Modelled:   map[string]json.RawMessage{},
-		Unmodelled: map[string]json.RawMessage{},
-	}
-	if err := json.Unmarshal([]byte(unmodelled), &out.Unmodelled); err != nil {
-		return Record{}, fmt.Errorf("decoding unmodelled attributes: %w", err)
 	}
 
 	values := map[string]sql.NullString{}

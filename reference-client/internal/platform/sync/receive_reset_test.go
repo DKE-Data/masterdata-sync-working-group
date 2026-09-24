@@ -23,7 +23,7 @@ func TestAResetDropsThePairsAndKeepsTheRecords(t *testing.T) {
 	if _, err := loader(a).Run(context.Background()); err != nil {
 		t.Fatalf("first load: %v", err)
 	}
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestAResetClearsThePairsOfATenantNoApplierClaims(t *testing.T) {
 	if _, err := loader(a).Run(context.Background()); err != nil {
 		t.Fatalf("first load: %v", err)
 	}
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("send: %v", err)
 	}

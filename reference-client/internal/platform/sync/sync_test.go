@@ -79,7 +79,7 @@ func (h *harness) joinTenant(
 	}
 
 	return &psync.Applier{
-		Store: db,
+		Store:  db,
 		Tenant: tenant,
 		Endpoint: client.For(endpointID, externalID,
 			uuid.New(), h.tenant, uuid.New(), "cloud_software"),
@@ -89,25 +89,31 @@ func (h *harness) joinTenant(
 
 // createLocalFarm creates a record in the platform's own store, as its user
 // would, with no involvement from the exchange.
-func createLocalFarm(t *testing.T, a *psync.Applier, localID, name string, extra map[string]any) {
+func createLocalFarm(t *testing.T, a *psync.Applier, localID, name string) {
+	t.Helper()
+	upsertLocal(t, a, agmasync.TypeFarm, localID, map[string]any{"name": name})
+}
+
+// upsertLocal writes a record's modelled attributes as the platform's user
+// would. Whatever the record held before is replaced.
+func upsertLocal(
+	t *testing.T, a *psync.Applier, typ agmasync.EntityType, localID string, modelled map[string]any,
+) {
 	t.Helper()
 
-	modelled := map[string]json.RawMessage{"name": mustJSON(t, name)}
-	unmodelled := map[string]json.RawMessage{}
-	for k, v := range extra {
-		unmodelled[k] = mustJSON(t, v)
+	attributes := map[string]json.RawMessage{}
+	for k, v := range modelled {
+		attributes[k] = mustJSON(t, v)
 	}
-
 	err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		return tx.UpsertRecord(store.Record{
-			EntityType: agmasync.TypeFarm,
+			EntityType: typ,
 			LocalID:    localID,
-			Modelled:   modelled,
-			Unmodelled: unmodelled,
+			Modelled:   attributes,
 		}, localID)
 	})
 	if err != nil {
-		t.Fatalf("seeding farm: %v", err)
+		t.Fatalf("writing local %s: %v", typ, err)
 	}
 }
 
@@ -124,7 +130,7 @@ func TestSendCreatesAndRecordsTheCorrespondence(t *testing.T) {
 	h := newHarness(t)
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
 
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 
 	outcome, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1")
 	if err != nil {
@@ -155,14 +161,14 @@ func TestSendCreatesAndRecordsTheCorrespondence(t *testing.T) {
 func TestUpdateCarriesTheHeldRevisionAsBase(t *testing.T) {
 	h := newHarness(t)
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
 	// The user renames it locally, then the platform sends again.
-	createLocalFarm(t, a, "FRM-1", "Hof Süd", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Süd")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("update should carry the held revision as its base: %v", err)
 	}
@@ -184,12 +190,12 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 	// object whose revision is lower than the one held must not be applied.
 	h := newHarness(t)
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	createLocalFarm(t, a, "FRM-1", "Hof Süd", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Süd")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -244,7 +250,7 @@ func TestDeliveryWithoutLocalIDIsCreatedAndBound(t *testing.T) {
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
 
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -291,7 +297,7 @@ func TestPositionAdvancesOnlyWithTheObjectItCovers(t *testing.T) {
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
 
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -321,40 +327,145 @@ func TestPositionAdvancesOnlyWithTheObjectItCovers(t *testing.T) {
 	}
 }
 
-func TestUnmodelledAttributesSurviveARoundTrip(t *testing.T) {
-	// A participant must preserve what it does not model and relay it
-	// unchanged. This platform has no column for specialised_usage_type, so if it
-	// did not keep the value, sending the record back would erase it for
-	// everybody.
-	h := newHarness(t)
-	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
+// canonicalOf reads the canonical object as agrirouter holds it now, through a
+// write that changes nothing: its response is the whole current object.
+func canonicalOf(t *testing.T, a *psync.Applier, typ agmasync.EntityType, localID string) map[string]json.RawMessage {
+	t.Helper()
+	return putRaw(t, a, fmt.Sprintf(`{"type":%q,"local_id":%q}`, typ, localID), nil)
+}
 
-	createLocalFarm(t, a, "FRM-1", "Hof Nord", map[string]any{
-		"specialised_usage_type": "dairy",
-	})
-	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
-		t.Fatalf("create: %v", err)
+// putRaw writes JSON as another integration of the same participant would,
+// bypassing the platform's own store, and applies nothing.
+func putRaw(t *testing.T, a *psync.Applier, body string, base *int) map[string]json.RawMessage {
+	t.Helper()
+	var ent oapi.Entity
+	if err := ent.UnmarshalJSON([]byte(body)); err != nil {
+		t.Fatal(err)
 	}
+	got, err := a.Endpoint.Put(context.Background(), ent, base)
+	if err != nil {
+		t.Fatalf("put %s: %v", body, err)
+	}
+	raw, _ := got.MarshalJSON()
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
 
+func loadRecord(t *testing.T, a *psync.Applier, typ agmasync.EntityType, localID string) store.Record {
+	t.Helper()
 	var record store.Record
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		record, err = tx.LoadRecord(agmasync.TypeFarm, "FRM-1")
+		record, err = tx.LoadRecord(typ, localID)
 		return err
 	}); err != nil {
 		t.Fatalf("loading record: %v", err)
 	}
+	return record
+}
 
-	raw, ok := record.Unmodelled["specialised_usage_type"]
-	if !ok {
-		t.Fatal("an attribute the platform does not model was dropped")
+func revisionAfter(t *testing.T, attributes map[string]json.RawMessage) int {
+	t.Helper()
+	var rev int
+	if err := json.Unmarshal(attributes["revision"], &rev); err != nil {
+		t.Fatalf("reading revision: %v", err)
 	}
-	var usage string
-	if err := json.Unmarshal(raw, &usage); err != nil {
-		t.Fatalf("decoding: %v", err)
+	return rev
+}
+
+// applyRaw writes JSON the platform did not originate and applies the result,
+// as it would apply the delivery of another participant's change.
+func applyRaw(t *testing.T, a *psync.Applier, body string, base int) {
+	t.Helper()
+	var ent oapi.Entity
+	if err := ent.UnmarshalJSON([]byte(body)); err != nil {
+		t.Fatal(err)
 	}
-	if usage != "dairy" {
-		t.Errorf("specialised_usage_type = %q, want %q relayed unchanged", usage, "dairy")
+	got, err := a.Endpoint.Put(context.Background(), ent, &base)
+	if err != nil {
+		t.Fatalf("put %s: %v", body, err)
+	}
+	if _, err := a.Apply(got, ""); err != nil {
+		t.Fatalf("applying: %v", err)
+	}
+}
+
+func TestAnAttributeThePlatformDoesNotModelSurvivesItsWrites(t *testing.T) {
+	// A write only changes what it carries. This platform has no column for
+	// specialised_usage_type and never sends it, so its writes leave it alone
+	// for everybody who does model it, without the platform storing it.
+	h := newHarness(t)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
+
+	createLocalFarm(t, a, "FRM-1", "Hof Nord")
+	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	applyRaw(t, a, `{"type":"farm","local_id":"FRM-1","specialised_usage_type":"dairy"}`,
+		revisionAfter(t, canonicalOf(t, a, agmasync.TypeFarm, "FRM-1")))
+
+	createLocalFarm(t, a, "FRM-1", "Hof Süd")
+	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+
+	got := canonicalOf(t, a, agmasync.TypeFarm, "FRM-1")
+	if string(got["name"]) != `"Hof Süd"` {
+		t.Errorf("name = %s, want the rename", got["name"])
+	}
+	if string(got["specialised_usage_type"]) != `"dairy"` {
+		t.Errorf("specialised_usage_type = %s, want it kept by a write that left it out",
+			got["specialised_usage_type"])
+	}
+}
+
+func TestAClearedAttributeIsSentAsNull(t *testing.T) {
+	// Leaving an attribute out keeps it, so a platform that clears one it
+	// models has to say so. Only the part of the address it models is cleared:
+	// the street, which it does not model, stays.
+	h := newHarness(t)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeOrganization)
+
+	upsertLocal(t, a, agmasync.TypeOrganization, "ORG-1", map[string]any{"name": "Agrar GmbH"})
+	if _, err := a.Send(context.Background(), agmasync.TypeOrganization, "ORG-1"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	applyRaw(t, a,
+		`{"type":"organization","local_id":"ORG-1",`+
+			`"address":{"street":"Dorfstr. 1","city":"Husum","country":"DE"}}`,
+		revisionAfter(t, canonicalOf(t, a, agmasync.TypeOrganization, "ORG-1")))
+
+	upsertLocal(t, a, agmasync.TypeOrganization, "ORG-1", map[string]any{
+		"name": "Agrar GmbH", "address": map[string]any{"city": nil, "country": "DE"},
+	})
+	if _, err := a.Send(context.Background(), agmasync.TypeOrganization, "ORG-1"); err != nil {
+		t.Fatalf("clearing the city: %v", err)
+	}
+
+	got := canonicalOf(t, a, agmasync.TypeOrganization, "ORG-1")
+	if string(got["address"]) != `{"country":"DE","street":"Dorfstr. 1"}` {
+		t.Errorf("address = %s, want the city removed and the rest kept", got["address"])
+	}
+}
+
+func TestAnAttributeRemovedElsewhereIsClearedLocally(t *testing.T) {
+	// A delivered object is whole: an attribute it does not carry is unset, and
+	// a column still holding the old value would send it back on the next write.
+	h := newHarness(t)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeField)
+
+	upsertLocal(t, a, agmasync.TypeField, "PFD-1", map[string]any{"name": "North 40", "area": 12.5})
+	if _, err := a.Send(context.Background(), agmasync.TypeField, "PFD-1"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	applyRaw(t, a, `{"type":"field","local_id":"PFD-1","area":null}`,
+		revisionAfter(t, canonicalOf(t, a, agmasync.TypeField, "PFD-1")))
+
+	if raw, ok := loadRecord(t, a, agmasync.TypeField, "PFD-1").Modelled["area"]; ok {
+		t.Errorf("area = %s, want the column cleared", raw)
 	}
 }
 
@@ -436,8 +547,8 @@ func TestTwoTenantsOfOnePlatformShareOneRecord(t *testing.T) {
 	first := h.join("fmis-a", "ep-a1", agmasync.TypeFarm)
 	second := h.joinTenant("fmis-a", "ep-a2", "tenant-two", first.Store, agmasync.TypeFarm)
 
-	createLocalFarm(t, first, "FRM-1", "Hof Nord", nil)
-	createLocalFarm(t, second, "FRM-2", "Hof Süd", nil)
+	createLocalFarm(t, first, "FRM-1", "Hof Nord")
+	createLocalFarm(t, second, "FRM-2", "Hof Süd")
 
 	// Each tenant lists what it holds and not the other's holdings.
 	for _, c := range []struct {
@@ -495,7 +606,7 @@ func TestOneTenantsBindingSpeaksForTheWholePlatform(t *testing.T) {
 	first := h.join("fmis-b", "ep-b1", agmasync.TypeFarm)
 	second := h.joinTenant("fmis-b", "ep-b2", "tenant-two", first.Store, agmasync.TypeFarm)
 
-	createLocalFarm(t, sender, "FRM-1", "Hof Nord", nil)
+	createLocalFarm(t, sender, "FRM-1", "Hof Nord")
 	if _, err := sender.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("create: %v", err)
 	}

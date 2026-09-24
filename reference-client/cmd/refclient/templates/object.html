@@ -39,18 +39,6 @@
   </tr>
 </table>
 
-<h2>Kept but not modelled</h2>
-{{if .Unmodelled}}
-<p class="muted hint">Attributes this platform has no column for, relayed unchanged.</p>
-<table>
-  <tr><th>Attribute</th><th>Value</th></tr>
-  {{range .Unmodelled}}
-  <tr><td class="mono">{{.Name}}</td><td class="mono">{{.Value}}</td></tr>
-  {{end}}
-</table>
-{{else}}
-<p class="muted">None.</p>
-{{end}}
 
 <h2>What can be done with it</h2>
 <div>

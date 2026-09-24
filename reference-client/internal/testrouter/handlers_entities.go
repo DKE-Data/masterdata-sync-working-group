@@ -23,7 +23,7 @@ func (r *Router) PutOrganization(
 	ctx context.Context, req oapi.PutOrganizationRequestObject,
 ) (oapi.PutOrganizationResponseObject, error) {
 	raw, created, err := r.doPut(ctx, agmasync.TypeOrganization, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision, req.Body)
+		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
@@ -137,7 +137,7 @@ func (r *Router) PutPerson(
 	ctx context.Context, req oapi.PutPersonRequestObject,
 ) (oapi.PutPersonResponseObject, error) {
 	raw, created, err := r.doPut(ctx, agmasync.TypePerson, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision, req.Body)
+		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
@@ -251,7 +251,7 @@ func (r *Router) PutFarm(
 	ctx context.Context, req oapi.PutFarmRequestObject,
 ) (oapi.PutFarmResponseObject, error) {
 	raw, created, err := r.doPut(ctx, agmasync.TypeFarm, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision, req.Body)
+		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
@@ -365,7 +365,7 @@ func (r *Router) PutField(
 	ctx context.Context, req oapi.PutFieldRequestObject,
 ) (oapi.PutFieldResponseObject, error) {
 	raw, created, err := r.doPut(ctx, agmasync.TypeField, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision, req.Body)
+		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
@@ -479,7 +479,7 @@ func (r *Router) PutFieldBoundary(
 	ctx context.Context, req oapi.PutFieldBoundaryRequestObject,
 ) (oapi.PutFieldBoundaryResponseObject, error) {
 	raw, created, err := r.doPut(ctx, agmasync.TypeFieldBoundary, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision, req.Body)
+		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {

@@ -95,9 +95,9 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 // marshals as `{"type":""}`, and agrirouter answers 400 at `/owner`, "doesn't
 // match any schema from anyOf", because the reference names neither identifier.
 // A participant reading that has to work back from an owner it never sent to
-// the owner it does not have. And an attribute the model does not name is
-// dropped, since a generated struct has nowhere to put it — which would quietly
-// undo the relaying of unmodelled attributes that the specification requires.
+// the owner it does not have. And a write is a merge patch, where null and
+// left out mean opposite things — remove it, and leave it alone — so the body
+// has to keep each exactly as the caller wrote it.
 func TestPutSendsTheEntityAsTheParticipantBuiltIt(t *testing.T) {
 	bodies := make(chan map[string]json.RawMessage, 1)
 	srv := httptest.NewServer(http.HandlerFunc(
@@ -126,12 +126,12 @@ func TestPutSendsTheEntityAsTheParticipantBuiltIt(t *testing.T) {
 		uuid.New(), uuid.New(), uuid.New(), oapi.EndpointTypeToCreate("cloud_software"))
 
 	// A farm as a platform holds it: no owner, because the reference it was
-	// delivered with resolved to nothing it holds, and one attribute it does not
-	// model and is relaying.
+	// delivered with resolved to nothing it holds, a usage type it has cleared,
+	// and no address, which it does not model.
 	var farm oapi.Entity
 	if err := farm.UnmarshalJSON([]byte(
 		`{"type":"farm","local_id":"f-1","active":true,"name":"Hof Nord",` +
-			`"cadastral_district":"Husum"}`)); err != nil {
+			`"specialised_usage_type":null}`)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -143,9 +143,10 @@ func TestPutSendsTheEntityAsTheParticipantBuiltIt(t *testing.T) {
 	if raw, found := sent["owner"]; found {
 		t.Errorf("Put sent owner = %s, want an owner the participant does not hold left out", raw)
 	}
-	if raw, found := sent["cadastral_district"]; !found {
-		t.Error("Put dropped an unmodelled attribute the participant was relaying")
-	} else if string(raw) != `"Husum"` {
-		t.Errorf("cadastral_district = %s, want it relayed unchanged", raw)
+	if raw, found := sent["specialised_usage_type"]; !found || string(raw) != "null" {
+		t.Errorf("specialised_usage_type = %s (sent %v), want null: it removes the attribute", raw, found)
+	}
+	if raw, found := sent["address"]; found {
+		t.Errorf("Put sent address = %s, want an attribute the participant left out left out", raw)
 	}
 }

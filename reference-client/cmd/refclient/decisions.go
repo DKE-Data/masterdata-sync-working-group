@@ -353,26 +353,43 @@ func normalise(s string) string {
 	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
-// attributesOf renders a delivered object for a person to look at.
+// attributesOf renders a delivered object for a person to look at: all of it,
+// including what this platform does not model and will not keep, since the
+// person deciding about it should see what arrived.
 func attributesOf(typ agmasync.EntityType, entity oapi.Entity) ([]attribute, error) {
-	record, err := store.FromEntity(typ, entity)
+	if _, err := store.FromEntity(typ, entity); err != nil {
+		return nil, err
+	}
+	raw, err := entity.MarshalJSON()
 	if err != nil {
 		return nil, err
 	}
-	return attributesOfRecord(record), nil
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &all); err != nil {
+		return nil, err
+	}
+	for _, name := range []string{
+		"type", "agrirouter_id", "local_id", "active", "revision",
+		"modified_at", "tenant_id", "source_endpoint_id",
+	} {
+		delete(all, name)
+	}
+	return sortedAttributes(all), nil
 }
 
 func attributesOfRecord(r store.Record) []attribute {
-	var out []attribute
-	for _, set := range []map[string]json.RawMessage{r.Modelled, r.Unmodelled} {
-		names := make([]string, 0, len(set))
-		for name := range set {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			out = append(out, attribute{Name: name, Value: compact(set[name])})
-		}
+	return sortedAttributes(r.Modelled)
+}
+
+func sortedAttributes(set map[string]json.RawMessage) []attribute {
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]attribute, 0, len(names))
+	for _, name := range names {
+		out = append(out, attribute{Name: name, Value: compact(set[name])})
 	}
 	return out
 }

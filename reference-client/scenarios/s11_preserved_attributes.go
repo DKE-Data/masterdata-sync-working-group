@@ -10,26 +10,26 @@ import (
 func preservedAttributes() Scenario {
 	return Scenario{
 		Number: 11,
-		Title:  "Attributes a participant does not model, relayed unchanged",
+		Title:  "Attributes a participant does not model, kept by leaving them out",
 		Spec: []string{
-			"Field", "Harvest period", "Applying what agrirouter returns",
+			"Writing an entity", "Field", "Harvest period", "Applying what agrirouter returns",
 		},
 		Run: runPreservedAttributes,
 	}
 }
 
-// runPreservedAttributes is the cost of a whole-object write, and what a
-// participant owes the exchange because of it.
+// runPreservedAttributes is what a merge-patch write buys a participant that
+// models less than the canonical model does.
 //
-// Writes carry the whole object, so everything a sender leaves out is a
-// deletion: an attribute it does not model, dropped on the way through, is
-// erased for every participant that does — and erased as an ordinary revision,
-// delivered to all of them, indistinguishable from a user's decision.
+// A write only changes what it carries: an attribute a sender leaves out is
+// kept, and only null removes one. So a participant that does not model an
+// attribute neither stores it nor sends it, and every participant that does
+// model it keeps it all the same.
 //
-// Both participants here run this sample, which has typed columns for part of
-// the canonical model and an opaque bag for the rest. Alpha stands in for a
-// product that models these two attributes and Beta for one that does not: what
-// is under test is Beta, which has to relay what it cannot read.
+// Both participants here run this sample, which has columns for part of the
+// canonical model and keeps nothing else. Alpha stands in for a product that
+// models two more attributes and Beta for one that does not: what is under
+// test is that Beta can edit the field without holding them.
 func runPreservedAttributes(ctx context.Context, w *World) error {
 	say := w.Say
 
@@ -48,26 +48,24 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	if err := alpha.AddField("alpha-field-1", "Nordacker", 12.4, "alpha-farm-1"); err != nil {
 		return err
 	}
-	// Put there directly, the sample having no feature that produces them: a
-	// real Alpha fills them from its own screens, and the exchange cannot tell
-	// the difference, a whole-object write being all agrirouter ever sees.
-	if err := alpha.Carry(agmasync.TypeField, "alpha-field-1", map[string]any{
-		"metadata": map[string]string{
-			"contract": "PACHT-2029-114", "steward": "Jens Petersen",
-		},
-		"harvest_period": map[string]any{"start_month": 7, "end_month": 9},
-	}); err != nil {
-		return err
-	}
 	if _, err := alpha.Send(ctx, agmasync.TypeField, "alpha-field-1"); err != nil {
 		return err
 	}
-	original, err := alpha.Record(agmasync.TypeField, "alpha-field-1")
+	// Written straight to agrirouter, the sample having no feature that
+	// produces them: a real Alpha fills them from its own screens.
+	original, err := alpha.Supplement(ctx, agmasync.TypeField, "alpha-field-1", map[string]any{
+		"metadata": map[string]string{
+			"contract": "PACHT-2029-114", "steward": "Jens Petersen",
+		},
+		"harvest_period": map[string]any{
+			"valid_from": "2029-07-01", "valid_to": "2029-09-30", "label": "2029",
+		},
+	})
 	if err != nil {
 		return err
 	}
-	metadata := string(original.Unmodelled["metadata"])
-	period := string(original.Unmodelled["harvest_period"])
+	metadata := string(original["metadata"])
+	period := string(original["harvest_period"])
 
 	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta", agmasync.TypeField)
 	if err != nil {
@@ -88,12 +86,10 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(string(received.Unmodelled["metadata"]) == metadata,
-		"the attributes Beta has no columns for arrive intact"); err != nil {
-		return err
-	}
-	if err := say.Check(string(received.Unmodelled["harvest_period"]) == period,
-		"both of them, exactly as they were sent"); err != nil {
+	_, heldMetadata := received.Modelled["metadata"]
+	_, heldPeriod := received.Modelled["harvest_period"]
+	if err := say.Check(!heldMetadata && !heldPeriod,
+		"Beta keeps what it has columns for, and nothing else"); err != nil {
 		return err
 	}
 
@@ -106,8 +102,8 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	if _, err := beta.Send(ctx, agmasync.TypeField, betaField); err != nil {
 		return err
 	}
-	say.Detail("it is a whole-object write, because that is the only kind there is.")
-	say.Detail("everything Beta leaves out of one is an attribute it is deleting")
+	say.Detail("the write carries what Beta models. The two attributes it does not")
+	say.Detail("model are not in it, and a write leaves alone what it leaves out")
 
 	say.Step("Alpha hears the change.")
 	caught, err := alpha.CatchUp(ctx)
@@ -124,20 +120,18 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 		return err
 	}
 
-	survived, err := alpha.Record(agmasync.TypeField, "alpha-field-1")
+	canonical, err := alpha.Canonical(ctx, agmasync.TypeField, "alpha-field-1")
 	if err != nil {
 		return err
 	}
-	if err := say.Check(string(survived.Unmodelled["metadata"]) == metadata,
-		"and what Beta never understood came back untouched: %s",
-		survived.Unmodelled["metadata"]); err != nil {
+	if err := say.Check(string(canonical["metadata"]) == metadata,
+		"and what Beta never held is untouched: %s", canonical["metadata"]); err != nil {
 		return err
 	}
-	if err := say.Check(string(survived.Unmodelled["harvest_period"]) == period,
-		"as did the harvest period"); err != nil {
+	if err := say.Check(string(canonical["harvest_period"]) == period,
+		"as is the harvest period"); err != nil {
 		return err
 	}
-	say.Detail("had Beta dropped them, agrirouter would have read the omission as a")
-	say.Detail("deletion")
+	say.Detail("to remove one, a participant sends it as null")
 	return nil
 }

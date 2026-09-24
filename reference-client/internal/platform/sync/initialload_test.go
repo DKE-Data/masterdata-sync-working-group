@@ -31,7 +31,7 @@ func loader(a *psync.Applier, types ...agmasync.EntityType) *psync.Loader {
 func contributed(t *testing.T, h *harness, name string) *psync.Applier {
 	t.Helper()
 	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
-	createLocalFarm(t, a, "FRM-1", name, nil)
+	createLocalFarm(t, a, "FRM-1", name)
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("contributing a farm: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestResponseEndingIsNotProofTheSetArrived(t *testing.T) {
 	// LOADING_FROM_AGRIROUTER takes the set again.
 	h := newHarness(t)
 	a := contributed(t, h, "Hof Nord")
-	createLocalFarm(t, a, "FRM-2", "Hof Süd", nil)
+	createLocalFarm(t, a, "FRM-2", "Hof Süd")
 	if _, err := a.Send(context.Background(), agmasync.TypeFarm, "FRM-2"); err != nil {
 		t.Fatalf("contributing a second farm: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestRecognisedRecordIsMatchedRatherThanDuplicated(t *testing.T) {
 	contributed(t, h, "Hof Nord")
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
-	createLocalFarm(t, b, "B-77", "Hof Nord", nil)
+	createLocalFarm(t, b, "B-77", "Hof Nord")
 
 	res, err := loader(b).Run(context.Background())
 	if err != nil {
@@ -216,7 +216,7 @@ func TestRecordsTheSetDidNotContainAreOfferedBack(t *testing.T) {
 	contributed(t, h, "Hof Nord")
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
-	createLocalFarm(t, b, "B-99", "Hof West", nil)
+	createLocalFarm(t, b, "B-99", "Hof West")
 
 	res, err := loader(b).Run(context.Background())
 	if err != nil {
@@ -303,7 +303,7 @@ func TestRecognisedDeactivatedObjectIsBoundAndMarkedInactive(t *testing.T) {
 	}
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
-	createLocalFarm(t, b, "B-77", "hof nord", nil)
+	createLocalFarm(t, b, "B-77", "hof nord")
 
 	res, err := loader(b).Run(context.Background())
 	if err != nil {
@@ -388,8 +388,8 @@ func TestAmbiguousMatchStopsTheLoadForAPersonAndResumesOnceTheyAnswer(t *testing
 	contributed(t, h, "Hof Nord")
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
-	createLocalFarm(t, b, "B-1", "Hof Nord", nil)
-	createLocalFarm(t, b, "B-2", "Hof Nord", nil)
+	createLocalFarm(t, b, "B-1", "Hof Nord")
+	createLocalFarm(t, b, "B-2", "Hof Nord")
 
 	res, err := loader(b).Run(context.Background())
 	if err != nil {
@@ -500,7 +500,6 @@ func TestRejectionIsResolvedAgainstTheWholePairNotTheLocalIdAlone(t *testing.T) 
 			EntityType: agmasync.TypeOrganization,
 			LocalID:    shared,
 			Modelled:   map[string]json.RawMessage{"name": mustJSON(t, "Genossenschaft Nord")},
-			Unmodelled: map[string]json.RawMessage{},
 		}, shared)
 	}); err != nil {
 		t.Fatalf("seeding the organization: %v", err)
@@ -638,7 +637,7 @@ func TestTheFlagIsUpWhileTheQuestionIsOpenAndNotOnlyOnceItIsAnswered(t *testing.
 	contributed(t, h, "Hof Nord")
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
-	createLocalFarm(t, b, "B-1", "Hof Nord GmbH", nil)
+	createLocalFarm(t, b, "B-1", "Hof Nord GmbH")
 
 	attention := &psync.Attention{}
 	asking := &asksAPerson{attention: attention, endpoint: b.Endpoint}

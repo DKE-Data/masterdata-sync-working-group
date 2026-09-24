@@ -130,7 +130,7 @@ the collection of one supported entity type (`organizations`, `persons`, `farms`
 
 | Operation                                          | Purpose                                                                                        |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `PUT /masterdata/<types>/{localId}`                | Sends the entity itself (creation or update). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
+| `PUT /masterdata/<types>/{localId}`                | Sends the entity (creation or update) as a merge patch: an attribute left out is unchanged, `null` removes one, see [Writing an entity](#writing-an-entity). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
 | `POST /masterdata/<types>/requests`                | Actively requests an entity ("lazy loading"), see [Requesting objects](#requesting-objects-lazy-loading). |
 | `POST /masterdata/<types>/{localId}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
 | `PUT`/`DELETE /masterdata/<types>/{localId}/id-mapping/{agrirouterId}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
@@ -354,7 +354,7 @@ Canonical attributes (subset):
   - 👷‍♂️ _to be refined_
 - `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
 - `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
-- `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. Participants MUST preserve metadata they do not understand and MUST relay it unchanged.
+- `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
 ## FieldBoundary
 
@@ -386,7 +386,7 @@ Canonical attributes:
 
   - `RED_ZONE_NITROGEN`: Red zone identification (N,P overfertilization)
   - `WATER_PROTECTION_AREA`: Including a water protection area
-- `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. Participants MUST preserve metadata they do not understand and MUST relay it unchanged.
+- `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
 ### Entity dependencies
 
@@ -435,6 +435,7 @@ binding format.
 Regardless of the finalized encoding, the following rules are normative:
 
 - The format MUST be **canonical**: every logical value has exactly one valid encoding. Producers MUST emit the canonical form; there is no "tolerant" reading of equivalent-but-different encodings.
+- `null` is not a value. In a write it is the instruction to remove an attribute (see [Writing an entity](#writing-an-entity)); a canonical object never contains it.
 - agrirouter MUST validate every incoming master-data payload against the defined subset. If validation fails, the request MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Payloads are not silently repaired.
 - Validation and rejection apply only to the operations defined here; they do not change the handling of other, pre-existing agrirouter traffic.
 
@@ -457,7 +458,7 @@ The values listed for an extensible enum are those known at the time of writing,
 not an exhaustive set. Normatively:
 
 - A value outside the listed set MUST NOT be a validation failure (see [Hard validation](#hard-validation)) and MUST NOT cause the entity to be rejected, dropped, or altered.
-- Receivers MUST tolerate unknown values: relay them unchanged, and where the value drives behaviour, fall back to the handling they apply to an unknown value.
+- Receivers MUST tolerate unknown values: never rewrite one, and where the value drives behaviour, fall back to the handling they apply to an unknown value. A receiver that cannot store an unknown value leaves the attribute out of its writes, which keeps it (see [Writing an entity](#writing-an-entity)).
 - Values are `UPPER_SNAKE_CASE`.
 - Adding a value is a compatible change and MAY happen in a minor revision of this document. Removing or renaming a value is breaking and MUST NOT.
 
@@ -1002,6 +1003,31 @@ initial load again, by connecting to the initial-load stream or confirming
 bindings. Otherwise a resume from an earlier position would deliver the reset
 again after new bindings exist, and discard them.
 
+## Writing an entity
+
+A write must state what changes, not necessarily the whole object. The body of
+`PUT /masterdata/<types>/{localId}` is applied to the canonical object as a JSON
+Merge Patch ({{?RFC7396}}) of its non-envelope attributes:
+
+- **Present:** an attribute carrying a value replaces the current one.
+- **`null`:** the attribute is removed.
+- **Absent:** the attribute is left as it is.
+
+The same rules apply inside plain nested objects such as `address`, `contact`, or
+`metadata`: `{"address": {"city": "Husum"}}` changes the city and keeps the street.
+Arrays, [references](#references), and geometries are replaced whole instead,
+because a part of one means nothing on its own.
+
+- On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
+- A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every participant supports, so a participant always holds them.
+- `null` for a required attribute or an envelope field is rejected with `400`. An absent `active` leaves the object's state unchanged.
+- Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
+
+This is what relaying amounts to. A participant does not store, and does not send,
+attributes it does not model: leaving them out of its writes keeps them for every
+participant that does. A participant SHOULD therefore send every attribute it
+models, `null` for those it holds empty, and omit everything else.
+
 ## Loop prevention
 
 Bidirectional synchronization risks an "infinite loop" of echoed updates: A's
@@ -1012,7 +1038,7 @@ when nothing actually changed.
 The protocol relies on the SSOT to break these loops:
 
 - agrirouter MUST NOT echo a change back to the **endpoint** it originated from. The unit of suppression is the endpoint: agrirouter records the originating `sourceEndpointId` for every revision it produces and does not deliver an object back to the endpoint named there. A change made by one endpoint is still delivered to the participant's other endpoints. Where two of them are backed by one store the sibling may re-emit the object, and it is the no-op detection below — not origin suppression — that breaks that loop, because the re-emission equals the current canonical revision.
-- agrirouter maintains the `revision` counter per canonical object. An incoming entity that does not actually change the canonical object (it is equal to the current canonical revision) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
+- agrirouter maintains the `revision` counter per canonical object. An incoming entity that does not actually change the canonical object (applying it leaves the current canonical revision as it is) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
 - Participants SHOULD avoid re-emitting an object they have just received without a genuine local change. Because some systems cannot guarantee this, agrirouter's origin-suppression and no-op detection are the authoritative safeguards and do not depend on well-behaved participants.
 
 ## Concurrency control
@@ -1033,9 +1059,9 @@ client-supplied revision is compared and discarded, never assigned (see
 
 On a write that resolves to an existing object, agrirouter MUST proceed as follows:
 
-- **Payload equal to the current canonical value.** The write succeeds as a no-op, whatever the base: no new revision, nothing forwarded (see [Loop prevention](#loop-prevention)). This is what makes it safe to retry a write whose outcome was not observed.
+- **Write that changes nothing.** Applied to the current canonical value, the write leaves it as it is. It succeeds as a no-op, whatever the base: no new revision, nothing forwarded (see [Loop prevention](#loop-prevention)). This is what makes it safe to retry a write whose outcome was not observed.
 - **Base equal to the current revision.** The write is applied and produces the next revision.
-- **Base behind the current revision.** agrirouter MUST attempt a **three-way merge**: it compares the changes from the base to the current revision with the changes from the base to the sent object. Where the two do not overlap, it applies the participant's changes on top of the current revision and answers with the merged object — a success whose `revision` is *not* base + 1, and whose content the participant did not send. Where they overlap, the write is rejected with `412 Precondition Failed`.
+- **Base behind the current revision.** agrirouter MUST attempt a **three-way merge**: it compares the changes from the base to the current revision with the changes the write makes to the base. Only the attributes a write carries are changes: a stale write neither conflicts with nor reverts a change to an attribute it leaves out. Where the two do not overlap, it applies the participant's changes on top of the current revision and answers with the merged object — a success whose `revision` is *not* base + 1, and whose content the participant did not send. Where they overlap, the write is rejected with `412 Precondition Failed`.
 - **Base absent.** The write is rejected with `428 Precondition Required`. Omitting the header would opt a participant out of concurrency control, and the integrations least able to surface a conflict to a user are the ones most likely to omit it.
 - **Base that agrirouter never issued for the object.** Rejected with `412`.
 
@@ -1090,8 +1116,8 @@ resulting canonical object — and a participant MUST apply all three the same w
 write response is not merely an acknowledgement. It is the only channel on which
 the writing endpoint learns anything about the revision it just produced, since
 [origin suppression](#loop-prevention) keeps that revision off its own stream,
-and it carries state the participant did not send: the `agrirouterId` assigned to
-a newly created object, and the resulting object where agrirouter reconciled the
+and it carries state the participant did not send: the attributes the write left
+out, the `agrirouterId` assigned to a newly created object, and the resulting object where agrirouter reconciled the
 write against a concurrent change rather than rejecting it (see
 [Concurrency control](#concurrency-control)).
 
@@ -1142,7 +1168,7 @@ Deferred is not undecided, and the shape it returns in is fixed by what this
 version already settles elsewhere:
 
 - **Operation-agnostic.** References to the entities a given entity supersedes, with nothing on the wire distinguishing a split from a merge — a split names one predecessor on each successor, a merge names several on one, and neither needs an operation of its own. A participant that does not model the distinction is unaffected by it.
-- **Held by agrirouter, read-only to participants.** Lineage is a property of the canonical object, like the [identifier mapping](#identifier-mapping), not an attribute a sender restates on every write. Carried in the envelope it would be erased by the next whole-object send from a participant that does not model it, and that erasure would be a change like any other — a new revision, delivered to everyone.
+- **Held by agrirouter, read-only to participants.** Lineage is a property of the canonical object, like the [identifier mapping](#identifier-mapping), not an attribute a sender restates on every write. Carried as an attribute, any participant could overwrite or `null` it, and that change would be a new revision like any other, delivered to everyone.
 - **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — inactive, if it was deactivated by the split — because current state is the only thing agrirouter serves.
 
 ## Requesting objects (lazy loading)

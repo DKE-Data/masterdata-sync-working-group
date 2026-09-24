@@ -4,3 +4,7 @@ generate:
   strict-server: true
   models: true
 output: reference-client/internal/testrouter/oapi/server.gen.go
+output-options:
+  # Optional attributes are nullable: `null` on a write removes one, so the
+  # models must tell unset, null, and a value apart.
+  nullable-type: true

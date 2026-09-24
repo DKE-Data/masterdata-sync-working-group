@@ -79,8 +79,15 @@ paths:
         application's endpoints sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
-        revision) do not create a new revision and are not forwarded.
+        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        revision as it is) do not create a new revision and are not forwarded.
+
+
+        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
+        an attribute with a value replaces the current one, `null` removes it,
+        and an attribute left out is unchanged. Nested objects merge the same
+        way. Required attributes are required on every write and are never
+        `null`. The response is always the whole resulting object.
       operationId: putOrganization
       requestBody:
         required: true
@@ -261,8 +268,16 @@ paths:
         application's endpoints sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
-        revision) do not create a new revision and are not forwarded.
+        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        revision as it is) do not create a new revision and are not forwarded.
+
+
+        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
+        an attribute with a value replaces the current one, `null` removes it,
+        and an attribute left out is unchanged. Nested objects merge the same
+        way; arrays are replaced whole. Required attributes are required on
+        every write and are never `null`. The response is always the whole
+        resulting object.
       operationId: putPerson
       requestBody:
         required: true
@@ -443,8 +458,16 @@ paths:
         application's endpoints sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
-        revision) do not create a new revision and are not forwarded.
+        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        revision as it is) do not create a new revision and are not forwarded.
+
+
+        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
+        an attribute with a value replaces the current one, `null` removes it,
+        and an attribute left out is unchanged. Nested objects merge the same
+        way; arrays, references, and geometries are replaced whole. Required
+        attributes are required on every write and are never `null`. The
+        response is always the whole resulting object.
       operationId: putFarm
       requestBody:
         required: true
@@ -625,8 +648,16 @@ paths:
         application's endpoints sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
-        revision) do not create a new revision and are not forwarded.
+        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        revision as it is) do not create a new revision and are not forwarded.
+
+
+        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
+        an attribute with a value replaces the current one, `null` removes it,
+        and an attribute left out is unchanged. Nested objects merge the same
+        way; arrays and references are replaced whole. Required attributes are
+        required on every write and are never `null`. The response is always
+        the whole resulting object.
       operationId: putField
       requestBody:
         required: true
@@ -807,8 +838,16 @@ paths:
         application's endpoints sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (equal to the current canonical
-        revision) do not create a new revision and are not forwarded.
+        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        revision as it is) do not create a new revision and are not forwarded.
+
+
+        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
+        an attribute with a value replaces the current one, `null` removes it,
+        and an attribute left out is unchanged. Nested objects merge the same
+        way; arrays and geometries are replaced whole. Required attributes are
+        required on every write and are never `null`. The response is always
+        the whole resulting object.
       operationId: putFieldBoundary
       requestBody:
         required: true
@@ -1779,6 +1818,11 @@ components:
         and `source_endpoint_id` are ignored on send; `agrirouter_id`,
         `tenant_id`, and `type` must match the object written, or the write
         is a 400.
+
+
+        An optional attribute declared nullable accepts `null` on a write, where
+        it removes the attribute. agrirouter never delivers `null`: an attribute
+        absent from a delivered object is unset.
       properties:
         agrirouter_id:
           type: string
@@ -1840,17 +1884,17 @@ components:
       type: object
       properties:
         street:
-          type: string
+          type: [string, 'null']
         po_box:
-          type: string
+          type: [string, 'null']
         postal_code:
-          type: string
+          type: [string, 'null']
         city:
-          type: string
+          type: [string, 'null']
         state:
-          type: string
+          type: [string, 'null']
         country:
-          type: string
+          type: [string, 'null']
           description: ISO 3166-1 alpha-2 country code.
           pattern: '^[A-Z]{2}$'
 
@@ -1858,11 +1902,11 @@ components:
       type: object
       properties:
         phone:
-          type: string
+          type: [string, 'null']
         mobile:
-          type: string
+          type: [string, 'null']
         email:
-          type: string
+          type: [string, 'null']
           format: email
 
     HarvestPeriod:
@@ -1875,11 +1919,11 @@ components:
           type: string
           format: date
         valid_to:
-          type: string
+          type: [string, 'null']
           format: date
           description: Absent means open / current.
         label:
-          type: string
+          type: [string, 'null']
           description: 'Human-facing designation, e.g. "2026" or "2025/2026".'
       required: [valid_from]
 
@@ -1901,7 +1945,7 @@ components:
             name:
               type: string
             commercial_registry_number:
-              type: string
+              type: [string, 'null']
               description: Identifier from the commercial register.
           required: [type, name]
 
@@ -1913,19 +1957,25 @@ components:
         does; only the commercial register entry is specific to organizations.
       properties:
         address:
-          $ref: '#/components/schemas/Address'
+          oneOf:
+            - $ref: '#/components/schemas/Address'
+            - type: 'null'
         contact:
-          $ref: '#/components/schemas/Contact'
+          oneOf:
+            - $ref: '#/components/schemas/Contact'
+            - type: 'null'
         billing_address:
-          $ref: '#/components/schemas/Address'
+          oneOf:
+            - $ref: '#/components/schemas/Address'
+            - type: 'null'
         tax_number:
-          type: string
+          type: [string, 'null']
           description: Identifier assigned by tax authorities.
         tax_id:
-          type: string
+          type: [string, 'null']
           description: Numerical identifier assigned by tax authorities.
         trade_id:
-          type: string
+          type: [string, 'null']
           description: Numerical identifier assigned by public authorities.
 
     Person:
@@ -1943,13 +1993,13 @@ components:
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
             title:
-              type: string
+              type: [string, 'null']
             first_name:
-              type: string
+              type: [string, 'null']
             last_name:
               type: string
             memberships:
-              type: array
+              type: [array, 'null']
               description: >
                 The organizations this person belongs to, each with the role
                 held there. A person carrying at least one entry is a member.
@@ -2031,22 +2081,26 @@ components:
             name:
               type: string
             specialised_usage_type:
-              type: string
+              type: [string, 'null']
               description: >
                 Production orientation of the farm (e.g. arable farming, dairy,
                 vineyard, orchard). Free-form, drawn from AGROVOC where a
                 matching concept exists.
             partners:
-              type: array
+              type: [array, 'null']
               description: >
                 Parties holding a role on this farm, such as the contractor that
                 works it or the advisor that reads it.
               items:
                 $ref: '#/components/schemas/Partner'
             address:
-              $ref: '#/components/schemas/Address'
+              oneOf:
+                - $ref: '#/components/schemas/Address'
+                - type: 'null'
             geo_reference:
-              $ref: '#/components/schemas/Geometry'
+              oneOf:
+                - $ref: '#/components/schemas/Geometry'
+                - type: 'null'
               description: A GeoJSON Point (longitude, latitude) locating the farm.
           required: [type, owner, name]
 
@@ -2055,7 +2109,7 @@ components:
       description: Soil characteristics of a field.
       properties:
         type:
-          type: string
+          type: [string, 'null']
           description: >
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
             The soil classification.
@@ -2067,7 +2121,7 @@ components:
             - CLAYEY_LOAM
             - CLAY
         rating_points:
-          type: integer
+          type: [integer, 'null']
           minimum: 0
           maximum: 100
           description: >
@@ -2090,13 +2144,17 @@ components:
             name:
               type: string
             area:
-              type: number
+              type: [number, 'null']
               description: Nominal area in square metres.
             farm:
-              $ref: '#/components/schemas/EntityReference'
+              oneOf:
+                - $ref: '#/components/schemas/EntityReference'
+                - type: 'null'
               description: The farm this field belongs to.
             owner:
-              $ref: '#/components/schemas/PartyReference'
+              oneOf:
+                - $ref: '#/components/schemas/PartyReference'
+                - type: 'null'
               description: >
                 The organization or person holding this field, for systems that
                 attribute fields to a party directly. When absent, the field is
@@ -2104,22 +2162,26 @@ components:
                 this field, which is how a field held by one party but managed
                 under another's farm is expressed.
             soil:
-              $ref: '#/components/schemas/SoilInfo'
+              oneOf:
+                - $ref: '#/components/schemas/SoilInfo'
+                - type: 'null'
             topography:
-              type: number
+              type: [number, 'null']
               description: 'Slope / gradient, e.g. 7 (degrees).'
             field_boundaries:
-              type: array
+              type: [array, 'null']
               description: References to the field's boundaries.
               items:
                 $ref: '#/components/schemas/EntityReference'
             harvest_period:
-              $ref: '#/components/schemas/HarvestPeriod'
+              oneOf:
+                - $ref: '#/components/schemas/HarvestPeriod'
+                - type: 'null'
             metadata:
-              type: object
+              type: [object, 'null']
               description: >
-                Additional key/value metadata. Participants MUST preserve and relay
-                metadata they do not understand.
+                Additional key/value metadata. A participant leaves the keys it
+                does not understand out of its writes, which keeps them.
               additionalProperties: true
           required: [type, name]
 
@@ -2160,7 +2222,7 @@ components:
               $ref: '#/components/schemas/Geometry'
               description: A GeoJSON Polygon or MultiPolygon.
             boundary_type:
-              type: string
+              type: [string, 'null']
               description: >
                 [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
                 The boundary classification.
@@ -2170,7 +2232,7 @@ components:
                 - ECONOMIC_DEFINED
                 - ADMINISTRATIVE_RECEIVED
             creation_method:
-              type: string
+              type: [string, 'null']
               description: >
                 [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
                 How the boundary was produced.
@@ -2183,13 +2245,15 @@ components:
                 - AUTO_IMAGERY
                 - ADMINISTRATIVE
             harvest_period:
-              $ref: '#/components/schemas/HarvestPeriod'
+              oneOf:
+                - $ref: '#/components/schemas/HarvestPeriod'
+                - type: 'null'
             obstacles:
-              type: array
+              type: [array, 'null']
               items:
                 $ref: '#/components/schemas/Obstacle'
             regulatory_requirements:
-              type: string
+              type: [string, 'null']
               description: >
                 [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
                 A regulatory constraint applying to the boundary.
@@ -2197,10 +2261,10 @@ components:
                 - RED_ZONE_NITROGEN
                 - WATER_PROTECTION_AREA
             metadata:
-              type: object
+              type: [object, 'null']
               description: >
-                Additional key/value metadata. Participants MUST preserve and relay
-                metadata they do not understand.
+                Additional key/value metadata. A participant leaves the keys it
+                does not understand out of its writes, which keeps them.
               additionalProperties: true
           required: [type, boundary]
 

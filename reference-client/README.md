@@ -32,7 +32,7 @@ in process.
 8. Reconciliation that needs a person stops the load until it has an answer
 9. An object asked back for after the endpoint that wrote it lost it
 10. A live change referencing what the set has not delivered, wating rather than requesting
-11. Attributes a participant does not model, relayed unchanged
+11. Attributes a participant does not model, kept by leaving them out
 12. A recipient stricter than the protocol
 13. A route removal performed while the participant was offline
 14. A field split in two, and the two merged back, with no lineage on the wire
@@ -129,9 +129,10 @@ Three things prose cannot settle, watched rather than read:
   there is no operation that reads it back, and catch-up restates it only above
   the participant's position. An endpoint that took a position past a
   `ROUTE_CHANGED` it failed to record has to go back for it.
-- **An attribute this platform has no column for, relayed unchanged.** Put a
-  `metadata` object on a field: the canonical model defines it, this sample's
-  tables do not, and it comes back out of the other participant untouched.
+- **An attribute this platform has no column for, kept by leaving it out.** Put
+  a `metadata` object on a field: the canonical model defines it, this sample's
+  tables do not, and it survives the other participant's edits without that
+  participant storing it, because a write only changes what it carries.
   Attributes the canonical model does not define are a different matter — the
   schema is closed, and the typed client drops them before they reach the wire.
 

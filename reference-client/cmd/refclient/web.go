@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -433,11 +432,6 @@ type objectView struct {
 	// Modelled is the record's attributes in the order the create form asks for
 	// them, labelled the way it labels them. The same fields, read back.
 	Modelled []detailAttr
-
-	// Unmodelled is what arrived that this platform has no column for, kept and
-	// relayed unchanged. It is shown apart because that distinction is the whole
-	// point of the split — and on a record created here it is always empty.
-	Unmodelled []attribute
 }
 
 // detailAttr is one attribute as the detail screen shows it.
@@ -479,7 +473,6 @@ func (in *instance) showObject(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		view.Modelled = detailAttrs(tx, record)
-		view.Unmodelled = unmodelledAttrs(record)
 		return nil
 	})
 	switch {
@@ -598,19 +591,6 @@ func refTarget(raw json.RawMessage) (agmasync.EntityType, string) {
 		return "", ""
 	}
 	return agmasync.EntityType(ref.Type), ref.LocalID
-}
-
-func unmodelledAttrs(record store.Record) []attribute {
-	var out []attribute
-	names := make([]string, 0, len(record.Unmodelled))
-	for name := range record.Unmodelled {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		out = append(out, attribute{Name: name, Value: compact(record.Unmodelled[name])})
-	}
-	return out
 }
 
 func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {

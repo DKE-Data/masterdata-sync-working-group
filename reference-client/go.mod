@@ -6,8 +6,10 @@ require (
 	github.com/DKE-Data/masterdata-sync-working-group/agmasync v0.0.0-00010101000000-000000000000
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo/v4 v4.15.1
+	github.com/oapi-codegen/nullable v1.2.0
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/testcontainers/testcontainers-go v0.44.0
+	golang.org/x/oauth2 v0.35.0
 	modernc.org/sqlite v1.58.0
 )
 
@@ -70,7 +72,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

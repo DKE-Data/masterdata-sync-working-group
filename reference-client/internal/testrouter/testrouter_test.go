@@ -16,6 +16,7 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/testrouter"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 )
 
 // fixture is one router with one tenant, serving two participants that each
@@ -236,9 +237,9 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	}
 
 	// B, still on the old base, changes a different attribute.
-	address := oapi.Address{City: strptr("Rostock")}
+	address := oapi.Address{City: nullable.NewNullableWithValue("Rostock")}
 	withAddress, _ := agmasync.FromFarm(oapi.Farm{
-		LocalId: strptr("B-FARM-9"), Name: "Hof Nord", Address: &address,
+		LocalId: strptr("B-FARM-9"), Name: "Hof Nord", Address: nullable.NewNullableWithValue(address),
 	})
 	merged, err := b.endpoint.Put(context.Background(), withAddress, &base)
 	if err != nil {
@@ -252,8 +253,7 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	if mergedFarm.Name != "Hof Süd" {
 		t.Errorf("name = %q, want A's rename carried into the merged result", mergedFarm.Name)
 	}
-	if mergedFarm.Address == nil || mergedFarm.Address.City == nil ||
-		*mergedFarm.Address.City != "Rostock" {
+	if city := cityOf(mergedFarm); city != "Rostock" {
 		t.Error("B's own change is missing from the merged result")
 	}
 	if rev := revisionOf(t, merged); rev != base+2 {
@@ -394,7 +394,7 @@ func TestUnresolvableReferenceIsRejected(t *testing.T) {
 	field, err := agmasync.FromField(oapi.Field{
 		LocalId: strptr("PFD-1"),
 		Name:    "North 40",
-		Farm:    &oapi.EntityReference{LocalId: strptr("FRM-NOT-SENT-YET")},
+		Farm:    nullable.NewNullableWithValue(oapi.EntityReference{LocalId: strptr("FRM-NOT-SENT-YET")}),
 	})
 	if err != nil {
 		t.Fatalf("building field: %v", err)
@@ -562,6 +562,16 @@ func TestAwaitingUserIsRefusedOnceTheLoadIsCompleted(t *testing.T) {
 
 func strptr(s string) *string { return &s }
 
+// cityOf reads a farm's address city, empty when either is unset.
+func cityOf(farm oapi.Farm) string {
+	address, err := farm.Address.Get()
+	if err != nil {
+		return ""
+	}
+	city, _ := address.City.Get()
+	return city
+}
+
 func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	// Merge bases are retained without a horizon, so a participant that has been
 	// away across many revisions is merged against rather than refused. A `412`
@@ -598,9 +608,9 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 
 	// B writes from the revision it saw at the very beginning, touching an
 	// attribute nobody else has.
-	address := oapi.Address{City: strptr("Rostock")}
+	address := oapi.Address{City: nullable.NewNullableWithValue("Rostock")}
 	entity, _ := agmasync.FromFarm(oapi.Farm{
-		LocalId: strptr("B-1"), Name: "Hof 0", Address: &address,
+		LocalId: strptr("B-1"), Name: "Hof 0", Address: nullable.NewNullableWithValue(address),
 	})
 	merged, err := b.endpoint.Put(context.Background(), entity, &longAgo)
 	if err != nil {
@@ -614,7 +624,7 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	if mergedFarm.Name != "Hof 50" {
 		t.Errorf("name = %q, want the intervening renames preserved", mergedFarm.Name)
 	}
-	if mergedFarm.Address == nil || mergedFarm.Address.City == nil {
+	if cityOf(mergedFarm) == "" {
 		t.Error("B's own change is missing from the merged result")
 	}
 }

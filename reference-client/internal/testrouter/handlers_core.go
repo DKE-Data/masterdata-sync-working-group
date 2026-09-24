@@ -1,9 +1,11 @@
 package testrouter
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
@@ -17,13 +19,34 @@ import (
 // and is not a parameter of any operation, so the handlers need the request.
 type echoContextKey struct{}
 
-// withEchoContext is the middleware that makes the above work.
+// rawBodyKey carries a write's body as the participant sent it. The strict
+// handler hands over a typed value, and a typed value cannot tell an attribute
+// sent as null from one left out, where a write means opposite things by them:
+// remove it, and leave it alone.
+type rawBodyKey struct{}
+
+// withEchoContext is the middleware that makes the above work. It also keeps
+// the raw body of a PUT, restoring it for the strict handler to decode.
 func withEchoContext(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		req := c.Request()
-		c.SetRequest(req.WithContext(context.WithValue(req.Context(), echoContextKey{}, c)))
+		ctx := context.WithValue(req.Context(), echoContextKey{}, c)
+		if req.Method == http.MethodPut && req.Body != nil {
+			raw, err := io.ReadAll(req.Body)
+			if err != nil {
+				return err
+			}
+			req.Body = io.NopCloser(bytes.NewReader(raw))
+			ctx = context.WithValue(ctx, rawBodyKey{}, raw)
+		}
+		c.SetRequest(req.WithContext(ctx))
 		return next(c)
 	}
+}
+
+func rawBodyFrom(ctx context.Context) ([]byte, bool) {
+	raw, ok := ctx.Value(rawBodyKey{}).([]byte)
+	return raw, ok
 }
 
 func echoFrom(ctx context.Context) (echo.Context, bool) {
@@ -118,16 +141,16 @@ func toWireRejection(r oapiRejection) oapi.IdMappingRejection {
 // doPut is the shared body of the five Put handlers.
 func (r *Router) doPut(
 	ctx context.Context, typ agmasync.EntityType, localID string,
-	endpointID uuid.UUID, base *int, body any,
+	endpointID uuid.UUID, base *int,
 ) (json.RawMessage, bool, error) {
 	ep, err := r.endpointFrom(ctx, endpointID)
 	if err != nil {
 		return nil, false, err
 	}
 
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return nil, false, err
+	raw, ok := rawBodyFrom(ctx)
+	if !ok {
+		return nil, false, errors.New("write body missing")
 	}
 	sent, err := decodeSentIdentity(raw)
 	if err != nil {

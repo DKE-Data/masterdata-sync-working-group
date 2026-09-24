@@ -134,10 +134,14 @@ func (s *store) put(
 	if err != nil {
 		return nil, false, err
 	}
+	if err := rejectNull(typ, body); err != nil {
+		return nil, false, err
+	}
 	if err := s.resolveRefs(ep.appID, typ, incoming); err != nil {
 		return nil, false, err
 	}
 	active := activeOf(body)
+	whole := wholeAttributes(typ)
 
 	objID, known := s.local[localKey{ep.appID, typ, localID}]
 	if err := sent.checkBinding(localID, objID, known); err != nil {
@@ -152,17 +156,38 @@ func (s *store) put(
 		if base != nil {
 			return nil, false, &revisionConflict{current: 0}
 		}
-		obj := s.create(ep, typ, localID, incoming, active)
+		// A create is the patch applied to nothing, so null means absent.
+		content := map[string]json.RawMessage{}
+		for k, v := range incoming {
+			if value := patchAttribute(nil, v, whole[k]); value != nil {
+				content[k] = value
+			}
+		}
+		obj := s.create(ep, typ, localID, content, active == nil || *active)
 		s.deliver(obj, ep.id, false)
 		return obj, true, nil
 	}
 
 	obj := s.objects[objID]
 
-	// A payload equal to the current canonical value succeeds as a no-op
-	// whatever the base: no new revision, nothing forwarded. This is what makes
-	// a write whose outcome was never observed safe to retry.
-	if sameContent(obj.content, incoming) && obj.active == active {
+	// Only what the write carries can change. An attribute it leaves out is
+	// neither a change of its own nor in the way of anyone else's.
+	patched := map[string]json.RawMessage{}
+	for k, v := range incoming {
+		patched[k] = patchAttribute(obj.content[k], v, whole[k])
+	}
+	activeChanged := active != nil && *active != obj.active
+
+	// A write that changes nothing succeeds as a no-op whatever the base: no
+	// new revision, nothing forwarded. This is what makes a write whose
+	// outcome was never observed safe to retry.
+	changesSomething := activeChanged
+	for k, v := range patched {
+		if !bytes.Equal(v, obj.content[k]) {
+			changesSomething = true
+		}
+	}
+	if !changesSomething {
 		return obj, false, nil
 	}
 	if base == nil {
@@ -173,39 +198,30 @@ func (s *store) put(
 	}
 
 	// A base behind the current revision is not necessarily a failure. The
-	// merge compares two sets of changes against the base: the participant's,
-	// and everyone else's since. Only an attribute both of them touched, and
+	// merge compares two sets of changes against the base: the write's, and
+	// everyone else's since. Only an attribute both of them touched, and
 	// touched differently, is a conflict.
 	changed := map[string]json.RawMessage{}
-	for k := range union(incoming, obj.content) {
-		sent, sentPresent := incoming[k]
-		if !sentPresent {
-			sent = nil
-		}
-		current, currentPresent := obj.content[k]
-		if !currentPresent {
-			current = nil
-		}
+	for k, v := range incoming {
 		atBase := obj.valueAt(k, *base)
+		intended := patchAttribute(atBase, v, whole[k])
+		current := obj.content[k]
 
-		participantChanged := !bytes.Equal(sent, atBase)
-		othersChanged := !bytes.Equal(current, atBase)
-
-		if !participantChanged {
-			continue
+		if bytes.Equal(intended, atBase) {
+			continue // the write leaves this attribute as the participant saw it
 		}
 		// Both changed it, and not to the same thing. Nothing here can decide
 		// between them, so the write is rejected and the participant rebases.
-		if othersChanged && !bytes.Equal(sent, current) {
+		if !bytes.Equal(current, atBase) && !bytes.Equal(intended, current) {
 			return nil, false, &revisionConflict{current: obj.revision}
 		}
-		if bytes.Equal(sent, current) {
+		if bytes.Equal(patched[k], current) {
 			continue
 		}
-		changed[k] = sent
+		changed[k] = patched[k]
 	}
 
-	if len(changed) == 0 {
+	if len(changed) == 0 && !activeChanged {
 		return obj, false, nil
 	}
 
@@ -219,7 +235,9 @@ func (s *store) put(
 		obj.stamps[k] = obj.revision
 		obj.history[k] = append(obj.history[k], attributeValue{revision: obj.revision, value: v})
 	}
-	obj.active = active
+	if active != nil {
+		obj.active = *active
+	}
 	obj.modifiedAt = s.now().UTC()
 	obj.sourceEndpointID = ep.id
 	s.seq++
@@ -489,27 +507,37 @@ func contentOf(body []byte) (map[string]json.RawMessage, error) {
 	return content, nil
 }
 
-func activeOf(body []byte) bool {
+// activeOf reads `active` from a write, nil when the write leaves it out:
+// absent on an update leaves the object's state as it is.
+func activeOf(body []byte) *bool {
 	var probe struct {
 		Active *bool `json:"active"`
 	}
-	if err := json.Unmarshal(body, &probe); err != nil || probe.Active == nil {
-		return true
+	if err := json.Unmarshal(body, &probe); err != nil {
+		return nil
 	}
-	return *probe.Active
+	return probe.Active
 }
 
-func sameContent(a, b map[string]json.RawMessage) bool {
-	if len(a) != len(b) {
-		return false
+// rejectNull refuses null where removing is not an option: an attribute the
+// entity type requires, which would leave an object no participant can be sure
+// to support, and an envelope field, which agrirouter owns.
+func rejectNull(typ agmasync.EntityType, body []byte) error {
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(body, &all); err != nil {
+		return fmt.Errorf("malformed entity: %w", err)
 	}
-	for k, av := range a {
-		bv, ok := b[k]
-		if !ok || !bytes.Equal(av, bv) {
-			return false
+	for _, key := range requiredAttributes[typ] {
+		if v, ok := all[key]; ok && isNull(v) {
+			return fmt.Errorf("%s is required and cannot be null", key)
 		}
 	}
-	return true
+	for key := range envelopeAttributes {
+		if v, ok := all[key]; ok && isNull(v) {
+			return fmt.Errorf("%s cannot be null", key)
+		}
+	}
+	return nil
 }
 
 // valueAt returns an attribute's value as of a revision, which is what a
@@ -524,15 +552,4 @@ func (o *object) valueAt(attribute string, revision int) json.RawMessage {
 		at = entry.value
 	}
 	return at
-}
-
-func union(a, b map[string]json.RawMessage) map[string]bool {
-	keys := make(map[string]bool, len(a)+len(b))
-	for k := range a {
-		keys[k] = true
-	}
-	for k := range b {
-		keys[k] = true
-	}
-	return keys
 }
