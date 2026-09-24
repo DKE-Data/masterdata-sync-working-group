@@ -523,7 +523,8 @@ table durably and to restore it with the rest of its store.
 A mapping otherwise outlives the connection that created it: it belongs to the
 participant, and is not discarded when an entity type is opted out, when an
 endpoint's masterdata route is removed, or when an endpoint is removed (see
-[Disconnection and re-connection](#disconnection-and-re-connection)).
+[Disconnection and re-connection](#disconnection-and-re-connection)). Only a
+[masterdata reset](#masterdata-reset) discards it.
 
 A participant MUST NOT reuse one of its local identifiers for two distinct
 canonical objects, through any of its endpoints. If a participant sends a `localId`
@@ -608,6 +609,7 @@ Example event (non-normative):
 Note:
 - Catch-up restates the selection of every endpoint that has changed, and of every endpoint whose selection was emptied. agrirouter MUST issue `ROUTE_CHANGED` during catch-up for both. The second half is what makes a **withdrawal survive a disconnection**: an emptied endpoint has no selection to restate, so on the first rule alone it would simply never be heard from again, and a participant that was offline when its user withdrew would go on believing it was opted in. agrirouter therefore retains, per endpoint, that it took part at some point.
 - The event may be delivered more than once for one change and MUST be handled idempotently.
+- A [masterdata reset](#masterdata-reset) empties deletes every route in the tenant.
 
 ## Initial load
 
@@ -866,13 +868,14 @@ individually (see [Requesting objects (lazy loading)](#requesting-objects-lazy-l
 participant and merely offline. This section covers an endpoint whose
 participation itself ends, and what it finds if it comes back.
 
-Three distinct events end participation, at different scopes:
+Four distinct events end participation, at different scopes:
 
 | Event | Scope |
 |---|---|
 | **Type opt-out** — an entity type no longer exchanged, the user having deselected it or the participant having withdrawn it from the declaration | one entity type |
 | **Route removal** — the endpoint's masterdata route removed | every entity type of that endpoint |
 | **Endpoint removal** — the endpoint itself deleted from the tenant | the endpoint |
+| **Masterdata reset** — the tenant's master data wiped by the user, see [Masterdata reset](#masterdata-reset) | the tenant |
 
 What each discards:
 
@@ -881,6 +884,7 @@ What each discards:
 | Type opt-out | retained | **retained** | retained; discarded with the last entity type |
 | Route removal | retained | **retained** | discarded |
 | Endpoint removal | retained | **retained** | discarded |
+| Masterdata reset | **discarded** | **discarded** | discarded |
 
 The initial-load state is per endpoint, so opting one of several entity types
 out leaves it standing: the endpoint is still in step for what it remains opted
@@ -888,11 +892,12 @@ into. Opting the type back in restarts the load (see
 [Routing and opt-in](#routing-and-opt-in)), which is what discarding the state
 would have bought.
 
-Canonical objects contributed by the endpoint are retained in every case: they
+Canonical objects contributed by the endpoint are retained in every case except a
+reset: they
 are the tenant's data, held on the tenant's behalf, and other endpoints are
 synchronizing against them.
 
-The identifier mapping is retained in every case for the same reason it is
+The identifier mapping is retained in every case except a reset, for the same reason it is
 retained across [deactivation](#deactivation) — it is a property of the canonical
 object, not of the connection, and it is keyed by the participant rather than by
 the endpoint (see [Identifier mapping](#identifier-mapping)), so no endpoint's
@@ -938,6 +943,64 @@ The mapping hangs from the participant, not from the endpoint, so the retention
 above survives re-onboarding onto a fresh endpoint: a participant that removes an
 endpoint and creates another in the same tenant finds its bindings intact, and the
 set it is then initially loaded with arrives carrying its own `localId`s.
+
+### Masterdata reset
+
+A user can wipe a tenant's master data in agrirouter. No
+operation in this protocol performs it, only the user can.
+
+A reset discards, for the whole tenant, every canonical object, every
+participant's identifier mapping, every endpoint's masterdata route, and every
+initial-load state including the marker of a previous `COMPLETED` load. It is the only
+hard removal from the SSOT. [Masterdata capabilities](#declaration-what-an-endpoint-can-exchange)
+are retained, since they describe configuration rather than data.
+
+agrirouter notifies, with one `RESET_MASTERDATA_SYNC` event on its
+`/masterdata/events` stream, every application that holds a binding in the
+tenant or has an endpoint there that has taken part at some point (see
+[Learning what an endpoint exchanges](#learning-what-an-endpoint-exchanges)).
+The first includes an application whose endpoints in the tenant have all been
+removed: its bindings survived the removal (see
+[Identifier mapping](#identifier-mapping)), and the event is how it learns they
+are stale. It is the one event the stream carries for a tenant the application
+may no longer be routed to.
+
+Example event (non-normative):
+
+~~~ json
+{
+  "eventType": "RESET_MASTERDATA_SYNC",
+  "tenantId": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
+  "endpoints": [
+    {
+      "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+      "externalEndpointId": "urn:my-app:endpoint:42"
+    }
+  ]
+}
+~~~
+
+`endpoints` lists the receiving application's endpoints in the tenant, and is
+empty where it has none left.
+
+On receiving it, a participant:
+
+- MUST discard every binding it holds in the tenant, with the `revision` it keeps per object: neither names anything in agrirouter any longer;
+- MUST treat its endpoints in the tenant as opted into nothing, and discard its initial-load bookkeeping for them;
+- MUST NOT delete or deactivate its local records. They are its user's data, and the reset ends the exchange, not the data validity.
+
+Writes in the tenant are refused afterwards, since there is no route. A route the
+user creates again runs an ordinary first [initial load](#initial-load): no
+object carries a `localId`, there is no repeat marker, and the participant
+reconciles and binds afresh.
+
+agrirouter delivers the reset before any later `ROUTE_CHANGED` or object of the
+tenant, catch-up included, and retains that the tenant was reset so that
+catch-up from an earlier position restates it. A participant MUST durably store
+a position at or past the reset frame before it takes part in that tenant's
+initial load again, by connecting to the initial-load stream or confirming
+bindings. Otherwise a resume from an earlier position would deliver the reset
+again after new bindings exist, and discard them.
 
 ## Loop prevention
 
@@ -1044,7 +1107,8 @@ deactivated in its source system. "Deactivation" is intentionally generic: it co
 any state in which the source no longer considers the entity active. It is a
 lifecycle transition of the canonical object (`active` becomes `false`), **not** a
 hard removal from the SSOT — the canonical object and its identifier mapping are
-retained so that synchronization and references remain intact.
+retained so that synchronization and references remain intact. The only hard
+removal is a [masterdata reset](#masterdata-reset).
 
 Deactivation MUST be **idempotent**. The same entity may be deactivated more than
 once (for example because several systems independently archive it, or a request
@@ -1130,6 +1194,10 @@ type receives every canonical object of that type in the exchange, and no
 attribute inside a synchronized object narrows that (see [Farm](#farm)). The set
 of entity types a user opts an endpoint into therefore defines exactly what
 master data that endpoint is exposed to.
+
+A [masterdata reset](#masterdata-reset) is likewise a user's control and is not
+reachable through this protocol: a participant can neither perform nor request
+one.
 
 That set is the user's [selection](#selection-what-an-endpoint-does-exchange)
 and never the participant's

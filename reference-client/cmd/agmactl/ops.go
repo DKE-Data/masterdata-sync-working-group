@@ -527,6 +527,17 @@ func printFrame(ev agmasync.Event) {
 		fmt.Printf("%-26s %s=[%s]\n",
 			ev.Type, ev.Selection.ExternalId, strings.Join(names, " "))
 
+	case ev.Reset != nil:
+		// Stands for an empty selection on every endpoint it lists, and for
+		// every pair in the tenant being gone.
+		names := make([]string, 0, len(ev.Reset.Endpoints))
+		for _, ep := range ev.Reset.Endpoints {
+			names = append(names, ep.ExternalId)
+		}
+		fmt.Printf("%-26s tenant=%s endpoints=[%s]\n",
+			ev.Type, ev.Reset.TenantId, strings.Join(names, " "))
+		fmt.Println("                           discard every binding in this tenant; keep the records")
+
 	case ev.HasEntity():
 		// The tenant is on the frame because one application stream carries
 		// every tenant it is routed to; a receiver holding several partitions
@@ -601,6 +612,36 @@ func runRoute(ctx context.Context, e *env, args []string) error {
 
 	fmt.Printf("routed: %s\n", orNone(strings.Join(names, ", ")))
 	fmt.Println("        a widened routing starts an initial load; watch `agmactl status`")
+	return nil
+}
+
+// runReset stands in for the user wiping the tenant's master data in
+// agrirouter. Like routing, it is the user's and has no participant-facing
+// operation; the participant learns of it on the stream.
+func runReset(ctx context.Context, e *env, args []string) error {
+	if len(args) != 0 {
+		return errors.New("usage: agmactl reset")
+	}
+	if e.tenantID == "" {
+		return errors.New("a tenant is required: pass -tenant")
+	}
+
+	url := strings.TrimSuffix(e.baseURL, "/") + "/_test/tenants/" + e.tenantID + "/reset"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("the control plane is a test-router affordance: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("reset refused: HTTP %d", resp.StatusCode)
+	}
+
+	fmt.Printf("reset: tenant %s\n", e.tenantID)
+	fmt.Println("       every endpoint there is routed to nothing; route again to start a first load")
 	return nil
 }
 

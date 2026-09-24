@@ -80,6 +80,11 @@ type store struct {
 	byExternal map[string]*endpoint
 	tenants    map[uuid.UUID]bool
 
+	// resets holds, per tenant, its latest masterdata reset. It is never
+	// discarded: positions do not expire, so a participant resuming from before
+	// a reset has to be told of it however long it was away.
+	resets map[uuid.UUID]tenantReset
+
 	seq uint64
 
 	hub      *hub
@@ -106,6 +111,7 @@ func newStore(hub *hub, obs *observer) *store {
 		endpoints:  map[uuid.UUID]*endpoint{},
 		byExternal: map[string]*endpoint{},
 		tenants:    map[uuid.UUID]bool{},
+		resets:     map[uuid.UUID]tenantReset{},
 		hub:        hub,
 		observer:   obs,
 		now:        time.Now,

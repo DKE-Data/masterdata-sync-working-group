@@ -65,6 +65,9 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("applying schema: %w", err)
 	}
+	if err := addAgrirouterTenantIDColumn(db); err != nil {
+		return nil, err
+	}
 
 	s := &Store{db: db, ro: db}
 	if inMemory(path) {
@@ -82,6 +85,26 @@ func Open(path string) (*Store, error) {
 	}
 	s.ro = ro
 	return s, nil
+}
+
+// addAgrirouterTenantIDColumn brings a database made before agmasync_object had
+// an agrirouter_tenant_id column up to date. Its existing pairs are left without
+// one until the object is next applied, and a reset does not discard them
+// before then.
+func addAgrirouterTenantIDColumn(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(`
+		SELECT count(*) FROM pragma_table_info('agmasync_object') WHERE name = 'agrirouter_tenant_id'`,
+	).Scan(&n); err != nil {
+		return fmt.Errorf("reading schema: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	if _, err := db.Exec(`ALTER TABLE agmasync_object ADD COLUMN agrirouter_tenant_id TEXT`); err != nil {
+		return fmt.Errorf("adding agrirouter_tenant_id column: %w", err)
+	}
+	return nil
 }
 
 // dsn adds a busy timeout, which is per connection and so cannot be set once
@@ -164,6 +187,11 @@ type SyncRow struct {
 	LocalID      string
 	AgrirouterID *uuid.UUID
 	Revision     *int
+
+	// TenantID is the agrirouter tenant the canonical object belongs to, taken
+	// from its `tenantId`. It is written, not read back: a masterdata reset
+	// discards by it. Nil leaves what the row holds.
+	TenantID *uuid.UUID
 
 	// Unbound is true where the platform told agrirouter it no longer holds the
 	// object. It is not the same as never having been bound: this record must
@@ -252,6 +280,10 @@ func (t *Tx) PutSyncRow(r SyncRow) error {
 	if r.AgrirouterID != nil {
 		rawID = r.AgrirouterID.String()
 	}
+	var tenantID any
+	if r.TenantID != nil {
+		tenantID = r.TenantID.String()
+	}
 	var revision any
 	if r.Revision != nil {
 		revision = *r.Revision
@@ -261,13 +293,14 @@ func (t *Tx) PutSyncRow(r SyncRow) error {
 	// again, under this identifier, whether that is a rebinding of the same one
 	// or a fresh record.
 	_, err := t.tx.Exec(`
-		INSERT INTO agmasync_object (entity_type, local_id, agrirouter_id, revision)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO agmasync_object (entity_type, local_id, agrirouter_id, revision, agrirouter_tenant_id)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (entity_type, local_id) DO UPDATE SET
 			agrirouter_id = excluded.agrirouter_id,
 			revision      = excluded.revision,
-			unbound       = 0`,
-		string(r.EntityType), r.LocalID, rawID, revision)
+			unbound       = 0,
+			agrirouter_tenant_id = COALESCE(excluded.agrirouter_tenant_id, agmasync_object.agrirouter_tenant_id)`,
+		string(r.EntityType), r.LocalID, rawID, revision, tenantID)
 	if err != nil {
 		return fmt.Errorf("writing sync row: %w", err)
 	}
@@ -293,6 +326,27 @@ func (t *Tx) Unbind(typ agmasync.EntityType, localID string) error {
 		return fmt.Errorf("unbinding: %w", err)
 	}
 	return nil
+}
+
+// DiscardTenant drops every pair whose canonical object belongs to the given
+// agrirouter tenant, which is what a masterdata reset of it requires, and
+// reports how many it dropped.
+//
+// The rows are deleted rather than marked unbound. Unbound says the record must
+// not be sent because a canonical object for it exists; after a reset none
+// does, so the record is simply one the platform has never sent. The records
+// themselves stay: they are the user's data, and the reset ended the
+// correspondence, not the data.
+func (t *Tx) DiscardTenant(tenantID uuid.UUID) (int, error) {
+	res, err := t.tx.Exec(`DELETE FROM agmasync_object WHERE agrirouter_tenant_id = ?`, tenantID.String())
+	if err != nil {
+		return 0, fmt.Errorf("discarding bindings: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("discarding bindings: %w", err)
+	}
+	return int(n), nil
 }
 
 // Bindings lists every correspondence the platform holds, which is what a

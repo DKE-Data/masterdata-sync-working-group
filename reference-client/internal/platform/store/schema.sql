@@ -165,6 +165,11 @@ CREATE TABLE IF NOT EXISTS agmasync_object (
     -- a second canonical object for an entity that already has one, so the row
     -- outlives the pair for exactly as long as the record does.
     unbound       INTEGER NOT NULL DEFAULT 0,
+    -- agrirouter_tenant_id is the agrirouter tenant the canonical object
+    -- belongs to, as its `tenantId` said. It is not part of the key, the
+    -- mapping being the platform's; it is what a masterdata reset, which is
+    -- per tenant, discards by.
+    agrirouter_tenant_id TEXT,
     PRIMARY KEY (entity_type, local_id)
 );
 

@@ -18,7 +18,7 @@ them does.
 go run ./cmd/scenarios
 ```
 
-Fifteen numbered stories, narrated as they run, each citing the sections of the
+Sixteen numbered stories, narrated as they run, each citing the sections of the
 specification it is about. No Docker and nothing to start: the test router runs
 in process.
 
@@ -37,6 +37,7 @@ in process.
 13. A route removal performed while the participant was offline
 14. A field split in two, and the two merged back, with no lineage on the wire
 15. A reference that does not resolve
+16. A masterdata reset made while the participant was offline, and the first load after it
 
 They assert as they narrate. Every `ok` line is a claim checked at the moment it
 is printed, so a scenario that would teach something untrue fails instead —

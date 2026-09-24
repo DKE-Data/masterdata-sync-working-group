@@ -26,6 +26,7 @@ func All() []Scenario {
 		withdrawalWhileOffline(),
 		splitAndMerge(),
 		unresolvedReference(),
+		masterdataReset(),
 	}
 }
 

@@ -1009,6 +1009,17 @@ paths:
         routed to master-data, a type selected, a type deselected, the last one
         deselected.
 
+        It also carries `RESET_MASTERDATA_SYNC` when the user has wiped a
+        tenant's master data: every canonical object, identifier mapping,
+        masterdata route and initial-load state of the tenant is gone, and the
+        application MUST discard its bindings there. It reaches every
+        application holding a binding in the tenant, including one with no
+        endpoint left there, so it may concern a tenant the application is no
+        longer routed to. It precedes any later event of that tenant, catch-up
+        included. The application MUST durably
+        store a position at or past it before taking part in that tenant's
+        initial load again.
+
       operationId: streamMasterdataEvents
       parameters:
         - $ref: '#/components/parameters/LastEventId'
@@ -1025,8 +1036,9 @@ paths:
 
                   The `data:` is a payload of each SSE frame. Frames carry an `event:`
                   of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`,
-                  `CAUGHT_UP` or `ROUTE_CHANGED`; the first two carry an `Entity`,
-                  `CAUGHT_UP` has no data and `ROUTE_CHANGED` carries an event payload. 
+                  `CAUGHT_UP`, `ROUTE_CHANGED` or `RESET_MASTERDATA_SYNC`; the
+                  first two carry an `Entity`, `CAUGHT_UP` has no data, and
+                  `ROUTE_CHANGED` and `RESET_MASTERDATA_SYNC` carry an event payload.
                   Every frame also carries an `id:`, which is the
                   delivery position as of that frame — what the application
                   persists once it has durably applied the frame, and returns as
@@ -1039,6 +1051,7 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/Entity'
                   - $ref: '#/components/schemas/RouteChangedEventData'
+                  - $ref: '#/components/schemas/MasterdataResetEventData'
 
   # ------------------------------------------------------------ configuration
 
@@ -2509,6 +2522,55 @@ components:
             carrying an older value than one already applied for this endpoint
             can be discarded.
           examples: ['2026-07-14T09:20:00Z']
+
+    MasterdataResetEventData:
+      type: object
+      description: >
+        Data structure for `RESET_MASTERDATA_SYNC` events on
+        `/masterdata/events`. It states that the user wiped the tenant's master
+        data in agrirouter: every canonical object, every identifier mapping,
+        every masterdata route and every initial-load state of the tenant is
+        discarded. Only a user can do this; no operation of this API does.
+
+
+        Sent to every application that holds a binding in the tenant or has an
+        endpoint there that has taken part at some point. The application MUST discard every binding and stored revision it holds
+        in the tenant, and treat the listed endpoints as opted into nothing. It
+        MUST NOT delete or deactivate its local records. No `ROUTE_CHANGED` is
+        issued for the listed endpoints.
+
+
+        agrirouter delivers it before any later event of the tenant. The
+        application MUST durably store a position at or past it before taking
+        part in that tenant's initial load again, so that a repeat can only
+        arrive while nothing is bound and handling it again changes nothing.
+      required: [event_type, tenant_id, endpoints]
+      properties:
+        event_type:
+          type: string
+          const: RESET_MASTERDATA_SYNC
+          description: Discriminator; matches the `event:` line.
+        tenant_id:
+          type: string
+          format: uuid
+          description: The tenant whose master data was wiped.
+        endpoints:
+          type: array
+          description: >
+            The application's endpoints in the tenant, each now opted into
+            nothing. Empty where the application has no endpoint left there and
+            is told only because it held bindings.
+          items:
+            type: object
+            required: [endpoint_id, external_id]
+            properties:
+              endpoint_id:
+                type: string
+                format: uuid
+                description: The agrirouter identifier of the endpoint.
+              external_id:
+                type: string
+                description: The application's own identifier for the same endpoint.
 
     InitialLoadState:
       type: string

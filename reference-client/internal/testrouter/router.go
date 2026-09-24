@@ -183,6 +183,7 @@ func (r *Router) registerControlPlane(e *echo.Echo) {
 	e.POST("/_test/tenants", r.createTenant)
 	e.POST("/_test/endpoints", r.createEndpoint)
 	e.PUT("/_test/endpoints/:externalEndpointId/opt-in", r.setOptIn)
+	e.POST("/_test/tenants/:tenantId/reset", r.resetTenant)
 	e.GET("/_test/observations", r.listObservations)
 }
 

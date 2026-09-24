@@ -142,6 +142,7 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 		OnApplied:   in.onApplied,
 		OnCaughtUp:  in.onCaughtUp,
 		OnSelection: in.onRouteChanged,
+		OnReset:     in.onReset,
 	}
 	return in, nil
 }
@@ -425,6 +426,14 @@ func (in *instance) onRouteChanged(tx *store.Tx, sel oapi.RouteChangedEventData)
 	// try to tell which: the endpoint's state is what says whether anything is
 	// owed, and the loader reads it.
 	in.wantLoad(types)
+	return nil
+}
+
+// onReset reports a masterdata reset. The receiver has already dropped the
+// pairs and passed on each endpoint's empty routing, which onRouteChanged recorded.
+func (in *instance) onReset(_ *store.Tx, _ oapi.MasterdataResetEventData, discarded int) error {
+	in.log.say("reset", fmt.Sprintf(
+		"agrirouter's master data for this tenant was wiped: dropped %d bindings", discarded))
 	return nil
 }
 

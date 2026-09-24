@@ -98,6 +98,8 @@ func commands() []command {
 			"read the live stream and print what arrives", runReplay},
 		{"route", "route [<type>[,<type>...]]",
 			"stand in for the user's routing decision (test router only)", runRoute},
+		{"reset", "reset",
+			"stand in for the user wiping the tenant's master data (test router only)", runReset},
 	}
 }
 
@@ -116,7 +118,7 @@ func main() {
 	flag.StringVar(&e.applicationID, "application", os.Getenv("AGMASYNC_APPLICATION_ID"),
 		"the application id PutEndpoint requires (AGMASYNC_APPLICATION_ID); only needed by \"declare\"")
 	flag.StringVar(&e.tenantID, "tenant", os.Getenv("AGMASYNC_TENANT_ID"),
-		"the tenant id PutEndpoint requires (AGMASYNC_TENANT_ID); only needed by \"declare\"")
+		"the tenant id (AGMASYNC_TENANT_ID); only needed by \"declare\" and \"reset\"")
 	flag.StringVar(&e.softwareVersionID, "software-version", os.Getenv("AGMASYNC_SOFTWARE_VERSION_ID"),
 		"the software version id PutEndpoint requires (AGMASYNC_SOFTWARE_VERSION_ID); only needed by \"declare\"")
 	flag.StringVar(&e.endpointType, "endpoint-type", os.Getenv("AGMASYNC_ENDPOINT_TYPE"),

@@ -205,7 +205,9 @@ func (e *Endpoint) InitialLoadStatus(ctx context.Context) (oapi.InitialLoadStatu
 // connection: without this check it creates local duplicates of data it
 // already holds. The marker is previousLoadCompletedAt, which survives an
 // opt-out, a disconnection, and endpoint removal, because the identifier
-// mapping does. See "Re-connection" in specification.md.
+// mapping does. A masterdata reset discards it with the mapping, so the load
+// that follows one is a first load. See "Re-connection" and "Masterdata reset"
+// in specification.md.
 func IsRepeatLoad(s oapi.InitialLoadStatus) bool {
 	return s.PreviousLoadCompletedAt != nil
 }

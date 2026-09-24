@@ -31,6 +31,12 @@ const (
 	// endpoint. It carries an [oapi.RouteChangedEventData] rather than an
 	// entity.
 	EventRouteChanged = "ROUTE_CHANGED"
+
+	// EventMasterdataReset states that the user wiped one tenant's master data:
+	// every canonical object, identifier mapping, route and initial-load state
+	// there is gone. It carries an [oapi.MasterdataResetEventData] rather than
+	// an entity, and stands for an empty selection on every endpoint it lists.
+	EventMasterdataReset = "RESET_MASTERDATA_SYNC"
 )
 
 // Event is one frame of a master-data stream.
@@ -67,6 +73,13 @@ type Event struct {
 	// entity, and what it carries is the endpoint's whole selection as it
 	// stands after the change.
 	Selection *oapi.RouteChangedEventData
+
+	// Reset is set on an [EventMasterdataReset] frame and nil on every other.
+	// A participant receiving it discards every binding it holds in the tenant
+	// and keeps its local records, and durably stores this frame's position
+	// before taking part in that tenant's initial load again: a resume from
+	// before it would deliver the reset once more, after the new bindings exist.
+	Reset *oapi.MasterdataResetEventData
 }
 
 // HasEntity reports whether the frame carries a canonical object.
@@ -138,6 +151,14 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 					return
 				}
 				ev.Selection = &selection
+
+			case raw.Type == EventMasterdataReset:
+				var reset oapi.MasterdataResetEventData
+				if err := json.Unmarshal([]byte(raw.Data), &reset); err != nil {
+					yield(Event{}, fmt.Errorf("agmasync: decoding %s frame: %w", raw.Type, err))
+					return
+				}
+				ev.Reset = &reset
 			}
 
 			if !yield(ev, nil) {

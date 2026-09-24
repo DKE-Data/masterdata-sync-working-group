@@ -67,6 +67,13 @@ type Receiver struct {
 	// participant to tolerate, since the frame states the whole selection rather
 	// than a delta.
 	OnSelection func(*store.Tx, oapi.RouteChangedEventData) error
+
+	// OnReset is called once per RESET_MASTERDATA_SYNC frame, after the
+	// receiver has discarded the tenant's bindings and handed each listed
+	// endpoint's empty selection to OnSelection. discarded counts the pairs
+	// dropped. It runs in the frame's transaction, like OnSelection, and is
+	// optional: what the protocol requires has been done by then.
+	OnReset func(tx *store.Tx, reset oapi.MasterdataResetEventData, discarded int) error
 }
 
 // ReceiveResult counts what one run of the loop did.
@@ -202,6 +209,15 @@ func (r *Receiver) consume(
 			}
 			continue
 		}
+		if ev.Reset != nil {
+			if err := r.applyReset(ev, *ev.Reset); err != nil {
+				return res, err
+			}
+			if ev.ID != "" {
+				res.Position = ev.ID
+			}
+			continue
+		}
 		if !ev.HasEntity() {
 			// A frame type this version does not know is tolerated rather than
 			// treated as a failure, and its position is not taken: the
@@ -287,6 +303,54 @@ func (r *Receiver) applySelection(
 		return false, err
 	}
 	return true, nil
+}
+
+// applyReset carries out a RESET_MASTERDATA_SYNC frame, in the transaction
+// that records the frame's position.
+//
+// The tenant's pairs are dropped, because none of the agrirouterIds they name
+// exists any longer, and each listed endpoint is told it exchanges nothing, which
+// is what the reset stands for. Local records are left alone.
+//
+// The position is what keeps this safe to repeat. The specification requires a
+// participant to hold a position past the reset before it takes part in the
+// tenant's initial load again; committing it with the discard means there is no
+// moment at which the pairs are gone and the position is not, so a resume can
+// never deliver this reset again after the pairs made by the next load exist.
+func (r *Receiver) applyReset(ev agmasync.Event, reset oapi.MasterdataResetEventData) error {
+	// The pairs are found by the tenant the frame names, which each was
+	// recorded with, so this needs no applier for the tenant: an application
+	// with no endpoint left there is still told, for the pairs it holds, and
+	// Endpoints is then empty. The tenancy only decides who the transaction
+	// acts for.
+	tenant := ""
+	if applier, ok := r.Tenants[reset.TenantId]; ok {
+		tenant = applier.Tenant
+	}
+	return r.Store.Tx(tenant, func(tx *store.Tx) error {
+		discarded, err := tx.DiscardTenant(reset.TenantId)
+		if err != nil {
+			return err
+		}
+		if r.OnSelection != nil {
+			for _, ep := range reset.Endpoints {
+				if err := r.OnSelection(tx, oapi.RouteChangedEventData{
+					EventType:   oapi.ROUTECHANGED,
+					EndpointId:  ep.EndpointId,
+					ExternalId:  ep.ExternalId,
+					EntityTypes: []oapi.EntityTypeToggle{},
+				}); err != nil {
+					return err
+				}
+			}
+		}
+		if r.OnReset != nil {
+			if err := r.OnReset(tx, reset, discarded); err != nil {
+				return err
+			}
+		}
+		return tx.SetPosition(ev.ID)
+	})
 }
 
 // tenantOf names the tenancy a selection is about.

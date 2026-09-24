@@ -239,6 +239,7 @@ func (a *Applier) applyUnheldObject(
 			LocalID:      known.LocalID,
 			AgrirouterID: env.AgrirouterId,
 			Revision:     env.Revision,
+			TenantID:     env.TenantId,
 		}); err != nil {
 			return Outcome{}, err
 		}
@@ -298,6 +299,7 @@ func (a *Applier) write(
 		LocalID:      localID,
 		AgrirouterID: envelope.AgrirouterId,
 		Revision:     envelope.Revision,
+		TenantID:     envelope.TenantId,
 	})
 }
 

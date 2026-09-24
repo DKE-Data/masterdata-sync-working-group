@@ -333,6 +333,33 @@ func (p *Platform) Deliveries(ctx context.Context) ([]agmasync.Event, error) {
 	return out, nil
 }
 
+// Frames is [Platform.Deliveries] for every frame rather than only the entity
+// frames, up to but not including CAUGHT_UP, so that a scenario can show the
+// order non-entity frames arrive in.
+func (p *Platform) Frames(ctx context.Context) ([]agmasync.Event, error) {
+	from, err := p.Store.Position()
+	if err != nil {
+		return nil, err
+	}
+	stream, err := p.Client.Events(ctx, from)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = stream.Close() }()
+
+	var out []agmasync.Event
+	for ev, err := range stream.Events() {
+		if err != nil {
+			return nil, err
+		}
+		if ev.Type == agmasync.EventCaughtUp {
+			return out, nil
+		}
+		out = append(out, ev)
+	}
+	return out, nil
+}
+
 // Transitions lists the initial-load transitions the router recorded for an
 // endpoint, each with the side that drove it. The two sides drive two each,
 // which is the shape of the state machine.
@@ -842,6 +869,7 @@ func (p *Platform) Adopt(
 	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		return tx.PutSyncRow(store.SyncRow{
 			EntityType: typ, LocalID: localID, AgrirouterID: &agrirouterID,
+			TenantID: &p.world.Tenant,
 		})
 	})
 }
@@ -875,6 +903,12 @@ func (c *control) setOptIn(ctx context.Context, externalID string, collections [
 	path := "/_test/endpoints/" + url.PathEscape(externalID) + "/opt-in"
 	return c.do(ctx, http.MethodPut, path,
 		testrouter.OptInRequest{EntityTypes: collections}, nil)
+}
+
+// Reset wipes the tenant's master data, as a user does in agrirouter. There is
+// no participant-facing operation for it.
+func (w *World) Reset(ctx context.Context) error {
+	return w.control.post(ctx, "/_test/tenants/"+w.Tenant.String()+"/reset", nil, nil)
 }
 
 // Observations returns what the router saw, which is how a scenario checks what

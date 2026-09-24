@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/google/uuid"
 )
 
 const (
@@ -24,6 +25,10 @@ const (
 	// endpoint. One frame covers every way the selection moves: routed to the
 	// hub, a type selected, a type deselected, and the last one deselected.
 	eventRouteChanged = "ROUTE_CHANGED"
+
+	// eventMasterdataReset states that the user wiped one tenant's master data.
+	// It stands for an empty selection on every endpoint it lists.
+	eventMasterdataReset = "RESET_MASTERDATA_SYNC"
 )
 
 // routeChangedFrame renders a ROUTE_CHANGED frame stating what one endpoint
@@ -224,6 +229,17 @@ func (r *Router) catchUp(appID, lastEventID string) []frame {
 
 	frames := []frame{}
 
+	// A reset above the position goes out first, ahead of anything later in its
+	// tenant. What is retained for it is the change number alone: the objects
+	// and pairs it discarded are gone, and there is nothing else to restate.
+	for _, tenantID := range r.store.sortedResets() {
+		reset := r.store.resets[tenantID]
+		if reset.seq <= from || !slices.Contains(reset.apps, appID) {
+			continue
+		}
+		frames = append(frames, r.store.resetFrameLocked(tenantID, appID, encodePosition(reset.seq)))
+	}
+
 	// Catch-up restates the selection of every endpoint of this application
 	// whose selection changed above the participant's position, emptied ones
 	// included. The second half is what makes a withdrawal survive a
@@ -237,6 +253,10 @@ func (r *Router) catchUp(appID, lastEventID string) []frame {
 	// opted into before the set for it arrives.
 	for _, ep := range r.store.sortedEndpoints() {
 		if ep.appID != appID || ep.selectionChangedSeq <= from {
+			continue
+		}
+		// A move the reset came after is one the reset already stated.
+		if ep.selectionChangedSeq <= r.store.resets[ep.tenantID].seq {
 			continue
 		}
 		frames = append(frames, routeChangedFrame(ep, encodePosition(ep.selectionChangedSeq)))
@@ -343,8 +363,12 @@ func (r *Router) initialLoadStream(ctx context.Context, ep *endpoint) io.Reader 
 			return
 		}
 		// Sent in full, so the endpoint now owes a decision rather than
-		// agrirouter owing data.
-		r.setLoadState(ep, stateReconciling)
+		// agrirouter owing data — unless the load was discarded while the set
+		// was going out, by a reset or the last type deselected. Advancing then
+		// would bring back a state the endpoint no longer has.
+		if r.hasLoad(ep) {
+			r.setLoadState(ep, stateReconciling)
+		}
 	}()
 
 	return pipeR
@@ -365,6 +389,25 @@ func (s *store) sortedEndpoints() []*endpoint {
 	}
 	slices.SortFunc(out, func(a, b *endpoint) int {
 		return cmp.Compare(a.externalID, b.externalID)
+	})
+	return out
+}
+
+// hasLoad reports whether the endpoint still has an initial-load state.
+func (r *Router) hasLoad(ep *endpoint) bool {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	return ep.load != nil
+}
+
+// sortedResets lists the tenants that have been reset, in the order they were.
+func (s *store) sortedResets() []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(s.resets))
+	for id := range s.resets {
+		out = append(out, id)
+	}
+	slices.SortFunc(out, func(a, b uuid.UUID) int {
+		return cmp.Compare(s.resets[a].seq, s.resets[b].seq)
 	})
 	return out
 }

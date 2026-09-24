@@ -103,6 +103,21 @@ func (e InitialLoadState) Valid() bool {
 	}
 }
 
+// Defines values for MasterdataResetEventDataEventType.
+const (
+	RESETMASTERDATASYNC MasterdataResetEventDataEventType = "RESET_MASTERDATA_SYNC"
+)
+
+// Valid indicates whether the value is a known member of the MasterdataResetEventDataEventType enum.
+func (e MasterdataResetEventDataEventType) Valid() bool {
+	switch e {
+	case RESETMASTERDATASYNC:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PartyReferenceType.
 const (
 	PartyReferenceTypeOrganization PartyReferenceType = "organization"
@@ -597,6 +612,31 @@ type MasterdataConfig struct {
 	// Examples: https://app.example.com/tenants/42/agrirouter/masterdata
 	ResolutionUrl *string `json:"resolution_url,omitempty"`
 }
+
+// MasterdataResetEventData Data structure for `RESET_MASTERDATA_SYNC` events on `/masterdata/events`. It states that the user wiped the tenant's master data in agrirouter: every canonical object, every identifier mapping, every masterdata route and every initial-load state of the tenant is discarded. Only a user can do this; no operation of this API does.
+//
+// Sent to every application that holds a binding in the tenant or has an endpoint there that has taken part at some point. The application MUST discard every binding and stored revision it holds in the tenant, and treat the listed endpoints as opted into nothing. It MUST NOT delete or deactivate its local records. No `ROUTE_CHANGED` is issued for the listed endpoints.
+//
+// agrirouter delivers it before any later event of the tenant. The application MUST durably store a position at or past it before taking part in that tenant's initial load again, so that a repeat can only arrive while nothing is bound and handling it again changes nothing.
+type MasterdataResetEventData struct {
+	// Endpoints The application's endpoints in the tenant, each now opted into nothing. Empty where the application has no endpoint left there and is told only because it held bindings.
+	Endpoints []struct {
+		// EndpointId The agrirouter identifier of the endpoint.
+		EndpointId openapi_types.UUID `json:"endpoint_id"`
+
+		// ExternalId The application's own identifier for the same endpoint.
+		ExternalId string `json:"external_id"`
+	} `json:"endpoints"`
+
+	// EventType Discriminator; matches the `event:` line.
+	EventType MasterdataResetEventDataEventType `json:"event_type"`
+
+	// TenantId The tenant whose master data was wiped.
+	TenantId openapi_types.UUID `json:"tenant_id"`
+}
+
+// MasterdataResetEventDataEventType Discriminator; matches the `event:` line.
+type MasterdataResetEventDataEventType string
 
 // Membership A role held by a person in one organization.
 type Membership struct {
