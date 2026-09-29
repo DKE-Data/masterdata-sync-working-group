@@ -1,0 +1,1214 @@
+{
+  "rootSchemaVersion": "2.0.2",
+  "catalog": {
+    "description": "Hofgut Sonnenberg, Springe (Lower Saxony). ADAPT rendering of examples/agmasync-sample.json.",
+    "customDataTypeDefinitions": [
+      {
+        "definitionCode": "AgmaSync-Envelope",
+        "name": "Envelope",
+        "description": "The AgmaSync envelope attributes that have no ADAPT slot. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY",
+          "FARM",
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Active",
+        "name": "Active",
+        "description": "Envelope `active`. False when the object has been retired in AgmaSync.",
+        "dataDefinitionBaseTypeCode": "BOOLEAN",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY",
+          "FARM",
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Revision",
+        "name": "Revision",
+        "description": "Envelope `revision`. The MODIFICATION time scope carries `modified_at`.",
+        "dataDefinitionBaseTypeCode": "NUMERIC",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY",
+          "FARM",
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ],
+        "numericDataTypeDefinitionAttributes": {
+          "numericDataTypeCode": "INTEGER",
+          "unitOfMeasureCode": "count",
+          "minimum": 1
+        }
+      },
+      {
+        "definitionCode": "AgmaSync-TenantId",
+        "name": "Tenant Id",
+        "description": "Envelope `tenant_id`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY",
+          "FARM",
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ],
+        "textDataTypeDefinitionAttributes": {
+          "validationRegularExpression": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      {
+        "definitionCode": "AgmaSync-SourceEndpointId",
+        "name": "Source Endpoint Id",
+        "description": "Envelope `source_endpoint_id`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY",
+          "FARM",
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ],
+        "textDataTypeDefinitionAttributes": {
+          "validationRegularExpression": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      {
+        "definitionCode": "AgmaSync-CommercialRegistryNumber",
+        "name": "Commercial Registry Number",
+        "description": "Organization `commercial_registry_number`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-TaxNumber",
+        "name": "Tax Number",
+        "description": "Party `tax_number`, e.g. the German Steuernummer.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-TaxId",
+        "name": "Tax Id",
+        "description": "Party `tax_id`, e.g. the German USt-IdNr. or Steuer-ID.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-TradeId",
+        "name": "Trade Id",
+        "description": "Party `trade_id`, e.g. the German Betriebsnummer.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Title",
+        "name": "Title",
+        "description": "Person `title`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-FirstName",
+        "name": "First Name",
+        "description": "Person `first_name`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-LastName",
+        "name": "Last Name",
+        "description": "Person `last_name`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Memberships",
+        "name": "Memberships",
+        "description": "Person `memberships`, one nested AgmaSync-Membership per entry. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Membership",
+        "name": "Membership",
+        "description": "One entry of person `memberships`. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-MemberOrganizationId",
+        "name": "Member Organization Id",
+        "description": "Membership `organization_id`, as the Reference Id of a Party.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-MemberRole",
+        "name": "Member Role",
+        "description": "Membership `member_role`, a code from the ADAPT Role enumeration.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "PARTY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-BillingAddress",
+        "name": "Billing Address",
+        "description": "Party `billing_address`. ADAPT has no billing address contact type. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Address",
+        "name": "Address",
+        "description": "Farm `address`. ADAPT carries no contact information on a Farm. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-AddressStreet",
+        "name": "Street",
+        "description": "Address `street`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO",
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-AddressPoBox",
+        "name": "PO Box",
+        "description": "Address `po_box`. Kept apart from the street so the two survive the round trip.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO",
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-AddressPostalCode",
+        "name": "Postal Code",
+        "description": "Address `postal_code`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO",
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-AddressCity",
+        "name": "City",
+        "description": "Address `city`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO",
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-AddressState",
+        "name": "State",
+        "description": "Address `state`.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO",
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-AddressCountry",
+        "name": "Country",
+        "description": "Address `country`, ISO 3166-1 alpha-2.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "CONTACT_INFO",
+          "FARM"
+        ],
+        "textDataTypeDefinitionAttributes": {
+          "validationRegularExpression": "^[A-Z]{2}$"
+        }
+      },
+      {
+        "definitionCode": "AgmaSync-SpecialisedUsageType",
+        "name": "Specialised Usage Type",
+        "description": "Farm `specialised_usage_type`, drawn from AGROVOC where a matching concept exists.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Partners",
+        "name": "Partners",
+        "description": "Farm `partners`, one nested AgmaSync-Partner per entry. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Partner",
+        "name": "Partner",
+        "description": "One entry of farm `partners`. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-PartnerPartyId",
+        "name": "Partner Party Id",
+        "description": "Partner `partner_id`, as the Reference Id of a Party.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-PartnerRole",
+        "name": "Partner Role",
+        "description": "Partner `partner_role`, a code from the ADAPT Role enumeration.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-GeoReference",
+        "name": "Geo Reference",
+        "description": "Farm `geo_reference`, as a WKT POINT in WGS84.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-FieldOwnerPartyId",
+        "name": "Field Owner Party Id",
+        "description": "Field `owner`, as the Reference Id of a Party. Absent means the farm owner holds the field.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-SoilType",
+        "name": "Soil Type",
+        "description": "Soil `type`. Extensible enumeration, e.g. SAND, LOAMY_SAND, CLAY.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-SoilRatingPoints",
+        "name": "Soil Rating Points",
+        "description": "Soil `rating_points` (Bodenzahl / Ackerzahl).",
+        "dataDefinitionBaseTypeCode": "NUMERIC",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ],
+        "numericDataTypeDefinitionAttributes": {
+          "numericDataTypeCode": "INTEGER",
+          "unitOfMeasureCode": "unitless",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "geoPoliticalContexts": [
+          {
+            "iSO3166-2Code": "DE"
+          }
+        ],
+        "labels": [
+          {
+            "languageCode": "de",
+            "name": "Ackerzahl"
+          }
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Topography",
+        "name": "Topography",
+        "description": "Field `topography`, the slope.",
+        "dataDefinitionBaseTypeCode": "NUMERIC",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ],
+        "numericDataTypeDefinitionAttributes": {
+          "numericDataTypeCode": "DOUBLE",
+          "unitOfMeasureCode": "arcdeg"
+        }
+      },
+      {
+        "definitionCode": "AgmaSync-SeasonId",
+        "name": "Season Id",
+        "description": "Field `harvest_period`, as the Reference Id of a Season. ADAPT gives Field no Season Ids.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-BoundaryType",
+        "name": "Boundary Type",
+        "description": "Field boundary `boundary_type`. Extensible enumeration, e.g. OPERATIONAL, ADMINISTRATIVE_RECEIVED.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-RegulatoryRequirement",
+        "name": "Regulatory Requirement",
+        "description": "Field boundary `regulatory_requirements`. Extensible enumeration, e.g. RED_ZONE_NITROGEN.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-ObstacleKind",
+        "name": "Obstacle Kind",
+        "description": "Obstacle `properties.kind`, e.g. pole, tree, waterhole.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "OBSTACLE"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-MetadataEntries",
+        "name": "Metadata",
+        "description": "`metadata`, one nested AgmaSync-Metadata per key. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-Metadata",
+        "name": "Metadata Entry",
+        "description": "One key of `metadata`. Carries no value of its own: the value is the nested context items.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-MetadataKey",
+        "name": "Metadata Key",
+        "description": "The metadata key.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ]
+      },
+      {
+        "definitionCode": "AgmaSync-MetadataValue",
+        "name": "Metadata Value",
+        "description": "The metadata value, JSON-encoded.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD",
+          "FIELD_BOUNDARY"
+        ]
+      }
+    ],
+    "parties": [
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "ORG-1001",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "partyTypeCode": "ORGANIZATION",
+        "name": "Hofgut Sonnenberg Agrar GmbH",
+        "contactInfo": {
+          "addressContactMethods": [
+            {
+              "addressContactTypeCode": "PHYSICAL",
+              "addressLines": [
+                "Dorfstraße 12"
+              ],
+              "city": "Springe",
+              "postalCode": "31832",
+              "countrySubdivision": "Niedersachsen",
+              "countryCode": "DE"
+            }
+          ],
+          "contextItems": [
+            {
+              "definitionCode": "AgmaSync-BillingAddress",
+              "contextItems": [
+                {
+                  "definitionCode": "AgmaSync-AddressPoBox",
+                  "valueText": "Postfach 1120"
+                },
+                {
+                  "definitionCode": "AgmaSync-AddressPostalCode",
+                  "valueText": "31827"
+                },
+                {
+                  "definitionCode": "AgmaSync-AddressCity",
+                  "valueText": "Springe"
+                },
+                {
+                  "definitionCode": "AgmaSync-AddressState",
+                  "valueText": "Niedersachsen"
+                },
+                {
+                  "definitionCode": "AgmaSync-AddressCountry",
+                  "valueText": "DE"
+                }
+              ]
+            }
+          ],
+          "telecommunicationContactMethods": [
+            {
+              "valueText": "+49 5041 98760",
+              "telecommunicationContactTypeCode": "FIXED_PHONE"
+            },
+            {
+              "valueText": "+49 171 2345678",
+              "telecommunicationContactTypeCode": "MOBILE_PHONE"
+            },
+            {
+              "valueText": "info@hofgut-sonnenberg.de",
+              "telecommunicationContactTypeCode": "EMAIL"
+            }
+          ]
+        },
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "7",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-09-14T08:12:45Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-CommercialRegistryNumber",
+            "valueText": "HRB 204518, Amtsgericht Hannover"
+          },
+          {
+            "definitionCode": "AgmaSync-TaxNumber",
+            "valueText": "24/203/01234"
+          },
+          {
+            "definitionCode": "AgmaSync-TaxId",
+            "valueText": "DE287654321"
+          },
+          {
+            "definitionCode": "AgmaSync-TradeId",
+            "valueText": "276030000012345"
+          }
+        ]
+      },
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "ORG-1002",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "partyTypeCode": "ORGANIZATION",
+        "name": "Lohnunternehmen Meyer GmbH & Co. KG",
+        "contactInfo": {
+          "addressContactMethods": [
+            {
+              "addressContactTypeCode": "PHYSICAL",
+              "addressLines": [
+                "Industriestraße 4"
+              ],
+              "city": "Bad Münder am Deister",
+              "postalCode": "31848",
+              "countrySubdivision": "Niedersachsen",
+              "countryCode": "DE"
+            }
+          ],
+          "telecommunicationContactMethods": [
+            {
+              "valueText": "+49 5042 55120",
+              "telecommunicationContactTypeCode": "FIXED_PHONE"
+            }
+          ]
+        },
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "2",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-03-02T15:40:00Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "PER-2001",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "partyTypeCode": "INDIVIDUAL",
+        "name": "Dr. Katharina Brandt",
+        "contactInfo": {
+          "telecommunicationContactMethods": [
+            {
+              "valueText": "+49 160 9876543",
+              "telecommunicationContactTypeCode": "MOBILE_PHONE"
+            },
+            {
+              "valueText": "k.brandt@hofgut-sonnenberg.de",
+              "telecommunicationContactTypeCode": "EMAIL"
+            }
+          ]
+        },
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "4",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-08-30T10:05:12Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-Title",
+            "valueText": "Dr."
+          },
+          {
+            "definitionCode": "AgmaSync-FirstName",
+            "valueText": "Katharina"
+          },
+          {
+            "definitionCode": "AgmaSync-LastName",
+            "valueText": "Brandt"
+          },
+          {
+            "definitionCode": "AgmaSync-Memberships",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Membership",
+                "contextItems": [
+                  {
+                    "definitionCode": "AgmaSync-MemberOrganizationId",
+                    "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-MemberRole",
+                    "valueText": "FARM_MANAGER"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-TaxId",
+            "valueText": "12345678901"
+          }
+        ]
+      },
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "PER-2002",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "partyTypeCode": "INDIVIDUAL",
+        "name": "Jonas Weber",
+        "contactInfo": {
+          "addressContactMethods": [
+            {
+              "addressContactTypeCode": "PHYSICAL",
+              "addressLines": [
+                "Lindenweg 3"
+              ],
+              "city": "Ronnenberg",
+              "postalCode": "30952",
+              "countrySubdivision": "Niedersachsen",
+              "countryCode": "DE"
+            }
+          ],
+          "telecommunicationContactMethods": [
+            {
+              "valueText": "+49 152 3344556",
+              "telecommunicationContactTypeCode": "MOBILE_PHONE"
+            },
+            {
+              "valueText": "weber@agrarberatung-weber.de",
+              "telecommunicationContactTypeCode": "EMAIL"
+            }
+          ]
+        },
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "1",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-02-18T09:20:00Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-FirstName",
+            "valueText": "Jonas"
+          },
+          {
+            "definitionCode": "AgmaSync-LastName",
+            "valueText": "Weber"
+          },
+          {
+            "definitionCode": "AgmaSync-TaxNumber",
+            "valueText": "23/115/04567"
+          }
+        ]
+      }
+    ],
+    "growers": [
+      {
+        "id": {
+          "referenceId": "grower-0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
+        },
+        "name": "Hofgut Sonnenberg Agrar GmbH",
+        "partyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
+      }
+    ],
+    "farms": [
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "FARM-3001",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "name": "Hofgut Sonnenberg",
+        "growerId": "grower-0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "12",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-09-14T08:15:02Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-SpecialisedUsageType",
+            "valueText": "arable farming"
+          },
+          {
+            "definitionCode": "AgmaSync-Partners",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Partner",
+                "contextItems": [
+                  {
+                    "definitionCode": "AgmaSync-PartnerPartyId",
+                    "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-PartnerRole",
+                    "valueText": "CUSTOM_SERVICE_PROVIDER"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-Partner",
+                "contextItems": [
+                  {
+                    "definitionCode": "AgmaSync-PartnerPartyId",
+                    "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-PartnerRole",
+                    "valueText": "CROP_ADVISOR"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-Address",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-AddressStreet",
+                "valueText": "Dorfstraße 12"
+              },
+              {
+                "definitionCode": "AgmaSync-AddressPostalCode",
+                "valueText": "31832"
+              },
+              {
+                "definitionCode": "AgmaSync-AddressCity",
+                "valueText": "Springe"
+              },
+              {
+                "definitionCode": "AgmaSync-AddressState",
+                "valueText": "Niedersachsen"
+              },
+              {
+                "definitionCode": "AgmaSync-AddressCountry",
+                "valueText": "DE"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-GeoReference",
+            "valueText": "POINT (9.5531 52.2089)"
+          }
+        ]
+      }
+    ],
+    "fields": [
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "FLD-4001",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "name": "Am Mühlenbach",
+        "farmId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+        "arableArea": {
+          "numericValue": 12.45,
+          "unitOfMeasureCode": "ha"
+        },
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "5",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-04-11T06:30:00Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-FieldOwnerPartyId",
+            "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
+          },
+          {
+            "definitionCode": "AgmaSync-SoilType",
+            "valueText": "SANDY_TO_SILTY_LOAM"
+          },
+          {
+            "definitionCode": "AgmaSync-SoilRatingPoints",
+            "valueText": "62"
+          },
+          {
+            "definitionCode": "AgmaSync-Topography",
+            "valueText": "3.5"
+          },
+          {
+            "definitionCode": "AgmaSync-SeasonId",
+            "valueText": "season-2025-2026"
+          },
+          {
+            "definitionCode": "AgmaSync-MetadataEntries",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Metadata",
+                "contextItems": [
+                  {
+                    "definitionCode": "AgmaSync-MetadataKey",
+                    "valueText": "flik"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-MetadataValue",
+                    "valueText": "\"DENILI0512345678\""
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-Metadata",
+                "contextItems": [
+                  {
+                    "definitionCode": "AgmaSync-MetadataKey",
+                    "valueText": "nutzungscode"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-MetadataValue",
+                    "valueText": "115"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "fieldBoundaries": [
+      {
+        "id": {
+          "referenceId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56",
+          "uniqueIds": [
+            {
+              "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56",
+              "idTypeCode": "UUID",
+              "idSource": "https://agrirouter.com",
+              "idSourceTypeCode": "URI"
+            },
+            {
+              "idText": "FB-5001",
+              "idTypeCode": "STRING",
+              "idSource": "urn:example:farm-management-app",
+              "idSourceTypeCode": "URI"
+            }
+          ]
+        },
+        "name": "Am Mühlenbach 2025/2026",
+        "fieldId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+        "boundary": {
+          "geometry": "POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))",
+          "boundaryCreationMethodCode": "ADMINISTRATIVE"
+        },
+        "seasonIds": [
+          "season-2025-2026"
+        ],
+        "obstacles": [
+          {
+            "boundary": {
+              "geometry": "POINT (9.5621 52.2062)"
+            },
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-ObstacleKind",
+                "valueText": "pole"
+              }
+            ]
+          },
+          {
+            "boundary": {
+              "geometry": "POLYGON ((9.564 52.2068, 9.5646 52.2068, 9.5646 52.2072, 9.564 52.2072, 9.564 52.2068))"
+            },
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-ObstacleKind",
+                "valueText": "waterhole"
+              }
+            ]
+          }
+        ],
+        "contextItems": [
+          {
+            "definitionCode": "AgmaSync-Envelope",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Active",
+                "valueText": "true"
+              },
+              {
+                "definitionCode": "AgmaSync-Revision",
+                "valueText": "3",
+                "timeScopes": [
+                  {
+                    "dateContextCode": "MODIFICATION",
+                    "start": "2026-04-11T06:30:00Z"
+                  }
+                ]
+              },
+              {
+                "definitionCode": "AgmaSync-TenantId",
+                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
+              },
+              {
+                "definitionCode": "AgmaSync-SourceEndpointId",
+                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+              }
+            ]
+          },
+          {
+            "definitionCode": "AgmaSync-BoundaryType",
+            "valueText": "ADMINISTRATIVE_RECEIVED"
+          },
+          {
+            "definitionCode": "AgmaSync-RegulatoryRequirement",
+            "valueText": "RED_ZONE_NITROGEN"
+          },
+          {
+            "definitionCode": "AgmaSync-MetadataEntries",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-Metadata",
+                "contextItems": [
+                  {
+                    "definitionCode": "AgmaSync-MetadataKey",
+                    "valueText": "source"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-MetadataValue",
+                    "valueText": "\"SLA Niedersachsen, Antragsgeometrie 2026\""
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "seasons": [
+      {
+        "id": {
+          "referenceId": "season-2025-2026"
+        },
+        "name": "2025/2026",
+        "start": "2025-08-01T00:00:00Z",
+        "end": "2026-07-31T23:59:59Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,197 @@
+[
+  {
+    "type": "organization",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+    "local_id": "ORG-1001",
+    "active": true,
+    "revision": 7,
+    "modified_at": "2026-09-14T08:12:45Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "name": "Hofgut Sonnenberg Agrar GmbH",
+    "commercial_registry_number": "HRB 204518, Amtsgericht Hannover",
+    "address": {
+      "street": "Dorfstraße 12",
+      "postal_code": "31832",
+      "city": "Springe",
+      "state": "Niedersachsen",
+      "country": "DE"
+    },
+    "billing_address": {
+      "po_box": "Postfach 1120",
+      "postal_code": "31827",
+      "city": "Springe",
+      "state": "Niedersachsen",
+      "country": "DE"
+    },
+    "contact": {
+      "phone": "+49 5041 98760",
+      "mobile": "+49 171 2345678",
+      "email": "info@hofgut-sonnenberg.de"
+    },
+    "tax_number": "24/203/01234",
+    "tax_id": "DE287654321",
+    "trade_id": "276030000012345"
+  },
+  {
+    "type": "organization",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53",
+    "local_id": "ORG-1002",
+    "active": true,
+    "revision": 2,
+    "modified_at": "2026-03-02T15:40:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "name": "Lohnunternehmen Meyer GmbH & Co. KG",
+    "address": {
+      "street": "Industriestraße 4",
+      "postal_code": "31848",
+      "city": "Bad Münder am Deister",
+      "state": "Niedersachsen",
+      "country": "DE"
+    },
+    "contact": {
+      "phone": "+49 5042 55120"
+    }
+  },
+  {
+    "type": "person",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52",
+    "local_id": "PER-2001",
+    "active": true,
+    "revision": 4,
+    "modified_at": "2026-08-30T10:05:12Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "title": "Dr.",
+    "first_name": "Katharina",
+    "last_name": "Brandt",
+    "contact": {
+      "mobile": "+49 160 9876543",
+      "email": "k.brandt@hofgut-sonnenberg.de"
+    },
+    "tax_id": "12345678901",
+    "memberships": [
+      {
+        "organization_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
+        "member_role": "FARM_MANAGER"
+      }
+    ]
+  },
+  {
+    "type": "person",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57",
+    "local_id": "PER-2002",
+    "active": true,
+    "revision": 1,
+    "modified_at": "2026-02-18T09:20:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "first_name": "Jonas",
+    "last_name": "Weber",
+    "address": {
+      "street": "Lindenweg 3",
+      "postal_code": "30952",
+      "city": "Ronnenberg",
+      "state": "Niedersachsen",
+      "country": "DE"
+    },
+    "contact": {
+      "mobile": "+49 152 3344556",
+      "email": "weber@agrarberatung-weber.de"
+    },
+    "tax_number": "23/115/04567"
+  },
+  {
+    "type": "farm",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+    "local_id": "FARM-3001",
+    "active": true,
+    "revision": 12,
+    "modified_at": "2026-09-14T08:15:02Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "name": "Hofgut Sonnenberg",
+    "owner": { "type": "organization", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
+    "specialised_usage_type": "arable farming",
+    "partners": [
+      {
+        "partner_id": { "type": "organization", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "local_id": "ORG-1002" },
+        "partner_role": "CUSTOM_SERVICE_PROVIDER"
+      },
+      {
+        "partner_id": { "type": "person", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57", "local_id": "PER-2002" },
+        "partner_role": "CROP_ADVISOR"
+      }
+    ],
+    "address": {
+      "street": "Dorfstraße 12",
+      "postal_code": "31832",
+      "city": "Springe",
+      "state": "Niedersachsen",
+      "country": "DE"
+    },
+    "geo_reference": { "type": "Point", "coordinates": [9.5531, 52.2089] }
+  },
+  {
+    "type": "field",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+    "local_id": "FLD-4001",
+    "active": true,
+    "revision": 5,
+    "modified_at": "2026-04-11T06:30:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "name": "Am Mühlenbach",
+    "area": 124500,
+    "farm": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54", "local_id": "FARM-3001" },
+    "owner": { "type": "person", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52", "local_id": "PER-2001" },
+    "soil": { "type": "SANDY_TO_SILTY_LOAM", "rating_points": 62 },
+    "topography": 3.5,
+    "field_boundaries": [
+      { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56", "local_id": "FB-5001" }
+    ],
+    "harvest_period": { "valid_from": "2025-08-01", "valid_to": "2026-07-31", "label": "2025/2026" },
+    "metadata": { "flik": "DENILI0512345678", "nutzungscode": 115 }
+  },
+  {
+    "type": "fieldBoundary",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56",
+    "local_id": "FB-5001",
+    "active": true,
+    "revision": 3,
+    "modified_at": "2026-04-11T06:30:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [[
+        [9.5600, 52.2050], [9.5660, 52.2050], [9.5665, 52.2080],
+        [9.5605, 52.2085], [9.5600, 52.2050]
+      ]]
+    },
+    "boundary_type": "ADMINISTRATIVE_RECEIVED",
+    "creation_method": "ADMINISTRATIVE",
+    "harvest_period": { "valid_from": "2025-08-01", "valid_to": "2026-07-31", "label": "2025/2026" },
+    "obstacles": [
+      {
+        "type": "Feature",
+        "geometry": { "type": "Point", "coordinates": [9.5621, 52.2062] },
+        "properties": { "kind": "pole" }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [9.5640, 52.2068], [9.5646, 52.2068], [9.5646, 52.2072],
+            [9.5640, 52.2072], [9.5640, 52.2068]
+          ]]
+        },
+        "properties": { "kind": "waterhole" }
+      }
+    ],
+    "regulatory_requirements": "RED_ZONE_NITROGEN",
+    "metadata": { "source": "SLA Niedersachsen, Antragsgeometrie 2026" }
+  }
+]
