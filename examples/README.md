@@ -11,7 +11,8 @@ Hofgut Sonnenberg near Springe, Lower Saxony, as delivered by AgmaSync
 Every AgmaSync attribute is mapped. Where ADAPT has no slot, the value goes into
 a context item defined in `catalog.customDataTypeDefinitions` (codes prefixed
 `AgmaSync-`). Group items such as `AgmaSync-Partner` carry their value in nested
-context items.
+context items. Definitions that hold a reference say so in `keywords`
+(`reference:party`, `reference:organization`, `reference:season`).
 
 ## Mapping
 
@@ -33,12 +34,12 @@ context items.
 | Farm `name` | `farm.name` |
 | Farm `owner` | `farm.growerId` → `grower` (1:1 with the owner party, linked by `grower.partyId`) |
 | Farm `specialised_usage_type` | `AgmaSync-SpecialisedUsageType` |
-| Farm `partners[]` | `AgmaSync-Partners` { `AgmaSync-Partner` { `-PartnerPartyId`, `-PartnerRole` } per entry } |
+| Farm `partners[]` | `AgmaSync-Partners` { `AgmaSync-Partner` { `-PartnerPartyId`, `-PartnerPartyType`, `-PartnerRole` } per entry } |
 | Farm `address` | `AgmaSync-Address`, nested `AgmaSync-Address*` |
 | Farm `geo_reference` | `AgmaSync-GeoReference` (WKT `POINT`) |
 | Field `name`, `farm` | `field.name`, `field.farmId` |
 | Field `area` (m²) | `field.arableArea` (ha) |
-| Field `owner` | `AgmaSync-FieldOwnerPartyId` |
+| Field `owner` | `AgmaSync-FieldOwner` { `-FieldOwnerPartyId`, `-FieldOwnerPartyType` } |
 | Field `soil.type`, `soil.rating_points` | `AgmaSync-SoilType`, `-SoilRatingPoints` |
 | Field `topography` | `AgmaSync-Topography` (`arcdeg`) |
 | Field `field_boundaries[]` | inverted: `fieldBoundary.fieldId` |

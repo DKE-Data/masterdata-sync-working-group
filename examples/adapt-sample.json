@@ -172,12 +172,13 @@
       {
         "definitionCode": "AgmaSync-MemberOrganizationId",
         "name": "Member Organization Id",
-        "description": "Membership `organization_id`, as the Reference Id of a Party.",
+        "description": "Membership `organization_id`, as the Reference Id of a Party of type ORGANIZATION. A reference: the keyword names the target.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
           "PARTY"
-        ]
+        ],
+        "keywords": "reference:organization"
       },
       {
         "definitionCode": "AgmaSync-MemberRole",
@@ -311,12 +312,26 @@
       {
         "definitionCode": "AgmaSync-PartnerPartyId",
         "name": "Partner Party Id",
-        "description": "Partner `partner_id`, as the Reference Id of a Party.",
+        "description": "Partner `partner_id`, as the Reference Id of a Party. Its type is in AgmaSync-PartnerPartyType. A reference: the keyword names the target.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
           "FARM"
-        ]
+        ],
+        "keywords": "reference:party"
+      },
+      {
+        "definitionCode": "AgmaSync-PartnerPartyType",
+        "name": "Partner Party Type",
+        "description": "Partner `partner_id.type`, so that a receiver not holding the party knows which kind to lazy-load. A code from the ADAPT PartyType list.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FARM"
+        ],
+        "textDataTypeDefinitionAttributes": {
+          "validationRegularExpression": "^(ORGANIZATION|INDIVIDUAL)$"
+        }
       },
       {
         "definitionCode": "AgmaSync-PartnerRole",
@@ -339,14 +354,38 @@
         ]
       },
       {
-        "definitionCode": "AgmaSync-FieldOwnerPartyId",
-        "name": "Field Owner Party Id",
-        "description": "Field `owner`, as the Reference Id of a Party. Absent means the farm owner holds the field.",
+        "definitionCode": "AgmaSync-FieldOwner",
+        "name": "Field Owner",
+        "description": "Field `owner`. Absent means the farm owner holds the field. Carries no value of its own: the value is the nested context items.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
           "FIELD"
         ]
+      },
+      {
+        "definitionCode": "AgmaSync-FieldOwnerPartyId",
+        "name": "Field Owner Party Id",
+        "description": "Field `owner`, as the Reference Id of a Party. Its type is in AgmaSync-FieldOwnerPartyType. A reference: the keyword names the target.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ],
+        "keywords": "reference:party"
+      },
+      {
+        "definitionCode": "AgmaSync-FieldOwnerPartyType",
+        "name": "Field Owner Party Type",
+        "description": "Field `owner.type`, so that a receiver not holding the party knows which kind to lazy-load. A code from the ADAPT PartyType list.",
+        "dataDefinitionBaseTypeCode": "TEXT",
+        "dataDefinitionStatusCode": "VALID",
+        "scopes": [
+          "FIELD"
+        ],
+        "textDataTypeDefinitionAttributes": {
+          "validationRegularExpression": "^(ORGANIZATION|INDIVIDUAL)$"
+        }
       },
       {
         "definitionCode": "AgmaSync-SoilType",
@@ -402,12 +441,13 @@
       {
         "definitionCode": "AgmaSync-SeasonId",
         "name": "Season Id",
-        "description": "Field `harvest_period`, as the Reference Id of a Season. ADAPT gives Field no Season Ids.",
+        "description": "Field `harvest_period`, as the Reference Id of a Season. ADAPT gives Field no Season Ids. A reference: the keyword names the target.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
           "FIELD"
-        ]
+        ],
+        "keywords": "reference:season"
       },
       {
         "definitionCode": "AgmaSync-BoundaryType",
@@ -932,6 +972,10 @@
                     "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53"
                   },
                   {
+                    "definitionCode": "AgmaSync-PartnerPartyType",
+                    "valueText": "ORGANIZATION"
+                  },
+                  {
                     "definitionCode": "AgmaSync-PartnerRole",
                     "valueText": "CUSTOM_SERVICE_PROVIDER"
                   }
@@ -943,6 +987,10 @@
                   {
                     "definitionCode": "AgmaSync-PartnerPartyId",
                     "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57"
+                  },
+                  {
+                    "definitionCode": "AgmaSync-PartnerPartyType",
+                    "valueText": "INDIVIDUAL"
                   },
                   {
                     "definitionCode": "AgmaSync-PartnerRole",
@@ -1038,8 +1086,17 @@
             ]
           },
           {
-            "definitionCode": "AgmaSync-FieldOwnerPartyId",
-            "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
+            "definitionCode": "AgmaSync-FieldOwner",
+            "contextItems": [
+              {
+                "definitionCode": "AgmaSync-FieldOwnerPartyId",
+                "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
+              },
+              {
+                "definitionCode": "AgmaSync-FieldOwnerPartyType",
+                "valueText": "INDIVIDUAL"
+              }
+            ]
           },
           {
             "definitionCode": "AgmaSync-SoilType",
