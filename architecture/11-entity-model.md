@@ -1,16 +1,39 @@
-# ADR 11 - Entity model and ADAPT alignment
+# ADR 11 - Entity model: FarmSPT, AgmaSync and ADAPT
 
 - **Status:** WIP
-- **Scope:** The master-data entities of the specification compared with ADAPT 2,
-  whether AgmaSync should adopt the ADAPT data model, and what to take from it
-  otherwise
+- **Scope:** The master-data entities of the specification, derived from
+  FarmSPT, compared with ADAPT 2. Whether AgmaSync should encode them in the
+  ADAPT data model, and what to take from ADAPT otherwise
 
 ## Context
 
-AgmaSync already borrows from ADAPT: the term *party*
-([ADR 08](08-party-model.md)), the Role list, and the BoundaryCreationMethod
-codes. The question is whether to go further and use ADAPT's entities as the wire
-model, so that systems built on ADAPT can join with less work.
+AgmaSync's entities are the FarmSPT master data, encoded for
+sync. FarmSPT defines the content: which attributes are exchanged, with which
+data types and reference systems. Its structure follows ISOXML (Customer, Farm,
+Partfield). From ADAPT it uses code lists only: the Role list for members,
+BoundaryCreationMethod and GuidancePatternType.
+
+The comparison in this ADR is therefore between FarmSPT, as AgmaSync encodes
+it, and ADAPT. The question is whether AgmaSync should encode FarmSPT's content
+in ADAPT's entities instead of its own schema, so that systems built on ADAPT
+can join with less work.
+
+### From FarmSPT to AgmaSync
+
+| FarmSPT entity | AgmaSync | Change |
+| --- | --- | --- |
+| Accountowner, Customer/Grower | Organization, Person | Both have the same attributes, so one party type serves both ([ADR 08](08-party-model.md)). `specialised_usage_type` moves to the farm. |
+| Member | Person `memberships` | A member is a person with a role, not an entity. `title` added. |
+| Farm | Farm | Partner becomes `partners`, a party reference with a role. Registration numbers (ZID, VVVO, international), billing address and time zone not yet taken. |
+| Field | Field | Ownership status becomes an `owner` party reference. FieldIdentifier (ID, Source) becomes `local_id` and agrirouter's [identifier mapping](../specification.md#identifier-mapping). Site, soil taxonomy and field history not yet taken. `area` added. |
+| Field Boundaries | FieldBoundary | An entity of its own. StartDate and valid-to become `harvest_period`. Source becomes `source_endpoint_id`. |
+| POI | FieldBoundary `obstacles` | Reduced to geometry and kind inside the boundary. |
+| Crop Season | `harvest_period` | Inlined as an interval, not an object. |
+| Tramlines, Field Crop, Note, Task | none | Outside MVP scope. |
+
+AgmaSync adds what FarmSPT leaves open: the envelope
+(identity, revision, tenant, source), typed references between objects, strict
+validation ([ADR 02](02-data-model.md)), and `metadata`.
 
 ### AgmaSync entities
 
@@ -167,6 +190,8 @@ Findings from that exercise:
 | AgmaSync attributes (envelope plus 6 entity types) | 42 |
 | with a native ADAPT counterpart | 17, including owner → Grower (1:1) and harvest period → Season; 2 only after restructuring (boundary list inverted, area in ha) |
 | needing a custom context item | 25, which need 45 custom definitions because lists and structured values take several each (e.g. `partners`: list, entry, party id, party type, role). One of them, `AgmaSync-SeasonId`, only links a field to its Season, since an ADAPT Field has no `seasonIds` |
+| of these, FarmSPT content | 17: tax number, tax id, trade id, commercial registry number, billing address, member first and last name, memberships, partners, farm address, farm geo reference, specialised usage type, field owner, soil, topography, boundary type, regulatory requirements |
+| of these, added by AgmaSync | 8: the envelope (active, revision, modified at, tenant, source endpoint), `metadata` on field and boundary, person `title` |
 | ADAPT attributes with no AgmaSync source | the boundary `name` ADAPT requires |
 
 Here is an example for the farm's contractor. In AgmaSync:
@@ -211,8 +236,19 @@ context items, each one declared in `customDataTypeDefinitions`:
 }
 ```
 
-The gap is mostly in parties and the envelope: fiscal and registry identifiers,
-person name parts, memberships, billing address, partners, revision, tenant.
+The gap is FarmSPT's content, not AgmaSync's design. Two thirds of the custom
+items carry FarmSPT attributes, several of them
+for German or EU rules (tax and trade ids, soil rating points, nitrogen red
+zones). ADAPT has no slot for them. Encoding FarmSPT in ADAPT does not remove
+them, it moves them into context items. Most of the rest is the sync envelope,
+which ADAPT, a file format, has no concept of.
+
+FarmSPT content not yet in AgmaSync shifts the balance both ways. Farm
+registration numbers (ZID, VVVO) would be custom items as well. The time zone
+has a native slot, though on the field (`Field.timeZone`), not the farm. The
+entities outside MVP scope are where ADAPT is strongest: tramlines map to
+GuidanceGroup and GuidancePattern, whose type list FarmSPT uses, and Field Crop to Crop, CropZone and Product. ADAPT covers FarmSPT's
+operational data better than its master data.
 
 ADAPT 2.0.2 as published is permissive. No object rejects unknown properties.
 The rule that a context item carries a value or nested items is not enforced.
@@ -221,18 +257,21 @@ file.
 
 ## Options
 
-- **A. Keep the AgmaSync model.** Reuse ADAPT code lists where they fit.
-- **B. Adopt ADAPT as the wire model.** ADAPT entities, with everything else in
-  `AgmaSync-` context items as in the example.
-- **C. Keep the AgmaSync model, align selectively, and publish a mapping.** A
-  normative two-way mapping plus the `AgmaSync-` custom definitions, so ADAPT
-  systems convert at their edge. Adopt ADAPT's structure where it is better for
-  sync.
+- **A. Keep the FarmSPT-derived model.** Reuse ADAPT code lists where they fit,
+  as FarmSPT does.
+- **B. Encode FarmSPT in ADAPT.** ADAPT entities as the wire model. FarmSPT
+  attributes without an ADAPT slot, and the envelope, go into `AgmaSync-`
+  context items as in the example.
+- **C. Keep the FarmSPT-derived model, align selectively, and publish a
+  mapping.** A normative two-way mapping plus the `AgmaSync-` custom
+  definitions, so ADAPT systems convert at their edge. Adopt ADAPT's structure
+  where it is better for sync. Add a `name` to FieldBoundary, which ADAPT
+  requires, so the mapping does not have to derive one.
 - **D. Accept both on the wire.** agrirouter translates between them.
 - **E. Wrap ADAPT in the AgmaSync envelope.** Each object is an AgmaSync
   envelope with typed fields. It carries the unchanged ADAPT component in
-  `adapt`, and what ADAPT lacks as typed AgmaSync fields in `extensions`, not
-  as context items.
+  `adapt`, and the FarmSPT attributes ADAPT lacks as typed fields in
+  `extensions`, not as context items.
 
 ## Criteria
 
@@ -256,14 +295,14 @@ questions).
 | Participant | A | B | C | E |
 | --- | --- | --- | --- | --- |
 | Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: `adapt` passes through unchanged, `extensions` are typed |
-| Built on ISOXML / EFDI | low: AgmaSync mirrors Customer / Farm / Partfield attributes | high: map to ADAPT, then to context items | low | medium to high: map to ADAPT, no context items |
+| Built on ISOXML / EFDI | low: FarmSPT maps its attributes to ISO 11783 Customer / Farm / Partfield | high: map to ADAPT, then to context items | low | medium to high: map to ADAPT, no context items |
 | Proprietary REST (client / farm / field) | medium | medium to high | medium | medium to high |
 
-B lowers the cost for one group and raises it for the group ADR 02 targets. The
-saving for ADAPT systems is also smaller than it looks. 25 of 42 attributes
-would still arrive as `AgmaSync-` context items, which they must understand
-anyway to read the data. Using ADAPT's shape does not make the content
-understood.
+B lowers the cost for one group and raises it for the group FarmSPT and ADR 2
+aligned with. The saving for ADAPT systems is also smaller than it looks. 25 of
+42 attributes, 17 of them FarmSPT's, would still arrive as `AgmaSync-` context
+items, which they must understand anyway to read the data. Using ADAPT's shape
+does not make FarmSPT's content understood.
 
 ### 2. Contract strength
 
@@ -328,6 +367,11 @@ the schema, so implementations diverge in how strictly they apply it.
   "farms":  [ { "id": { "referenceId": "FARM-3001" }, "name": "Hofgut Sonnenberg", … } ],
   "fields": [ { "name": "Am Mühlenbach", "farmId": "FARM-3001", … } ]
   ```
+
+  FarmSPT's FieldIdentifier (ID and Source, repeatable) is ADAPT's `uniqueIds`
+  (`idText`, `idSource`) under another name. AgmaSync drops both for `local_id`,
+  because a list of every system's id would show each receiver the other
+  participants' identifiers, which the specification rules out.
 - **References.** In AgmaSync, every attribute that points at another object has
   the type `EntityReference` or `PartyReference`: `partner_id` above, `owner`,
   `farm`, `organization_id`. agrirouter finds them from the schema and applies
@@ -365,12 +409,15 @@ the schema, so implementations diverge in how strictly they apply it.
   schema type.
 - **Aggregate boundaries.** ADAPT is better on one point. A boundary references
   its field (`fieldId`), whereas AgmaSync's field lists its boundaries
-  (`field_boundaries`). Under AgmaSync's model ([ADR 03](03-revision-model.md)),
+  (`field_boundaries`), mirroring FarmSPT, where boundaries sit
+  under the field. Under AgmaSync's model ([ADR 03](03-revision-model.md)),
   adding a boundary therefore revises the field, which causes needless conflicts
   on the field. The child referencing its parent is the better design for a
-  revision-based sync.
-- **Grower and Party.** Two objects for one owner means two revisions to keep
-  consistent. ADR 08 avoided this split on purpose.
+  revision-based sync. The direction of the reference is a matter of encoding,
+  so following ADAPT here leaves FarmSPT's content unchanged.
+- **Grower and Party.** FarmSPT has no such split. Its Customer/Grower carries
+  the party attributes itself. Two objects for one owner means two revisions to
+  keep consistent. ADR 08 keeps FarmSPT's single object for that reason.
 - **Write semantics.** Writes are JSON Merge Patch (RFC 7396): objects merge
   key by key, arrays are replaced whole. Under B, most attributes sit in the
   `contextItems` array, so plain RFC 7396 loses partial updates and turns
@@ -437,13 +484,17 @@ Write semantics keeps them.
 
 ### 5. Evolution and governance
 
-- Under B, AgmaSync's core shape follows AgGateway's release cycle and
-  governance. The attributes that matter most here would live in AgmaSync's own
-  definitions anyway, so B couples AgmaSync to ADAPT without handing the content
-  over.
-- Under A and C, AgmaSync controls its schema and tracks ADAPT through the
-  mapping. When ADAPT adds a slot, the mapping moves an attribute out of custom
-  items. Neither AgmaSync nor its participants have to change.
+- Under A and C, content comes from FarmSPT and the encoding is AgmaSync's. A
+  FarmSPT attribute that enters scope becomes a typed AgmaSync attribute, and
+  the mapping records its ADAPT slot or custom definition. When ADAPT adds a
+  slot, the mapping moves an attribute out of custom items. Neither AgmaSync nor
+  its participants have to change.
+- Under B, the shape of every object follows AgGateway's release cycle and
+  governance, while FarmSPT's content sits beneath it in `AgmaSync-`
+  definitions. B couples AgmaSync to ADAPT without handing the content over.
+- As FarmSPT's operational entities (tramlines, crops, tasks) come into scope, the
+  mapping gains mostly native ADAPT entries. Alignment with ADAPT gets cheaper
+  there, but it stays a question of mapping, not of the wire model.
 
 ### 6. Tooling
 
@@ -541,37 +592,42 @@ the [criteria](#criteria) above:
   version adds a slot, the attribute moves from `extensions` to `adapt`, which
   is a breaking change. Under C the same event changes only the mapping.
 - **Structure inherited from ADAPT.** The body brings Grower and Season as
-  objects of their own, and the boundary references its field. The last one is
-  wanted. The first two add objects to sync.
+  objects of their own, and the boundary references its field. The boundary
+  reference is wanted. Grower adds an object FarmSPT does not have. Season is
+  an object FarmSPT wants as well (see Open questions).
 - **Versioning.** The envelope must name the ADAPT version of `adapt`, and
   AgmaSync decides when to move to a new one.
 
 E is the strongest option built on ADAPT. Compared with C, it trades a lower
-cost for ADAPT participants against a higher one for ISOXML participants, data
-split across two vocabularies, and extra objects to sync.
+cost for ADAPT participants against a higher one for ISOXML participants,
+FarmSPT's content split across two vocabularies, and an extra Grower object to
+sync.
 
 ## Recommendation
 
 **Option C.**
 
-1. Keep the AgmaSync model as the contract, under ADR 02.
+1. Keep the FarmSPT-derived AgmaSync model as the contract, under ADR 02.
 2. **Reverse the field–boundary reference**, following ADAPT: `fieldBoundary.field`
    replaces `field.field_boundaries`. This needs its own ADR.
-3. Keep reusing ADAPT code lists. Wherever AgmaSync has an extensible
-   enumeration, draw its values from the ADAPT list if one exists.
+3. Keep reusing ADAPT code lists, as FarmSPT does. Wherever AgmaSync has an
+   extensible enumeration, draw its values from the ADAPT list if one exists.
 4. Publish a normative AgmaSync–ADAPT mapping and the `AgmaSync-` definitions,
    starting from the example. ADAPT-based participants then convert at their
    edge, and there is one conversion instead of one per participant.
-5. Keep the Grower concept out of the model. For ADAPT → AgmaSync, the mapping
-   states that a Grower becomes its Party, and that a Grower without a Party is
-   rejected.
+5. Keep the Grower concept out of the model, as FarmSPT does. For ADAPT →
+   AgmaSync, the mapping states that a Grower becomes its Party, and that a
+   Grower without a Party is rejected.
 
 ## Open questions
 
 - **Participant mix.** How many prospective participants run on ADAPT 2
-  natively, rather than exporting to it? If a clear majority do, the balance in
-  criteria 1 and 6 shifts, and E should be reassessed.
-- **Harvest period.** Should it become a shared object, like ADAPT's Season? That
-  only pays off if participants actually share seasons.
+  natively, rather than exporting to it? If a clear majority do, the balance in criteria 1 and 6 shifts, and E
+  should be reassessed.
+- **Harvest period.** FarmSPT makes the season an optional object the farmer
+  creates, as ADAPT does with Season. AgmaSync inlines it. The season object
+  serves to link tasks, which come with the Task entity. Until then
+  only fields and boundaries would reference it.
 - **Who hosts the mapping.** Should the `AgmaSync-` definitions be proposed to
   AgGateway as standard definitions? That would move them into ADAPT's own list.
+  Most of them are FarmSPT content.
