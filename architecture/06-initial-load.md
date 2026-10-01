@@ -87,7 +87,7 @@ never asked.
 ### The flow in concrete calls
 
 The same six steps expressed as the actual operations of the master-data API,
-for an endpoint opted into organizations, persons and farms - the smallest
+for an endpoint opted into parties and farms - the smallest
 dependency-closed set that includes farms. `{eid}` is the endpoint's
 `externalEndpointId`.
 
@@ -100,10 +100,10 @@ sequenceDiagram
     participant AR as agrirouter (SSOT)
 
     Note over P,AR: step 1 - the partner declares what this endpoint can exchange.
-    P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "organizations" }, { entityType: "persons" }, { entityType: "farms" }] }
+    P->>AR: PUT /endpoints/{eid}/masterdata-config { toggles: [{ entityType: "parties" }, { entityType: "farms" }] }
     AR-->>P: 200 MasterdataConfig
     Note over U,AR: step 2 - the user selects, in agrirouter, which of the declared types this endpoint exchanges
-    U->>AR: create masterdata route and select organizations, persons, farms
+    U->>AR: create masterdata route and select parties, farms
     Note over AR: endpoint → LOADING_FROM_AGRIROUTER
     AR->>P: event: ROUTE_CHANGED on /masterdata/events data: { endpointId, externalEndpointId, entityTypes }
 
@@ -112,7 +112,7 @@ sequenceDiagram
     AR-->>P: 200 InitialLoadStatus { state: "LOADING_FROM_AGRIROUTER" } - no previousLoadCompletedAt, so a first load and not a repeat
     P->>AR: GET /endpoints/{eid}/masterdata-initial-load/events (SSE)
     AR-->>P: 200 text/event-stream
-    loop every canonical object the endpoint is entitled to - organizations, then persons, then farms
+    loop every canonical object the endpoint is entitled to - parties, then farms
         AR-->>P: event: MASTERDATA_CHANGED (no id:) data: { type: "farm", agrirouterId: 1f2e…4567, revision: 3, owner: { agrirouterId: 9ab0…1234, … }, localId: P's own or absent }
         Note over P: apply as it arrives - the owner was delivered earlier in the same stream. reconcile against own store (id mapping, user decides on conflicts)
     end
@@ -123,15 +123,15 @@ sequenceDiagram
     AR-->>P: 200 InitialLoadStatus { state: "RECONCILING" } - the set arrived complete.
     Note over P: whole set held - user works through what is left, on their own schedule. live changes keep arriving meanwhile
     opt object referenced from the live stream, not delivered by the set yet
-        P->>AR: POST /masterdata/organizations/requests { agrirouterId: 4d5e…6789 }
+        P->>AR: POST /masterdata/parties/requests { agrirouterId: 4d5e…6789 }
         AR-->>P: 202 Accepted
-        AR-->>P: event: MASTERDATA_CHANGED (organization)
+        AR-->>P: event: MASTERDATA_CHANGED (party)
     end
 
     P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/status { state: "LOADING_TO_AGRIROUTER", idMappings: [{ agrirouterId: 1f2e…4567, localId: b1e7… }, { agrirouterId: 9ab0…1234, localId: c02a… }] }
     AR-->>P: 200 InitialLoadStatus { state: "LOADING_TO_AGRIROUTER", rejectedIdMappings: [] }
 
-    loop every local object that is new or was changed while resolving a conflict, parties before farms
+    loop every local object that is new or was changed while resolving a conflict, parties before farms, members after their organizations
         P->>AR: PUT /masterdata/farms/{localId} { type: "farm", owner: {...}, name: "Hof Nord" }
         alt matched during reconciliation, bound above
             AR-->>P: 200 Farm { agrirouterId: 1f2e…4567, revision: 8 }

@@ -6,7 +6,7 @@ info:
   description: >
     HTTP surface for the Agriculture Masterdata Sync protocol (AgmaSync). It lets a
     connected participant send, deactivate, request, and read the master-data
-    entities (organizations, persons, farms, fields, field boundaries) that
+    entities (parties, farms, fields, field boundaries) that
     agrirouter synchronizes across an n:m network of systems, and configure
     per-entity opt-in for an endpoint.
 
@@ -41,10 +41,8 @@ security:
   - bearerAuth: []
 
 tags:
-  - name: Organizations
-    description: Sending, deactivating, requesting, and reading organizations.
-  - name: Persons
-    description: Sending, deactivating, requesting, and reading persons.
+  - name: Parties
+    description: Sending, deactivating, requesting, and reading parties.
   - name: Farms
     description: Sending, deactivating, requesting, and reading farms.
   - name: Fields
@@ -59,208 +57,19 @@ tags:
     description: Receiving master-data changes as Server-Sent Events.
 
 paths:
-  # ------------------------------------------------------------- organizations
+  # ------------------------------------------------------------------- parties
 
-  /masterdata/organizations/{local_id}:
+  /masterdata/parties/{local_id}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
       - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     put:
-      tags: [Organizations]
-      summary: Send (create or update) an organization
+      tags: [Parties]
+      summary: Send (create or update) a party
       description: >
-        Submits an organization from the calling endpoint. If the
-        (application, local_id) pair is already mapped to a canonical object, that
-        object is updated; otherwise a new canonical object is created and an
-        `agrirouter_id` is assigned. The mapping is keyed by the application, not
-        the endpoint: a `local_id` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
-        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
-        base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
-        revision as it is) do not create a new revision and are not forwarded.
-
-
-        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
-        an attribute with a value replaces the current one, `null` removes it,
-        and an attribute left out is unchanged. Nested objects merge the same
-        way. Required attributes are required on every write and are never
-        `null`. The response is always the whole resulting object.
-      operationId: putOrganization
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Organization'
-      responses:
-        '200':
-          description: Organization accepted; the resulting canonical object is returned.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-        '201':
-          description: A new canonical object was created.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MappingConflict'
-        '412':
-          $ref: '#/components/responses/RevisionConflict'
-        '428':
-          $ref: '#/components/responses/BaseRevisionRequired'
-
-  /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id}:
-    parameters:
-      - $ref: '#/components/parameters/LocalId'
-      - $ref: '#/components/parameters/IdMappingAgrirouterId'
-      - $ref: '#/components/parameters/AgrirouterEndpointId'
-      - $ref: '#/components/parameters/AgrirouterTenantId'
-    put:
-      tags: [Organizations]
-      summary: Bind a local identifier to an existing organization
-      description: >
-        Declares that the canonical organization in the path is the one this endpoint
-        knows as `local_id` — used when the endpoint recognises a delivered object
-        as one it already holds. Binding is not a data write: it creates no
-        revision, does not change `source_endpoint_id`, and is delivered to nobody.
-        Afterwards the ordinary PUT under that `local_id` resolves to this object
-        and updates it. An endpoint MUST bind before sending an object it
-        received: an unbound send does not resolve and creates a duplicate.
-
-
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
-        both ends of the mapping being in the path, and is idempotent.
-      operationId: bindOrganizationMapping
-      responses:
-        '204':
-          description: The mapping is recorded.
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MappingConflict'
-    delete:
-      tags: [Organizations]
-      summary: Declare that this endpoint no longer holds an organization
-      description: >
-        Declares that the endpoint no longer holds the canonical organization in the
-        path under `local_id` — deleted locally, or discarded while the endpoint
-        was not a participant. It is the counterpart of the binding above and,
-        like it, a declaration about the endpoint's own store, which agrirouter
-        takes at face value and never infers. It is not the correction of a
-        mistaken binding, and it is not a statement that the entity is inactive
-        in the world — for the latter, use the deactivation operation, which is
-        about the entity rather than about this endpoint's copy of it.
-
-
-        Unbinding removes no canonical object, touches no other endpoint's
-        mapping, creates no revision, and reaches nobody. The object stays one
-        this endpoint is entitled to, so its next change is delivered again,
-        carrying no `local_id`, and the endpoint MUST then treat it as new:
-        opt-in is the only filter on what an endpoint receives, and unbinding is
-        not an instruction to stop sending. An endpoint that wants the object
-        back at once requests it by `agrirouter_id` rather than waiting for a
-        change.
-      operationId: unbindOrganizationMapping
-      responses:
-        '204':
-          description: >
-            The endpoint holds no mapping for this pair. Returned whether or not
-            one existed, so a retry after a lost response is safe.
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /masterdata/organizations/{local_id}/deactivation:
-    parameters:
-      - $ref: '#/components/parameters/LocalId'
-      - $ref: '#/components/parameters/AgrirouterEndpointId'
-      - $ref: '#/components/parameters/AgrirouterTenantId'
-      - $ref: '#/components/parameters/BaseRevision'
-    post:
-      tags: [Organizations]
-      summary: Deactivate an organization
-      description: >
-        Signals that the organization was deactivated in the source system (archival,
-        deletion, or similar). The canonical object is set inactive but retained.
-        The operation is idempotent: deactivating an already-inactive entity
-        succeeds without creating a new revision or notification. The first
-        deactivation is a write like any other and carries the revision it was
-        made from in `x-agrirouter-base-revision`; a concurrent edit to the
-        object is a conflict, and only one of the two succeeds. On an object
-        that is already inactive the header is ignored.
-      operationId: deactivateOrganization
-      responses:
-        '200':
-          description: Organization is inactive (either newly deactivated or already inactive).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '412':
-          $ref: '#/components/responses/RevisionConflict'
-        '428':
-          $ref: '#/components/responses/BaseRevisionRequired'
-
-  /masterdata/organizations/requests:
-    parameters:
-      - $ref: '#/components/parameters/AgrirouterEndpointId'
-      - $ref: '#/components/parameters/AgrirouterTenantId'
-    post:
-      tags: [Organizations]
-      summary: Request an organization (lazy loading)
-      description: >
-        Refetches an organization the caller is entitled to but does not currently hold —
-        an object lost locally, or one referenced by an object that arrived on
-        the live stream before the initial-load stream delivered its target.
-        Opt-in remains the only filter on delivery, so a request never returns
-        anything the stream would not also deliver. The object arrives
-        asynchronously as a master-data change event (see `/masterdata/events`).
-        It is delivered even when the requesting application was the object's
-        last writer: origin suppression does not apply to a requested object,
-        since refetching something it wrote itself is exactly what an application
-        that lost the object needs.
-      operationId: requestOrganization
-      requestBody:
-        $ref: '#/components/requestBodies/EntityRequest'
-      responses:
-        '202':
-          $ref: '#/components/responses/RequestAccepted'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ------------------------------------------------------------------- persons
-
-  /masterdata/persons/{local_id}:
-    parameters:
-      - $ref: '#/components/parameters/LocalId'
-      - $ref: '#/components/parameters/AgrirouterEndpointId'
-      - $ref: '#/components/parameters/AgrirouterTenantId'
-      - $ref: '#/components/parameters/BaseRevision'
-    put:
-      tags: [Persons]
-      summary: Send (create or update) a person
-      description: >
-        Submits a person from the calling endpoint. If the
+        Submits a party from the calling endpoint. If the
         (application, local_id) pair is already mapped to a canonical object, that
         object is updated; otherwise a new canonical object is created and an
         `agrirouter_id` is assigned. The mapping is keyed by the application, not
@@ -278,26 +87,34 @@ paths:
         way; arrays are replaced whole. Required attributes are required on
         every write and are never `null`. The response is always the whole
         resulting object.
-      operationId: putPerson
+
+
+        `details` carries its `party_type` on every write that includes it. It merges
+        like any nested object while that `party_type` is unchanged; a write that
+        changes it replaces `details` whole, so no attribute of the other kind
+        survives. A participant that does not record whether a party is a
+        person or an organization leaves `details` out, which keeps what another
+        participant stated.
+      operationId: putParty
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Person'
+              $ref: '#/components/schemas/Party'
       responses:
         '200':
-          description: Person accepted; the resulting canonical object is returned.
+          description: Party accepted; the resulting canonical object is returned.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Person'
+                $ref: '#/components/schemas/Party'
         '201':
           description: A new canonical object was created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Person'
+                $ref: '#/components/schemas/Party'
         '400':
           $ref: '#/components/responses/ValidationError'
         '403':
@@ -309,17 +126,17 @@ paths:
         '428':
           $ref: '#/components/responses/BaseRevisionRequired'
 
-  /masterdata/persons/{local_id}/id-mapping/{agrirouter_id}:
+  /masterdata/parties/{local_id}/id-mapping/{agrirouter_id}:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/IdMappingAgrirouterId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
       - $ref: '#/components/parameters/AgrirouterTenantId'
     put:
-      tags: [Persons]
-      summary: Bind a local identifier to an existing person
+      tags: [Parties]
+      summary: Bind a local identifier to an existing party
       description: >
-        Declares that the canonical person in the path is the one this endpoint
+        Declares that the canonical party in the path is the one this endpoint
         knows as `local_id` — used when the endpoint recognises a delivered object
         as one it already holds. Binding is not a data write: it creates no
         revision, does not change `source_endpoint_id`, and is delivered to nobody.
@@ -331,7 +148,7 @@ paths:
         A local identifier denotes exactly one canonical object, so this is a
         singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
-      operationId: bindPersonMapping
+      operationId: bindPartyMapping
       responses:
         '204':
           description: The mapping is recorded.
@@ -342,10 +159,10 @@ paths:
         '409':
           $ref: '#/components/responses/MappingConflict'
     delete:
-      tags: [Persons]
-      summary: Declare that this endpoint no longer holds a person
+      tags: [Parties]
+      summary: Declare that this endpoint no longer holds a party
       description: >
-        Declares that the endpoint no longer holds the canonical person in the
+        Declares that the endpoint no longer holds the canonical party in the
         path under `local_id` — deleted locally, or discarded while the endpoint
         was not a participant. It is the counterpart of the binding above and,
         like it, a declaration about the endpoint's own store, which agrirouter
@@ -363,7 +180,7 @@ paths:
         not an instruction to stop sending. An endpoint that wants the object
         back at once requests it by `agrirouter_id` rather than waiting for a
         change.
-      operationId: unbindPersonMapping
+      operationId: unbindPartyMapping
       responses:
         '204':
           description: >
@@ -374,17 +191,17 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /masterdata/persons/{local_id}/deactivation:
+  /masterdata/parties/{local_id}/deactivation:
     parameters:
       - $ref: '#/components/parameters/LocalId'
       - $ref: '#/components/parameters/AgrirouterEndpointId'
       - $ref: '#/components/parameters/AgrirouterTenantId'
       - $ref: '#/components/parameters/BaseRevision'
     post:
-      tags: [Persons]
-      summary: Deactivate a person
+      tags: [Parties]
+      summary: Deactivate a party
       description: >
-        Signals that the person was deactivated in the source system (archival,
+        Signals that the party was deactivated in the source system (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
@@ -392,14 +209,14 @@ paths:
         made from in `x-agrirouter-base-revision`; a concurrent edit to the
         object is a conflict, and only one of the two succeeds. On an object
         that is already inactive the header is ignored.
-      operationId: deactivatePerson
+      operationId: deactivateParty
       responses:
         '200':
-          description: Person is inactive (either newly deactivated or already inactive).
+          description: Party is inactive (either newly deactivated or already inactive).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Person'
+                $ref: '#/components/schemas/Party'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -409,15 +226,15 @@ paths:
         '428':
           $ref: '#/components/responses/BaseRevisionRequired'
 
-  /masterdata/persons/requests:
+  /masterdata/parties/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
       - $ref: '#/components/parameters/AgrirouterTenantId'
     post:
-      tags: [Persons]
-      summary: Request a person (lazy loading)
+      tags: [Parties]
+      summary: Request a party (lazy loading)
       description: >
-        Refetches a person the caller is entitled to but does not currently hold —
+        Refetches a party the caller is entitled to but does not currently hold —
         an object lost locally, or one referenced by an object that arrived on
         the live stream before the initial-load stream delivered its target.
         Opt-in remains the only filter on delivery, so a request never returns
@@ -427,7 +244,7 @@ paths:
         last writer: origin suppression does not apply to a requested object,
         since refetching something it wrote itself is exactly what an application
         that lost the object needs.
-      operationId: requestPerson
+      operationId: requestParty
       requestBody:
         $ref: '#/components/requestBodies/EntityRequest'
       responses:
@@ -1020,7 +837,7 @@ paths:
         it is opted into. agrirouter never echoes a change back to the endpoint
         it originated from; a change made by one endpoint is still delivered to
         the application's other endpoints. Each event's
-        `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or
+        `data` is an `Entity` — a `Party`, `Farm`, `Field`, or
         `FieldBoundary` discriminated by its `type` property. A delivered object
         carries the receiving application's own identifier in `local_id` when
         agrirouter holds one, and no `local_id` at all when it does not.
@@ -1108,7 +925,7 @@ paths:
         these entity types. There is no default routing for masterdata. 
         The configuration MUST be dependency-closed: enabling fields requires
         the farms and field boundaries those fields reference, and the
-        organizations and persons those farms reference, to be enabled as well. A configuration that is
+        parties those farms reference, to be enabled as well. A configuration that is
         not dependency-closed is rejected with `400`.
       security:
         - agrirouterOauthQA: ["endpoints:manage"]
@@ -1771,21 +1588,6 @@ components:
         - required: [agrirouter_id]
         - required: [local_id]
 
-    PartyReference:
-      description: >
-        A reference to a party. The slot admits both organizations and persons,
-        so the entity type is required: a receiver that does not hold the target
-        must lazy-load it, and the request endpoints are per entity type. Typed
-        slots such as a field's farm need no discriminator.
-      allOf:
-        - $ref: '#/components/schemas/EntityReference'
-        - type: object
-          properties:
-            type:
-              type: string
-              enum: [organization, person]
-          required: [type]
-
     IdMappingBinding:
       type: object
       description: >
@@ -1927,85 +1729,105 @@ components:
           description: 'Human-facing designation, e.g. "2026" or "2025/2026".'
       required: [valid_from]
 
-    Organization:
+    Party:
       description: >
-        A legal entity that may hold land and to which persons may belong. It
-        plays no fixed role: whether it acts as a contractor or as a client
-        follows from the relations it stands in, not from an attribute.
+        A legal or natural actor: a person, an organization, or a party whose
+        kind its sender does not record. It plays no fixed role: whether it acts
+        as a contractor or as a client follows from the relations it stands in,
+        not from an attribute.
       allOf:
         - $ref: '#/components/schemas/Envelope'
-        - $ref: '#/components/schemas/Party'
         - type: object
           properties:
             type:
-              const: organization
+              const: party
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
             name:
               type: string
-            commercial_registry_number:
+              description: >
+                The name the party is known by: an organization's name, a
+                person's full name.
+            details:
+              oneOf:
+                - $ref: '#/components/schemas/PartyDetails'
+                - type: 'null'
+              description: >
+                Whether the party is a person or an organization, with the
+                attributes specific to that kind. Absent means the kind is
+                unknown. Sent only where the sender's own data records the kind,
+                never inferred from a name or a legal-form suffix.
+            address:
+              oneOf:
+                - $ref: '#/components/schemas/Address'
+                - type: 'null'
+            contact:
+              oneOf:
+                - $ref: '#/components/schemas/Contact'
+                - type: 'null'
+            billing_address:
+              oneOf:
+                - $ref: '#/components/schemas/Address'
+                - type: 'null'
+            tax_number:
               type: [string, 'null']
-              description: Identifier from the commercial register.
+              description: Identifier assigned by tax authorities.
+            tax_id:
+              type: [string, 'null']
+              description: Numerical identifier assigned by tax authorities.
+            trade_id:
+              type: [string, 'null']
+              description: Numerical identifier assigned by public authorities.
           required: [type, name]
 
-    Party:
+    PartyDetails:
+      description: >
+        The type of a party. `party_type` is a closed set, since it selects the
+        schema of the remaining attributes, and each type admits only its own
+        attributes.
+      oneOf:
+        - $ref: '#/components/schemas/PersonDetails'
+        - $ref: '#/components/schemas/OrganizationDetails'
+      discriminator:
+        propertyName: party_type
+        mapping:
+          PERSON: '#/components/schemas/PersonDetails'
+          ORGANIZATION: '#/components/schemas/OrganizationDetails'
+
+    PersonDetails:
       type: object
       description: >
-        Attributes common to every party, whether an organization or a natural
-        person. A farmer carries the fiscal identifiers as much as a company
-        does; only the commercial register entry is specific to organizations.
+        A natural person. A person may belong to one or more organizations
+        through `memberships`.
       properties:
-        address:
-          oneOf:
-            - $ref: '#/components/schemas/Address'
-            - type: 'null'
-        contact:
-          oneOf:
-            - $ref: '#/components/schemas/Contact'
-            - type: 'null'
-        billing_address:
-          oneOf:
-            - $ref: '#/components/schemas/Address'
-            - type: 'null'
-        tax_number:
+        party_type:
+          const: PERSON
+        title:
           type: [string, 'null']
-          description: Identifier assigned by tax authorities.
-        tax_id:
+        first_name:
           type: [string, 'null']
-          description: Numerical identifier assigned by tax authorities.
-        trade_id:
+        last_name:
           type: [string, 'null']
-          description: Numerical identifier assigned by public authorities.
+        memberships:
+          type: [array, 'null']
+          description: >
+            The organizations this person belongs to, each with the role held
+            there. A person carrying at least one entry is a member.
+          items:
+            $ref: '#/components/schemas/Membership'
+      required: [party_type]
 
-    Person:
-      description: >
-        A natural person. A person may hold land, and may belong to one or more
-        organizations through `memberships`.
-      allOf:
-        - $ref: '#/components/schemas/Envelope'
-        - $ref: '#/components/schemas/Party'
-        - type: object
-          properties:
-            type:
-              const: person
-              description: >
-                Discriminator, set by agrirouter. Implied by the path on send.
-                If sent, it must match the path.
-            title:
-              type: [string, 'null']
-            first_name:
-              type: [string, 'null']
-            last_name:
-              type: string
-            memberships:
-              type: [array, 'null']
-              description: >
-                The organizations this person belongs to, each with the role
-                held there. A person carrying at least one entry is a member.
-              items:
-                $ref: '#/components/schemas/Membership'
-          required: [type, last_name]
+    OrganizationDetails:
+      type: object
+      description: A legal entity to which persons may belong.
+      properties:
+        party_type:
+          const: ORGANIZATION
+        commercial_registry_number:
+          type: [string, 'null']
+          description: Identifier from the commercial register.
+      required: [party_type]
 
     Membership:
       type: object
@@ -2013,7 +1835,11 @@ components:
       properties:
         organization_id:
           $ref: '#/components/schemas/EntityReference'
-          description: The organization the person belongs to.
+          description: >
+            The organization the person belongs to: a party whose `details` is
+            an organization. A write naming any other party is a `400`, and so
+            is a change or removal of kind on an organization that persons
+            still name.
         member_role:
           $ref: '#/components/schemas/Role'
       required: [organization_id, member_role]
@@ -2027,8 +1853,8 @@ components:
         opt-in and routing.
       properties:
         partner_id:
-          $ref: '#/components/schemas/PartyReference'
-          description: The organization or person acting as partner.
+          $ref: '#/components/schemas/EntityReference'
+          description: The party acting as partner.
         partner_role:
           $ref: '#/components/schemas/Role'
       required: [partner_id, partner_role]
@@ -2076,8 +1902,8 @@ components:
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
             owner:
-              $ref: '#/components/schemas/PartyReference'
-              description: The organization or person that holds the farm.
+              $ref: '#/components/schemas/EntityReference'
+              description: The party that holds the farm.
             name:
               type: string
             specialised_usage_type:
@@ -2153,10 +1979,10 @@ components:
               description: The farm this field belongs to.
             owner:
               oneOf:
-                - $ref: '#/components/schemas/PartyReference'
+                - $ref: '#/components/schemas/EntityReference'
                 - type: 'null'
               description: >
-                The organization or person holding this field, for systems that
+                The party holding this field, for systems that
                 attribute fields to a party directly. When absent, the field is
                 held by its farm's owner. When present, it takes precedence for
                 this field, which is how a field held by one party but managed
@@ -2274,16 +2100,14 @@ components:
         opted-in entity type over a single connection; the typed resources use the
         concrete schemas directly.
       oneOf:
-        - $ref: '#/components/schemas/Organization'
-        - $ref: '#/components/schemas/Person'
+        - $ref: '#/components/schemas/Party'
         - $ref: '#/components/schemas/Farm'
         - $ref: '#/components/schemas/Field'
         - $ref: '#/components/schemas/FieldBoundary'
       discriminator:
         propertyName: type
         mapping:
-          organization: '#/components/schemas/Organization'
-          person: '#/components/schemas/Person'
+          party: '#/components/schemas/Party'
           farm: '#/components/schemas/Farm'
           field: '#/components/schemas/Field'
           fieldBoundary: '#/components/schemas/FieldBoundary'
@@ -2311,7 +2135,7 @@ components:
           description: >
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
             The entity type this toggle applies to.
-          examples: [organization, person, farm, field, fieldBoundary]
+          examples: [party, farm, field, fieldBoundary]
       required: [entity_type]
 
     PutEndpointRequest:
@@ -2576,7 +2400,7 @@ components:
             endpoint exchanges nothing, because the user deselected the last
             entity type or the route was removed.
           examples:
-            - [{entity_type: organization}, {entity_type: person}, {entity_type: farm}]
+            - [{entity_type: party}, {entity_type: farm}]
         changed_at:
           type: string
           format: date-time

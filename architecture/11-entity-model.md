@@ -22,8 +22,8 @@ can join with less work.
 
 | FarmSPT entity | AgmaSync | Change |
 | --- | --- | --- |
-| Accountowner, Customer/Grower | Organization, Person | Both have the same attributes, so one party type serves both ([ADR 08](08-party-model.md)). `specialised_usage_type` moves to the farm. |
-| Member | Person `memberships` | A member is a person with a role, not an entity. `title` added. |
+| Accountowner, Customer/Grower | Party | One entity whatever its kind. Person or organization is optional `details`, since a Customer/Grower does not record it ([ADR 08](08-party-model.md)). `specialised_usage_type` moves to the farm. |
+| Member | Person `details.memberships` | A member is a person with a role, not an entity. `title` added. |
 | Farm | Farm | Partner becomes `partners`, a party reference with a role. Registration numbers (ZID, VVVO, international), billing address and time zone not yet taken. |
 | Field | Field | Ownership status becomes an `owner` party reference. FieldIdentifier (ID, Source) becomes `local_id` and agrirouter's [identifier mapping](../specification.md#identifier-mapping). Site, soil taxonomy and field history not yet taken. `area` added. |
 | Field Boundaries | FieldBoundary | An entity of its own. StartDate and valid-to become `harvest_period`. Source becomes `source_endpoint_id`. |
@@ -41,7 +41,8 @@ validation ([ADR 02](02-data-model.md)), and `metadata`.
 classDiagram
     direction TB
     class Party {
-        +type : organization or person
+        +name
+        +details : PartyDetails or absent
         +address : Address
         +contact : Contact
         +billingAddress : Address
@@ -49,18 +50,20 @@ classDiagram
         +taxId
         +tradeId
     }
-    class Organization {
-        +name
-        +commercialRegistryNumber
+    class PartyDetails {
+        +type : person or organization
     }
-    class Person {
+    class PersonDetails {
         +title
         +firstName
         +lastName
         +memberships
     }
+    class OrganizationDetails {
+        +commercialRegistryNumber
+    }
     class Membership {
-        +organizationId : Organization
+        +organizationId : Party with organization details
         +memberRole : ADAPT Role
     }
     class Farm {
@@ -72,7 +75,7 @@ classDiagram
         +geoReference : Point
     }
     class Partner {
-        +partnerId : Organization or Person
+        +partnerId : Party
         +partnerRole : ADAPT Role
     }
     class Field {
@@ -99,9 +102,10 @@ classDiagram
         +geometry : Point, LineString or Polygon
         +kind
     }
-    Party <|-- Organization
-    Party <|-- Person
-    Person "1" *-- "0..n" Membership : memberships
+    Party "1" *-- "0..1" PartyDetails : details
+    PartyDetails <|-- PersonDetails
+    PartyDetails <|-- OrganizationDetails
+    PersonDetails "1" *-- "0..n" Membership : memberships
     Party "1" o-- "0..n" Farm : owns
     Farm "1" *-- "0..n" Partner : partners
     Farm "0..1" o-- "0..n" Field : farm
@@ -189,7 +193,7 @@ Findings from that exercise:
 | --- | --- |
 | AgmaSync attributes (envelope plus 6 entity types) | 42 |
 | with a native ADAPT counterpart | 17, including owner → Grower (1:1) and harvest period → Season; 2 only after restructuring (boundary list inverted, area in ha) |
-| needing a custom context item | 25, which need 45 custom definitions because lists and structured values take several each (e.g. `partners`: list, entry, party id, party type, role). One of them, `AgmaSync-SeasonId`, only links a field to its Season, since an ADAPT Field has no `seasonIds` |
+| needing a custom context item | 25, which need 42 custom definitions because lists and structured values take several each (e.g. `partners`: list, entry, party id, role). One of them, `AgmaSync-SeasonId`, only links a field to its Season, since an ADAPT Field has no `seasonIds` |
 | of these, FarmSPT content | 17: tax number, tax id, trade id, commercial registry number, billing address, member first and last name, memberships, partners, farm address, farm geo reference, specialised usage type, field owner, soil, topography, boundary type, regulatory requirements |
 | of these, added by AgmaSync | 8: the envelope (active, revision, modified at, tenant, source endpoint), `metadata` on field and boundary, person `title` |
 | ADAPT attributes with no AgmaSync source | the boundary `name` ADAPT requires |
@@ -203,11 +207,7 @@ Here is an example for the farm's contractor. In AgmaSync:
   …
   "partners": [
     {
-      "partner_id": 
-        { 
-          "type": "organization", 
-          "agrirouter_id": "0b6e…4a53" 
-        },
+      "partner_id": { "agrirouter_id": "0b6e…4a53" },
       "partner_role": "CUSTOM_SERVICE_PROVIDER"
     }
   ],
@@ -227,7 +227,6 @@ context items, each one declared in `customDataTypeDefinitions`:
     { "definitionCode": "AgmaSync-Partners", "contextItems": [
       { "definitionCode": "AgmaSync-Partner", "contextItems": [
         { "definitionCode": "AgmaSync-PartnerPartyId", "valueText": "0b6e…4a53" },
-        { "definitionCode": "AgmaSync-PartnerPartyType", "valueText": "ORGANIZATION" },
         { "definitionCode": "AgmaSync-PartnerRole", "valueText": "CUSTOM_SERVICE_PROVIDER" }
       ]}
     ]},
@@ -373,29 +372,24 @@ the schema, so implementations diverge in how strictly they apply it.
   because a list of every system's id would show each receiver the other
   participants' identifiers, which the specification rules out.
 - **References.** In AgmaSync, every attribute that points at another object has
-  the type `EntityReference` or `PartyReference`: `partner_id` above, `owner`,
-  `farm`, `organization_id`. agrirouter finds them from the schema and applies
-  the same rules to all: resolve a `local_id` on send, fill in `agrirouter_id`
-  on delivery, lazy-load by the target's `type`, reject a target not yet sent.
-  Under B, both parts can be modelled, but only as AgmaSync conventions:
-
-  - **Reference marker.** The custom definition declares that it holds a
-    reference, and to what, in its `keywords` and agrirouter finds references from
-    the published definitions.
-  - **Target type.** A sibling item carries the party type, so a receiver that
-    does not hold the party knows which kind to lazy-load.
+  the type `EntityReference`: `partner_id` above, `owner`, `farm`,
+  `organization_id`. agrirouter finds them from the schema and applies the same
+  rules to all: resolve a `local_id` on send, fill in `agrirouter_id` on
+  delivery, lazy-load by the slot's entity type, reject a target not yet sent.
+  Under B, this can be modelled, but only as an AgmaSync convention: the custom
+  definition declares that it holds a reference, and to what, in its `keywords`,
+  and agrirouter finds references from the published definitions.
 
   Example: the sender names the contractor by its own local id. In AgmaSync:
 
   ```json
-  "partner_id": { "type": "organization", "local_id": "ORG-1002" }
+  "partner_id": { "local_id": "ORG-1002" }
   ```
 
   Under B, the partner entry:
 
   ```json
-  { "definitionCode": "AgmaSync-PartnerPartyId", "valueText": "ORG-1002" },
-  { "definitionCode": "AgmaSync-PartnerPartyType", "valueText": "ORGANIZATION" }
+  { "definitionCode": "AgmaSync-PartnerPartyId", "valueText": "ORG-1002" }
   ```
   and the definition it relies on:
   ```json
@@ -404,9 +398,8 @@ the schema, so implementations diverge in how strictly they apply it.
   ```
 
   This works, with the cost described under Contract strength: the JSON schema
-  does not enforce either convention, generic ADAPT tools do not understand
-  them, and every participant implements them. In AgmaSync they come with the
-  schema type.
+  does not enforce the convention, generic ADAPT tools do not understand it, and
+  every participant implements it. In AgmaSync it comes with the schema type.
 - **Aggregate boundaries.** ADAPT is better on one point. A boundary references
   its field (`fieldId`), whereas AgmaSync's field lists its boundaries
   (`field_boundaries`), mirroring FarmSPT, where boundaries sit
@@ -466,12 +459,12 @@ the schema, so implementations diverge in how strictly they apply it.
 The example round-trips losslessly only because of the custom definitions.
 Where one side has something the other lacks, the loss is structural:
 
-- ADAPT → AgmaSync: a Grower without a Party has no AgmaSync equivalent.
-  `{ "id": { "referenceId": "g1" }, "name": "Müller" }` is valid ADAPT, but it
-  has no organization-or-person type and no contact data to build a party from.
+- ADAPT → AgmaSync: none. A Grower without a Party,
+  `{ "id": { "referenceId": "g1" }, "name": "Müller" }`, becomes a party
+  without `details`.
 - AgmaSync → ADAPT: none, provided the receiver knows the `AgmaSync-`
   definitions. An ADAPT tool that does not know them keeps the values but loses
-  their meaning.
+  their meaning. A party without `details` becomes a Party of type `UNKNOWN`.
 
 Under B, a participant that ignores unknown context items, which ADAPT allows,
 writes back an object without them. For example, an ADAPT tool renames the farm
@@ -518,7 +511,7 @@ Write semantics keeps them.
       }
   }
   ```
-- **Payloads.** The example needs 197 lines as AgmaSync and 1271 as ADAPT,
+- **Payloads.** The example needs 208 lines as AgmaSync and 1218 as ADAPT,
   including the definitions. On the wire, the definitions would be published
   once, not sent with every object.
 - **Readability.** A typed payload documents itself. With context items, a
@@ -557,7 +550,7 @@ The farm from the example under E:
     "specialised_usage_type": "arable farming",
     "partners": [
       {
-        "partner_id": { "type": "organization", "agrirouter_id": "0b6e…4a53" },
+        "partner_id": { "agrirouter_id": "0b6e…4a53" },
         "partner_role": "CUSTOM_SERVICE_PROVIDER"
       }
     ],
@@ -575,8 +568,8 @@ the [criteria](#criteria) above:
   permissive. AgmaSync would publish a tightened copy that rejects unknown
   properties.
 - **Identity and references.** The envelope carries identity, revision and
-  tenant, as today. References in `extensions` are `EntityReference` /
-  `PartyReference`. References inside `adapt` (`growerId`, `farmId`, `fieldId`,
+  tenant, as today. References in `extensions` are `EntityReference`.
+  References inside `adapt` (`growerId`, `farmId`, `fieldId`,
   `partyId`, `seasonIds`) stay strings. That is a fixed list defined by ADAPT,
   not a growing one, and needs a rule that their value is an `agrirouter_id`
   or the sender's `local_id`.
@@ -617,7 +610,7 @@ sync.
    edge, and there is one conversion instead of one per participant.
 5. Keep the Grower concept out of the model, as FarmSPT does. For ADAPT →
    AgmaSync, the mapping states that a Grower becomes its Party, and that a
-   Grower without a Party is rejected.
+   Grower without a Party becomes a party without `details`.
 
 ## Open questions
 

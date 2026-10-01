@@ -22,8 +22,7 @@ agrirouter platform, bidirectionally, over an n:m network of participants.
 First iteration would cover the following entity types, referred to
 throughout as the **MVP entities**:
 
-- **Organizations**
-- **Persons**
+- **Parties**
 - **Farms**
 - **Fields**, including their metadata
 - **FieldBoundaries**, including their obstacles, and metadata
@@ -68,7 +67,7 @@ an agrirouter endpoint as defined by the agrirouter platform. A participant may
   (see [Routing and opt-in](#routing-and-opt-in)).
 
 Entity:
-a single master-data object of one of the supported types (an organization, a person, a farm,
+a single master-data object of one of the supported types (a party, a farm,
   a field, or a field boundary).
 
 Canonical object:
@@ -125,7 +124,7 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
 
 Synchronization is carried by the HTTP operations of the companion OpenAPI
 document (`openapi.yaml`). Each entity type has its own paths; `<types>` below is
-the collection of one supported entity type (`organizations`, `persons`, `farms`,
+the collection of one supported entity type (`parties`, `farms`,
 `fields`, `field-boundaries`):
 
 | Operation                                          | Purpose                                                                                        |
@@ -190,7 +189,7 @@ Every entity shares a common envelope. Example
 
 Envelope fields:
 
-- `type` (string, required): the entity type; one of `organization`, `person`, `farm`, `field`, `fieldBoundary`.
+- `type` (string, required): the entity type; one of `party`, `farm`, `field`, `fieldBoundary`.
 - `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
 - `localId` (string): **always the identifier of the participant at the near end of the transfer, never of any other.** On send it is the sender's own identifier for the entity, and is required. On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
 - `active` (boolean): whether the entity is currently active. Deactivation is expressed through the deactivation operation (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
@@ -254,12 +253,6 @@ interchangeable in both directions:
   sender's internal key for the target. This is the same rule the envelope's own
   `localId` follows (see [Common envelope](#common-envelope)).
 
-A reference to a party MUST additionally carry `type` (`organization` or `person`).
-A receiving endpoint that does not hold the target has to
-[request it](#requesting-objects-lazy-loading), which is per entity
-type; the `agrirouterId` alone does not tell it which type to request. Slots whose
-entity type is fixed — a field's farm — need no discriminator.
-
 This keeps `agrirouterId` off the write path: a participant builds references from
 its own identifiers, and does not have to capture and correlate canonical ids before
 it can send the objects that reference them. Ordering still applies — a target must
@@ -267,13 +260,13 @@ be sent before the first reference to it.
 
 ## Party
 
-A **party** is a legal or natural actor: an *organization* or a *person*. Both
-share a common attribute set, because a farmer holds the fiscal identifiers
-exactly as a company does. Only the commercial register entry is specific to
-organizations.
+A **party** is a legal or natural actor: a *person*, an *organization*, or one whose
+kind its sender does not record.
 
-Common attributes:
+Canonical attributes:
 
+- `name` (string, required): the name the party is known by — an organization's name, a person's full name.
+- `details` (object, optional): whether the party is a person or an organization, with the attributes specific to that kind (see [Party details](#party-details)).
 - `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
 - `billingAddress` (object, optional): as for `address`.
@@ -287,33 +280,33 @@ another party's farm is acting as a contractor or advisor there, and a party
 whose farm names such a partner is that partner's client. The same party may do
 both at once, in different relations.
 
-## Organization
+### Party details
 
-A legal entity that may hold land and to which persons may belong.
+`details` is discriminated by its `partyType`, a closed set:
 
-Canonical attributes, in addition to the common party attributes:
+- `PERSON`: a natural person.
+  - `title` (string, optional).
+  - `firstName` (string, optional).
+  - `lastName` (string, optional).
+  - `memberships` (array, optional): the organizations this person belongs to. Each entry carries:
+    - `organizationId` (reference, required): a party whose `details` is an `ORGANIZATION`.
+    - `memberRole` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
+- `ORGANIZATION`: a legal entity to which persons may belong.
+  - `commercialRegistryNumber` (string, optional): unique identifier out of the commercial register.
 
-- `name` (string, required).
-- `commercialRegistryNumber` (string, optional): unique identifier out of the commercial register.
+A party without `details` is of unknown kind. Many systems keep a customer or
+grower without recording whether it is a person or a business, and such a guess
+would contradict a participant that does know. A participant therefore:
 
-## Person
-
-A natural person. A person may hold land in their own right, and may belong to
-one or more organizations.
-
-Canonical attributes, in addition to the common party attributes:
-
-- `lastName` (string, required).
-- `firstName` (string, optional).
-- `title` (string, optional).
-- `memberships` (array, optional): the organizations this person belongs to. Each entry carries:
-
-  - `organizationId` (reference, required): the organization.
-  - `memberRole` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
+- MUST send `details` only where its own data records the kind;
+- MUST leave `details` out of its writes where it does not record the kind, which keeps what another participant stated (see [Writing an entity](#writing-an-entity));
 
 A person holding at least one membership is a **member** of the organizations it
 names. Membership is state on the person, so one advisor serving several
 organizations is a single canonical person rather than a copy per organization.
+agrirouter MUST reject with `400` a membership naming a party whose `details` is
+not an `ORGANIZATION`, and a change or removal of kind on an organization that
+persons still name.
 
 ## Farm
 
@@ -321,14 +314,14 @@ A grouping of fields that the farmer considers part of the same management group
 
 Canonical attributes (subset):
 
-- `owner` (reference, required): the organization or person that holds the farm.
+- `owner` (reference, required): the party that holds the farm.
 - `name` (string, required).
 - `address` (object, optional): as for a party.
 - `geoReference` (`Point`, optional): longitude and latitude of the farm.
 - `specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
 - `partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry carries:
 
-  - `partnerId` (reference, required): the organization or person.
+  - `partnerId` (reference, required): the party.
   - `partnerRole` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as `memberRole`.
 
 `partners` records a business relationship only. It MUST NOT be interpreted as
@@ -346,7 +339,7 @@ Canonical attributes (subset):
 - `name` (string, required).
 - `area` (number, optional): nominal area in square metres.
 - `farm` (reference, optional): the farm this field belongs to.
-- `owner` (reference, optional): the organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `owner` without a `farm`.
+- `owner` (reference, optional): the party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `owner` without a `farm`.
 - `soil`(object, optional): 
   - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), 
   - `ratingPoints` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
@@ -394,7 +387,11 @@ A field references a farm, MAY reference a party as its owner, and MAY reference
 the field boundaries that describe it; a farm references the party that owns it
 and MAY reference further parties as partners; and a person MAY reference the
 organizations it belongs to. A field boundary references nothing: the reference
-runs from the field to its boundaries, not the other way. These dependencies
+runs from the field to its boundaries, not the other way.
+
+Memberships reference parties from a party, so dependency order is per object
+rather than per entity type: a person with memberships follows the organizations
+it names, on send and on delivery. These dependencies
 are significant for routing and initial load: a participant that is to receive fields
 MUST also be enabled for the farms, parties, and field boundaries those fields
 depend on, so that references can be resolved on the receiving side (see
@@ -546,7 +543,7 @@ a master-data network can have a large blast radius.
 Therefore:
 
 - Master-data routes MUST NOT be created by the machine→software default-route logic. A participant takes part in master-data exchange only through explicit **opt-in**.
-- Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange fields but not customers.
+- Opt-in is expressed **per endpoint and per entity type**. An endpoint may, for example, be enabled to exchange parties and farms but not fields.
 - Opt-in does **not** carry a direction in the MVP: an opted-in entity type is read/write. Directional ("read only") opt-in is a possible later addition.
 
 What an endpoint exchanges is settled in **two steps, performed by two different
@@ -599,8 +596,7 @@ Example event (non-normative):
   "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
   "externalEndpointId": "urn:my-app:endpoint:42",
   "entityTypes": [
-    { "entityType": "organization" },
-    { "entityType": "person" },
+    { "entityType": "party" },
     { "entityType": "farm" }
   ],
   "changedAt": "2026-07-14T09:20:00Z"
@@ -1016,7 +1012,10 @@ Merge Patch ({{?RFC7396}}) of its non-envelope attributes:
 The same rules apply inside plain nested objects such as `address`, `contact`, or
 `metadata`: `{"address": {"city": "Husum"}}` changes the city and keeps the street.
 Arrays, [references](#references), and geometries are replaced whole instead,
-because a part of one means nothing on its own.
+because a part of one means nothing on its own. A party's `details` merges like a
+plain nested object while its `partyType` is unchanged, and every write that includes
+`details` carries its `partyType`. A write that changes the `partyType` replaces `details`
+whole, so no attribute of the other kind survives (see [Party details](#party-details)).
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every participant supports, so a participant always holds them.
@@ -1193,8 +1192,8 @@ anyway. What it addresses is that *delivered* is not *held*:
 - during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other. That target is in the set and arrives on its own, so a request should be performed only once the set is complete (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered));
 - a participant holding an object whose reference target it does not hold requests that target, creates it locally, and binds it, which is what makes the referencing object writable again (see [References](#references)).
 
-A request is per entity type, which is why a reference to a party carries a `type`
-discriminator (see [References](#references)).
+A request is per entity type. Every reference slot has a fixed entity type, so
+the reference alone tells a participant which request to make.
 
 A request is the right shape only when the participant knows which objects it
 wants. One that has lost enough of them that naming each is impractical asks for

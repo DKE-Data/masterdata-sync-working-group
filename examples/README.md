@@ -3,8 +3,10 @@
 Hofgut Sonnenberg near Springe, Lower Saxony, as delivered by AgmaSync
 ([agmasync-sample.json](agmasync-sample.json)) and as an ADAPT 2.0.2 catalog ([adapt-sample.json](adapt-sample.json)).
 
-- A GmbH owns the farm. Two partners hold roles on it: a contracting firm
-  (organization) and an independent crop advisor (person).
+- A GmbH owns the farm. Two partners hold roles on it: a contracting firm and
+  an independent crop advisor (person). The firm comes from a system that does
+  not record whether a party is a person or an organization, so it has no
+  `details`.
 - The farm manager, Dr. Katharina Brandt, privately owns the one field.
 - The field has a single administrative boundary with two obstacles.
 
@@ -20,13 +22,14 @@ context items. Definitions that hold a reference say so in `keywords`
 | --- | --- |
 | `agrirouter_id` | `id.referenceId` and `id.uniqueIds[]` (`UUID`, source `https://agrirouter.com`) |
 | `local_id` | `id.uniqueIds[]` (`STRING`, source = the receiving application) |
-| `type` | the catalog collection; for parties `partyTypeCode` (`ORGANIZATION` / `INDIVIDUAL`) |
+| `type` | the catalog collection |
 | `active`, `tenant_id`, `source_endpoint_id` | `AgmaSync-Envelope` { `-Active`, `-TenantId`, `-SourceEndpointId` } |
 | `revision`, `modified_at` | `AgmaSync-Envelope` { `-Revision` }, with `modified_at` as its `MODIFICATION` time scope |
-| Organization `name` | `party.name` |
-| Organization `commercial_registry_number` | `AgmaSync-CommercialRegistryNumber` |
-| Person `title`, `first_name`, `last_name` | `AgmaSync-Title`, `-FirstName`, `-LastName`; `party.name` is composed from them |
-| Person `memberships[]` | `AgmaSync-Memberships` { `AgmaSync-Membership` { `-MemberOrganizationId`, `-MemberRole` } per entry } |
+| Party `name` | `party.name` |
+| Party `details.party_type` | `party.partyTypeCode` (`ORGANIZATION` / `INDIVIDUAL`; no `details` is `UNKNOWN`) |
+| Party `details.commercial_registry_number` | `AgmaSync-CommercialRegistryNumber` |
+| Party `details.title`, `first_name`, `last_name` | `AgmaSync-Title`, `-FirstName`, `-LastName` |
+| Party `details.memberships[]` | `AgmaSync-Memberships` { `AgmaSync-Membership` { `-MemberOrganizationId`, `-MemberRole` } per entry } |
 | Party `address` | `contactInfo.addressContactMethods[]` (`PHYSICAL`); `po_box` as `AgmaSync-AddressPoBox` on `contactInfo` |
 | Party `billing_address` | `AgmaSync-BillingAddress` on `contactInfo`, nested `AgmaSync-Address*` |
 | Party `contact.phone` / `mobile` / `email` | `telecommunicationContactMethods[]` `FIXED_PHONE` / `MOBILE_PHONE` / `EMAIL` |
@@ -34,12 +37,12 @@ context items. Definitions that hold a reference say so in `keywords`
 | Farm `name` | `farm.name` |
 | Farm `owner` | `farm.growerId` → `grower` (1:1 with the owner party, linked by `grower.partyId`) |
 | Farm `specialised_usage_type` | `AgmaSync-SpecialisedUsageType` |
-| Farm `partners[]` | `AgmaSync-Partners` { `AgmaSync-Partner` { `-PartnerPartyId`, `-PartnerPartyType`, `-PartnerRole` } per entry } |
+| Farm `partners[]` | `AgmaSync-Partners` { `AgmaSync-Partner` { `-PartnerPartyId`, `-PartnerRole` } per entry } |
 | Farm `address` | `AgmaSync-Address`, nested `AgmaSync-Address*` |
 | Farm `geo_reference` | `AgmaSync-GeoReference` (WKT `POINT`) |
 | Field `name`, `farm` | `field.name`, `field.farmId` |
 | Field `area` (m²) | `field.arableArea` (ha) |
-| Field `owner` | `AgmaSync-FieldOwner` { `-FieldOwnerPartyId`, `-FieldOwnerPartyType` } |
+| Field `owner` | `AgmaSync-FieldOwnerPartyId` |
 | Field `soil.type`, `soil.rating_points` | `AgmaSync-SoilType`, `-SoilRatingPoints` |
 | Field `topography` | `AgmaSync-Topography` (`arcdeg`) |
 | Field `field_boundaries[]` | inverted: `fieldBoundary.fieldId` |
@@ -60,8 +63,12 @@ context items. Definitions that hold a reference say so in `keywords`
 - **Obstacle geometry**: ADAPT describes an obstacle boundary as a Polygon or
   MultiPolygon. The pole is a WKT `POINT`, which the schema accepts (it is a plain
   string) but which departs from that description.
-- **Organization** maps to `ORGANIZATION`. Going the other way, `BUSINESS` also
-  becomes an organization.
+- **Party `details`** maps to `partyTypeCode`: an organization to `ORGANIZATION`,
+  a person to `INDIVIDUAL`, a party without `details` to `UNKNOWN`. Going the
+  other way, `BUSINESS`, which ADAPT supersedes by `ORGANIZATION`, also becomes
+  an organization.
+- **Grower without a Party** becomes a party without `details`, named by the
+  Grower.
 - **Field area**: nominal area has no exact ADAPT equivalent. `arableArea` was
   chosen over the standard `ReportedArea` context item.
 - **Standard definitions** cover only the enumerations used here (`PartyType`,

@@ -14,17 +14,34 @@ and a farm is worked by people who neither own it nor belong to its owner.
 A model that names these guises as types forces an actor into one of them.
 A model that expresses them as relations does not.
 
+Many source systems do not record whether a party is a person or an organization
+at all. ISOXML's Customer, FarmSPT's Customer/Grower and ADAPT's Grower carry a
+name and contact data, nothing more. Such a system cannot tell which of two kinds
+it holds, and any guess it makes will disagree with a system that does know.
+
 ## Decision
 
-**A party is either an organization or a person**, distinguished by the envelope
-`type` every entity already carries. Both hold the same contact and fiscal block,
-because a farmer has a tax number and a trade id exactly as a company does.
-Only the commercial register entry is specific to organizations.
+**There is one party entity type.** A party carries a `name` and the contact and
+fiscal block, because a farmer has a tax number and a trade id exactly as a
+company does.
+
+**Whether a party is a person or an organization is optional.** It is carried in
+`details`, discriminated by its `partyType`:
+
+- `PERSON`: `title`, `firstName`, `lastName`, `memberships`
+- `ORGANIZATION`: `commercialRegistryNumber`
+
+A party without `details` is of unknown kind. A participant that does not
+distinguish never sends `details`, and on update its absence keeps what another
+participant stated. A participant sends `details` only when its own data records
+the kind, never inferred from a name or a legal-form suffix.
 
 **A member is a person holding a role in an organization.** Membership is state
-on the person, expressed as a list, so one agronomist advising three
-organizations is one canonical person rather than three copies. There is no
-member entity type.
+on the person, expressed as a list inside its `details`, so only a person can
+carry one and one agronomist advising three organizations is one canonical
+person rather than three copies. The target of a membership must be a party whose
+`details` is an `ORGANIZATION`. agrirouter checks this on write, and rejects a
+change or removal of kind on an organization that persons still name.
 
 **A partner is a party holding a role on a farm** - the contractor that works it,
 the advisor that reads it. Partnership is state on the farm, also a list.
@@ -32,7 +49,7 @@ the advisor that reads it. Partnership is state on the farm, also a list.
 Membership and partnership are the same idea at two attachment points, and both
 draw their role from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
 
-**A farm is owned by a party**, organization or person.
+**A farm is owned by a party**, of any kind.
 
 There is no attribute anywhere declaring that a party *is* a contractor or *is* a
 customer. Those are relations, read off the graph.
@@ -41,7 +58,8 @@ customer. Those are relations, read off the graph.
 classDiagram
     direction TB
     class Party {
-        +type : organization or person
+        +name
+        +details : Details or absent
         +address
         +contact
         +billingAddress
@@ -49,38 +67,41 @@ classDiagram
         +taxId
         +tradeId
     }
-    class Organization {
-        +name
-        +commercialRegistryNumber
+    class Details {
+        +type : person or organization
     }
-    class Person {
+    class PersonDetails {
         +title
         +firstName
         +lastName
         +memberships
     }
+    class OrganizationDetails {
+        +commercialRegistryNumber
+    }
     class Membership {
-        +organizationId : Organization
+        +organizationId : Party with organization details
         +memberRole : ADAPT Role
     }
     class Farm {
         +name
-        +owner
+        +owner : Party
         +specialisedUsageType
         +partners
     }
     class Partner {
-        +partnerId : Organization or Person
+        +partnerId : Party
         +partnerRole : ADAPT Role
     }
-    Party <|-- Organization
-    Party <|-- Person
+    Party "1" *-- "0..1" Details : details
+    Details <|-- PersonDetails
+    Details <|-- OrganizationDetails
+    PersonDetails "1" *-- "0..n" Membership : memberships
     Party "1" o-- "0..n" Farm : owns
-    Person "1" *-- "0..n" Membership : memberships
     Farm "1" *-- "0..n" Partner : partners
 ```
 
-The two reference properties, `organizationId` and `partnerId`, are named inside
+The reference properties `organizationId`, `owner` and `partnerId` are named inside
 the boxes rather than drawn as edges in order not to clutter the diagram.
 
 ## Scenarios
@@ -93,20 +114,19 @@ Arrows below mean *holds a reference to*.
 flowchart LR
     FI["Field \n Long Meadow"] -->|"fieldBoundaries"| B["FieldBoundary"]
     FI -->|"farm"| F["Farm \n Manor Farm"]
-    F -->|"owner"| P["Person \n Sarah Ashcroft"]
+    F -->|"owner"| P["Party \n Sarah Ashcroft \n person"]
 ```
 
-No organization, no membership, no partner. The person is the business, and
-nothing has to be declared about what kind of party she is.
+No organization, no membership, no partner. The person is the business.
 
 ### Scenario B: a farm business with several farms and staff
 
 ```mermaid
 flowchart LR
-    F1["Farm \n Manor Farm"] -->|"owner"| O["Organization \n Ashcroft Farms Ltd"]
+    F1["Farm \n Manor Farm"] -->|"owner"| O["Party \n Ashcroft Farms Ltd \n organization"]
     F2["Farm \n Hill Farm"] -->|"owner"| O
-    P1["Person \n Sarah Ashcroft \n role: FARM_MANAGER"] -->|"organizationId"| O
-    P2["Person \n James Ashcroft \n role: OPERATOR"] -->|"organizationId"| O
+    P1["Party \n Sarah Ashcroft \n person \n role: FARM_MANAGER"] -->|"organizationId"| O
+    P2["Party \n James Ashcroft \n person \n role: OPERATOR"] -->|"organizationId"| O
 ```
 
 Two farms, one owner, two people carrying their roles on themselves.
@@ -115,28 +135,47 @@ Two farms, one owner, two people carrying their roles on themselves.
 
 ```mermaid
 flowchart LR
-    F["Farm \n Manor Farm"] -->|"owner"| O["Organization \n Ashcroft Farms Ltd"]
-    F -->|"partner CUSTOM_SERVICE_PROVIDER"| M["Organization \n Brookfield Contracting Ltd"]
-    F -->|"partner CROP_ADVISOR"| S["Organization \n Wessex Agronomy"]
+    F["Farm \n Manor Farm"] -->|"owner"| O["Party \n Ashcroft Farms Ltd \n organization"]
+    F -->|"partner CUSTOM_SERVICE_PROVIDER"| M["Party \n Brookfield Contracting Ltd \n organization"]
+    F -->|"partner CROP_ADVISOR"| S["Party \n Wessex Agronomy \n organization"]
 ```
 
-The contractor is directly reference by farm it works on.
+The contractor is directly referenced by the farm it works on.
 
 ### Scenario D: an actor in several roles at once
 
 ```mermaid
 flowchart LR
-    FM["Farm \n Brookfield Home Farm"] -->|"owner"| M["Organization \n Brookfield Contracting Ltd"]
+    FM["Farm \n Brookfield Home Farm"] -->|"owner"| M["Party \n Brookfield Contracting Ltd \n organization"]
     FW["Farm \n Manor Farm"] -->|"partner CUSTOM_SERVICE_PROVIDER"| M
-    FM -->|"partner CUSTOM_SERVICE_PROVIDER"| S["Organization \n Fenland Harvesting Ltd"]
+    FM -->|"partner CUSTOM_SERVICE_PROVIDER"| S["Party \n Fenland Harvesting Ltd \n organization"]
 ```
 
 Brookfield owns land, works Ashcroft's land, and hires Fenland for its own harvest. All
 three hold simultaneously. No single attribute on Brookfield could have carried them.
 
+### Scenario E: a customer of unknown kind
+
+```mermaid
+flowchart LR
+    F["Farm \n Müller Hof"] -->|"owner"| P["Party \n Müller \n no details"]
+```
+
+A system that keeps only a customer name creates the party without `details`.
+Another participant that knows Müller is a person adds `details` later. The
+first system's updates omit `details` and leave it in place. Both hold the same
+canonical party throughout.
+
 ## Consequences
 
-- Entity types are `organization`, `person`, `farm`, `field`, `fieldBoundary`.
+- Entity types are `party`, `farm`, `field`, `fieldBoundary`.
+- `details` merges like any nested object while its `partyType` is unchanged. A write
+  that changes `partyType` replaces `details` whole, so no attribute of the other kind
+  survives.
+- A membership references a party of the same entity type. Delivery order is
+  therefore per object, not per type: parties with person `details` follow all
+  other parties (see [ADR 07](07-sync-streaming.md)). A participant sends in the
+  same order - parties without memberships first.
 - A person may own a farm, and a member is an ordinary person, so a farm manager
   who also farms privately is expressible.
 - A field may name an owner of its own, for systems that attribute fields to a
@@ -155,11 +194,13 @@ three hold simultaneously. No single attribute on Brookfield could have carried 
 ## Notes on naming and placement
 
 **`Party` is ADAPT's term.** ADAPT defines a party as a business entity or an
-individual, carrying a required party type code that tells the two apart. AgmaSync
-takes both the concept and the name, with two departures: it says **person**
-where ADAPT says *individual*, and it draws the distinction from the envelope
-`type` rather than a separate code, since every AgmaSync entity already carries one.
-The role vocabulary on memberships and partners is ADAPT's as well.
+individual, carrying a required party type code: `ORGANIZATION`, `INDIVIDUAL` or
+`UNKNOWN`. AgmaSync takes the concept, the name and the three kinds, with two
+departures: it says **person** where ADAPT says *individual*, and it expresses
+`UNKNOWN` as the absence of `details`, so a participant that does not record the
+kind has nothing to send. A Grower without a Party maps to a party without
+`details` as well. The role vocabulary on memberships and partners is ADAPT's as
+well.
 
 **`specialisedUsageType` sits on the farm.** FarmSPT places it on Customer/Grower.
 A production orientation describes what is grown where, and one party may run an

@@ -82,7 +82,7 @@
       {
         "definitionCode": "AgmaSync-CommercialRegistryNumber",
         "name": "Commercial Registry Number",
-        "description": "Organization `commercial_registry_number`.",
+        "description": "Party `details.commercial_registry_number`, for a party whose `details` is an organization.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -122,7 +122,7 @@
       {
         "definitionCode": "AgmaSync-Title",
         "name": "Title",
-        "description": "Person `title`.",
+        "description": "Party `details.title`, for a party whose `details` is a person.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -132,7 +132,7 @@
       {
         "definitionCode": "AgmaSync-FirstName",
         "name": "First Name",
-        "description": "Person `first_name`.",
+        "description": "Party `details.first_name`, for a party whose `details` is a person.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -142,7 +142,7 @@
       {
         "definitionCode": "AgmaSync-LastName",
         "name": "Last Name",
-        "description": "Person `last_name`.",
+        "description": "Party `details.last_name`, for a party whose `details` is a person.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -152,7 +152,7 @@
       {
         "definitionCode": "AgmaSync-Memberships",
         "name": "Memberships",
-        "description": "Person `memberships`, one nested AgmaSync-Membership per entry. Carries no value of its own: the value is the nested context items.",
+        "description": "Party `details.memberships`, for a party whose `details` is a person, one nested AgmaSync-Membership per entry. Carries no value of its own: the value is the nested context items.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -162,7 +162,7 @@
       {
         "definitionCode": "AgmaSync-Membership",
         "name": "Membership",
-        "description": "One entry of person `memberships`. Carries no value of its own: the value is the nested context items.",
+        "description": "One entry of `details.memberships`. Carries no value of its own: the value is the nested context items.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -172,7 +172,7 @@
       {
         "definitionCode": "AgmaSync-MemberOrganizationId",
         "name": "Member Organization Id",
-        "description": "Membership `organization_id`, as the Reference Id of a Party of type ORGANIZATION. A reference: the keyword names the target.",
+        "description": "Membership `organization_id`, as the Reference Id of a Party whose partyTypeCode is ORGANIZATION. A reference: the keyword names the target.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -312,26 +312,13 @@
       {
         "definitionCode": "AgmaSync-PartnerPartyId",
         "name": "Partner Party Id",
-        "description": "Partner `partner_id`, as the Reference Id of a Party. Its type is in AgmaSync-PartnerPartyType. A reference: the keyword names the target.",
+        "description": "Partner `partner_id`, as the Reference Id of a Party. A reference: the keyword names the target.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
           "FARM"
         ],
         "keywords": "reference:party"
-      },
-      {
-        "definitionCode": "AgmaSync-PartnerPartyType",
-        "name": "Partner Party Type",
-        "description": "Partner `partner_id.type`, so that a receiver not holding the party knows which kind to lazy-load. A code from the ADAPT PartyType list.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "FARM"
-        ],
-        "textDataTypeDefinitionAttributes": {
-          "validationRegularExpression": "^(ORGANIZATION|INDIVIDUAL)$"
-        }
       },
       {
         "definitionCode": "AgmaSync-PartnerRole",
@@ -354,38 +341,15 @@
         ]
       },
       {
-        "definitionCode": "AgmaSync-FieldOwner",
-        "name": "Field Owner",
-        "description": "Field `owner`. Absent means the farm owner holds the field. Carries no value of its own: the value is the nested context items.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "FIELD"
-        ]
-      },
-      {
         "definitionCode": "AgmaSync-FieldOwnerPartyId",
         "name": "Field Owner Party Id",
-        "description": "Field `owner`, as the Reference Id of a Party. Its type is in AgmaSync-FieldOwnerPartyType. A reference: the keyword names the target.",
+        "description": "Field `owner`, as the Reference Id of a Party. Absent means the farm owner holds the field. A reference: the keyword names the target.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
           "FIELD"
         ],
         "keywords": "reference:party"
-      },
-      {
-        "definitionCode": "AgmaSync-FieldOwnerPartyType",
-        "name": "Field Owner Party Type",
-        "description": "Field `owner.type`, so that a receiver not holding the party knows which kind to lazy-load. A code from the ADAPT PartyType list.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "FIELD"
-        ],
-        "textDataTypeDefinitionAttributes": {
-          "validationRegularExpression": "^(ORGANIZATION|INDIVIDUAL)$"
-        }
       },
       {
         "definitionCode": "AgmaSync-SoilType",
@@ -664,7 +628,7 @@
             }
           ]
         },
-        "partyTypeCode": "ORGANIZATION",
+        "partyTypeCode": "UNKNOWN",
         "name": "Lohnunternehmen Meyer GmbH & Co. KG",
         "contactInfo": {
           "addressContactMethods": [
@@ -972,10 +936,6 @@
                     "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53"
                   },
                   {
-                    "definitionCode": "AgmaSync-PartnerPartyType",
-                    "valueText": "ORGANIZATION"
-                  },
-                  {
                     "definitionCode": "AgmaSync-PartnerRole",
                     "valueText": "CUSTOM_SERVICE_PROVIDER"
                   }
@@ -987,10 +947,6 @@
                   {
                     "definitionCode": "AgmaSync-PartnerPartyId",
                     "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57"
-                  },
-                  {
-                    "definitionCode": "AgmaSync-PartnerPartyType",
-                    "valueText": "INDIVIDUAL"
                   },
                   {
                     "definitionCode": "AgmaSync-PartnerRole",
@@ -1086,17 +1042,8 @@
             ]
           },
           {
-            "definitionCode": "AgmaSync-FieldOwner",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-FieldOwnerPartyId",
-                "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
-              },
-              {
-                "definitionCode": "AgmaSync-FieldOwnerPartyType",
-                "valueText": "INDIVIDUAL"
-              }
-            ]
+            "definitionCode": "AgmaSync-FieldOwnerPartyId",
+            "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
           },
           {
             "definitionCode": "AgmaSync-SoilType",

@@ -92,18 +92,24 @@ the query rather than as a property of the connection.
 ### The sweep delivers in tier order
 
 A dependency is between two objects - this field references that farm - and the
-sweep does not track them at that granularity. It orders by the type-level reference
-graph instead: coarser, and enough, because an object can only reference objects of
-the types its own type references, so an order that respects the type graph respects
-every object dependency within it. That graph is fixed by the canonical model rather
-than by the data, and each type sits at a fixed depth in it - its **tier**:
+sweep does not track them at that granularity. It orders by a fixed reference graph
+instead: coarser, and enough, because an object can only reference objects of the
+classes its own class references, so an order that respects the graph respects
+every object dependency within it. A class is an entity type, except that parties
+split by kind: a membership references a party from a party, so a person sits one
+level below the organizations it names ([ADR 08](08-party-model.md)). The graph is
+fixed by the canonical model rather than by the data, and each class sits at a
+fixed depth in it - its **tier**:
 
-| tier | types | references |
+| tier | class | references |
 | --- | --- | --- |
-| 0 | `organization`, `fieldBoundary` | none |
-| 1 | `person` | organizations, through memberships |
+| 0 | `fieldBoundary`, `party` without person `details` | none |
+| 1 | `party` with person `details` | organizations, through memberships |
 | 2 | `farm` | its owning party, its partner parties |
 | 3 | `field` | its farm, its owning party, its boundaries |
+
+A party's tier is read from the revision being delivered. A change of party type is a new
+revision, delivered at the tier of the party type it states.
 
 Delivering every object of a tier before any object of the next places every parent
 before every child, which is the whole point: an application can write each object
@@ -115,13 +121,13 @@ application presented, exclusive - delivered in ascending `(tier, last_change_nu
 On a first connection `after` is zero and the sweep is the whole entitled set.
 
 `last_change_number` orders objects *within* a tier, where it carries no dependency
-meaning and needs none. No entity type references another object of its own type,
-so objects of one tier never depend on each other and any total order over them
+meaning and needs none. No object references another object of its own tier, so
+objects of one tier never depend on each other and any total order over them
 serves. It is the filter column doing double duty, which makes each tier a single
 range scan rather than a scan on one column ordered by another.
 
 Lineage - a field naming the field it was split from - would be the first
-same-type reference, and it is
+same-tier reference, and it is
 [deferred out of this version](../specification.md#split-and-merge). Introducing it
 means giving its tier an order that resolves it, which change order does not: an
 ancestor edited after its descendant was created carries the higher number.
@@ -473,14 +479,17 @@ version would trade the ordering away to save.
 - **Nothing expires, so nothing has to be recovered.** An application away for any
   length of time is a larger sweep rather than a failed one. Rate limiting a large
   sweep is a throughput concern rather than a correctness one.
-- **Delivery is type-aware, and the type graph is load-bearing.** Both the sweep
-  and the tail order by tier, so a new entity type has to be given a tier before it
-  can be delivered, and the type graph MUST stay acyclic. A cycle between two types
-  has no tier assignment at all, and is the case that would force per-object
-  dependency ordering.
-- **A same-type reference has no order to rely on.** Objects inside a tier arrive in
+- **Delivery is type-aware, and the reference graph is load-bearing.** Both the
+  sweep and the tail order by tier, so a new entity type has to be given a tier
+  before it can be delivered, and the graph MUST stay acyclic. A cycle between two
+  classes has no tier assignment at all, and is the case that would force
+  per-object dependency ordering.
+- **A party's tier depends on its content.** The tier of a party is read from its
+  `details`, not from its type alone, so both sweep and tail derive it from the
+  revision they deliver, and membership targets are checked on write.
+- **A same-tier reference has no order to rely on.** Objects inside a tier arrive in
   change order, which says nothing about which of them references the other. No
-  entity type in this version references its own type, and the first that would -
+  object in this version references one in its own tier, and the first that would -
   split and merge lineage - is
   [deferred](../specification.md#split-and-merge); adding one means giving its tier
   an order of its own, not just a tier assignment.

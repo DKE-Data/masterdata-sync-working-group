@@ -1,6 +1,6 @@
 [
   {
-    "type": "organization",
+    "type": "party",
     "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
     "local_id": "ORG-1001",
     "active": true,
@@ -9,7 +9,10 @@
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
     "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
     "name": "Hofgut Sonnenberg Agrar GmbH",
-    "commercial_registry_number": "HRB 204518, Amtsgericht Hannover",
+    "details": {
+      "party_type": "ORGANIZATION",
+      "commercial_registry_number": "HRB 204518, Amtsgericht Hannover"
+    },
     "address": {
       "street": "Dorfstraße 12",
       "postal_code": "31832",
@@ -34,7 +37,7 @@
     "trade_id": "276030000012345"
   },
   {
-    "type": "organization",
+    "type": "party",
     "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53",
     "local_id": "ORG-1002",
     "active": true,
@@ -55,7 +58,7 @@
     }
   },
   {
-    "type": "person",
+    "type": "party",
     "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52",
     "local_id": "PER-2001",
     "active": true,
@@ -63,23 +66,27 @@
     "modified_at": "2026-08-30T10:05:12Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
     "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-    "title": "Dr.",
-    "first_name": "Katharina",
-    "last_name": "Brandt",
+    "name": "Dr. Katharina Brandt",
+    "details": {
+      "party_type": "PERSON",
+      "title": "Dr.",
+      "first_name": "Katharina",
+      "last_name": "Brandt",
+      "memberships": [
+        {
+          "organization_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
+          "member_role": "FARM_MANAGER"
+        }
+      ]
+    },
     "contact": {
       "mobile": "+49 160 9876543",
       "email": "k.brandt@hofgut-sonnenberg.de"
     },
-    "tax_id": "12345678901",
-    "memberships": [
-      {
-        "organization_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
-        "member_role": "FARM_MANAGER"
-      }
-    ]
+    "tax_id": "12345678901"
   },
   {
-    "type": "person",
+    "type": "party",
     "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57",
     "local_id": "PER-2002",
     "active": true,
@@ -87,8 +94,12 @@
     "modified_at": "2026-02-18T09:20:00Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
     "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-    "first_name": "Jonas",
-    "last_name": "Weber",
+    "name": "Jonas Weber",
+    "details": {
+      "party_type": "PERSON",
+      "first_name": "Jonas",
+      "last_name": "Weber"
+    },
     "address": {
       "street": "Lindenweg 3",
       "postal_code": "30952",
@@ -112,15 +123,15 @@
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
     "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
     "name": "Hofgut Sonnenberg",
-    "owner": { "type": "organization", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
+    "owner": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
     "specialised_usage_type": "arable farming",
     "partners": [
       {
-        "partner_id": { "type": "organization", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "local_id": "ORG-1002" },
+        "partner_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "local_id": "ORG-1002" },
         "partner_role": "CUSTOM_SERVICE_PROVIDER"
       },
       {
-        "partner_id": { "type": "person", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57", "local_id": "PER-2002" },
+        "partner_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57", "local_id": "PER-2002" },
         "partner_role": "CROP_ADVISOR"
       }
     ],
@@ -145,7 +156,7 @@
     "name": "Am Mühlenbach",
     "area": 124500,
     "farm": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54", "local_id": "FARM-3001" },
-    "owner": { "type": "person", "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52", "local_id": "PER-2001" },
+    "owner": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52", "local_id": "PER-2001" },
     "soil": { "type": "SANDY_TO_SILTY_LOAM", "rating_points": 62 },
     "topography": 3.5,
     "field_boundaries": [
