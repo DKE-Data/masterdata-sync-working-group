@@ -602,15 +602,21 @@ sync.
 
 1. Keep the FarmSPT-derived AgmaSync model as the contract, under ADR 02.
 2. **Reverse the field–boundary reference**, following ADAPT: `fieldBoundary.field`
-   replaces `field.field_boundaries`. This needs its own ADR.
+   replaces `field.field_boundaries` ([ADR 12](12-boundary-references-field.md)).
 3. Keep reusing ADAPT code lists, as FarmSPT does. Wherever AgmaSync has an
-   extensible enumeration, draw its values from the ADAPT list if one exists.
-4. Publish a normative AgmaSync–ADAPT mapping and the `AgmaSync-` definitions,
-   starting from the example. ADAPT-based participants then convert at their
-   edge, and there is one conversion instead of one per participant.
+   extensible enumeration, draw its values from the ADAPT list if one exists
+   ([Extensible enumerations](../specification.md#extensible-enumerations)).
+4. Publish a normative [AgmaSync–ADAPT mapping](../adapt-mapping.md) and the
+   [`AgmaSync-` definitions](../adapt-definitions.json), starting from the
+   example. The definitions cover domain attributes only. The envelope beyond
+   identity is sync state and stays out of ADAPT. ADAPT-based participants
+   then convert at their edge, and there is one conversion instead of one per
+   participant.
 5. Keep the Grower concept out of the model, as FarmSPT does. For ADAPT →
    AgmaSync, the mapping states that a Grower becomes its Party, and that a
    Grower without a Party becomes a party without `details`.
+6. Add an optional `name` to FieldBoundary, which ADAPT requires. The mapping
+   falls back to the field name only where it is absent.
 
 ## Open questions
 

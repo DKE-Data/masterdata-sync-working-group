@@ -4,82 +4,6 @@
     "description": "Hofgut Sonnenberg, Springe (Lower Saxony). ADAPT rendering of examples/agmasync-sample.json.",
     "customDataTypeDefinitions": [
       {
-        "definitionCode": "AgmaSync-Envelope",
-        "name": "Envelope",
-        "description": "The AgmaSync envelope attributes that have no ADAPT slot. Carries no value of its own: the value is the nested context items.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "PARTY",
-          "FARM",
-          "FIELD",
-          "FIELD_BOUNDARY"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-Active",
-        "name": "Active",
-        "description": "Envelope `active`. False when the object has been retired in AgmaSync.",
-        "dataDefinitionBaseTypeCode": "BOOLEAN",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "PARTY",
-          "FARM",
-          "FIELD",
-          "FIELD_BOUNDARY"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-Revision",
-        "name": "Revision",
-        "description": "Envelope `revision`. The MODIFICATION time scope carries `modified_at`.",
-        "dataDefinitionBaseTypeCode": "NUMERIC",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "PARTY",
-          "FARM",
-          "FIELD",
-          "FIELD_BOUNDARY"
-        ],
-        "numericDataTypeDefinitionAttributes": {
-          "numericDataTypeCode": "INTEGER",
-          "unitOfMeasureCode": "count",
-          "minimum": 1
-        }
-      },
-      {
-        "definitionCode": "AgmaSync-TenantId",
-        "name": "Tenant Id",
-        "description": "Envelope `tenant_id`.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "PARTY",
-          "FARM",
-          "FIELD",
-          "FIELD_BOUNDARY"
-        ],
-        "textDataTypeDefinitionAttributes": {
-          "validationRegularExpression": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        }
-      },
-      {
-        "definitionCode": "AgmaSync-SourceEndpointId",
-        "name": "Source Endpoint Id",
-        "description": "Envelope `source_endpoint_id`.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "PARTY",
-          "FARM",
-          "FIELD",
-          "FIELD_BOUNDARY"
-        ],
-        "textDataTypeDefinitionAttributes": {
-          "validationRegularExpression": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        }
-      },
-      {
         "definitionCode": "AgmaSync-CommercialRegistryNumber",
         "name": "Commercial Registry Number",
         "description": "Party `details.commercial_registry_number`, for a party whose `details` is an organization.",
@@ -189,95 +113,6 @@
         "scopes": [
           "PARTY"
         ]
-      },
-      {
-        "definitionCode": "AgmaSync-BillingAddress",
-        "name": "Billing Address",
-        "description": "Party `billing_address`. ADAPT has no billing address contact type. Carries no value of its own: the value is the nested context items.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-Address",
-        "name": "Address",
-        "description": "Farm `address`. ADAPT carries no contact information on a Farm. Carries no value of its own: the value is the nested context items.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "FARM"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-AddressStreet",
-        "name": "Street",
-        "description": "Address `street`.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO",
-          "FARM"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-AddressPoBox",
-        "name": "PO Box",
-        "description": "Address `po_box`. Kept apart from the street so the two survive the round trip.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO",
-          "FARM"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-AddressPostalCode",
-        "name": "Postal Code",
-        "description": "Address `postal_code`.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO",
-          "FARM"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-AddressCity",
-        "name": "City",
-        "description": "Address `city`.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO",
-          "FARM"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-AddressState",
-        "name": "State",
-        "description": "Address `state`.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO",
-          "FARM"
-        ]
-      },
-      {
-        "definitionCode": "AgmaSync-AddressCountry",
-        "name": "Country",
-        "description": "Address `country`, ISO 3166-1 alpha-2.",
-        "dataDefinitionBaseTypeCode": "TEXT",
-        "dataDefinitionStatusCode": "VALID",
-        "scopes": [
-          "CONTACT_INFO",
-          "FARM"
-        ],
-        "textDataTypeDefinitionAttributes": {
-          "validationRegularExpression": "^[A-Z]{2}$"
-        }
       },
       {
         "definitionCode": "AgmaSync-SpecialisedUsageType",
@@ -520,33 +355,17 @@
               "postalCode": "31832",
               "countrySubdivision": "Niedersachsen",
               "countryCode": "DE"
-            }
-          ],
-          "contextItems": [
+            },
             {
-              "definitionCode": "AgmaSync-BillingAddress",
-              "contextItems": [
-                {
-                  "definitionCode": "AgmaSync-AddressPoBox",
-                  "valueText": "Postfach 1120"
-                },
-                {
-                  "definitionCode": "AgmaSync-AddressPostalCode",
-                  "valueText": "31827"
-                },
-                {
-                  "definitionCode": "AgmaSync-AddressCity",
-                  "valueText": "Springe"
-                },
-                {
-                  "definitionCode": "AgmaSync-AddressState",
-                  "valueText": "Niedersachsen"
-                },
-                {
-                  "definitionCode": "AgmaSync-AddressCountry",
-                  "valueText": "DE"
-                }
-              ]
+              "addressContactTypeCode": "LEGAL",
+              "addressLines": [
+                "",
+                "Postfach 1120"
+              ],
+              "city": "Springe",
+              "postalCode": "31827",
+              "countrySubdivision": "Niedersachsen",
+              "countryCode": "DE"
             }
           ],
           "telecommunicationContactMethods": [
@@ -565,33 +384,6 @@
           ]
         },
         "contextItems": [
-          {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "7",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-09-14T08:12:45Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          },
           {
             "definitionCode": "AgmaSync-CommercialRegistryNumber",
             "valueText": "HRB 204518, Amtsgericht Hannover"
@@ -649,36 +441,7 @@
               "telecommunicationContactTypeCode": "FIXED_PHONE"
             }
           ]
-        },
-        "contextItems": [
-          {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "2",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-03-02T15:40:00Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          }
-        ]
+        }
       },
       {
         "id": {
@@ -713,33 +476,6 @@
           ]
         },
         "contextItems": [
-          {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "4",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-08-30T10:05:12Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          },
           {
             "definitionCode": "AgmaSync-Title",
             "valueText": "Dr."
@@ -822,33 +558,6 @@
         },
         "contextItems": [
           {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "1",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-02-18T09:20:00Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          },
-          {
             "definitionCode": "AgmaSync-FirstName",
             "valueText": "Jonas"
           },
@@ -861,6 +570,28 @@
             "valueText": "23/115/04567"
           }
         ]
+      },
+      {
+        "id": {
+          "referenceId": "farm-0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54"
+        },
+        "partyTypeCode": "UNKNOWN",
+        "name": "Hofgut Sonnenberg",
+        "contactInfo": {
+          "addressContactMethods": [
+            {
+              "addressContactTypeCode": "PHYSICAL",
+              "addressLines": [
+                "Dorfstraße 12"
+              ],
+              "city": "Springe",
+              "postalCode": "31832",
+              "countrySubdivision": "Niedersachsen",
+              "countryCode": "DE"
+            }
+          ]
+        },
+        "parentPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
       }
     ],
     "growers": [
@@ -893,34 +624,8 @@
         },
         "name": "Hofgut Sonnenberg",
         "growerId": "grower-0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+        "partyId": "farm-0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
         "contextItems": [
-          {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "12",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-09-14T08:15:02Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          },
           {
             "definitionCode": "AgmaSync-SpecialisedUsageType",
             "valueText": "arable farming"
@@ -957,31 +662,6 @@
             ]
           },
           {
-            "definitionCode": "AgmaSync-Address",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-AddressStreet",
-                "valueText": "Dorfstraße 12"
-              },
-              {
-                "definitionCode": "AgmaSync-AddressPostalCode",
-                "valueText": "31832"
-              },
-              {
-                "definitionCode": "AgmaSync-AddressCity",
-                "valueText": "Springe"
-              },
-              {
-                "definitionCode": "AgmaSync-AddressState",
-                "valueText": "Niedersachsen"
-              },
-              {
-                "definitionCode": "AgmaSync-AddressCountry",
-                "valueText": "DE"
-              }
-            ]
-          },
-          {
             "definitionCode": "AgmaSync-GeoReference",
             "valueText": "POINT (9.5531 52.2089)"
           }
@@ -1014,33 +694,6 @@
           "unitOfMeasureCode": "ha"
         },
         "contextItems": [
-          {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "5",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-04-11T06:30:00Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          },
           {
             "definitionCode": "AgmaSync-FieldOwnerPartyId",
             "valueText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
@@ -1148,33 +801,6 @@
           }
         ],
         "contextItems": [
-          {
-            "definitionCode": "AgmaSync-Envelope",
-            "contextItems": [
-              {
-                "definitionCode": "AgmaSync-Active",
-                "valueText": "true"
-              },
-              {
-                "definitionCode": "AgmaSync-Revision",
-                "valueText": "3",
-                "timeScopes": [
-                  {
-                    "dateContextCode": "MODIFICATION",
-                    "start": "2026-04-11T06:30:00Z"
-                  }
-                ]
-              },
-              {
-                "definitionCode": "AgmaSync-TenantId",
-                "valueText": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12"
-              },
-              {
-                "definitionCode": "AgmaSync-SourceEndpointId",
-                "valueText": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
-              }
-            ]
-          },
           {
             "definitionCode": "AgmaSync-BoundaryType",
             "valueText": "ADMINISTRATIVE_RECEIVED"

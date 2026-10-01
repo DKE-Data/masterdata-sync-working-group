@@ -159,9 +159,6 @@
     "owner": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52", "local_id": "PER-2001" },
     "soil": { "type": "SANDY_TO_SILTY_LOAM", "rating_points": 62 },
     "topography": 3.5,
-    "field_boundaries": [
-      { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56", "local_id": "FB-5001" }
-    ],
     "harvest_period": { "valid_from": "2025-08-01", "valid_to": "2026-07-31", "label": "2025/2026" },
     "metadata": { "flik": "DENILI0512345678", "nutzungscode": 115 }
   },
@@ -174,6 +171,8 @@
     "modified_at": "2026-04-11T06:30:00Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
     "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "field": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55", "local_id": "FLD-4001" },
+    "name": "Am Mühlenbach 2025/2026",
     "boundary": {
       "type": "Polygon",
       "coordinates": [[

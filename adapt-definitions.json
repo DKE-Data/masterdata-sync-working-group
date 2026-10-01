@@ -1,0 +1,324 @@
+{
+  "version": "0.1.0-alpha1",
+  "dataTypeDefinitions": [
+    {
+      "definitionCode": "AgmaSync-CommercialRegistryNumber",
+      "name": "Commercial Registry Number",
+      "description": "Party `details.commercial_registry_number`, for a party whose `details` is an organization.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-TaxNumber",
+      "name": "Tax Number",
+      "description": "Party `tax_number`, e.g. the German Steuernummer.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-TaxId",
+      "name": "Tax Id",
+      "description": "Party `tax_id`, e.g. the German USt-IdNr. or Steuer-ID.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-TradeId",
+      "name": "Trade Id",
+      "description": "Party `trade_id`, e.g. the German Betriebsnummer.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Title",
+      "name": "Title",
+      "description": "Party `details.title`, for a party whose `details` is a person.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-FirstName",
+      "name": "First Name",
+      "description": "Party `details.first_name`, for a party whose `details` is a person.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-LastName",
+      "name": "Last Name",
+      "description": "Party `details.last_name`, for a party whose `details` is a person.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Memberships",
+      "name": "Memberships",
+      "description": "Party `details.memberships`, for a party whose `details` is a person, one nested AgmaSync-Membership per entry. Carries no value of its own: the value is the nested context items.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Membership",
+      "name": "Membership",
+      "description": "One entry of `details.memberships`. Carries no value of its own: the value is the nested context items.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-MemberOrganizationId",
+      "name": "Member Organization Id",
+      "description": "Membership `organization_id`, as the Reference Id of a Party whose partyTypeCode is ORGANIZATION. A reference: the keyword names the target.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ],
+      "keywords": "reference:organization"
+    },
+    {
+      "definitionCode": "AgmaSync-MemberRole",
+      "name": "Member Role",
+      "description": "Membership `member_role`, a code from the ADAPT Role enumeration.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "PARTY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-SpecialisedUsageType",
+      "name": "Specialised Usage Type",
+      "description": "Farm `specialised_usage_type`, drawn from AGROVOC where a matching concept exists.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FARM"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Partners",
+      "name": "Partners",
+      "description": "Farm `partners`, one nested AgmaSync-Partner per entry. Carries no value of its own: the value is the nested context items.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FARM"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Partner",
+      "name": "Partner",
+      "description": "One entry of farm `partners`. Carries no value of its own: the value is the nested context items.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FARM"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-PartnerPartyId",
+      "name": "Partner Party Id",
+      "description": "Partner `partner_id`, as the Reference Id of a Party. A reference: the keyword names the target.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FARM"
+      ],
+      "keywords": "reference:party"
+    },
+    {
+      "definitionCode": "AgmaSync-PartnerRole",
+      "name": "Partner Role",
+      "description": "Partner `partner_role`, a code from the ADAPT Role enumeration.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FARM"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-GeoReference",
+      "name": "Geo Reference",
+      "description": "Farm `geo_reference`, as a WKT POINT in WGS84.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FARM"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-FieldOwnerPartyId",
+      "name": "Field Owner Party Id",
+      "description": "Field `owner`, as the Reference Id of a Party. Absent means the farm owner holds the field. A reference: the keyword names the target.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD"
+      ],
+      "keywords": "reference:party"
+    },
+    {
+      "definitionCode": "AgmaSync-SoilType",
+      "name": "Soil Type",
+      "description": "Soil `type`. Extensible enumeration, e.g. SAND, LOAMY_SAND, CLAY.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-SoilRatingPoints",
+      "name": "Soil Rating Points",
+      "description": "Soil `rating_points` (Bodenzahl / Ackerzahl).",
+      "dataDefinitionBaseTypeCode": "NUMERIC",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD"
+      ],
+      "numericDataTypeDefinitionAttributes": {
+        "numericDataTypeCode": "INTEGER",
+        "unitOfMeasureCode": "unitless",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "geoPoliticalContexts": [
+        {
+          "iSO3166-2Code": "DE"
+        }
+      ],
+      "labels": [
+        {
+          "languageCode": "de",
+          "name": "Ackerzahl"
+        }
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Topography",
+      "name": "Topography",
+      "description": "Field `topography`, the slope.",
+      "dataDefinitionBaseTypeCode": "NUMERIC",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD"
+      ],
+      "numericDataTypeDefinitionAttributes": {
+        "numericDataTypeCode": "DOUBLE",
+        "unitOfMeasureCode": "arcdeg"
+      }
+    },
+    {
+      "definitionCode": "AgmaSync-SeasonId",
+      "name": "Season Id",
+      "description": "Field `harvest_period`, as the Reference Id of a Season. ADAPT gives Field no Season Ids. A reference: the keyword names the target.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD"
+      ],
+      "keywords": "reference:season"
+    },
+    {
+      "definitionCode": "AgmaSync-BoundaryType",
+      "name": "Boundary Type",
+      "description": "Field boundary `boundary_type`. Extensible enumeration, e.g. OPERATIONAL, ADMINISTRATIVE_RECEIVED.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD_BOUNDARY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-RegulatoryRequirement",
+      "name": "Regulatory Requirement",
+      "description": "Field boundary `regulatory_requirements`. Extensible enumeration, e.g. RED_ZONE_NITROGEN.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD_BOUNDARY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-ObstacleKind",
+      "name": "Obstacle Kind",
+      "description": "Obstacle `properties.kind`, e.g. pole, tree, waterhole.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "OBSTACLE"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-MetadataEntries",
+      "name": "Metadata",
+      "description": "`metadata`, one nested AgmaSync-Metadata per key. Carries no value of its own: the value is the nested context items.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD",
+        "FIELD_BOUNDARY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-Metadata",
+      "name": "Metadata Entry",
+      "description": "One key of `metadata`. Carries no value of its own: the value is the nested context items.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD",
+        "FIELD_BOUNDARY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-MetadataKey",
+      "name": "Metadata Key",
+      "description": "The metadata key.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD",
+        "FIELD_BOUNDARY"
+      ]
+    },
+    {
+      "definitionCode": "AgmaSync-MetadataValue",
+      "name": "Metadata Value",
+      "description": "The metadata value, JSON-encoded.",
+      "dataDefinitionBaseTypeCode": "TEXT",
+      "dataDefinitionStatusCode": "VALID",
+      "scopes": [
+        "FIELD",
+        "FIELD_BOUNDARY"
+      ]
+    }
+  ]
+}

@@ -923,8 +923,9 @@ paths:
         Masterdata: Declare what masterdata entity types the endpoint can exchange. 
         Masterdata routes must be separately created by a user, selecting a subset of 
         these entity types. There is no default routing for masterdata. 
-        The configuration MUST be dependency-closed: enabling fields requires
-        the farms and field boundaries those fields reference, and the
+        The configuration MUST be dependency-closed: enabling field boundaries
+        requires the fields they reference, enabling fields requires the farms
+        and parties those fields reference, and enabling farms requires the
         parties those farms reference, to be enabled as well. A configuration that is
         not dependency-closed is rejected with `400`.
       security:
@@ -1887,6 +1888,7 @@ components:
         - OPERATOR
         - OWNER
         - TRANSPORTER
+        - COLLECTOR
 
     Farm:
       description: >
@@ -1994,11 +1996,6 @@ components:
             topography:
               type: [number, 'null']
               description: 'Slope / gradient, e.g. 7 (degrees).'
-            field_boundaries:
-              type: [array, 'null']
-              description: References to the field's boundaries.
-              items:
-                $ref: '#/components/schemas/EntityReference'
             harvest_period:
               oneOf:
                 - $ref: '#/components/schemas/HarvestPeriod'
@@ -2044,6 +2041,15 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
+            field:
+              $ref: '#/components/schemas/EntityReference'
+              description: >
+                The field this boundary describes. A field's boundaries are the
+                boundaries that name it.
+            name:
+              type: [string, 'null']
+              description: >
+                The name the boundary is known by, e.g. a field name and season.
             boundary:
               $ref: '#/components/schemas/Geometry'
               description: A GeoJSON Polygon or MultiPolygon.
@@ -2092,7 +2098,7 @@ components:
                 Additional key/value metadata. A participant leaves the keys it
                 does not understand out of its writes, which keeps them.
               additionalProperties: true
-          required: [type, boundary]
+          required: [type, field, boundary]
 
     Entity:
       description: >

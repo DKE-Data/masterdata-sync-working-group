@@ -345,7 +345,6 @@ Canonical attributes (subset):
   - `rating_points` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
 - `topography`(number, optional): slope, gradient like 7°
   - 👷‍♂️ _to be refined_
-- `field_boundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
 - `harvest_period` (object, optional): see [Harvest period](#harvest-period).
 - `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
@@ -357,6 +356,8 @@ A field can have different boundaries that may vary in geometry based on their s
 A field boundary include the outer boundary of the editable area and obstacles within the field (such as poles, biotopes or wet patches) that are left out.
 Canonical attributes:
 
+- `field` (reference, required): the [field](#field) this boundary describes.
+- `name` (string, optional): the name the boundary is known by.
 - `boundary` (GeoJSON): the field boundary as a GeoJSON `Polygon` or `MultiPolygon` {{?RFC7946}}.
 - `boundary_type` (string): the boundary classification. Enum value like:
 
@@ -373,7 +374,7 @@ Canonical attributes:
   - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
   - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
   - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown (Based on [ADAPT Data Type: BoundaryCreationMethod](https://adaptstandard.org/dtd.html)
-- `harvest_period` (object): see [Harvest period](#harvest-period). If the field that references this boundary also defines a `harvest_period`, the boundary's period MUST fall within it: `valid_from` no earlier than the field's `valid_from`, and `valid_to` no later than the field's `valid_to` (an absent field `valid_to` imposes no upper bound).
+- `harvest_period` (object): see [Harvest period](#harvest-period). If the boundary's `field` also defines a `harvest_period`, the boundary's period MUST fall within it: `valid_from` no earlier than the field's `valid_from`, and `valid_to` no later than the field's `valid_to` (an absent field `valid_to` imposes no upper bound).
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose properties carry an obstacle `kind`.
 - `regulatory_requirements` (string, optional): Enum value like:
 
@@ -383,18 +384,18 @@ Canonical attributes:
 
 ### Entity dependencies
 
-A field references a farm, MAY reference a party as its owner, and MAY reference
-the field boundaries that describe it; a farm references the party that owns it
+A field boundary references the field it describes; a field MAY reference a farm
+and MAY reference a party as its owner; a farm references the party that owns it
 and MAY reference further parties as partners; and a person MAY reference the
-organizations it belongs to. A field boundary references nothing: the reference
-runs from the field to its boundaries, not the other way.
+organizations it belongs to.
 
 Memberships reference parties from a party, so dependency order is per object
 rather than per entity type: a person with memberships follows the organizations
 it names, on send and on delivery. These dependencies
-are significant for routing and initial load: a participant that is to receive fields
-MUST also be enabled for the farms, parties, and field boundaries those fields
-depend on, so that references can be resolved on the receiving side (see
+are significant for routing and initial load: a participant that is to receive field
+boundaries MUST also be enabled for the fields they describe, and one that is to
+receive fields MUST also be enabled for the farms and parties those fields depend
+on, so that references can be resolved on the receiving side (see
 [Routing and opt-in](#routing-and-opt-in)).
 
 ## Harvest period
@@ -415,6 +416,14 @@ To keep the canonical form unambiguous, `harvest_period` is defined as an interv
 
 A participant that natively uses a discrete year MUST map it to an interval on send
 and MAY use `label` to round-trip its own presentation.
+
+## ADAPT
+
+The entities are encoded in this protocol's own schema, not in the
+[ADAPT](https://adaptstandard.org/) data model
+([ADR 11](./architecture/11-entity-model.md)). A participant built on ADAPT
+converts at its edge, following the normative [AgmaSync–ADAPT mapping](./adapt-mapping.md)
+and the `AgmaSync-` custom definitions it publishes.
 
 # Encoding and canonicity
 
@@ -457,6 +466,7 @@ not an exhaustive set. Normatively:
 - A value outside the listed set MUST NOT be a validation failure (see [Hard validation](#hard-validation)) and MUST NOT cause the entity to be rejected, dropped, or altered.
 - Receivers MUST tolerate unknown values: never rewrite one, and where the value drives behaviour, fall back to the handling they apply to an unknown value. A receiver that cannot store an unknown value leaves the attribute out of its writes, which keeps it (see [Writing an entity](#writing-an-entity)).
 - Values are `UPPER_SNAKE_CASE`.
+- Where an [ADAPT](https://adaptstandard.org/dtd.html) enumeration covers the same concept, the values are that enumeration's codes, unchanged, and a value ADAPT adds is a value of the attribute. Today these are `member_role` and `partner_role` (ADAPT `Role`) and `creation_method` (ADAPT `BoundaryCreationMethod`).
 - Adding a value is a compatible change and MAY happen in a minor revision of this document. Removing or renaming a value is breaking and MUST NOT.
 
 ## Identifier mapping
@@ -560,7 +570,13 @@ anyone's intent: it says the endpoint can parse, store, and produce fields, not
 that any user wants it to.
 
 - The declaration is written by the participant on the endpoint's master-data configuration.
-- It MUST be **dependency-closed** (see [Entity dependencies](#entity-dependencies)): declaring fields requires declaring the farms and field boundaries those fields reference, and the parties those farms reference. An endpoint that could receive fields but not the farms they hang off could not resolve their references, so agrirouter MUST reject such a declaration rather than record it.
+- It MUST be **dependency-closed** (see [Entity dependencies](#entity-dependencies)). `A → B` reads "declaring A requires declaring B", and the requirement is transitive:
+
+  ~~~
+  field boundaries → fields → farms → parties
+  ~~~
+
+  An endpoint that could receive fields but not the farms they hang off could not resolve their references, so agrirouter MUST reject such a declaration rather than record it.
 - Declaring an entity type enables no exchange, creates no route, and starts no [initial load](#initial-load). It only puts the type in front of the user as something selectable. Adding one to the declaration of an endpoint that already takes part therefore changes nothing until the user selects it.
 - Withdrawing an entity type from the declaration narrows any selection naming it. agrirouter MUST narrow the selection to what is still declared.
 - An endpoint that has declared nothing offers the user nothing to select and cannot take part in masterdata exchange

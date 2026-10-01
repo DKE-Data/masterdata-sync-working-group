@@ -103,10 +103,11 @@ fixed depth in it - its **tier**:
 
 | tier | class | references |
 | --- | --- | --- |
-| 0 | `fieldBoundary`, `party` without person `details` | none |
+| 0 | `party` without person `details` | none |
 | 1 | `party` with person `details` | organizations, through memberships |
 | 2 | `farm` | its owning party, its partner parties |
-| 3 | `field` | its farm, its owning party, its boundaries |
+| 3 | `field` | its farm, its owning party |
+| 4 | `fieldBoundary` | its field ([ADR 12](12-boundary-references-field.md)) |
 
 A party's tier is read from the revision being delivered. A change of party type is a new
 revision, delivered at the tier of the party type it states.

@@ -112,7 +112,7 @@ Arrows below mean *holds a reference to*.
 
 ```mermaid
 flowchart LR
-    FI["Field \n Long Meadow"] -->|"field_boundaries"| B["FieldBoundary"]
+    B["FieldBoundary"] -->|"field"| FI["Field \n Long Meadow"]
     FI -->|"farm"| F["Farm \n Manor Farm"]
     F -->|"owner"| P["Party \n Sarah Ashcroft \n person"]
 ```
