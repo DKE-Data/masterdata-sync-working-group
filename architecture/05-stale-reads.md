@@ -49,9 +49,9 @@ Example - two writes are done at approximately same time:
 
 ```json
 {
-    "harvestPeriod": {
-        "validFrom": "2024-01-01",
-        "validTo": "2024-12-31"
+    "harvest_period": {
+        "valid_from": "2024-01-01",
+        "valid_to": "2024-12-31"
     },
     ///... all other fields are same as in the current revision
 }
@@ -125,7 +125,7 @@ agrirouter synthesises it there is always an open response to hand it back on. B
 therefore receives the merged object synchronously, as the resulting canonical
 object in its own write response, and the stream is never the only way to reach
 it. This is the same channel through which a client already learns an
-`agrirouterId` it did not author.
+`agrirouter_id` it did not author.
 
 The requirement this puts on participants is that **a write response is applied
 exactly as a delivered object is** - it is not merely an acknowledgement carrying
@@ -182,7 +182,7 @@ Special cases:
 - when a client attempts to deactivate an object simultaneously with another client attempting to modify it, this is considered a conflict and only one of the clients will succeed. Even though further deactivations are idempotent and their prior revision is ignored when the object is already deactivated, for the first deactivation attempt, CAS mechanism must be applied.
 
 Consequences of automatic merge:
-- a revision can exist that no client sent, which means `sourceEndpointId` stops being a complete answer to "who wrote this". Whether agrirouter records that a revision was merged is an internal matter: it does not affect what is delivered to whom.
+- a revision can exist that no client sent, which means `source_endpoint_id` stops being a complete answer to "who wrote this". Whether agrirouter records that a revision was merged is an internal matter: it does not affect what is delivered to whom.
 - **a write response is a delivery, not an acknowledgement.** The merging client gets back content it did not send, so adopting the returned revision is not enough - the response body goes through the same apply path a stream frame does. That is a second entrance to apply, and the reason for the two rules below.
 - **apply MUST be revision-guarded.** With a second channel, "later in the stream" stops meaning "newer": a response carrying revision 10 can land after the stream consumer has applied 11. A participant MUST NOT apply an object whose `revision` is lower than the one it holds. The comparison is what [ADR 03](./03-revision-model.md) built a totally ordered integer for.
 - **an unobserved outcome means the object is unknown.** A participant whose write neither succeeds nor fails visibly - a dropped connection after agrirouter committed - MUST NOT assume its own value stands. It re-requests the object ([lazy loading](../specification.md#requesting-objects-lazy-loading)) or retries the write, which returns the current revision either way. Under a merge-and-stream design the stream covered this silently.

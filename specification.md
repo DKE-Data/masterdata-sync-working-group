@@ -129,10 +129,10 @@ the collection of one supported entity type (`parties`, `farms`,
 
 | Operation                                          | Purpose                                                                                        |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `PUT /masterdata/<types>/{localId}`                | Sends the entity (creation or update) as a merge patch: an attribute left out is unchanged, `null` removes one, see [Writing an entity](#writing-an-entity). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
+| `PUT /masterdata/<types>/{local_id}`                | Sends the entity (creation or update) as a merge patch: an attribute left out is unchanged, `null` removes one, see [Writing an entity](#writing-an-entity). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
 | `POST /masterdata/<types>/requests`                | Actively requests an entity ("lazy loading"), see [Requesting objects](#requesting-objects-lazy-loading). |
-| `POST /masterdata/<types>/{localId}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
-| `PUT`/`DELETE /masterdata/<types>/{localId}/id-mapping/{agrirouterId}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
+| `POST /masterdata/<types>/{local_id}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
+| `PUT`/`DELETE /masterdata/<types>/{local_id}/id-mapping/{agrirouter_id}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
 
 What agrirouter sends would potentially travel on two streams, which serve different
 purposes and are independent of each other:
@@ -140,7 +140,7 @@ purposes and are independent of each other:
 | Stream | Scoped to | Carries |
 | --- | --- | --- |
 | `GET /masterdata/events` | the application | live changes: canonical objects and deactivations, for every tenant the application is routed to |
-| `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events` | one endpoint | the canonical set of every opted-in entity type for that endpoint's [initial load](#initial-load), ending when the response closes |
+| `GET /endpoints/{external_id}/masterdata-initial-load/events` | one endpoint | the canonical set of every opted-in entity type for that endpoint's [initial load](#initial-load), ending when the response closes |
 
 Only `/masterdata/events` carries a position, as `Last-Event-ID` (see
 [Downtime and resume](#downtime-and-resume)). An initial-load stream delivers a fixed limited set rather
@@ -177,43 +177,43 @@ Every entity shares a common envelope. Example
 ~~~ json
 {
   "type": "field",
-  "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
-  "localId": "PFD-00042",
+  "agrirouter_id": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
+  "local_id": "PFD-00042",
   "active": true,
   "revision": 7,
-  "modifiedAt": "2026-07-14T09:20:00Z",
-  "tenantId": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
-  "sourceEndpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
+  "modified_at": "2026-07-14T09:20:00Z",
+  "tenant_id": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
+  "source_endpoint_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
 }
 ~~~
 
 Envelope fields:
 
 - `type` (string, required): the entity type; one of `party`, `farm`, `field`, `fieldBoundary`.
-- `agrirouterId` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
-- `localId` (string): **always the identifier of the participant at the near end of the transfer, never of any other.** On send it is the sender's own identifier for the entity, and is required. On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
+- `agrirouter_id` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
+- `local_id` (string): **always the identifier of the participant at the near end of the transfer, never of any other.** On send it is the sender's own identifier for the entity, and is required. On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
 - `active` (boolean): whether the entity is currently active. Deactivation is expressed through the deactivation operation (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)). It is never taken from a sent object: the revision a participant edited from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded (see [Concurrency control](#concurrency-control)).
-- `modifiedAt` (string): the {{?RFC3339}} timestamp of the last accepted change.
-- `tenantId` (string): the tenant the object belongs to ({{?RFC4122}}). It is set by agrirouter; on send the tenant follows from the acting endpoint, and a value a sender supplies MUST be that tenant. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
-- `sourceEndpointId` (string): the endpoint whose change produced the current canonical revision. It always belongs to `tenantId`. It is the key [origin suppression](#loop-prevention) is decided on.
+- `modified_at` (string): the {{?RFC3339}} timestamp of the last accepted change.
+- `tenant_id` (string): the tenant the object belongs to ({{?RFC4122}}). It is set by agrirouter; on send the tenant follows from the acting endpoint, and a value a sender supplies MUST be that tenant. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
+- `source_endpoint_id` (string): the endpoint whose change produced the current canonical revision. It always belongs to `tenant_id`. It is the key [origin suppression](#loop-prevention) is decided on.
 
-`type`, `agrirouterId`, `revision`, `modifiedAt`, `tenantId`, and
-`sourceEndpointId` are assigned by agrirouter, and a participant MAY send an
-object back exactly as it was delivered. `revision`, `modifiedAt`, and
-`sourceEndpointId` are ignored on send. `type`, `agrirouterId`, and `tenantId`
+`type`, `agrirouter_id`, `revision`, `modified_at`, `tenant_id`, and
+`source_endpoint_id` are assigned by agrirouter, and a participant MAY send an
+object back exactly as it was delivered. `revision`, `modified_at`, and
+`source_endpoint_id` are ignored on send. `type`, `agrirouter_id`, and `tenant_id`
 MUST match the object written — the path's entity type, the object the
-`localId` is bound to, and the acting endpoint's tenant — or the write is
+`local_id` is bound to, and the acting endpoint's tenant — or the write is
 rejected with `400`.
 
 ### References
 
 A **reference** to another entity (for example a field referring to its farm) is
-expressed as an object carrying the target's `agrirouterId`, the referencing
-participant's `localId` for the target, or both:
+expressed as an object carrying the target's `agrirouter_id`, the referencing
+participant's `local_id` for the target, or both:
 
 ~~~ json
-{ "agrirouterId": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "localId": "FRM-7" }
+{ "agrirouter_id": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "local_id": "FRM-7" }
 ~~~
 
 On the field of the envelope example above:
@@ -221,39 +221,39 @@ On the field of the envelope example above:
 ~~~ json
 {
   "type": "field",
-  "agrirouterId": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
-  "localId": "PFD-00042",
+  "agrirouter_id": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
+  "local_id": "PFD-00042",
   "name": "North 40",
   "farm": {
-    "agrirouterId": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "localId": "FRM-7" }
+    "agrirouter_id": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "local_id": "FRM-7" }
 }
 ~~~
 
-The `localId` in a reference is the *referencing* participant's identifier for the
+The `local_id` in a reference is the *referencing* participant's identifier for the
 target, not the target's canonical one. The two identifiers are therefore not
 interchangeable in both directions:
 
-- **On send**, a participant MAY use either. A reference carrying only a `localId`
+- **On send**, a participant MAY use either. A reference carrying only a `local_id`
   is resolved by agrirouter against the sender's own
   [identifier mapping](#identifier-mapping). If it does not resolve — the target has
   not been sent yet — the request MUST be rejected, and the participant MUST send the
   target before the object referencing it.
   A participant may also hold an object whose target it does not hold, the
-  reference having been delivered without a `localId` (see
+  reference having been delivered without a `local_id` (see
   [Identifier mapping](#identifier-mapping)). It cannot name that target in either
   identifier, and where the slot is a required attribute — a farm's `owner` — it has
   no valid write at all. It MUST
   [request](#requesting-objects-lazy-loading) the target, create it locally, and
   bind the identifier it issues, before writing the object that references it.
-- **On delivery**, agrirouter MUST populate `agrirouterId`, and MUST replace the
-  `localId` with the receiving endpoint's own identifier for the target, omitting it
+- **On delivery**, agrirouter MUST populate `agrirouter_id`, and MUST replace the
+  `local_id` with the receiving endpoint's own identifier for the target, omitting it
   when there is none. It MUST NOT be left as the sender's: a receiving endpoint
-  resolves the target through `agrirouterId`, so the sender's `localId` carries no
+  resolves the target through `agrirouter_id`, so the sender's `local_id` carries no
   meaning in the receiver's namespace, and passing it through would disclose the
   sender's internal key for the target. This is the same rule the envelope's own
-  `localId` follows (see [Common envelope](#common-envelope)).
+  `local_id` follows (see [Common envelope](#common-envelope)).
 
-This keeps `agrirouterId` off the write path: a participant builds references from
+This keeps `agrirouter_id` off the write path: a participant builds references from
 its own identifiers, and does not have to capture and correlate canonical ids before
 it can send the objects that reference them. Ordering still applies — a target must
 be sent before the first reference to it.
@@ -267,12 +267,12 @@ Canonical attributes:
 
 - `name` (string, required): the name the party is known by — an organization's name, a person's full name.
 - `details` (object, optional): whether the party is a person or an organization, with the attributes specific to that kind (see [Party details](#party-details)).
-- `address` (object, optional): `street`, `poBox`, `postalCode`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
+- `address` (object, optional): `street`, `po_box`, `postal_code`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
-- `billingAddress` (object, optional): as for `address`.
-- `taxNumber` (string, optional): identifier assigned by tax authorities.
-- `taxId` (string, optional): numerical identifier assigned by tax authorities.
-- `tradeId` (string, optional): numerical identifier assigned by public authorities.
+- `billing_address` (object, optional): as for `address`.
+- `tax_number` (string, optional): identifier assigned by tax authorities.
+- `tax_id` (string, optional): numerical identifier assigned by tax authorities.
+- `trade_id` (string, optional): numerical identifier assigned by public authorities.
 
 No attribute records that a party *is* a contractor or *is* a customer. Those are
 relations, and are read from the graph: a party that appears as a `partner` on
@@ -282,17 +282,17 @@ both at once, in different relations.
 
 ### Party details
 
-`details` is discriminated by its `partyType`, a closed set:
+`details` is discriminated by its `party_type`, a closed set:
 
 - `PERSON`: a natural person.
   - `title` (string, optional).
-  - `firstName` (string, optional).
-  - `lastName` (string, optional).
+  - `first_name` (string, optional).
+  - `last_name` (string, optional).
   - `memberships` (array, optional): the organizations this person belongs to. Each entry carries:
-    - `organizationId` (reference, required): a party whose `details` is an `ORGANIZATION`.
-    - `memberRole` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
+    - `organization_id` (reference, required): a party whose `details` is an `ORGANIZATION`.
+    - `member_role` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
 - `ORGANIZATION`: a legal entity to which persons may belong.
-  - `commercialRegistryNumber` (string, optional): unique identifier out of the commercial register.
+  - `commercial_registry_number` (string, optional): unique identifier out of the commercial register.
 
 A party without `details` is of unknown kind. Many systems keep a customer or
 grower without recording whether it is a person or a business, and such a guess
@@ -317,12 +317,12 @@ Canonical attributes (subset):
 - `owner` (reference, required): the party that holds the farm.
 - `name` (string, required).
 - `address` (object, optional): as for a party.
-- `geoReference` (`Point`, optional): longitude and latitude of the farm.
-- `specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
+- `geo_reference` (`Point`, optional): longitude and latitude of the farm.
+- `specialised_usage_type` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
 - `partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry carries:
 
-  - `partnerId` (reference, required): the party.
-  - `partnerRole` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as `memberRole`.
+  - `partner_id` (reference, required): the party.
+  - `partner_role` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as `member_role`.
 
 `partners` records a business relationship only. It MUST NOT be interpreted as
 granting access to the farm or to anything below it: what an endpoint receives is
@@ -342,11 +342,11 @@ Canonical attributes (subset):
 - `owner` (reference, optional): the party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `owner` without a `farm`.
 - `soil`(object, optional): 
   - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), 
-  - `ratingPoints` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
+  - `rating_points` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
 - `topography`(number, optional): slope, gradient like 7°
   - 👷‍♂️ _to be refined_
-- `fieldBoundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
-- `harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
+- `field_boundaries` (array, optional): references to the field [boundaries](#fieldboundary) as a GeoJSON
+- `harvest_period` (object, optional): see [Harvest period](#harvest-period).
 - `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
 ## FieldBoundary
@@ -358,13 +358,13 @@ A field boundary include the outer boundary of the editable area and obstacles w
 Canonical attributes:
 
 - `boundary` (GeoJSON): the field boundary as a GeoJSON `Polygon` or `MultiPolygon` {{?RFC7946}}.
-- `boundaryType` (string): the boundary classification. Enum value like:
+- `boundary_type` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
   - `OPERATIONAL`: Used to define management areas for specific fieldwork.
   - `ECONOMIC_DEFINED`: Used for planning and analysis for economic purposes, e.g. for sustainability programmes or invoicing.
   - `ADMINISTRATIVE_RECEIVED`: Used for data organisation see [AgGateway](https://aggateway.org/Portals/1010/WebSite/About%20Us/FIELD%20BOUNDARY%20FLYER%20122123.pdf?ver=2024-01-03-212959-590)
-- `creationMethod` (string): Enum value like:
+- `creation_method` (string): Enum value like:
 
   - `UNKNOWN`:	Creation method is unknown
   - `MANUAL`: Hand drawn in a computer system (FMIS) based on imagery or other information.
@@ -373,9 +373,9 @@ Canonical attributes:
   - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
   - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
   - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown (Based on [ADAPT Data Type: BoundaryCreationMethod](https://adaptstandard.org/dtd.html)
-- `harvestPeriod` (object): see [Harvest period](#harvest-period). If the field that references this boundary also defines a `harvestPeriod`, the boundary's period MUST fall within it: `validFrom` no earlier than the field's `validFrom`, and `validTo` no later than the field's `validTo` (an absent field `validTo` imposes no upper bound).
+- `harvest_period` (object): see [Harvest period](#harvest-period). If the field that references this boundary also defines a `harvest_period`, the boundary's period MUST fall within it: `valid_from` no earlier than the field's `valid_from`, and `valid_to` no later than the field's `valid_to` (an absent field `valid_to` imposes no upper bound).
 - `obstacles` (array, optional): obstacles within the field, each a GeoJSON `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose properties carry an obstacle `kind`.
-- `regulatoryRequirements` (string, optional): Enum value like:
+- `regulatory_requirements` (string, optional): Enum value like:
 
   - `RED_ZONE_NITROGEN`: Red zone identification (N,P overfertilization)
   - `WATER_PROTECTION_AREA`: Including a water protection area
@@ -407,10 +407,10 @@ a `valid-from` / `valid-to` interval. Complicating matters, a "harvest year" is 
 always a calendar year — depending on region, crop, and climate it may span a few
 months or several calendar years.
 
-To keep the canonical form unambiguous, `harvestPeriod` is defined as an interval:
+To keep the canonical form unambiguous, `harvest_period` is defined as an interval:
 
-- `validFrom` (string, required): the start date ({{?RFC3339}} full-date).
-- `validTo` (string, optional): the end date; absent means "open / current".
+- `valid_from` (string, required): the start date ({{?RFC3339}} full-date).
+- `valid_to` (string, optional): the end date; absent means "open / current".
 - `label` (string, optional): a human-facing designation such as `"2026"` or `"2025/2026"` for systems that present a discrete year.
 
 A participant that natively uses a discrete year MUST map it to an interval on send
@@ -461,26 +461,26 @@ not an exhaustive set. Normatively:
 
 ## Identifier mapping
 
-agrirouter maintains, per canonical object, a mapping between its `agrirouterId`
-and each participant's `localId` for that object. The mapping is keyed by the
+agrirouter maintains, per canonical object, a mapping between its `agrirouter_id`
+and each participant's `local_id` for that object. The mapping is keyed by the
 **participant**, not by the endpoint: a participant has one local store, so a
-`localId` names the same record whichever of the participant's endpoints sends it
+`local_id` names the same record whichever of the participant's endpoints sends it
 (see [Terminology](#terminology)). Which endpoint acts on a request still matters
-for entitlement and for `sourceEndpointId`; it does not partition the mapping.
+for entitlement and for `source_endpoint_id`; it does not partition the mapping.
 
-- On receiving an entity sent under `localId` X by an endpoint of participant P:
+- On receiving an entity sent under `local_id` X by an endpoint of participant P:
 
   - if the mapping already resolves (P, X) to a canonical object, that object is updated;
-  - otherwise a new canonical object is created, `agrirouterId` is assigned, and (P, X) is recorded in its mapping.
-- When agrirouter delivers a canonical object to an endpoint of participant P, it MUST set `localId` to P's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit `localId` when it holds none. An absent `localId` is meaningful: it states that agrirouter does not believe P holds this object, which is what makes an unbound or unbound-again object recognisable as one P must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
-- **The mapping is delivered one participant at a time, and only to that participant.** A canonical object holds every participant's `localId`, but a delivered copy carries at most the recipient's own. agrirouter MUST NOT disclose one participant's local identifiers to another: nothing in synchronization consumes them — a receiver resolves through `agrirouterId` — and they are a participant's internal keys for a user's data. See [Security considerations](#security-considerations).
+  - otherwise a new canonical object is created, `agrirouter_id` is assigned, and (P, X) is recorded in its mapping.
+- When agrirouter delivers a canonical object to an endpoint of participant P, it MUST set `local_id` to P's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit `local_id` when it holds none. An absent `local_id` is meaningful: it states that agrirouter does not believe P holds this object, which is what makes an unbound or unbound-again object recognisable as one P must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
+- **The mapping is delivered one participant at a time, and only to that participant.** A canonical object holds every participant's `local_id`, but a delivered copy carries at most the recipient's own. agrirouter MUST NOT disclose one participant's local identifiers to another: nothing in synchronization consumes them — a receiver resolves through `agrirouter_id` — and they are a participant's internal keys for a user's data. See [Security considerations](#security-considerations).
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to task-data-based tooling.
 
 A mapping also comes into existence the other way round, when an endpoint
 recognises a delivered canonical object as one it already holds. The endpoint
 MUST declare that by **binding** its own identifier to the object; agrirouter
 never infers a mapping from the content of an object. Binding is not a change to
-the entity: it creates no revision, does not alter `sourceEndpointId`, and is
+the entity: it creates no revision, does not alter `source_endpoint_id`, and is
 delivered to nobody. Until it has bound, an endpoint MUST NOT send that object,
 because the send does not resolve and creates a second canonical object for the
 same entity. During
@@ -499,7 +499,7 @@ object, affects no other endpoint's mapping, and reaches nobody.
 
 Unbinding does not narrow what the endpoint receives: opt-in is the only such
 filter (see [Security considerations](#security-considerations)). The object's
-next change is therefore delivered again, carrying no `localId` for that
+next change is therefore delivered again, carrying no `local_id` for that
 endpoint, and the endpoint MUST treat it as a canonical object it does not hold
 — creating it locally and binding the identifier it then issues. An endpoint that
 wants the object back sooner requests it (see
@@ -512,7 +512,7 @@ primary keys, and binding that identifier collides with the stale pair.
 
 Every operation above is keyed by an identifier the endpoint is assumed to hold:
 unbinding names a pair, [requesting](#requesting-objects-lazy-loading) names an
-`agrirouterId`, and an ordinary send resolves through a `localId` already mapped.
+`agrirouter_id`, and an ordinary send resolves through a `local_id` already mapped.
 An endpoint whose own store was restored from a backup or migrated may hold none
 of them, and agrirouter does not disclose the mapping on demand — a participant's
 correspondence table is its own to keep. A participant is expected to hold that
@@ -525,7 +525,7 @@ endpoint's masterdata route is removed, or when an endpoint is removed (see
 [masterdata reset](#masterdata-reset) discards it.
 
 A participant MUST NOT reuse one of its local identifiers for two distinct
-canonical objects, through any of its endpoints. If a participant sends a `localId`
+canonical objects, through any of its endpoints. If a participant sends a `local_id`
 that is already mapped to a *different* canonical object than the one implied by
 the request, agrirouter MUST reject it (see
 [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)).
@@ -592,14 +592,14 @@ Example event (non-normative):
 
 ~~~ json
 {
-  "eventType": "ROUTE_CHANGED",
-  "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-  "externalEndpointId": "urn:my-app:endpoint:42",
-  "entityTypes": [
-    { "entityType": "party" },
-    { "entityType": "farm" }
+  "event_type": "ROUTE_CHANGED",
+  "endpoint_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+  "external_id": "urn:my-app:endpoint:42",
+  "entity_types": [
+    { "entity_type": "party" },
+    { "entity_type": "farm" }
   ],
-  "changedAt": "2026-07-14T09:20:00Z"
+  "changed_at": "2026-07-14T09:20:00Z"
 }
 ~~~
 
@@ -616,7 +616,7 @@ state, held by agrirouter on the initial-load resource and read there by the
 endpoint. It covers every entity type the endpoint is opted into; there is no
 state, and no stream, per entity type. The defined progression is:
 
-1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; a participant adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The participant is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{externalEndpointId}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
+1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; a participant adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The participant is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{external_id}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 
    Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object arriving on the live stream may reference one the set has not delivered yet (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
 2. **`RECONCILING`.** agrirouter advances the state once it has sent the whole set, and closes the stream's HTTP response after it. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
@@ -674,7 +674,7 @@ a property of the participant's whole store rather than of one endpoint, so it
 would take every tenant and every endpoint with it, and re-onboarding is then the
 proportionate answer. The identifier mapping is keyed by the participant and
 survives endpoint removal (see [Identifier mapping](#identifier-mapping)), so a
-re-onboarded endpoint is sent the canonical set carrying its own `localId`s and
+re-onboarded endpoint is sent the canonical set carrying its own `local_id`s and
 matches rather than reconciles.
 
 Conflict detection during initial load, and its resolution, are the responsibility of
@@ -686,7 +686,7 @@ conflicts.
 
 Resolution happens on a screen agrirouter cannot see, while the user who connected
 the endpoint may well be looking at agrirouter. So an endpoint SHOULD report
-that its reconciliation is waiting on a person — `awaitingUser`
+that its reconciliation is waiting on a person — `awaiting_user`
 on the initial-load resource — which agrirouter shows in place of its own "this
 application is working through your data". agrirouter learns *that* a person is
 needed and never what for: it is one bit per endpoint, not a conflict list.
@@ -696,7 +696,7 @@ needed and never what for: it is one bit per endpoint, not a conflict list.
 - **Every state before `COMPLETED` can carry it**, including while the set is still arriving, because conflicts surface object by object rather than only once the set is complete. Sending is no different: a rejected [non-unique mapping](#asymmetric-and-non-unique-mappings) or a [missing required attribute](#differing-requiredoptional-attributes) is a decision in the endpoint's software just the same. A completed load waits on nobody, so raising it then is refused.
 - **Unset says nothing about the user.** It is ambiguous between having nothing to raise and not reporting at all, so it only ever upgrades what agrirouter shows, and an endpoint that omits it costs precision rather than correctness. Nothing in the protocol branches on it.
 
-A participant MAY also declare, as a `resolutionUrl` on the endpoint's
+A participant MAY also declare, as a `resolution_url` on the endpoint's
 [declaration](#declaration-what-an-endpoint-can-exchange), where in its own
 software the user resolves this endpoint's initial load.
 agrirouter treats it as opaque, links to it while a user is awaited, and where
@@ -763,7 +763,7 @@ An endpoint that receives an inactive object MUST NOT treat it as an ordinary
 delivery of an object it does not hold:
 
 - if it recognises the object in its own store, it [binds](#identifier-mapping) its identifier and marks its own copy inactive. Binding a dead object is worth doing: an unbound local copy is precisely what gets sent back as new later.
-- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `localId` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is inactive.
+- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `local_id` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is inactive.
 
 ### Asymmetric and non-unique mappings
 
@@ -781,7 +781,7 @@ participating systems, which is the intended behaviour for this version.
 Because resolution happens there, a rejection MUST carry what resolving it
 requires. agrirouter MUST report, for each rejected binding:
 
-- **which identifier is taken** — the endpoint's `localId`, already denoting a different canonical object, or the canonical object, already known to that endpoint under a different `localId`. The two are different problems in the endpoint's store and are not interchangeable;
+- **which identifier is taken** — the endpoint's `local_id`, already denoting a different canonical object, or the canonical object, already known to that endpoint under a different `local_id`. The two are different problems in the endpoint's store and are not interchangeable;
 - **the mapping that holds it** — the pair that stands. Both of its ends belong to the rejected endpoint itself, so naming it discloses nothing the endpoint does not already hold, and it is what lets the endpoint tell its user *which* of their records is in the way rather than only that something is.
 
 Both MUST be machine-readable: the endpoint's handling differs by cause — some
@@ -898,7 +898,7 @@ The identifier mapping is retained in every case except a reset, for the same re
 retained across [deactivation](#deactivation) — it is a property of the canonical
 object, not of the connection, and it is keyed by the participant rather than by
 the endpoint (see [Identifier mapping](#identifier-mapping)), so no endpoint's
-removal takes it away. Discarding it would not withhold anything: `agrirouterId`
+removal takes it away. Discarding it would not withhold anything: `agrirouter_id`
 is stable, so a participant that kept its own correspondence table simply
 re-declares the same bindings on return. It would only degrade the returning
 participant, whose own data comes back unrecognizable.
@@ -911,7 +911,7 @@ type it is opted into: agrirouter cannot enumerate what the endpoint missed whil
 it was not a participant, so it re-sends the canonical set rather than a delta.
 
 Because the mapping survived, that set is delivered with each object carrying the
-endpoint's own `localId` (see [Identifier mapping](#identifier-mapping)), so
+endpoint's own `local_id` (see [Identifier mapping](#identifier-mapping)), so
 matching is mechanical and a participant that still holds its data has nothing to
 reconcile and nothing to bind. Reconciliation is only as large as the divergence
 that accumulated while the endpoint was away.
@@ -939,7 +939,7 @@ against its own retained copy.
 The mapping hangs from the participant, not from the endpoint, so the retention
 above survives re-onboarding onto a fresh endpoint: a participant that removes an
 endpoint and creates another in the same tenant finds its bindings intact, and the
-set it is then initially loaded with arrives carrying its own `localId`s.
+set it is then initially loaded with arrives carrying its own `local_id`s.
 
 ### Masterdata reset
 
@@ -966,12 +966,12 @@ Example event (non-normative):
 
 ~~~ json
 {
-  "eventType": "RESET_MASTERDATA_SYNC",
-  "tenantId": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
+  "event_type": "RESET_MASTERDATA_SYNC",
+  "tenant_id": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
   "endpoints": [
     {
-      "endpointId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-      "externalEndpointId": "urn:my-app:endpoint:42"
+      "endpoint_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+      "external_id": "urn:my-app:endpoint:42"
     }
   ]
 }
@@ -988,7 +988,7 @@ On receiving it, a participant:
 
 Writes in the tenant are refused afterwards, since there is no route. A route the
 user creates again runs an ordinary first [initial load](#initial-load): no
-object carries a `localId`, there is no repeat marker, and the participant
+object carries a `local_id`, there is no repeat marker, and the participant
 reconciles and binds afresh.
 
 agrirouter delivers the reset before any later `ROUTE_CHANGED` or object of the
@@ -1002,7 +1002,7 @@ again after new bindings exist, and discard them.
 ## Writing an entity
 
 A write must state what changes, not necessarily the whole object. The body of
-`PUT /masterdata/<types>/{localId}` is applied to the canonical object as a JSON
+`PUT /masterdata/<types>/{local_id}` is applied to the canonical object as a JSON
 Merge Patch ({{?RFC7396}}) of its non-envelope attributes:
 
 - **Present:** an attribute carrying a value replaces the current one.
@@ -1013,8 +1013,8 @@ The same rules apply inside plain nested objects such as `address`, `contact`, o
 `metadata`: `{"address": {"city": "Husum"}}` changes the city and keeps the street.
 Arrays, [references](#references), and geometries are replaced whole instead,
 because a part of one means nothing on its own. A party's `details` merges like a
-plain nested object while its `partyType` is unchanged, and every write that includes
-`details` carries its `partyType`. A write that changes the `partyType` replaces `details`
+plain nested object while its `party_type` is unchanged, and every write that includes
+`details` carries its `party_type`. A write that changes the `party_type` replaces `details`
 whole, so no attribute of the other kind survives (see [Party details](#party-details)).
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
@@ -1036,7 +1036,7 @@ when nothing actually changed.
 
 The protocol relies on the SSOT to break these loops:
 
-- agrirouter MUST NOT echo a change back to the **endpoint** it originated from. The unit of suppression is the endpoint: agrirouter records the originating `sourceEndpointId` for every revision it produces and does not deliver an object back to the endpoint named there. A change made by one endpoint is still delivered to the participant's other endpoints. Where two of them are backed by one store the sibling may re-emit the object, and it is the no-op detection below — not origin suppression — that breaks that loop, because the re-emission equals the current canonical revision.
+- agrirouter MUST NOT echo a change back to the **endpoint** it originated from. The unit of suppression is the endpoint: agrirouter records the originating `source_endpoint_id` for every revision it produces and does not deliver an object back to the endpoint named there. A change made by one endpoint is still delivered to the participant's other endpoints. Where two of them are backed by one store the sibling may re-emit the object, and it is the no-op detection below — not origin suppression — that breaks that loop, because the re-emission equals the current canonical revision.
 - agrirouter maintains the `revision` counter per canonical object. An incoming entity that does not actually change the canonical object (applying it leaves the current canonical revision as it is) MUST NOT create a new revision and MUST NOT be forwarded. This suppresses no-op "updates" from systems that notify unconditionally.
 - Participants SHOULD avoid re-emitting an object they have just received without a genuine local change. Because some systems cannot guarantee this, agrirouter's origin-suppression and no-op detection are the authoritative safeguards and do not depend on well-behaved participants.
 
@@ -1086,7 +1086,7 @@ one.
 A create carries no base, there being no revision to compare against. A base on a
 request that does not resolve to an existing object is rejected with `412`: the
 participant believes it is updating an object agrirouter does not know under that
-`localId` — after an [unbind](#identifier-mapping), for example — and creating one
+`local_id` — after an [unbind](#identifier-mapping), for example — and creating one
 silently would be exactly the duplicate that binding exists to prevent.
 
 Every outcome answers with the resulting revision: a success carries the canonical
@@ -1116,7 +1116,7 @@ write response is not merely an acknowledgement. It is the only channel on which
 the writing endpoint learns anything about the revision it just produced, since
 [origin suppression](#loop-prevention) keeps that revision off its own stream,
 and it carries state the participant did not send: the attributes the write left
-out, the `agrirouterId` assigned to a newly created object, and the resulting object where agrirouter reconciled the
+out, the `agrirouter_id` assigned to a newly created object, and the resulting object where agrirouter reconciled the
 write against a concurrent change rather than rejecting it (see
 [Concurrency control](#concurrency-control)).
 
@@ -1127,7 +1127,7 @@ Two rules follow:
 
 ## Deactivation
 
-`POST /masterdata/<types>/{localId}/deactivation` signals that an entity was
+`POST /masterdata/<types>/{local_id}/deactivation` signals that an entity was
 deactivated in its source system. "Deactivation" is intentionally generic: it covers archival, deletion, or
 any state in which the source no longer considers the entity active. It is a
 lifecycle transition of the canonical object (`active` becomes `false`), **not** a
@@ -1146,7 +1146,7 @@ from, and a concurrent edit to the entity is a conflict of which only one side
 succeeds. On an entity that is already inactive the base revision is ignored,
 which is what the idempotency above requires.
 
-Reactivation is possible by simply sending `PUT /masterdata/<types>/{localId}` with the entity's `active` property set to `true`.
+Reactivation is possible by simply sending `PUT /masterdata/<types>/{local_id}` with the entity's `active` property set to `true`.
 
 ## Split and merge
 
@@ -1173,7 +1173,7 @@ version already settles elsewhere:
 ## Requesting objects (lazy loading)
 
 `POST /masterdata/<types>/requests` lets a participant pull a single entity by
-`agrirouterId` rather than wait for it to arrive. agrirouter delivers the
+`agrirouter_id` rather than wait for it to arrive. agrirouter delivers the
 corresponding object on the event stream if the requester is entitled to it under
 the entity types selected on it (see [Routing and opt-in](#routing-and-opt-in)).
 
@@ -1239,12 +1239,12 @@ capabilities — through ordinary agrirouter platform APIs, whether or not it ta
 part in master-data exchange. This protocol neither widens nor narrows that.
 
 What it does add, and therefore must bound, is per-object identifiers. A
-participant's `localId` is its internal primary key for one of the user's
+participant's `local_id` is its internal primary key for one of the user's
 records; disclosing it to a peer is finer-grained than anything the platform
 exposes, scales with the size of the dataset rather than with the number of
 endpoints, and lets one participant correlate another's records across the
 tenant. It buys synchronization nothing, since receivers resolve through
-`agrirouterId`. Hence the rule in
+`agrirouter_id`. Hence the rule in
 [Identifier mapping](#identifier-mapping): **a delivered object carries the
 receiving participant's own local identifiers and no other participant's**, in the
 envelope and in every reference within it.

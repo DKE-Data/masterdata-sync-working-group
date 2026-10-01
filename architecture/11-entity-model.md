@@ -45,38 +45,38 @@ classDiagram
         +details : PartyDetails or absent
         +address : Address
         +contact : Contact
-        +billingAddress : Address
-        +taxNumber
-        +taxId
-        +tradeId
+        +billing_address : Address
+        +tax_number
+        +tax_id
+        +trade_id
     }
     class PartyDetails {
-        +type : person or organization
+        +party_type : person or organization
     }
     class PersonDetails {
         +title
-        +firstName
-        +lastName
+        +first_name
+        +last_name
         +memberships
     }
     class OrganizationDetails {
-        +commercialRegistryNumber
+        +commercial_registry_number
     }
     class Membership {
-        +organizationId : Party with organization details
-        +memberRole : ADAPT Role
+        +organization_id : Party with organization details
+        +member_role : ADAPT Role
     }
     class Farm {
         +name
         +owner
-        +specialisedUsageType
+        +specialised_usage_type
         +partners
         +address : Address
-        +geoReference : Point
+        +geo_reference : Point
     }
     class Partner {
-        +partnerId : Party
-        +partnerRole : ADAPT Role
+        +partner_id : Party
+        +partner_role : ADAPT Role
     }
     class Field {
         +name
@@ -85,17 +85,17 @@ classDiagram
         +owner
         +soil : SoilInfo
         +topography
-        +fieldBoundaries
-        +harvestPeriod : HarvestPeriod
+        +field_boundaries
+        +harvest_period : HarvestPeriod
         +metadata
     }
     class FieldBoundary {
         +boundary : Polygon or MultiPolygon
-        +boundaryType
-        +creationMethod
-        +harvestPeriod : HarvestPeriod
+        +boundary_type
+        +creation_method
+        +harvest_period : HarvestPeriod
         +obstacles
-        +regulatoryRequirements
+        +regulatory_requirements
         +metadata
     }
     class Obstacle {
@@ -110,7 +110,7 @@ classDiagram
     Farm "1" *-- "0..n" Partner : partners
     Farm "0..1" o-- "0..n" Field : farm
     Party "0..1" o-- "0..n" Field : owns
-    Field "1" o-- "0..n" FieldBoundary : fieldBoundaries
+    Field "1" o-- "0..n" FieldBoundary : field_boundaries
     FieldBoundary "1" *-- "0..n" Obstacle : obstacles
 ```
 

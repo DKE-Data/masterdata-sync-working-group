@@ -411,7 +411,7 @@ application's endpoints ([ADR 06](./06-initial-load.md)).
   withdrawal survive a disconnection.
 - The application might receive the event more than once and MUST handle it idempotently.
 
-An empty `entityTypes` is a statement and not an omission - it says the endpoint
+An empty `entity_types` is a statement and not an omission - it says the endpoint
 exchanges nothing, because the user deselected the last type or removed the
 route.
 
@@ -420,7 +420,7 @@ route.
 With a queue per endpoint, [loop prevention](../specification.md#loop-prevention)
 filtered at enqueue. With one shared record per object there is nothing to filter
 at write time, so the endpoint whose change produced the current revision is carried
-on the record as `sourceEndpointId`, and suppression is applied as it is read: an
+on the record as `source_endpoint_id`, and suppression is applied as it is read: an
 object whose most recent change came from an endpoint is not delivered back to that
 endpoint.
 

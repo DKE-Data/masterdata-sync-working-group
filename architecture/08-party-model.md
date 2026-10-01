@@ -26,10 +26,10 @@ fiscal block, because a farmer has a tax number and a trade id exactly as a
 company does.
 
 **Whether a party is a person or an organization is optional.** It is carried in
-`details`, discriminated by its `partyType`:
+`details`, discriminated by its `party_type`:
 
-- `PERSON`: `title`, `firstName`, `lastName`, `memberships`
-- `ORGANIZATION`: `commercialRegistryNumber`
+- `PERSON`: `title`, `first_name`, `last_name`, `memberships`
+- `ORGANIZATION`: `commercial_registry_number`
 
 A party without `details` is of unknown kind. A participant that does not
 distinguish never sends `details`, and on update its absence keeps what another
@@ -62,36 +62,36 @@ classDiagram
         +details : Details or absent
         +address
         +contact
-        +billingAddress
-        +taxNumber
-        +taxId
-        +tradeId
+        +billing_address
+        +tax_number
+        +tax_id
+        +trade_id
     }
     class Details {
-        +type : person or organization
+        +party_type : person or organization
     }
     class PersonDetails {
         +title
-        +firstName
-        +lastName
+        +first_name
+        +last_name
         +memberships
     }
     class OrganizationDetails {
-        +commercialRegistryNumber
+        +commercial_registry_number
     }
     class Membership {
-        +organizationId : Party with organization details
-        +memberRole : ADAPT Role
+        +organization_id : Party with organization details
+        +member_role : ADAPT Role
     }
     class Farm {
         +name
         +owner : Party
-        +specialisedUsageType
+        +specialised_usage_type
         +partners
     }
     class Partner {
-        +partnerId : Party
-        +partnerRole : ADAPT Role
+        +partner_id : Party
+        +partner_role : ADAPT Role
     }
     Party "1" *-- "0..1" Details : details
     Details <|-- PersonDetails
@@ -101,7 +101,7 @@ classDiagram
     Farm "1" *-- "0..n" Partner : partners
 ```
 
-The reference properties `organizationId`, `owner` and `partnerId` are named inside
+The reference properties `organization_id`, `owner` and `partner_id` are named inside
 the boxes rather than drawn as edges in order not to clutter the diagram.
 
 ## Scenarios
@@ -112,7 +112,7 @@ Arrows below mean *holds a reference to*.
 
 ```mermaid
 flowchart LR
-    FI["Field \n Long Meadow"] -->|"fieldBoundaries"| B["FieldBoundary"]
+    FI["Field \n Long Meadow"] -->|"field_boundaries"| B["FieldBoundary"]
     FI -->|"farm"| F["Farm \n Manor Farm"]
     F -->|"owner"| P["Party \n Sarah Ashcroft \n person"]
 ```
@@ -125,8 +125,8 @@ No organization, no membership, no partner. The person is the business.
 flowchart LR
     F1["Farm \n Manor Farm"] -->|"owner"| O["Party \n Ashcroft Farms Ltd \n organization"]
     F2["Farm \n Hill Farm"] -->|"owner"| O
-    P1["Party \n Sarah Ashcroft \n person \n role: FARM_MANAGER"] -->|"organizationId"| O
-    P2["Party \n James Ashcroft \n person \n role: OPERATOR"] -->|"organizationId"| O
+    P1["Party \n Sarah Ashcroft \n person \n role: FARM_MANAGER"] -->|"organization_id"| O
+    P2["Party \n James Ashcroft \n person \n role: OPERATOR"] -->|"organization_id"| O
 ```
 
 Two farms, one owner, two people carrying their roles on themselves.
@@ -169,8 +169,8 @@ canonical party throughout.
 ## Consequences
 
 - Entity types are `party`, `farm`, `field`, `fieldBoundary`.
-- `details` merges like any nested object while its `partyType` is unchanged. A write
-  that changes `partyType` replaces `details` whole, so no attribute of the other kind
+- `details` merges like any nested object while its `party_type` is unchanged. A write
+  that changes `party_type` replaces `details` whole, so no attribute of the other kind
   survives.
 - A membership references a party of the same entity type. Delivery order is
   therefore per object, not per type: parties with person `details` follow all
@@ -182,7 +182,7 @@ canonical party throughout.
   party directly rather than only through the farm. It falls back to the farm's
   owner when absent, so the common case stays a single statement of ownership
   while a field held apart from the farm managing it remains expressible.
-- Membership and partner entries are embedded and carry no `agrirouterId`. They
+- Membership and partner entries are embedded and carry no `agrirouter_id`. They
   are revised with the object holding them: changing who works for an
   organization revises the person, changing which contractor works a farm revises
   the farm. In both cases the object whose own record changed.
@@ -202,7 +202,7 @@ kind has nothing to send. A Grower without a Party maps to a party without
 `details` as well. The role vocabulary on memberships and partners is ADAPT's as
 well.
 
-**`specialisedUsageType` sits on the farm.** FarmSPT places it on Customer/Grower.
+**`specialised_usage_type` sits on the farm.** FarmSPT places it on Customer/Grower.
 A production orientation describes what is grown where, and one party may run an
 arable farm and a dairy farm at the same time, so the farm is the narrower and
 more accurate holder. This is a deliberate departure from the source document.

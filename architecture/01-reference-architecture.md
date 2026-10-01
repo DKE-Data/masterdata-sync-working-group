@@ -112,14 +112,14 @@ The SSOT exists *only* to make synchronization tractable - it is explicitly
 ### What each store holds for one field
 
 The three stores describe the same field, but not identically. Each partner
-identifies the field by its own **`localId`** - the identifier by which *that
+identifies the field by its own **`local_id`** - the identifier by which *that
 partner* knows the field inside its own store, meaningful only there and assigned
 by the partner itself. agrirouter's canonical object carries the stable, globally
-meaningful `agrirouterId` and the mapping from it back to each partner's `localId`.
+meaningful `agrirouter_id` and the mapping from it back to each partner's `local_id`.
 
 | | Partner A store | agrirouter SSOT | Partner B store |
 |---|---|---|---|
-| Identifier | `localId` = `field-9931` (how A knows it) | `agrirouterId` = `1f2e…4567` (canonical) | `localId` = `b1e7…` (how B knows it) |
+| Identifier | `local_id` = `field-9931` (how A knows it) | `agrirouter_id` = `1f2e…4567` (canonical) | `local_id` = `b1e7…` (how B knows it) |
 | Id mapping | - | A → `field-9931`, B → `b1e7…` | - |
 | Revision | (local) | `revision` = 7 (authoritative) | (local) |
 | Data | name, boundary, … | canonical name, boundary, … | name, boundary, … |
@@ -127,7 +127,7 @@ meaningful `agrirouterId` and the mapping from it back to each partner's `localI
 The id mapping held on the canonical object is what lets a change originating in A
 be delivered to B as *the same field B already knows*, rather than a duplicate. It
 is held whole by agrirouter and delivered in slices: B's copy of the field carries
-B's `localId` and never A's. See
+B's `local_id` and never A's. See
 [Identifier mapping](../specification.md#identifier-mapping) and
 [Security considerations](../specification.md#security-considerations) for the
 rule, and [ADR 10](./10-identifier-binding.md) for the reasoning.
@@ -153,17 +153,17 @@ sequenceDiagram
     participant B as Partner B
 
     U->>A: "Create field 'North 40'"
-    Note over A: Store locally with A's own<br/>localId = field-9931
-    A->>AR: PUT /masterdata/fields/field-9931<br/>field { agrirouterId: (none) }
+    Note over A: Store locally with A's own<br/>local_id = field-9931
+    A->>AR: PUT /masterdata/fields/field-9931<br/>field { agrirouter_id: (none) }
 
     Note over AR: Validate against AgmaSync canonical model
-    Note over AR: No mapping for (A, field-9931) →<br/>create canonical object,<br/>assign agrirouterId = 1f2e…4567,<br/>record mapping A→field-9931,<br/>revision = 1, source = A
+    Note over AR: No mapping for (A, field-9931) →<br/>create canonical object,<br/>assign agrirouter_id = 1f2e…4567,<br/>record mapping A→field-9931,<br/>revision = 1, source = A
 
-    AR-->>A: 201 with the canonical object<br/>{ agrirouterId: 1f2e…4567 }
-    Note over A: Store agrirouterId alongside<br/>its own localId
+    AR-->>A: 201 with the canonical object<br/>{ agrirouter_id: 1f2e…4567 }
+    Note over A: Store agrirouter_id alongside<br/>its own local_id
 
-    AR->>B: event MASTERDATA_CHANGED on /masterdata/events<br/>field { agrirouterId: 1f2e…4567,<br/>revision: 1, source: A }
-    Note over B: No local object for this agrirouterId →<br/>create it, assign B's own<br/>localId = b1e7…
+    AR->>B: event MASTERDATA_CHANGED on /masterdata/events<br/>field { agrirouter_id: 1f2e…4567,<br/>revision: 1, source: A }
+    Note over B: No local object for this agrirouter_id →<br/>create it, assign B's own<br/>local_id = b1e7…
     B->>AR: PUT /masterdata/fields/b1e7…<br/>/id-mapping/1f2e…4567
     Note over AR: Record mapping B→b1e7…
 ```
@@ -174,21 +174,21 @@ Step by step:
    writes it to its own store under its own identifier (`field-9931`). At this
    moment only A knows about it.
 2. **A tells agrirouter.** A [sends the field](../specification.md#operations)
-   with `PUT /masterdata/fields/field-9931` — its own `localId` in the path, and
-   *no* `agrirouterId` in the body (the entity is new to the network).
+   with `PUT /masterdata/fields/field-9931` — its own `local_id` in the path, and
+   *no* `agrirouter_id` in the body (the entity is new to the network).
 3. **agrirouter validates and makes it canonical.** agrirouter
    [validates the request](../specification.md#hard-validation) against the
    defined format and rejects it outright if it does not conform. On success it
    sees no existing mapping for `(A, field-9931)`, so it **creates a new canonical
-   object**, assigns a stable `agrirouterId`, sets `revision` to its first value,
+   object**, assigns a stable `agrirouter_id`, sets `revision` to its first value,
    records the source endpoint, and stores the mapping `A → field-9931`.
    **agrirouter's state has now changed** - this is the pivot of the whole flow.
 4. **A learns the canonical id.** The response carries the canonical object, so A
-   records the `agrirouterId` next to its own `localId`, and future updates to this
+   records the `agrirouter_id` next to its own `local_id`, and future updates to this
    field are recognized as the same object.
 5. **agrirouter syncs the change to Partner B.** Because B has opted into `field`,
    agrirouter delivers the canonical object on B's event stream. B has no local object for this
-   `agrirouterId`, so it creates one under *its own* `localId` (`b1e7…`) and
+   `agrirouter_id`, so it creates one under *its own* `local_id` (`b1e7…`) and
    [binds](./10-identifier-binding.md) it, completing the id mapping. Partner B's
    user now sees "North 40".
 6. **agrirouter does not echo the change back to A.** A was the source of this
@@ -205,7 +205,7 @@ the point where they become canonical and fan out to the others.
 Once the field exists everywhere, edits follow the same shape, with one addition:
 the sender's own mapping now resolves, so agrirouter *updates* the existing
 canonical object instead of creating one, and bumps `revision`. B sends under its
-own `localId` throughout - the canonical id stays off its write path.
+own `local_id` throughout - the canonical id stays off its write path.
 
 ```mermaid
 sequenceDiagram
@@ -218,7 +218,7 @@ sequenceDiagram
     U->>B: Edit boundary of the field
     B->>AR: PUT /masterdata/fields/b1e7…<br/>field { … }
     Note over AR: Mapping (B, b1e7…) resolves →<br/>update canonical object,<br/>revision 7 → 8, source = B
-    AR->>A: event MASTERDATA_CHANGED on /masterdata/events<br/>field { agrirouterId: 1f2e…4567, revision: 8 }
+    AR->>A: event MASTERDATA_CHANGED on /masterdata/events<br/>field { agrirouter_id: 1f2e…4567, revision: 8 }
     Note over A: Reconcile against local copy via id mapping
     Note over AR,B: Not echoed back to B (B is the source)
 ```
