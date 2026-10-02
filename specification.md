@@ -241,7 +241,7 @@ interchangeable in both directions:
   A participant may also hold an object whose target it does not hold, the
   reference having been delivered without a `local_id` (see
   [Identifier mapping](#identifier-mapping)). It cannot name that target in either
-  identifier, and where the slot is a required attribute — a farm's `owner` — it has
+  identifier, and where the slot is a required attribute — a boundary's `field` — it has
   no valid write at all. It MUST
   [request](#requesting-objects-lazy-loading) the target, create it locally, and
   bind the identifier it issues, before writing the object that references it.
@@ -317,7 +317,7 @@ A grouping of fields that the farmer considers part of the same management group
 
 Canonical attributes (subset):
 
-- `owner` (reference, required): the party that holds the farm.
+- `owner` (reference, optional): the party that holds the farm. Absent where the farm's system does not record parties.
 - `name` (string, required).
 - `address` (object, optional): as for a party.
 - `geo_reference` (`Point`, optional): longitude and latitude of the farm.
@@ -388,18 +388,22 @@ Canonical attributes:
 ### Entity dependencies
 
 A field boundary references the field it describes; a field MAY reference a farm
-and MAY reference a party as its owner; a farm references the party that owns it
-and MAY reference further parties as partners; and a person MAY reference the
+and MAY reference a party as its owner; a farm MAY reference the party that owns it
+and further parties as partners; and a person MAY reference the
 organizations it belongs to.
 
 Memberships reference parties from a party, so dependency order is per object
 rather than per entity type: a person with memberships follows the organizations
-it names, on send and on delivery. These dependencies
-are significant for routing and initial load: a participant that is to receive field
-boundaries MUST also be enabled for the fields they describe, and one that is to
-receive fields MUST also be enabled for the farms and parties those fields depend
-on, so that references can be resolved on the receiving side (see
-[Routing and opt-in](#routing-and-opt-in)).
+it names, on send and on delivery.
+
+Only a boundary's `field` is a **required** reference, and only it constrains
+what an endpoint declares and selects (see [Routing and opt-in](#routing-and-opt-in)).
+The others are **optional**, so a system may model parties and fields without
+farms, or farms and fields without parties. An endpoint may therefore receive a
+reference whose target's entity type is not selected on it. It:
+
+- MUST ignore that reference, and cannot [request](#requesting-objects-lazy-loading) its target;
+- MUST leave the attribute out of its writes, which keeps it for the participants that model it. A `null` there would remove it for all of them (see [Writing an entity](#writing-an-entity)).
 
 ## Harvest period
 
@@ -573,13 +577,13 @@ anyone's intent: it says the endpoint can parse, store, and produce fields, not
 that any user wants it to.
 
 - The declaration is written by the participant on the endpoint's master-data configuration.
-- It MUST be **dependency-closed** (see [Entity dependencies](#entity-dependencies)). `A → B` reads "declaring A requires declaring B", and the requirement is transitive:
+- It MUST be **dependency-closed** over the required reference (see [Entity dependencies](#entity-dependencies)): declaring field boundaries requires declaring fields.
 
   ~~~
-  field boundaries → fields → farms → parties
+  field boundaries → fields
   ~~~
 
-  An endpoint that could receive fields but not the farms they hang off could not resolve their references, so agrirouter MUST reject such a declaration rather than record it.
+  An endpoint that could receive boundaries but not the fields they describe could not resolve them, so agrirouter MUST reject such a declaration rather than record it. Any other combination of entity types is valid.
 - Declaring an entity type enables no exchange, creates no route, and starts no [initial load](#initial-load). It only puts the type in front of the user as something selectable. Adding one to the declaration of an endpoint that already takes part therefore changes nothing until the user selects it.
 - Withdrawing an entity type from the declaration narrows any selection naming it. agrirouter MUST narrow the selection to what is still declared.
 - An endpoint that has declared nothing offers the user nothing to select and cannot take part in masterdata exchange
@@ -637,7 +641,7 @@ state, and no stream, per entity type. The defined progression is:
 
 1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; a participant adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. A participant MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The participant is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{external_id}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
 
-   Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object arriving on the live stream may reference one the set has not delivered yet (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
+   Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference to a selected entity type is in the set, and an endpoint can apply each object as it arrives. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object arriving on the live stream may reference one the set has not delivered yet (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
 2. **`RECONCILING`.** agrirouter advances the state once it has sent the whole set, and closes the stream's HTTP response after it. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
 3. **`LOADING_TO_AGRIROUTER`.** Set by the endpoint to confirm it has finished reconciliation and is sending the bindings it has produced (see [Identifier mapping](#identifier-mapping)). It then sends agrirouter any objects not yet in the SSOT and objects it changed while resolving conflicts. This state cannot be reached without firstly being in `RECONCILING`.
 4. **`COMPLETED`.** Set by the endpoint once it has sent everything. From this point on, initial load is done and further changes are communicated on long-lived `/masterdata/events` stream.
@@ -736,7 +740,7 @@ object it concerns has moved on.
 The initial load stream, transporting the canonical set, and the live stream are each ordered so that references resolve
 within each stream, but not across the 2 streams. Therefore an entity arriving on the live stream might reference another entity that inital load has not delivered yet.
 
-The referenced entity (target) is late rather than absent, and the wait is bounded: being in the set,
+A target of a selected entity type is late rather than absent, and the wait is bounded: being in the set,
 it arrives before agrirouter advances the endpoint to `RECONCILING`.
 
 An endpoint therefore:
@@ -813,7 +817,8 @@ bulk rejection per pair, since the endpoint has to resolve each on its own terms
 ### Differing required/optional attributes
 
 Systems disagree on which attributes are mandatory (one system may require a
-farm on every field where another treats it as optional). The **stricter
+farm on every field where another treats it as optional, or require an owner on
+every farm where another records no parties). The **stricter
 recipient** is responsible for handling data that does not meet its own
 requirements — for example by asking the user to assign a fallback value.
 agrirouter neither enforces one system's requirements on another nor drops data to
@@ -1038,8 +1043,7 @@ whole, so no attribute of the other party type survives (see [Party details](#pa
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every participant supports, so a participant always holds them.
-- `null` for a required attribute or an envelope field is rejected with `400`. An absent `active` leaves the object's state unchanged.
-- Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
+- `null` for a required attribute or an envelope field is rejected with `400`. An absent `active` leaves the object's state unchanged.- Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
 
 This is what relaying amounts to. A participant does not store, and does not send,
 attributes it does not model: leaving them out of its writes keeps them for every
@@ -1209,7 +1213,7 @@ anyway. What it addresses is that *delivered* is not *held*:
 
 - a participant that lost an object locally refetches that object, rather than opting the entity type out and back in and taking a full initial load;
 - during [initial load](#initial-load) an object arriving on the live stream may reference an object the initial-load stream has not delivered yet, the two streams being independent of each other. That target is in the set and arrives on its own, so a request should be performed only once the set is complete (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered));
-- a participant holding an object whose reference target it does not hold requests that target, creates it locally, and binds it, which is what makes the referencing object writable again (see [References](#references)).
+- a participant holding an object whose reference target, of an entity type selected on it, it does not hold requests that target, creates it locally, and binds it, which is what makes the referencing object writable again (see [References](#references)).
 
 A request is per entity type. Every reference slot has a fixed entity type, so
 the reference alone tells a participant which request to make.

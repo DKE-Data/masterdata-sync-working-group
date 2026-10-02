@@ -533,10 +533,12 @@ version would trade the ordering away to save.
   the only thing on the stream that is not an entity or a boundary marker, and it
   exists to notify the application when the user changes the selection of masterdata
   entity types.
-- **Dependency-closed opt-in is structural.** An application opted into fields but
-  not farms gets no farms at all and then every field with an unresolvable
-  reference. [The rule](../specification.md#routing-and-opt-in) is what holds the
-  sweep together.
+- **Only required references constrain opt-in.** An application opted into
+  boundaries but not fields would get every boundary with an unresolvable
+  reference, so [the rule](../specification.md#routing-and-opt-in) forbids it.
+  Optional references to a type not selected are delivered and ignored
+  ([ADR 13](13-optional-references.md)). Tiers are unaffected: dropping
+  references from the graph never invalidates an order that respects it.
 - **Deactivated objects are retained indefinitely**, which is what makes a
   deletion deliverable at any distance rather than only within a retention
   window. Purging them would reintroduce exactly the horizon this design removes.
