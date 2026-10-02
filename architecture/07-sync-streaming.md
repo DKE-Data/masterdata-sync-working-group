@@ -96,7 +96,7 @@ sweep does not track them at that granularity. It orders by a fixed reference gr
 instead: coarser, and enough, because an object can only reference objects of the
 classes its own class references, so an order that respects the graph respects
 every object dependency within it. A class is an entity type, except that parties
-split by kind: a membership references a party from a party, so a person sits one
+split by party type: a membership references a party from a party, so a person sits one
 level below the organizations it names ([ADR 08](08-party-model.md)). The graph is
 fixed by the canonical model rather than by the data, and each class sits at a
 fixed depth in it - its **tier**:

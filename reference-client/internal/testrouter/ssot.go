@@ -137,11 +137,13 @@ func (s *store) put(
 	if err := rejectNull(typ, body); err != nil {
 		return nil, false, err
 	}
+	if err := checkDetails(typ, incoming); err != nil {
+		return nil, false, err
+	}
 	if err := s.resolveRefs(ep.appID, typ, incoming); err != nil {
 		return nil, false, err
 	}
 	active := activeOf(body)
-	whole := wholeAttributes(typ)
 
 	objID, known := s.local[localKey{ep.appID, typ, localID}]
 	if err := sent.checkBinding(localID, objID, known); err != nil {
@@ -159,7 +161,7 @@ func (s *store) put(
 		// A create is the patch applied to nothing, so null means absent.
 		content := map[string]json.RawMessage{}
 		for k, v := range incoming {
-			if value := patchAttribute(nil, v, whole[k]); value != nil {
+			if value := patchAttribute(typ, k, nil, v); value != nil {
 				content[k] = value
 			}
 		}
@@ -174,7 +176,10 @@ func (s *store) put(
 	// neither a change of its own nor in the way of anyone else's.
 	patched := map[string]json.RawMessage{}
 	for k, v := range incoming {
-		patched[k] = patchAttribute(obj.content[k], v, whole[k])
+		patched[k] = patchAttribute(typ, k, obj.content[k], v)
+	}
+	if err := s.checkKindChange(obj, patched); err != nil {
+		return nil, false, err
 	}
 	activeChanged := active != nil && *active != obj.active
 
@@ -204,7 +209,7 @@ func (s *store) put(
 	changed := map[string]json.RawMessage{}
 	for k, v := range incoming {
 		atBase := obj.valueAt(k, *base)
-		intended := patchAttribute(atBase, v, whole[k])
+		intended := patchAttribute(typ, k, atBase, v)
 		current := obj.content[k]
 
 		if bytes.Equal(intended, atBase) {
@@ -536,6 +541,37 @@ func rejectNull(typ agmasync.EntityType, body []byte) error {
 		if v, ok := all[key]; ok && isNull(v) {
 			return fmt.Errorf("%s cannot be null", key)
 		}
+	}
+	return nil
+}
+
+// checkDetails refuses a party's details without a party_type: what the rest of
+// them mean, and whether they merge or replace, depends on it.
+func checkDetails(typ agmasync.EntityType, incoming map[string]json.RawMessage) error {
+	details, ok := incoming["details"]
+	if typ != agmasync.TypeParty || !ok || isNull(details) {
+		return nil
+	}
+	switch partyTypeOf(details) {
+	case agmasync.PartyTypePerson, agmasync.PartyTypeOrganization:
+		return nil
+	default:
+		return fmt.Errorf("details must carry a party_type of %s or %s",
+			agmasync.PartyTypePerson, agmasync.PartyTypeOrganization)
+	}
+}
+
+// checkKindChange refuses a write that would leave persons naming, as their
+// organization, a party that is no longer one.
+func (s *store) checkKindChange(obj *object, patched map[string]json.RawMessage) error {
+	details, ok := patched["details"]
+	if obj.typ != agmasync.TypeParty || !ok ||
+		partyTypeOf(obj.content["details"]) != agmasync.PartyTypeOrganization ||
+		partyTypeOf(details) == agmasync.PartyTypeOrganization {
+		return nil
+	}
+	if s.namesAsMember(obj.id) {
+		return errors.New("the party is an organization persons still name in their memberships")
 	}
 	return nil
 }

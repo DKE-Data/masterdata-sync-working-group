@@ -33,7 +33,7 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 			default:
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"type":"organization","local_id":"o-1","name":"Hof Nord"}`))
+			_, _ = w.Write([]byte(`{"type":"party","local_id":"o-1","name":"Hof Nord"}`))
 		}))
 	defer srv.Close()
 
@@ -51,8 +51,8 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 	sourceEndpointID := openapi_types.UUID(uuid.New())
 	modifiedAt := time.Now().UTC()
 
-	organization, err := agmasync.FromOrganization(oapi.Organization{
-		Type: "organization", LocalId: &localID, Name: "Hof Nord",
+	party, err := agmasync.FromParty(oapi.Party{
+		Type: "party", LocalId: &localID, Name: "Hof Nord",
 		AgrirouterId: &agrirouterID, Revision: &revision, TenantId: &tenantID,
 		SourceEndpointId: &sourceEndpointID, ModifiedAt: &modifiedAt,
 	})
@@ -60,7 +60,7 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := endpoint.Put(context.Background(), organization, &revision); err != nil {
+	if _, err := endpoint.Put(context.Background(), party, &revision); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
 
@@ -71,7 +71,7 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 		"revision":           revision,
 		"source_endpoint_id": sourceEndpointID,
 		"tenant_id":          tenantID,
-		"type":               "organization",
+		"type":               "party",
 		"local_id":           localID,
 		"name":               "Hof Nord",
 	} {
@@ -92,7 +92,7 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 //
 // Two ways they do not. A required reference the participant does not hold is
 // invented, the generated Farm carrying its owner by value: an absent owner
-// marshals as `{"type":""}`, and agrirouter answers 400 at `/owner`, "doesn't
+// marshals as `{}`, and agrirouter answers 400 at `/owner`, "doesn't
 // match any schema from anyOf", because the reference names neither identifier.
 // A participant reading that has to work back from an owner it never sent to
 // the owner it does not have. And a write is a merge patch, where null and
@@ -114,7 +114,7 @@ func TestPutSendsTheEntityAsTheParticipantBuiltIt(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(
 				`{"type":"farm","local_id":"f-1","name":"Hof Nord",` +
-					`"owner":{"type":"organization","local_id":"o-1"}}`))
+					`"owner":{"local_id":"o-1"}}`))
 		}))
 	defer srv.Close()
 

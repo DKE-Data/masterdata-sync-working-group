@@ -151,8 +151,8 @@ func (e *Endpoint) ExternalID() string { return e.externalID }
 //
 // Marshalling the typed value instead loses on both sides of what the model
 // says. A required attribute the sender does not hold is invented: an absent
-// owner becomes `"owner":{"type":""}`, since the generated Farm carries a
-// PartyReference by value, and agrirouter rejects that reference as naming
+// owner becomes `"owner":{}`, since the generated Farm carries an
+// EntityReference by value, and agrirouter rejects that reference as naming
 // neither an agrirouterId nor a localId — where the body as the sender built
 // it would have said plainly that the owner is missing. Either way the write
 // fails, owner being required: what differs is whether the participant is told
@@ -226,37 +226,16 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 	var res writeResult
 
 	switch env.Type {
-	case TypeOrganization:
-		if _, cErr := ent.AsOrganization(); cErr != nil {
+	case TypeParty:
+		if _, cErr := ent.AsParty(); cErr != nil {
 			return oapi.Entity{}, convErr(env.Type, cErr)
 		}
 		body, bErr := writable(ent)
 		if bErr != nil {
 			return oapi.Entity{}, bErr
 		}
-		r, hErr := e.client.api.PutOrganizationWithBodyWithResponse(ctx, localID,
-			&oapi.PutOrganizationParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			}, "application/json", body)
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
-		}
-		res = writeResult{
-			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
-			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
-		}
-	case TypePerson:
-		if _, cErr := ent.AsPerson(); cErr != nil {
-			return oapi.Entity{}, convErr(env.Type, cErr)
-		}
-		body, bErr := writable(ent)
-		if bErr != nil {
-			return oapi.Entity{}, bErr
-		}
-		r, hErr := e.client.api.PutPersonWithBodyWithResponse(ctx, localID,
-			&oapi.PutPersonParams{
+		r, hErr := e.client.api.PutPartyWithBodyWithResponse(ctx, localID,
+			&oapi.PutPartyParams{
 				XAgrirouterEndpointId:   e.id,
 				XAgrirouterTenantId:     e.tenantID,
 				XAgrirouterBaseRevision: base,
@@ -364,23 +343,9 @@ func (e *Endpoint) Deactivate(
 	var res writeResult
 
 	switch t {
-	case TypeOrganization:
-		r, hErr := e.client.api.DeactivateOrganizationWithResponse(ctx, localID,
-			&oapi.DeactivateOrganizationParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			})
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
-		}
-		res = writeResult{
-			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
-			precond: r.JSON412, required: r.JSON428, body: r.Body,
-		}
-	case TypePerson:
-		r, hErr := e.client.api.DeactivatePersonWithResponse(ctx, localID,
-			&oapi.DeactivatePersonParams{
+	case TypeParty:
+		r, hErr := e.client.api.DeactivatePartyWithResponse(ctx, localID,
+			&oapi.DeactivatePartyParams{
 				XAgrirouterEndpointId:   e.id,
 				XAgrirouterTenantId:     e.tenantID,
 				XAgrirouterBaseRevision: base,
@@ -467,20 +432,9 @@ func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.
 	body := oapi.EntityRequest{AgrirouterId: agrirouterID}
 
 	switch t {
-	case TypeOrganization:
-		r, err := e.client.api.RequestOrganizationWithResponse(ctx,
-			&oapi.RequestOrganizationParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
-		if err != nil {
-			return transportErr(err)
-		}
-		return writeResult{
-			statusCode: r.StatusCode(), forbidden: r.JSON403,
-			notFound: r.JSON404, body: r.Body,
-		}.err()
-
-	case TypePerson:
-		r, err := e.client.api.RequestPersonWithResponse(ctx,
-			&oapi.RequestPersonParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
+	case TypeParty:
+		r, err := e.client.api.RequestPartyWithResponse(ctx,
+			&oapi.RequestPartyParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}

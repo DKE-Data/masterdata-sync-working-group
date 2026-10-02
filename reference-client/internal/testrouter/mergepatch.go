@@ -15,16 +15,19 @@ import (
 // Three kinds of value are replaced whole instead, because a part of one means
 // nothing on its own: arrays (which RFC 7396 already replaces), references,
 // and geometries. See "Writing an entity" in specification.md.
+//
+// A party's details merge like any nested object while their party_type stays
+// the same, and are replaced whole by a write that changes it, so no attribute
+// of the other party type survives.
 
 // requiredAttributes are the attributes openapi.yaml requires on each entity
 // type, less the `type` discriminator, which is envelope. They are required on
 // every write, so null — removing one — is never a valid value for them.
 var requiredAttributes = map[agmasync.EntityType][]string{
-	agmasync.TypeOrganization:  {"name"},
-	agmasync.TypePerson:        {"last_name"},
+	agmasync.TypeParty:         {"name"},
 	agmasync.TypeFarm:          {"owner", "name"},
 	agmasync.TypeField:         {"name"},
-	agmasync.TypeFieldBoundary: {"boundary"},
+	agmasync.TypeFieldBoundary: {"field", "boundary"},
 }
 
 // geometryAttributes are the attributes holding a GeoJSON geometry.
@@ -34,12 +37,15 @@ var geometryAttributes = map[agmasync.EntityType][]string{
 }
 
 // wholeAttributes reports the attributes of an entity type a patch replaces
-// rather than merges into: its reference slots and its geometries. Arrays need
-// no listing, being replaced by the merge rule itself.
+// rather than merges into: its top-level reference slots and its geometries.
+// Arrays need no listing, being replaced by the merge rule itself, and neither
+// do the slots nested inside one of them.
 func wholeAttributes(typ agmasync.EntityType) map[string]bool {
 	out := map[string]bool{}
 	for _, slot := range refSlots[typ] {
-		out[slot.key] = true
+		if slot.in == "" {
+			out[slot.key] = true
+		}
 	}
 	for _, key := range geometryAttributes[typ] {
 		out[key] = true
@@ -54,11 +60,19 @@ func isNull(v json.RawMessage) bool {
 
 // patchAttribute applies one attribute of a patch to the value an object holds
 // for it, nil standing for absent on both sides of the call.
-func patchAttribute(current, patch json.RawMessage, whole bool) json.RawMessage {
+func patchAttribute(
+	typ agmasync.EntityType, key string, current, patch json.RawMessage,
+) json.RawMessage {
 	if isNull(patch) {
 		return nil
 	}
-	if whole {
+	// A changed party type replaces details whole: the patch applied to
+	// nothing, so a null in it removes rather than being stored.
+	if typ == agmasync.TypeParty && key == "details" &&
+		partyTypeOf(current) != partyTypeOf(patch) {
+		return canonicalJSON(mergePatch(nil, patch))
+	}
+	if wholeAttributes(typ)[key] {
 		return canonicalJSON(patch)
 	}
 	return canonicalJSON(mergePatch(current, patch))

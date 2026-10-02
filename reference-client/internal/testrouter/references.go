@@ -2,6 +2,7 @@ package testrouter
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/google/uuid"
@@ -11,7 +12,6 @@ import (
 type reference struct {
 	AgrirouterID *uuid.UUID `json:"agrirouter_id,omitempty"`
 	LocalID      *string    `json:"local_id,omitempty"`
-	Type         *string    `json:"type,omitempty"`
 }
 
 // resolveRefs turns every reference in an incoming entity into a canonical one.
@@ -22,60 +22,38 @@ type reference struct {
 // what forces a target to be sent before the first reference to it. This is what
 // keeps agrirouterId off the write path: a participant builds references out of
 // its own keys without first correlating canonical ones.
+//
+// Every slot references one entity type, so the slot alone says where a
+// localId is looked up. A membership additionally has to name an
+// organization, which is a check on the target's content rather than its type.
 func (s *store) resolveRefs(
 	appID string, typ agmasync.EntityType, content map[string]json.RawMessage,
 ) error {
-	return s.walkRefs(typ, content, func(ref *reference) error {
-		if ref.AgrirouterID != nil {
-			if _, ok := s.objects[*ref.AgrirouterID]; !ok {
+	return s.walkRefs(typ, content, func(slot refSlot, ref *reference) error {
+		var target uuid.UUID
+		switch {
+		case ref.AgrirouterID != nil:
+			target = *ref.AgrirouterID
+		case ref.LocalID != nil:
+			id, ok := s.local[localKey{appID, slot.target, *ref.LocalID}]
+			if !ok {
 				return errUnresolvedRef
 			}
-			ref.LocalID = nil
-			return nil
-		}
-		if ref.LocalID == nil {
+			target = id
+		default:
 			return errUnresolvedRef
 		}
-
-		target, err := s.resolveLocal(appID, typ, ref)
-		if err != nil {
-			return err
+		obj, ok := s.objects[target]
+		if !ok || obj.typ != slot.target {
+			return errUnresolvedRef
+		}
+		if slot.partyType != "" && partyTypeOf(obj.content["details"]) != slot.partyType {
+			return fmt.Errorf("%s must name a party whose details are %s", slot.attribute, slot.partyType)
 		}
 		ref.AgrirouterID = &target
 		ref.LocalID = nil
 		return nil
 	})
-}
-
-// resolveLocal finds the canonical object the sending participant's own
-// identifier names. The lookup is scoped to the application rather than to the
-// acting endpoint: the participant has one store, so a reference it builds out
-// of its own keys resolves the same whichever of its endpoints sends it.
-//
-// A reference to a party carries a type discriminator, because the slot admits
-// both organizations and persons and a receiver that has to lazy-load the
-// target needs to know which collection to ask. Slots whose type is fixed — a
-// field's farm — carry none, so the type is implied by the slot.
-func (s *store) resolveLocal(
-	appID string, owner agmasync.EntityType, ref *reference,
-) (uuid.UUID, error) {
-	candidates := []agmasync.EntityType{}
-	switch {
-	case ref.Type != nil:
-		candidates = append(candidates, agmasync.EntityType(*ref.Type))
-	case owner == agmasync.TypeField:
-		// The only untyped slots on a field are its farm and its boundaries.
-		candidates = append(candidates, agmasync.TypeFarm, agmasync.TypeFieldBoundary)
-	default:
-		candidates = append(candidates, agmasync.EntityTypes...)
-	}
-
-	for _, t := range candidates {
-		if id, ok := s.local[localKey{appID, t, *ref.LocalID}]; ok {
-			return id, nil
-		}
-	}
-	return uuid.Nil, errUnresolvedRef
 }
 
 // rewriteRefs prepares an outgoing entity's references for one recipient.
@@ -89,16 +67,10 @@ func (s *store) resolveLocal(
 func (s *store) rewriteRefs(
 	appID string, typ agmasync.EntityType, content map[string]json.RawMessage,
 ) {
-	_ = s.walkRefs(typ, content, func(ref *reference) error {
+	_ = s.walkRefs(typ, content, func(_ refSlot, ref *reference) error {
 		ref.LocalID = nil
 		if ref.AgrirouterID == nil {
 			return nil
-		}
-		if target, ok := s.objects[*ref.AgrirouterID]; ok && ref.Type == nil {
-			if isParty(target.typ) {
-				t := string(target.typ)
-				ref.Type = &t
-			}
 		}
 		if localID, ok := s.canonical[canonicalKey{appID, *ref.AgrirouterID}]; ok {
 			ref.LocalID = &localID
@@ -107,63 +79,115 @@ func (s *store) rewriteRefs(
 	})
 }
 
-func isParty(t agmasync.EntityType) bool {
-	return t == agmasync.TypeOrganization || t == agmasync.TypePerson
+// namesAsMember reports whether any person's memberships name the object.
+func (s *store) namesAsMember(id uuid.UUID) bool {
+	for _, obj := range s.objects {
+		if obj.typ != agmasync.TypeParty {
+			continue
+		}
+		named := false
+		_ = s.walkRefs(obj.typ, cloneContent(obj.content), func(_ refSlot, ref *reference) error {
+			if ref.AgrirouterID != nil && *ref.AgrirouterID == id {
+				named = true
+			}
+			return nil
+		})
+		if named {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneContent(content map[string]json.RawMessage) map[string]json.RawMessage {
+	out := make(map[string]json.RawMessage, len(content))
+	for k, v := range content {
+		out[k] = v
+	}
+	return out
 }
 
 // walkRefs visits every reference slot of an entity, rewriting each in place.
 func (s *store) walkRefs(
-	typ agmasync.EntityType, content map[string]json.RawMessage, visit func(*reference) error,
+	typ agmasync.EntityType, content map[string]json.RawMessage,
+	visit func(refSlot, *reference) error,
 ) error {
 	for _, slot := range refSlots[typ] {
-		raw, ok := content[slot.key]
-		if !ok || len(raw) == 0 || string(raw) == "null" {
-			continue
+		container := content
+		if slot.in != "" {
+			raw, ok := content[slot.in]
+			if !ok || isNull(raw) {
+				continue
+			}
+			container = nil
+			if err := json.Unmarshal(raw, &container); err != nil || container == nil {
+				continue
+			}
 		}
+		if err := walkSlot(slot, container, visit); err != nil {
+			return err
+		}
+		if slot.in != "" {
+			if remade, err := json.Marshal(container); err == nil {
+				content[slot.in] = remade
+			}
+		}
+	}
+	return nil
+}
 
-		if !slot.each {
-			updated, err := visitRef(raw, visit)
+// walkSlot visits the references in one slot of a container.
+func walkSlot(
+	slot refSlot, container map[string]json.RawMessage, visit func(refSlot, *reference) error,
+) error {
+	raw, ok := container[slot.key]
+	if !ok || len(raw) == 0 || isNull(raw) {
+		return nil
+	}
+	one := func(r *reference) error { return visit(slot, r) }
+
+	if !slot.each {
+		updated, err := visitRef(raw, one)
+		if err != nil {
+			return err
+		}
+		container[slot.key] = updated
+		return nil
+	}
+
+	var items []json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil
+	}
+	for i, item := range items {
+		if slot.attribute == "" {
+			updated, err := visitRef(item, one)
 			if err != nil {
 				return err
 			}
-			content[slot.key] = updated
+			items[i] = updated
 			continue
 		}
 
-		var items []json.RawMessage
-		if err := json.Unmarshal(raw, &items); err != nil {
+		var attributes map[string]json.RawMessage
+		if err := json.Unmarshal(item, &attributes); err != nil {
 			continue
 		}
-		for i, item := range items {
-			if slot.attribute == "" {
-				updated, err := visitRef(item, visit)
-				if err != nil {
-					return err
-				}
-				items[i] = updated
-				continue
-			}
-
-			var attributes map[string]json.RawMessage
-			if err := json.Unmarshal(item, &attributes); err != nil {
-				continue
-			}
-			inner, ok := attributes[slot.attribute]
-			if !ok {
-				continue
-			}
-			updated, err := visitRef(inner, visit)
-			if err != nil {
-				return err
-			}
-			attributes[slot.attribute] = updated
-			if remade, err := json.Marshal(attributes); err == nil {
-				items[i] = remade
-			}
+		inner, ok := attributes[slot.attribute]
+		if !ok {
+			continue
 		}
-		if remade, err := json.Marshal(items); err == nil {
-			content[slot.key] = remade
+		updated, err := visitRef(inner, one)
+		if err != nil {
+			return err
 		}
+		attributes[slot.attribute] = updated
+		if remade, err := json.Marshal(attributes); err == nil {
+			items[i] = remade
+		}
+	}
+	if remade, err := json.Marshal(items); err == nil {
+		container[slot.key] = remade
 	}
 	return nil
 }

@@ -116,16 +116,6 @@ func nameFrom(
 
 	var parts []string
 	switch typ {
-	case agmasync.TypePerson:
-		last, err := read("last_name")
-		if err != nil {
-			return "", false, err
-		}
-		first, err := read("first_name")
-		if err != nil {
-			return "", false, err
-		}
-		parts = []string{last, first}
 	case agmasync.TypeFieldBoundary:
 		// No natural key, so nothing to recognise it by.
 		return "", false, nil

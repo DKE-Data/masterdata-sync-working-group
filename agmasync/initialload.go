@@ -108,16 +108,13 @@ func DependencyClosure(types []EntityType) []EntityType {
 		}
 		want[t] = true
 		switch t {
+		case TypeFieldBoundary:
+			add(TypeField)
 		case TypeField:
 			add(TypeFarm)
-			add(TypeFieldBoundary)
-			add(TypeOrganization)
-			add(TypePerson)
+			add(TypeParty)
 		case TypeFarm:
-			add(TypeOrganization)
-			add(TypePerson)
-		case TypePerson:
-			add(TypeOrganization)
+			add(TypeParty)
 		}
 	}
 	for _, t := range types {

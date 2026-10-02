@@ -22,7 +22,7 @@ can join with less work.
 
 | FarmSPT entity | AgmaSync | Change |
 | --- | --- | --- |
-| Accountowner, Customer/Grower | Party | One entity whatever its kind. Person or organization is optional `details`, since a Customer/Grower does not record it ([ADR 08](08-party-model.md)). `specialised_usage_type` moves to the farm. |
+| Accountowner, Customer/Grower | Party | One entity whatever its party type. Person or organization is optional `details`, since a Customer/Grower does not record it ([ADR 08](08-party-model.md)). `specialised_usage_type` moves to the farm. |
 | Member | Person `details.memberships` | A member is a person with a role, not an entity. `title` added. |
 | Farm | Farm | Partner becomes `partners`, a party reference with a role. Registration numbers (ZID, VVVO, international), billing address and time zone not yet taken. |
 | Field | Field | Ownership status becomes an `owner` party reference. FieldIdentifier (ID, Source) becomes `local_id` and agrirouter's [identifier mapping](../specification.md#identifier-mapping). Site, soil taxonomy and field history not yet taken. `area` added. |

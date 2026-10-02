@@ -65,7 +65,7 @@ type Event struct {
 
 	// Envelope holds the common fields of Entity, already decoded. A receiver
 	// needs the type and the revision before it can decide what to do with the
-	// object, and every frame on the live stream may be any of the five types.
+	// object, and every frame on the live stream may be any of the four types.
 	Envelope Envelope
 
 	// Selection is set on an [EventRouteChanged] frame and nil on every other.

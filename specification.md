@@ -261,12 +261,12 @@ be sent before the first reference to it.
 ## Party
 
 A **party** is a legal or natural actor: a *person*, an *organization*, or one whose
-kind its sender does not record.
+party type its sender does not record.
 
 Canonical attributes:
 
 - `name` (string, required): the name the party is known by — an organization's name, a person's full name.
-- `details` (object, optional): whether the party is a person or an organization, with the attributes specific to that kind (see [Party details](#party-details)).
+- `details` (object, optional): whether the party is a person or an organization, with the attributes specific to that party type (see [Party details](#party-details)).
 - `address` (object, optional): `street`, `po_box`, `postal_code`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
 - `contact` (object, optional): `phone`, `mobile`, `email`.
 - `billing_address` (object, optional): as for `address`.
@@ -294,19 +294,22 @@ both at once, in different relations.
 - `ORGANIZATION`: a legal entity to which persons may belong.
   - `commercial_registry_number` (string, optional): unique identifier out of the commercial register.
 
-A party without `details` is of unknown kind. Many systems keep a customer or
-grower without recording whether it is a person or a business, and such a guess
-would contradict a participant that does know. A participant therefore:
+A party without `details` is of unknown party type. Many systems keep a customer
+or grower without recording whether it is a person or a business.
 
-- MUST send `details` only where its own data records the kind;
-- MUST leave `details` out of its writes where it does not record the kind, which keeps what another participant stated (see [Writing an entity](#writing-an-entity));
+A participant whose data model has no place for a party of unknown party type may
+file it under a party type of its own choosing, or let its user decide. Whatever
+`details` it then writes is stated to every participant: the canonical party takes
+that party type, and the others receive it like any other change. A participant
+that leaves `details` out of its writes keeps what is canonical (see
+[Writing an entity](#writing-an-entity)).
 
 A person holding at least one membership is a **member** of the organizations it
 names. Membership is state on the person, so one advisor serving several
 organizations is a single canonical person rather than a copy per organization.
 agrirouter MUST reject with `400` a membership naming a party whose `details` is
-not an `ORGANIZATION`, and a change or removal of kind on an organization that
-persons still name.
+not an `ORGANIZATION`, and a change or removal of party type on an organization
+that persons still name.
 
 ## Farm
 
@@ -1031,7 +1034,7 @@ Arrays, [references](#references), and geometries are replaced whole instead,
 because a part of one means nothing on its own. A party's `details` merges like a
 plain nested object while its `party_type` is unchanged, and every write that includes
 `details` carries its `party_type`. A write that changes the `party_type` replaces `details`
-whole, so no attribute of the other kind survives (see [Party details](#party-details)).
+whole, so no attribute of the other party type survives (see [Party details](#party-details)).
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every participant supports, so a participant always holds them.

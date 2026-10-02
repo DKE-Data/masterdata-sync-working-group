@@ -36,45 +36,79 @@ var envelopeAttributes = map[string]bool{
 	"source_endpoint_id": true,
 }
 
-// deliveryOrder is the order objects are delivered in, on the initial-load
-// stream and during catch-up. It places a referenced object before the objects
-// that reference it, which is the only property of the order the specification
-// promises and the only one a participant may rely on.
-var deliveryOrder = []agmasync.EntityType{
-	agmasync.TypeOrganization,
-	agmasync.TypePerson,
-	agmasync.TypeFarm,
-	agmasync.TypeFieldBoundary,
-	agmasync.TypeField,
+// tierOf is an object's place in the order objects are delivered in, on the
+// initial-load stream and during catch-up. It places a referenced object before
+// the objects that reference it, which is the only property of the order the
+// specification promises and the only one a participant may rely on.
+//
+// It is per object rather than per type because parties split by party type: a
+// person names organizations through its memberships, so it goes one tier below
+// every other party. The tier is read from the content being delivered, and a
+// party that changed party type moves with it. See ADR 07.
+func tierOf(obj *object) int {
+	switch obj.typ {
+	case agmasync.TypeParty:
+		if partyTypeOf(obj.content["details"]) == agmasync.PartyTypePerson {
+			return 1
+		}
+		return 0
+	case agmasync.TypeFarm:
+		return 2
+	case agmasync.TypeField:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// partyTypeOf reads the party_type off a party's details, "" where there are
+// none or they state none.
+func partyTypeOf(details json.RawMessage) string {
+	var probe struct {
+		PartyType string `json:"party_type"`
+	}
+	if len(details) == 0 || json.Unmarshal(details, &probe) != nil {
+		return ""
+	}
+	return probe.PartyType
 }
 
 // refSlot names a place in an entity where a reference to another entity sits.
 //
 // The protocol resolves references on the way in and rewrites them on the way
-// out, so the router has to know where they are. `each` marks a slot that holds
-// an array, and `attribute` the key within each element; a slot with no
-// `attribute` is the reference itself.
+// out, so the router has to know where they are. `in` names the object a slot
+// is nested in, `each` marks a slot that holds an array, and `attribute` the
+// key within each element; a slot with no `attribute` is the reference itself.
+// `target` is the entity type the slot references: every slot has exactly one.
+// `partyType`, where set, is the party_type its target must state.
 type refSlot struct {
+	in        string
 	key       string
 	each      bool
 	attribute string
+	target    agmasync.EntityType
+	partyType string
 }
 
 // refSlots enumerates the reference-bearing slots of each entity type, as
-// "Entity dependencies" in specification.md describes them. A field boundary
-// references nothing: the reference runs from the field to its boundaries.
+// "Entity dependencies" in specification.md describes them.
 var refSlots = map[agmasync.EntityType][]refSlot{
-	agmasync.TypePerson: {
-		{key: "memberships", each: true, attribute: "organization_id"},
+	agmasync.TypeParty: {
+		{
+			in: "details", key: "memberships", each: true, attribute: "organization_id",
+			target: agmasync.TypeParty, partyType: agmasync.PartyTypeOrganization,
+		},
 	},
 	agmasync.TypeFarm: {
-		{key: "owner"},
-		{key: "partners", each: true, attribute: "partner_id"},
+		{key: "owner", target: agmasync.TypeParty},
+		{key: "partners", each: true, attribute: "partner_id", target: agmasync.TypeParty},
 	},
 	agmasync.TypeField: {
-		{key: "farm"},
-		{key: "owner"},
-		{key: "field_boundaries", each: true},
+		{key: "farm", target: agmasync.TypeFarm},
+		{key: "owner", target: agmasync.TypeParty},
+	},
+	agmasync.TypeFieldBoundary: {
+		{key: "field", target: agmasync.TypeField},
 	},
 }
 

@@ -94,7 +94,7 @@ type ClientInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -105,7 +105,7 @@ type ClientInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -181,7 +181,7 @@ type ClientInterface interface {
 
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	//
-	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
+	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — a `Party`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
 	// This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{external_id}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 	// An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 	// The stream also carries `ROUTE_CHANGED`, which states which entity types the user has selected for one of the application's endpoints. It is issued every time that selection changes — the endpoint routed to master-data, a type selected, a type deselected, the last one deselected.
@@ -385,142 +385,81 @@ type ClientInterface interface {
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RequestOrganizationWithBody Request an organization (lazy loading)
+	// RequestPartyWithBody Request a party (lazy loading)
 	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-	RequestOrganizationWithBody(ctx context.Context, params *RequestOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestOrganization Request an organization (lazy loading)
-	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-	RequestOrganization(ctx context.Context, params *RequestOrganizationParams, body RequestOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PutOrganizationWithBody Send (create or update) an organization
-	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-	//
-	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-	PutOrganizationWithBody(ctx context.Context, localId LocalId, params *PutOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+	RequestPartyWithBody(ctx context.Context, params *RequestPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutOrganization Send (create or update) an organization
+	// RequestParty Request a party (lazy loading)
 	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-	//
-	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-	PutOrganization(ctx context.Context, localId LocalId, params *PutOrganizationParams, body PutOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+	RequestParty(ctx context.Context, params *RequestPartyParams, body RequestPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeactivateOrganization Deactivate an organization
+	// PutPartyWithBody Send (create or update) a party
 	//
-	// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
-	//
-	// Corresponds with POST /masterdata/organizations/{local_id}/deactivation (the `DeactivateOrganization` operationId).
-	DeactivateOrganization(ctx context.Context, localId LocalId, params *DeactivateOrganizationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UnbindOrganizationMapping Declare that this endpoint no longer holds an organization
-	//
-	// Declares that the endpoint no longer holds the canonical organization in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Corresponds with DELETE /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `UnbindOrganizationMapping` operationId).
-	UnbindOrganizationMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// BindOrganizationMapping Bind a local identifier to an existing organization
-	//
-	// Declares that the canonical organization in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
-	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
-	//
-	// Corresponds with PUT /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `BindOrganizationMapping` operationId).
-	BindOrganizationMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestPersonWithBody Request a person (lazy loading)
-	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-	RequestPersonWithBody(ctx context.Context, params *RequestPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestPerson Request a person (lazy loading)
-	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-	RequestPerson(ctx context.Context, params *RequestPersonParams, body RequestPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PutPersonWithBody Send (create or update) a person
-	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+	//
 	// Takes any type of body and a specified content type.
 	//
-	// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-	PutPersonWithBody(ctx context.Context, localId LocalId, params *PutPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+	PutPartyWithBody(ctx context.Context, localId LocalId, params *PutPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutPerson Send (create or update) a person
+	// PutParty Send (create or update) a party
 	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+	//
 	// Takes a body of the `application/json` content type.
 	//
-	// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-	PutPerson(ctx context.Context, localId LocalId, params *PutPersonParams, body PutPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+	PutParty(ctx context.Context, localId LocalId, params *PutPartyParams, body PutPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeactivatePerson Deactivate a person
+	// DeactivateParty Deactivate a party
 	//
-	// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
-	// Corresponds with POST /masterdata/persons/{local_id}/deactivation (the `DeactivatePerson` operationId).
-	DeactivatePerson(ctx context.Context, localId LocalId, params *DeactivatePersonParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
+	DeactivateParty(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UnbindPersonMapping Declare that this endpoint no longer holds a person
+	// UnbindPartyMapping Declare that this endpoint no longer holds a party
 	//
-	// Declares that the endpoint no longer holds the canonical person in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+	// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
 	//
 	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
 	//
-	// Corresponds with DELETE /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPersonMapping` operationId).
-	UnbindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
+	UnbindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// BindPersonMapping Bind a local identifier to an existing person
+	// BindPartyMapping Bind a local identifier to an existing party
 	//
-	// Declares that the canonical person in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+	// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
 	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
-	// Corresponds with PUT /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `BindPersonMapping` operationId).
-	BindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
+	BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // PutEndpointWithBody Create or update endpoint
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 //
 // Takes any type of body and a specified content type.
 //
@@ -541,7 +480,7 @@ func (c *Client) PutEndpointWithBody(ctx context.Context, externalId ExternalId,
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -677,7 +616,7 @@ func (c *Client) ReportUserAttention(ctx context.Context, externalId ExternalId,
 
 // StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 //
-// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
+// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — a `Party`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
 // This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{external_id}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 // An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 // The stream also carries `ROUTE_CHANGED`, which states which entity types the user has selected for one of the application's endpoints. It is issued every time that selection changes — the endpoint routed to master-data, a type selected, a type deselected, the last one deselected.
@@ -1101,55 +1040,15 @@ func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirout
 	return c.Client.Do(req)
 }
 
-// RequestOrganizationWithBody Request an organization (lazy loading)
+// RequestPartyWithBody Request a party (lazy loading)
 //
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-func (c *Client) RequestOrganizationWithBody(ctx context.Context, params *RequestOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestOrganizationRequestWithBody(c.Server, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestOrganization Request an organization (lazy loading)
-//
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-func (c *Client) RequestOrganization(ctx context.Context, params *RequestOrganizationParams, body RequestOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestOrganizationRequest(c.Server, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// PutOrganizationWithBody Send (create or update) an organization
-//
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-//
-// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 //
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-func (c *Client) PutOrganizationWithBody(ctx context.Context, localId LocalId, params *PutOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutOrganizationRequestWithBody(c.Server, localId, params, contentType, body)
+// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+func (c *Client) RequestPartyWithBody(ctx context.Context, params *RequestPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestPartyRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1160,17 +1059,15 @@ func (c *Client) PutOrganizationWithBody(ctx context.Context, localId LocalId, p
 	return c.Client.Do(req)
 }
 
-// PutOrganization Send (create or update) an organization
+// RequestParty Request a party (lazy loading)
 //
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-//
-// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 //
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-func (c *Client) PutOrganization(ctx context.Context, localId LocalId, params *PutOrganizationParams, body PutOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutOrganizationRequest(c.Server, localId, params, body)
+// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+func (c *Client) RequestParty(ctx context.Context, params *RequestPartyParams, body RequestPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestPartyRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1181,110 +1078,19 @@ func (c *Client) PutOrganization(ctx context.Context, localId LocalId, params *P
 	return c.Client.Do(req)
 }
 
-// DeactivateOrganization Deactivate an organization
+// PutPartyWithBody Send (create or update) a party
 //
-// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
-//
-// Corresponds with POST /masterdata/organizations/{local_id}/deactivation (the `DeactivateOrganization` operationId).
-func (c *Client) DeactivateOrganization(ctx context.Context, localId LocalId, params *DeactivateOrganizationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeactivateOrganizationRequest(c.Server, localId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UnbindOrganizationMapping Declare that this endpoint no longer holds an organization
-//
-// Declares that the endpoint no longer holds the canonical organization in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Corresponds with DELETE /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `UnbindOrganizationMapping` operationId).
-func (c *Client) UnbindOrganizationMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnbindOrganizationMappingRequest(c.Server, localId, agrirouterId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// BindOrganizationMapping Bind a local identifier to an existing organization
-//
-// Declares that the canonical organization in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
-//
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
-//
-// Corresponds with PUT /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `BindOrganizationMapping` operationId).
-func (c *Client) BindOrganizationMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBindOrganizationMappingRequest(c.Server, localId, agrirouterId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestPersonWithBody Request a person (lazy loading)
-//
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-func (c *Client) RequestPersonWithBody(ctx context.Context, params *RequestPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestPersonRequestWithBody(c.Server, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestPerson Request a person (lazy loading)
-//
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-func (c *Client) RequestPerson(ctx context.Context, params *RequestPersonParams, body RequestPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestPersonRequest(c.Server, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// PutPersonWithBody Send (create or update) a person
-//
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+//
 // Takes any type of body and a specified content type.
 //
-// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-func (c *Client) PutPersonWithBody(ctx context.Context, localId LocalId, params *PutPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutPersonRequestWithBody(c.Server, localId, params, contentType, body)
+// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+func (c *Client) PutPartyWithBody(ctx context.Context, localId LocalId, params *PutPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutPartyRequestWithBody(c.Server, localId, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1295,17 +1101,19 @@ func (c *Client) PutPersonWithBody(ctx context.Context, localId LocalId, params 
 	return c.Client.Do(req)
 }
 
-// PutPerson Send (create or update) a person
+// PutParty Send (create or update) a party
 //
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+//
 // Takes a body of the `application/json` content type.
 //
-// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-func (c *Client) PutPerson(ctx context.Context, localId LocalId, params *PutPersonParams, body PutPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutPersonRequest(c.Server, localId, params, body)
+// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+func (c *Client) PutParty(ctx context.Context, localId LocalId, params *PutPartyParams, body PutPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutPartyRequest(c.Server, localId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1316,13 +1124,13 @@ func (c *Client) PutPerson(ctx context.Context, localId LocalId, params *PutPers
 	return c.Client.Do(req)
 }
 
-// DeactivatePerson Deactivate a person
+// DeactivateParty Deactivate a party
 //
-// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
-// Corresponds with POST /masterdata/persons/{local_id}/deactivation (the `DeactivatePerson` operationId).
-func (c *Client) DeactivatePerson(ctx context.Context, localId LocalId, params *DeactivatePersonParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeactivatePersonRequest(c.Server, localId, params)
+// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
+func (c *Client) DeactivateParty(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeactivatePartyRequest(c.Server, localId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1333,15 +1141,15 @@ func (c *Client) DeactivatePerson(ctx context.Context, localId LocalId, params *
 	return c.Client.Do(req)
 }
 
-// UnbindPersonMapping Declare that this endpoint no longer holds a person
+// UnbindPartyMapping Declare that this endpoint no longer holds a party
 //
-// Declares that the endpoint no longer holds the canonical person in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
 //
 // Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
 //
-// Corresponds with DELETE /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPersonMapping` operationId).
-func (c *Client) UnbindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnbindPersonMappingRequest(c.Server, localId, agrirouterId, params)
+// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
+func (c *Client) UnbindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnbindPartyMappingRequest(c.Server, localId, agrirouterId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1352,15 +1160,15 @@ func (c *Client) UnbindPersonMapping(ctx context.Context, localId LocalId, agrir
 	return c.Client.Do(req)
 }
 
-// BindPersonMapping Bind a local identifier to an existing person
+// BindPartyMapping Bind a local identifier to an existing party
 //
-// Declares that the canonical person in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
 // A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
-// Corresponds with PUT /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `BindPersonMapping` operationId).
-func (c *Client) BindPersonMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBindPersonMappingRequest(c.Server, localId, agrirouterId, params)
+// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
+func (c *Client) BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBindPartyMappingRequest(c.Server, localId, agrirouterId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2679,19 +2487,19 @@ func NewBindFieldMappingRequest(server string, localId LocalId, agrirouterId IdM
 	return req, nil
 }
 
-// NewRequestOrganizationRequest calls the generic RequestOrganization builder with application/json body
-func NewRequestOrganizationRequest(server string, params *RequestOrganizationParams, body RequestOrganizationJSONRequestBody) (*http.Request, error) {
+// NewRequestPartyRequest calls the generic RequestParty builder with application/json body
+func NewRequestPartyRequest(server string, params *RequestPartyParams, body RequestPartyJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewRequestOrganizationRequestWithBody(server, params, "application/json", bodyReader)
+	return NewRequestPartyRequestWithBody(server, params, "application/json", bodyReader)
 }
 
-// NewRequestOrganizationRequestWithBody constructs an http.Request for the RequestOrganization method, with any body, and a specified content type
-func NewRequestOrganizationRequestWithBody(server string, params *RequestOrganizationParams, contentType string, body io.Reader) (*http.Request, error) {
+// NewRequestPartyRequestWithBody constructs an http.Request for the RequestParty method, with any body, and a specified content type
+func NewRequestPartyRequestWithBody(server string, params *RequestPartyParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -2699,7 +2507,7 @@ func NewRequestOrganizationRequestWithBody(server string, params *RequestOrganiz
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/masterdata/organizations/requests")
+	operationPath := fmt.Sprintf("/masterdata/parties/requests")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2741,19 +2549,19 @@ func NewRequestOrganizationRequestWithBody(server string, params *RequestOrganiz
 	return req, nil
 }
 
-// NewPutOrganizationRequest calls the generic PutOrganization builder with application/json body
-func NewPutOrganizationRequest(server string, localId LocalId, params *PutOrganizationParams, body PutOrganizationJSONRequestBody) (*http.Request, error) {
+// NewPutPartyRequest calls the generic PutParty builder with application/json body
+func NewPutPartyRequest(server string, localId LocalId, params *PutPartyParams, body PutPartyJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPutOrganizationRequestWithBody(server, localId, params, "application/json", bodyReader)
+	return NewPutPartyRequestWithBody(server, localId, params, "application/json", bodyReader)
 }
 
-// NewPutOrganizationRequestWithBody constructs an http.Request for the PutOrganization method, with any body, and a specified content type
-func NewPutOrganizationRequestWithBody(server string, localId LocalId, params *PutOrganizationParams, contentType string, body io.Reader) (*http.Request, error) {
+// NewPutPartyRequestWithBody constructs an http.Request for the PutParty method, with any body, and a specified content type
+func NewPutPartyRequestWithBody(server string, localId LocalId, params *PutPartyParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2768,7 +2576,7 @@ func NewPutOrganizationRequestWithBody(server string, localId LocalId, params *P
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/masterdata/organizations/%s", pathParam0)
+	operationPath := fmt.Sprintf("/masterdata/parties/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2821,8 +2629,8 @@ func NewPutOrganizationRequestWithBody(server string, localId LocalId, params *P
 	return req, nil
 }
 
-// NewDeactivateOrganizationRequest constructs an http.Request for the DeactivateOrganization method
-func NewDeactivateOrganizationRequest(server string, localId LocalId, params *DeactivateOrganizationParams) (*http.Request, error) {
+// NewDeactivatePartyRequest constructs an http.Request for the DeactivateParty method
+func NewDeactivatePartyRequest(server string, localId LocalId, params *DeactivatePartyParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2837,7 +2645,7 @@ func NewDeactivateOrganizationRequest(server string, localId LocalId, params *De
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/masterdata/organizations/%s/deactivation", pathParam0)
+	operationPath := fmt.Sprintf("/masterdata/parties/%s/deactivation", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2888,8 +2696,8 @@ func NewDeactivateOrganizationRequest(server string, localId LocalId, params *De
 	return req, nil
 }
 
-// NewUnbindOrganizationMappingRequest constructs an http.Request for the UnbindOrganizationMapping method
-func NewUnbindOrganizationMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindOrganizationMappingParams) (*http.Request, error) {
+// NewUnbindPartyMappingRequest constructs an http.Request for the UnbindPartyMapping method
+func NewUnbindPartyMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2911,7 +2719,7 @@ func NewUnbindOrganizationMappingRequest(server string, localId LocalId, agrirou
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/masterdata/organizations/%s/id-mapping/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/masterdata/parties/%s/id-mapping/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2951,8 +2759,8 @@ func NewUnbindOrganizationMappingRequest(server string, localId LocalId, agrirou
 	return req, nil
 }
 
-// NewBindOrganizationMappingRequest constructs an http.Request for the BindOrganizationMapping method
-func NewBindOrganizationMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams) (*http.Request, error) {
+// NewBindPartyMappingRequest constructs an http.Request for the BindPartyMapping method
+func NewBindPartyMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2974,342 +2782,7 @@ func NewBindOrganizationMappingRequest(server string, localId LocalId, agriroute
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/masterdata/organizations/%s/id-mapping/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
-// NewRequestPersonRequest calls the generic RequestPerson builder with application/json body
-func NewRequestPersonRequest(server string, params *RequestPersonParams, body RequestPersonJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRequestPersonRequestWithBody(server, params, "application/json", bodyReader)
-}
-
-// NewRequestPersonRequestWithBody constructs an http.Request for the RequestPerson method, with any body, and a specified content type
-func NewRequestPersonRequestWithBody(server string, params *RequestPersonParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/persons/requests")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
-// NewPutPersonRequest calls the generic PutPerson builder with application/json body
-func NewPutPersonRequest(server string, localId LocalId, params *PutPersonParams, body PutPersonJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPutPersonRequestWithBody(server, localId, params, "application/json", bodyReader)
-}
-
-// NewPutPersonRequestWithBody constructs an http.Request for the PutPerson method, with any body, and a specified content type
-func NewPutPersonRequestWithBody(server string, localId LocalId, params *PutPersonParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/persons/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-		if params.XAgrirouterBaseRevision != nil {
-			var headerParam2 string
-
-			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("x-agrirouter-base-revision", headerParam2)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewDeactivatePersonRequest constructs an http.Request for the DeactivatePerson method
-func NewDeactivatePersonRequest(server string, localId LocalId, params *DeactivatePersonParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/persons/%s/deactivation", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-		if params.XAgrirouterBaseRevision != nil {
-			var headerParam2 string
-
-			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
-			if err != nil {
-				return nil, err
-			}
-
-			req.Header.Set("x-agrirouter-base-revision", headerParam2)
-		}
-
-	}
-
-	return req, nil
-}
-
-// NewUnbindPersonMappingRequest constructs an http.Request for the UnbindPersonMapping method
-func NewUnbindPersonMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPersonMappingParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "agrirouter_id", agrirouterId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/persons/%s/id-mapping/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
-// NewBindPersonMappingRequest constructs an http.Request for the BindPersonMapping method
-func NewBindPersonMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "agrirouter_id", agrirouterId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/persons/%s/id-mapping/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/masterdata/parties/%s/id-mapping/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3397,7 +2870,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3408,7 +2881,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3490,7 +2963,7 @@ type ClientWithResponsesInterface interface {
 
 	// StreamMasterdataEventsWithResponse Receive master-data changes (Server-Sent Events)
 	//
-	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
+	// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — a `Party`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
 	// This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{external_id}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 	// An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 	// The stream also carries `ROUTE_CHANGED`, which states which entity types the user has selected for one of the application's endpoints. It is issued every time that selection changes — the endpoint routed to master-data, a type selected, a type deselected, the last one deselected.
@@ -3714,147 +3187,80 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*BindFieldMappingResponse, error)
 
-	// RequestOrganizationWithBodyWithResponse Request an organization (lazy loading)
+	// RequestPartyWithBodyWithResponse Request a party (lazy loading)
 	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-	RequestOrganizationWithBodyWithResponse(ctx context.Context, params *RequestOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestOrganizationResponse, error)
-
-	// RequestOrganizationWithResponse Request an organization (lazy loading)
-	//
-	// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-	RequestOrganizationWithResponse(ctx context.Context, params *RequestOrganizationParams, body RequestOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestOrganizationResponse, error)
-
-	// PutOrganizationWithBodyWithResponse Send (create or update) an organization
-	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-	//
-	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-	PutOrganizationWithBodyWithResponse(ctx context.Context, localId LocalId, params *PutOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutOrganizationResponse, error)
+	// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+	RequestPartyWithBodyWithResponse(ctx context.Context, params *RequestPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestPartyResponse, error)
 
-	// PutOrganizationWithResponse Send (create or update) an organization
+	// RequestPartyWithResponse Request a party (lazy loading)
 	//
-	// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-	//
-	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-	PutOrganizationWithResponse(ctx context.Context, localId LocalId, params *PutOrganizationParams, body PutOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*PutOrganizationResponse, error)
+	// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+	RequestPartyWithResponse(ctx context.Context, params *RequestPartyParams, body RequestPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestPartyResponse, error)
 
-	// DeactivateOrganizationWithResponse Deactivate an organization
+	// PutPartyWithBodyWithResponse Send (create or update) a party
 	//
-	// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	//
+	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+	PutPartyWithBodyWithResponse(ctx context.Context, localId LocalId, params *PutPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPartyResponse, error)
+
+	// PutPartyWithResponse Send (create or update) a party
+	//
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	//
+	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+	PutPartyWithResponse(ctx context.Context, localId LocalId, params *PutPartyParams, body PutPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPartyResponse, error)
+
+	// DeactivatePartyWithResponse Deactivate a party
+	//
+	// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with POST /masterdata/organizations/{local_id}/deactivation (the `DeactivateOrganization` operationId).
-	DeactivateOrganizationWithResponse(ctx context.Context, localId LocalId, params *DeactivateOrganizationParams, reqEditors ...RequestEditorFn) (*DeactivateOrganizationResponse, error)
+	// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
+	DeactivatePartyWithResponse(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*DeactivatePartyResponse, error)
 
-	// UnbindOrganizationMappingWithResponse Declare that this endpoint no longer holds an organization
+	// UnbindPartyMappingWithResponse Declare that this endpoint no longer holds a party
 	//
-	// Declares that the endpoint no longer holds the canonical organization in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+	// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
 	//
 	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with DELETE /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `UnbindOrganizationMapping` operationId).
-	UnbindOrganizationMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*UnbindOrganizationMappingResponse, error)
+	// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
+	UnbindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*UnbindPartyMappingResponse, error)
 
-	// BindOrganizationMappingWithResponse Bind a local identifier to an existing organization
+	// BindPartyMappingWithResponse Bind a local identifier to an existing party
 	//
-	// Declares that the canonical organization in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+	// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
 	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
-	// Corresponds with PUT /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `BindOrganizationMapping` operationId).
-	BindOrganizationMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*BindOrganizationMappingResponse, error)
-
-	// RequestPersonWithBodyWithResponse Request a person (lazy loading)
-	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-	RequestPersonWithBodyWithResponse(ctx context.Context, params *RequestPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestPersonResponse, error)
-
-	// RequestPersonWithResponse Request a person (lazy loading)
-	//
-	// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-	RequestPersonWithResponse(ctx context.Context, params *RequestPersonParams, body RequestPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestPersonResponse, error)
-
-	// PutPersonWithBodyWithResponse Send (create or update) a person
-	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-	//
-	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-	PutPersonWithBodyWithResponse(ctx context.Context, localId LocalId, params *PutPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPersonResponse, error)
-
-	// PutPersonWithResponse Send (create or update) a person
-	//
-	// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-	//
-	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-	PutPersonWithResponse(ctx context.Context, localId LocalId, params *PutPersonParams, body PutPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPersonResponse, error)
-
-	// DeactivatePersonWithResponse Deactivate a person
-	//
-	// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /masterdata/persons/{local_id}/deactivation (the `DeactivatePerson` operationId).
-	DeactivatePersonWithResponse(ctx context.Context, localId LocalId, params *DeactivatePersonParams, reqEditors ...RequestEditorFn) (*DeactivatePersonResponse, error)
-
-	// UnbindPersonMappingWithResponse Declare that this endpoint no longer holds a person
-	//
-	// Declares that the endpoint no longer holds the canonical person in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPersonMapping` operationId).
-	UnbindPersonMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPersonMappingParams, reqEditors ...RequestEditorFn) (*UnbindPersonMappingResponse, error)
-
-	// BindPersonMappingWithResponse Bind a local identifier to an existing person
-	//
-	// Declares that the canonical person in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
-	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `BindPersonMapping` operationId).
-	BindPersonMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*BindPersonMappingResponse, error)
+	// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
+	BindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*BindPartyMappingResponse, error)
 }
 
 type PutEndpointResponse struct {
@@ -5110,7 +4516,7 @@ func (r BindFieldMappingResponse) ContentType() string {
 	return ""
 }
 
-type RequestOrganizationResponse struct {
+type RequestPartyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -5120,22 +4526,22 @@ type RequestOrganizationResponse struct {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r RequestOrganizationResponse) GetJSON403() *Forbidden {
+func (r RequestPartyResponse) GetJSON403() *Forbidden {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r RequestOrganizationResponse) GetJSON404() *NotFound {
+func (r RequestPartyResponse) GetJSON404() *NotFound {
 	return r.JSON404
 }
 
 // GetBody returns the raw response body bytes
-func (r RequestOrganizationResponse) GetBody() []byte {
+func (r RequestPartyResponse) GetBody() []byte {
 	return r.Body
 }
 
 // Status returns HTTPResponse.Status
-func (r RequestOrganizationResponse) Status() string {
+func (r RequestPartyResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5143,7 +4549,7 @@ func (r RequestOrganizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r RequestOrganizationResponse) StatusCode() int {
+func (r RequestPartyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5151,20 +4557,20 @@ func (r RequestOrganizationResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RequestOrganizationResponse) ContentType() string {
+func (r RequestPartyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type PutOrganizationResponse struct {
+type PutPartyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Organization
+	JSON200 *Party
 	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *Organization
+	JSON201 *Party
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *ValidationError
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -5178,47 +4584,47 @@ type PutOrganizationResponse struct {
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r PutOrganizationResponse) GetJSON200() *Organization {
+func (r PutPartyResponse) GetJSON200() *Party {
 	return r.JSON200
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r PutOrganizationResponse) GetJSON201() *Organization {
+func (r PutPartyResponse) GetJSON201() *Party {
 	return r.JSON201
 }
 
 // GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r PutOrganizationResponse) GetJSON400() *ValidationError {
+func (r PutPartyResponse) GetJSON400() *ValidationError {
 	return r.JSON400
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r PutOrganizationResponse) GetJSON403() *Forbidden {
+func (r PutPartyResponse) GetJSON403() *Forbidden {
 	return r.JSON403
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutOrganizationResponse) GetJSON409() *MappingConflict {
+func (r PutPartyResponse) GetJSON409() *MappingConflict {
 	return r.JSON409
 }
 
 // GetJSON412 returns the response for an HTTP 412 `application/json` response
-func (r PutOrganizationResponse) GetJSON412() *RevisionConflict {
+func (r PutPartyResponse) GetJSON412() *RevisionConflict {
 	return r.JSON412
 }
 
 // GetJSON428 returns the response for an HTTP 428 `application/json` response
-func (r PutOrganizationResponse) GetJSON428() *BaseRevisionRequired {
+func (r PutPartyResponse) GetJSON428() *BaseRevisionRequired {
 	return r.JSON428
 }
 
 // GetBody returns the raw response body bytes
-func (r PutOrganizationResponse) GetBody() []byte {
+func (r PutPartyResponse) GetBody() []byte {
 	return r.Body
 }
 
 // Status returns HTTPResponse.Status
-func (r PutOrganizationResponse) Status() string {
+func (r PutPartyResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5226,7 +4632,7 @@ func (r PutOrganizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PutOrganizationResponse) StatusCode() int {
+func (r PutPartyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5234,18 +4640,18 @@ func (r PutOrganizationResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PutOrganizationResponse) ContentType() string {
+func (r PutPartyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type DeactivateOrganizationResponse struct {
+type DeactivatePartyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Organization
+	JSON200 *Party
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON404 the response for an HTTP 404 `application/json` response
@@ -5257,37 +4663,37 @@ type DeactivateOrganizationResponse struct {
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r DeactivateOrganizationResponse) GetJSON200() *Organization {
+func (r DeactivatePartyResponse) GetJSON200() *Party {
 	return r.JSON200
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r DeactivateOrganizationResponse) GetJSON403() *Forbidden {
+func (r DeactivatePartyResponse) GetJSON403() *Forbidden {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r DeactivateOrganizationResponse) GetJSON404() *NotFound {
+func (r DeactivatePartyResponse) GetJSON404() *NotFound {
 	return r.JSON404
 }
 
 // GetJSON412 returns the response for an HTTP 412 `application/json` response
-func (r DeactivateOrganizationResponse) GetJSON412() *RevisionConflict {
+func (r DeactivatePartyResponse) GetJSON412() *RevisionConflict {
 	return r.JSON412
 }
 
 // GetJSON428 returns the response for an HTTP 428 `application/json` response
-func (r DeactivateOrganizationResponse) GetJSON428() *BaseRevisionRequired {
+func (r DeactivatePartyResponse) GetJSON428() *BaseRevisionRequired {
 	return r.JSON428
 }
 
 // GetBody returns the raw response body bytes
-func (r DeactivateOrganizationResponse) GetBody() []byte {
+func (r DeactivatePartyResponse) GetBody() []byte {
 	return r.Body
 }
 
 // Status returns HTTPResponse.Status
-func (r DeactivateOrganizationResponse) Status() string {
+func (r DeactivatePartyResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5295,7 +4701,7 @@ func (r DeactivateOrganizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeactivateOrganizationResponse) StatusCode() int {
+func (r DeactivatePartyResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5303,14 +4709,14 @@ func (r DeactivateOrganizationResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeactivateOrganizationResponse) ContentType() string {
+func (r DeactivatePartyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type UnbindOrganizationMappingResponse struct {
+type UnbindPartyMappingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -5320,22 +4726,22 @@ type UnbindOrganizationMappingResponse struct {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UnbindOrganizationMappingResponse) GetJSON403() *Forbidden {
+func (r UnbindPartyMappingResponse) GetJSON403() *Forbidden {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UnbindOrganizationMappingResponse) GetJSON404() *NotFound {
+func (r UnbindPartyMappingResponse) GetJSON404() *NotFound {
 	return r.JSON404
 }
 
 // GetBody returns the raw response body bytes
-func (r UnbindOrganizationMappingResponse) GetBody() []byte {
+func (r UnbindPartyMappingResponse) GetBody() []byte {
 	return r.Body
 }
 
 // Status returns HTTPResponse.Status
-func (r UnbindOrganizationMappingResponse) Status() string {
+func (r UnbindPartyMappingResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5343,7 +4749,7 @@ func (r UnbindOrganizationMappingResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UnbindOrganizationMappingResponse) StatusCode() int {
+func (r UnbindPartyMappingResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5351,14 +4757,14 @@ func (r UnbindOrganizationMappingResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnbindOrganizationMappingResponse) ContentType() string {
+func (r UnbindPartyMappingResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type BindOrganizationMappingResponse struct {
+type BindPartyMappingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -5370,27 +4776,27 @@ type BindOrganizationMappingResponse struct {
 }
 
 // GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r BindOrganizationMappingResponse) GetJSON403() *Forbidden {
+func (r BindPartyMappingResponse) GetJSON403() *Forbidden {
 	return r.JSON403
 }
 
 // GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r BindOrganizationMappingResponse) GetJSON404() *NotFound {
+func (r BindPartyMappingResponse) GetJSON404() *NotFound {
 	return r.JSON404
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r BindOrganizationMappingResponse) GetJSON409() *MappingConflict {
+func (r BindPartyMappingResponse) GetJSON409() *MappingConflict {
 	return r.JSON409
 }
 
 // GetBody returns the raw response body bytes
-func (r BindOrganizationMappingResponse) GetBody() []byte {
+func (r BindPartyMappingResponse) GetBody() []byte {
 	return r.Body
 }
 
 // Status returns HTTPResponse.Status
-func (r BindOrganizationMappingResponse) Status() string {
+func (r BindPartyMappingResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -5398,7 +4804,7 @@ func (r BindOrganizationMappingResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r BindOrganizationMappingResponse) StatusCode() int {
+func (r BindPartyMappingResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5406,310 +4812,7 @@ func (r BindOrganizationMappingResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r BindOrganizationMappingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RequestPersonResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r RequestPersonResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r RequestPersonResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r RequestPersonResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r RequestPersonResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RequestPersonResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RequestPersonResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type PutPersonResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Person
-	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *Person
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *ValidationError
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *MappingConflict
-	// JSON412 the response for an HTTP 412 `application/json` response
-	JSON412 *RevisionConflict
-	// JSON428 the response for an HTTP 428 `application/json` response
-	JSON428 *BaseRevisionRequired
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r PutPersonResponse) GetJSON200() *Person {
-	return r.JSON200
-}
-
-// GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r PutPersonResponse) GetJSON201() *Person {
-	return r.JSON201
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r PutPersonResponse) GetJSON400() *ValidationError {
-	return r.JSON400
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r PutPersonResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutPersonResponse) GetJSON409() *MappingConflict {
-	return r.JSON409
-}
-
-// GetJSON412 returns the response for an HTTP 412 `application/json` response
-func (r PutPersonResponse) GetJSON412() *RevisionConflict {
-	return r.JSON412
-}
-
-// GetJSON428 returns the response for an HTTP 428 `application/json` response
-func (r PutPersonResponse) GetJSON428() *BaseRevisionRequired {
-	return r.JSON428
-}
-
-// GetBody returns the raw response body bytes
-func (r PutPersonResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r PutPersonResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PutPersonResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PutPersonResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DeactivatePersonResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Person
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON412 the response for an HTTP 412 `application/json` response
-	JSON412 *RevisionConflict
-	// JSON428 the response for an HTTP 428 `application/json` response
-	JSON428 *BaseRevisionRequired
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r DeactivatePersonResponse) GetJSON200() *Person {
-	return r.JSON200
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r DeactivatePersonResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r DeactivatePersonResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON412 returns the response for an HTTP 412 `application/json` response
-func (r DeactivatePersonResponse) GetJSON412() *RevisionConflict {
-	return r.JSON412
-}
-
-// GetJSON428 returns the response for an HTTP 428 `application/json` response
-func (r DeactivatePersonResponse) GetJSON428() *BaseRevisionRequired {
-	return r.JSON428
-}
-
-// GetBody returns the raw response body bytes
-func (r DeactivatePersonResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DeactivatePersonResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeactivatePersonResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeactivatePersonResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type UnbindPersonMappingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UnbindPersonMappingResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UnbindPersonMappingResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r UnbindPersonMappingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UnbindPersonMappingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UnbindPersonMappingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnbindPersonMappingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type BindPersonMappingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *MappingConflict
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r BindPersonMappingResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r BindPersonMappingResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r BindPersonMappingResponse) GetJSON409() *MappingConflict {
-	return r.JSON409
-}
-
-// GetBody returns the raw response body bytes
-func (r BindPersonMappingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r BindPersonMappingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r BindPersonMappingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r BindPersonMappingResponse) ContentType() string {
+func (r BindPartyMappingResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5720,7 +4823,7 @@ func (r BindPersonMappingResponse) ContentType() string {
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5737,7 +4840,7 @@ func (c *ClientWithResponses) PutEndpointWithBodyWithResponse(ctx context.Contex
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling fields requires the farms and field boundaries those fields reference, and the organizations and persons those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5855,7 +4958,7 @@ func (c *ClientWithResponses) ReportUserAttentionWithResponse(ctx context.Contex
 
 // StreamMasterdataEventsWithResponse Receive master-data changes (Server-Sent Events)
 //
-// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — an `Organization`, `Person`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
+// A persistent SSE stream of master-data changes for the calling application, carrying every tenant it is routed to and every entity type it is opted into. agrirouter never echoes a change back to the endpoint it originated from; a change made by one endpoint is still delivered to the application's other endpoints. Each event's `data` is an `Entity` — a `Party`, `Farm`, `Field`, or `FieldBoundary` discriminated by its `type` property. A delivered object carries the receiving application's own identifier in `local_id` when agrirouter holds one, and no `local_id` at all when it does not.
 // This stream carries steady-state synchronization only. Initial load is delivered separately, per endpoint, by `/endpoints/{external_id}/masterdata-initial-load/events`; the two are independent and are not deduplicated against each other, so an object may arrive on both while an endpoint is loading.
 // An application reconnecting after an absence is served catch-up before live changes: everything it is entitled to that changed since its position, ordered so that a referenced object precedes the objects that reference it, ending with a `CAUGHT_UP` event. That is the only property of the order an application may rely on. The order itself is agrirouter's and may change in a later version of this API, so an application MUST NOT depend on the position of one entity type relative to another, or read the completeness of an entity type out of it. `Last-Event-ID` is the only position the application keeps, and positions do not expire.
 // The stream also carries `ROUTE_CHANGED`, which states which entity types the user has selected for one of the application's endpoints. It is issued every time that selection changes — the endpoint routed to master-data, a type selected, a type deselected, the last one deselected.
@@ -6211,230 +5314,121 @@ func (c *ClientWithResponses) BindFieldMappingWithResponse(ctx context.Context, 
 	return ParseBindFieldMappingResponse(rsp)
 }
 
-// RequestOrganizationWithBodyWithResponse Request an organization (lazy loading)
+// RequestPartyWithBodyWithResponse Request a party (lazy loading)
 //
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-func (c *ClientWithResponses) RequestOrganizationWithBodyWithResponse(ctx context.Context, params *RequestOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestOrganizationResponse, error) {
-	rsp, err := c.RequestOrganizationWithBody(ctx, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestOrganizationResponse(rsp)
-}
-
-// RequestOrganizationWithResponse Request an organization (lazy loading)
-//
-// Refetches an organization the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /masterdata/organizations/requests (the `RequestOrganization` operationId).
-func (c *ClientWithResponses) RequestOrganizationWithResponse(ctx context.Context, params *RequestOrganizationParams, body RequestOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestOrganizationResponse, error) {
-	rsp, err := c.RequestOrganization(ctx, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestOrganizationResponse(rsp)
-}
-
-// PutOrganizationWithBodyWithResponse Send (create or update) an organization
-//
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-//
-// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-func (c *ClientWithResponses) PutOrganizationWithBodyWithResponse(ctx context.Context, localId LocalId, params *PutOrganizationParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutOrganizationResponse, error) {
-	rsp, err := c.PutOrganizationWithBody(ctx, localId, params, contentType, body, reqEditors...)
+// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+func (c *ClientWithResponses) RequestPartyWithBodyWithResponse(ctx context.Context, params *RequestPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestPartyResponse, error) {
+	rsp, err := c.RequestPartyWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePutOrganizationResponse(rsp)
+	return ParseRequestPartyResponse(rsp)
 }
 
-// PutOrganizationWithResponse Send (create or update) an organization
+// RequestPartyWithResponse Request a party (lazy loading)
 //
-// Submits an organization from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-//
-// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+// Refetches a party the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /masterdata/organizations/{local_id} (the `PutOrganization` operationId).
-func (c *ClientWithResponses) PutOrganizationWithResponse(ctx context.Context, localId LocalId, params *PutOrganizationParams, body PutOrganizationJSONRequestBody, reqEditors ...RequestEditorFn) (*PutOrganizationResponse, error) {
-	rsp, err := c.PutOrganization(ctx, localId, params, body, reqEditors...)
+// Corresponds with POST /masterdata/parties/requests (the `RequestParty` operationId).
+func (c *ClientWithResponses) RequestPartyWithResponse(ctx context.Context, params *RequestPartyParams, body RequestPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestPartyResponse, error) {
+	rsp, err := c.RequestParty(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePutOrganizationResponse(rsp)
+	return ParseRequestPartyResponse(rsp)
 }
 
-// DeactivateOrganizationWithResponse Deactivate an organization
+// PutPartyWithBodyWithResponse Send (create or update) a party
 //
-// Signals that the organization was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+//
+// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+func (c *ClientWithResponses) PutPartyWithBodyWithResponse(ctx context.Context, localId LocalId, params *PutPartyParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPartyResponse, error) {
+	rsp, err := c.PutPartyWithBody(ctx, localId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutPartyResponse(rsp)
+}
+
+// PutPartyWithResponse Send (create or update) a party
+//
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+//
+// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `details` carries its `party_type` on every write that includes it. It merges like any nested object while that `party_type` is unchanged; a write that changes it replaces `details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `details` out, which keeps what another participant stated.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /masterdata/parties/{local_id} (the `PutParty` operationId).
+func (c *ClientWithResponses) PutPartyWithResponse(ctx context.Context, localId LocalId, params *PutPartyParams, body PutPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPartyResponse, error) {
+	rsp, err := c.PutParty(ctx, localId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutPartyResponse(rsp)
+}
+
+// DeactivatePartyWithResponse Deactivate a party
+//
+// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with POST /masterdata/organizations/{local_id}/deactivation (the `DeactivateOrganization` operationId).
-func (c *ClientWithResponses) DeactivateOrganizationWithResponse(ctx context.Context, localId LocalId, params *DeactivateOrganizationParams, reqEditors ...RequestEditorFn) (*DeactivateOrganizationResponse, error) {
-	rsp, err := c.DeactivateOrganization(ctx, localId, params, reqEditors...)
+// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
+func (c *ClientWithResponses) DeactivatePartyWithResponse(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*DeactivatePartyResponse, error) {
+	rsp, err := c.DeactivateParty(ctx, localId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeactivateOrganizationResponse(rsp)
+	return ParseDeactivatePartyResponse(rsp)
 }
 
-// UnbindOrganizationMappingWithResponse Declare that this endpoint no longer holds an organization
+// UnbindPartyMappingWithResponse Declare that this endpoint no longer holds a party
 //
-// Declares that the endpoint no longer holds the canonical organization in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
 //
 // Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with DELETE /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `UnbindOrganizationMapping` operationId).
-func (c *ClientWithResponses) UnbindOrganizationMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*UnbindOrganizationMappingResponse, error) {
-	rsp, err := c.UnbindOrganizationMapping(ctx, localId, agrirouterId, params, reqEditors...)
+// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
+func (c *ClientWithResponses) UnbindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*UnbindPartyMappingResponse, error) {
+	rsp, err := c.UnbindPartyMapping(ctx, localId, agrirouterId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUnbindOrganizationMappingResponse(rsp)
+	return ParseUnbindPartyMappingResponse(rsp)
 }
 
-// BindOrganizationMappingWithResponse Bind a local identifier to an existing organization
+// BindPartyMappingWithResponse Bind a local identifier to an existing party
 //
-// Declares that the canonical organization in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
 // A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
-// Corresponds with PUT /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id} (the `BindOrganizationMapping` operationId).
-func (c *ClientWithResponses) BindOrganizationMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindOrganizationMappingParams, reqEditors ...RequestEditorFn) (*BindOrganizationMappingResponse, error) {
-	rsp, err := c.BindOrganizationMapping(ctx, localId, agrirouterId, params, reqEditors...)
+// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
+func (c *ClientWithResponses) BindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*BindPartyMappingResponse, error) {
+	rsp, err := c.BindPartyMapping(ctx, localId, agrirouterId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseBindOrganizationMappingResponse(rsp)
-}
-
-// RequestPersonWithBodyWithResponse Request a person (lazy loading)
-//
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-func (c *ClientWithResponses) RequestPersonWithBodyWithResponse(ctx context.Context, params *RequestPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestPersonResponse, error) {
-	rsp, err := c.RequestPersonWithBody(ctx, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestPersonResponse(rsp)
-}
-
-// RequestPersonWithResponse Request a person (lazy loading)
-//
-// Refetches a person the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting application was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an application that lost the object needs.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /masterdata/persons/requests (the `RequestPerson` operationId).
-func (c *ClientWithResponses) RequestPersonWithResponse(ctx context.Context, params *RequestPersonParams, body RequestPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestPersonResponse, error) {
-	rsp, err := c.RequestPerson(ctx, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestPersonResponse(rsp)
-}
-
-// PutPersonWithBodyWithResponse Send (create or update) a person
-//
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-//
-// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-func (c *ClientWithResponses) PutPersonWithBodyWithResponse(ctx context.Context, localId LocalId, params *PutPersonParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutPersonResponse, error) {
-	rsp, err := c.PutPersonWithBody(ctx, localId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutPersonResponse(rsp)
-}
-
-// PutPersonWithResponse Send (create or update) a person
-//
-// Submits a person from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
-//
-// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /masterdata/persons/{local_id} (the `PutPerson` operationId).
-func (c *ClientWithResponses) PutPersonWithResponse(ctx context.Context, localId LocalId, params *PutPersonParams, body PutPersonJSONRequestBody, reqEditors ...RequestEditorFn) (*PutPersonResponse, error) {
-	rsp, err := c.PutPerson(ctx, localId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutPersonResponse(rsp)
-}
-
-// DeactivatePersonWithResponse Deactivate a person
-//
-// Signals that the person was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /masterdata/persons/{local_id}/deactivation (the `DeactivatePerson` operationId).
-func (c *ClientWithResponses) DeactivatePersonWithResponse(ctx context.Context, localId LocalId, params *DeactivatePersonParams, reqEditors ...RequestEditorFn) (*DeactivatePersonResponse, error) {
-	rsp, err := c.DeactivatePerson(ctx, localId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeactivatePersonResponse(rsp)
-}
-
-// UnbindPersonMappingWithResponse Declare that this endpoint no longer holds a person
-//
-// Declares that the endpoint no longer holds the canonical person in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `local_id`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPersonMapping` operationId).
-func (c *ClientWithResponses) UnbindPersonMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPersonMappingParams, reqEditors ...RequestEditorFn) (*UnbindPersonMappingResponse, error) {
-	rsp, err := c.UnbindPersonMapping(ctx, localId, agrirouterId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUnbindPersonMappingResponse(rsp)
-}
-
-// BindPersonMappingWithResponse Bind a local identifier to an existing person
-//
-// Declares that the canonical person in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
-//
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /masterdata/persons/{local_id}/id-mapping/{agrirouter_id} (the `BindPersonMapping` operationId).
-func (c *ClientWithResponses) BindPersonMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPersonMappingParams, reqEditors ...RequestEditorFn) (*BindPersonMappingResponse, error) {
-	rsp, err := c.BindPersonMapping(ctx, localId, agrirouterId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseBindPersonMappingResponse(rsp)
+	return ParseBindPartyMappingResponse(rsp)
 }
 
 // ParsePutEndpointResponse parses an HTTP response from a PutEndpointWithResponse call
@@ -7411,15 +6405,15 @@ func ParseBindFieldMappingResponse(rsp *http.Response) (*BindFieldMappingRespons
 	return response, nil
 }
 
-// ParseRequestOrganizationResponse parses an HTTP response from a RequestOrganizationWithResponse call
-func ParseRequestOrganizationResponse(rsp *http.Response) (*RequestOrganizationResponse, error) {
+// ParseRequestPartyResponse parses an HTTP response from a RequestPartyWithResponse call
+func ParseRequestPartyResponse(rsp *http.Response) (*RequestPartyResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &RequestOrganizationResponse{
+	response := &RequestPartyResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -7447,29 +6441,29 @@ func ParseRequestOrganizationResponse(rsp *http.Response) (*RequestOrganizationR
 	return response, nil
 }
 
-// ParsePutOrganizationResponse parses an HTTP response from a PutOrganizationWithResponse call
-func ParsePutOrganizationResponse(rsp *http.Response) (*PutOrganizationResponse, error) {
+// ParsePutPartyResponse parses an HTTP response from a PutPartyWithResponse call
+func ParsePutPartyResponse(rsp *http.Response) (*PutPartyResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PutOrganizationResponse{
+	response := &PutPartyResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Organization
+		var dest Party
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Organization
+		var dest Party
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7515,22 +6509,22 @@ func ParsePutOrganizationResponse(rsp *http.Response) (*PutOrganizationResponse,
 	return response, nil
 }
 
-// ParseDeactivateOrganizationResponse parses an HTTP response from a DeactivateOrganizationWithResponse call
-func ParseDeactivateOrganizationResponse(rsp *http.Response) (*DeactivateOrganizationResponse, error) {
+// ParseDeactivatePartyResponse parses an HTTP response from a DeactivatePartyWithResponse call
+func ParseDeactivatePartyResponse(rsp *http.Response) (*DeactivatePartyResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeactivateOrganizationResponse{
+	response := &DeactivatePartyResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Organization
+		var dest Party
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7569,15 +6563,15 @@ func ParseDeactivateOrganizationResponse(rsp *http.Response) (*DeactivateOrganiz
 	return response, nil
 }
 
-// ParseUnbindOrganizationMappingResponse parses an HTTP response from a UnbindOrganizationMappingWithResponse call
-func ParseUnbindOrganizationMappingResponse(rsp *http.Response) (*UnbindOrganizationMappingResponse, error) {
+// ParseUnbindPartyMappingResponse parses an HTTP response from a UnbindPartyMappingWithResponse call
+func ParseUnbindPartyMappingResponse(rsp *http.Response) (*UnbindPartyMappingResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UnbindOrganizationMappingResponse{
+	response := &UnbindPartyMappingResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -7605,252 +6599,15 @@ func ParseUnbindOrganizationMappingResponse(rsp *http.Response) (*UnbindOrganiza
 	return response, nil
 }
 
-// ParseBindOrganizationMappingResponse parses an HTTP response from a BindOrganizationMappingWithResponse call
-func ParseBindOrganizationMappingResponse(rsp *http.Response) (*BindOrganizationMappingResponse, error) {
+// ParseBindPartyMappingResponse parses an HTTP response from a BindPartyMappingWithResponse call
+func ParseBindPartyMappingResponse(rsp *http.Response) (*BindPartyMappingResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &BindOrganizationMappingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest MappingConflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRequestPersonResponse parses an HTTP response from a RequestPersonWithResponse call
-func ParseRequestPersonResponse(rsp *http.Response) (*RequestPersonResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RequestPersonResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 202:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePutPersonResponse parses an HTTP response from a PutPersonWithResponse call
-func ParsePutPersonResponse(rsp *http.Response) (*PutPersonResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PutPersonResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Person
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Person
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ValidationError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest MappingConflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest RevisionConflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
-		var dest BaseRevisionRequired
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON428 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeactivatePersonResponse parses an HTTP response from a DeactivatePersonWithResponse call
-func ParseDeactivatePersonResponse(rsp *http.Response) (*DeactivatePersonResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeactivatePersonResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Person
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest RevisionConflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
-		var dest BaseRevisionRequired
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON428 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUnbindPersonMappingResponse parses an HTTP response from a UnbindPersonMappingWithResponse call
-func ParseUnbindPersonMappingResponse(rsp *http.Response) (*UnbindPersonMappingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UnbindPersonMappingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseBindPersonMappingResponse parses an HTTP response from a BindPersonMappingWithResponse call
-func ParseBindPersonMappingResponse(rsp *http.Response) (*BindPersonMappingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &BindPersonMappingResponse{
+	response := &BindPartyMappingResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -56,8 +56,8 @@ func runWithdrawalWhileOffline(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(len(selected) == 3,
-		"three entity types are routed: %s", names(selected)); err != nil {
+	if err := say.Check(len(selected) == 2,
+		"two entity types are routed: %s", names(selected)); err != nil {
 		return err
 	}
 	if _, err := beta.Load(ctx); err != nil {

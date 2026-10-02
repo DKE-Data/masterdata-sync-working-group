@@ -124,24 +124,6 @@ func (e MasterdataResetEventDataEventType) Valid() bool {
 	}
 }
 
-// Defines values for PartyReferenceType.
-const (
-	PartyReferenceTypeOrganization PartyReferenceType = "organization"
-	PartyReferenceTypePerson       PartyReferenceType = "person"
-)
-
-// Valid indicates whether the value is a known member of the PartyReferenceType enum.
-func (e PartyReferenceType) Valid() bool {
-	switch e {
-	case PartyReferenceTypeOrganization:
-		return true
-	case PartyReferenceTypePerson:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for RouteChangedEventDataEventType.
 const (
 	ROUTECHANGED RouteChangedEventDataEventType = "ROUTE_CHANGED"
@@ -269,7 +251,7 @@ type EntityTypeToggle struct {
 	// EntityType [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). The entity type this toggle applies to.
 	//
 	//
-	// Examples: organization, person, farm, field, fieldBoundary
+	// Examples: party, farm, field, fieldBoundary
 	EntityType string `json:"entity_type"`
 }
 
@@ -335,8 +317,8 @@ type Farm struct {
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
-	// Owner The organization or person that holds the farm.
-	Owner PartyReference `json:"owner"`
+	// Owner The party that holds the farm.
+	Owner EntityReference `json:"owner"`
 
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
 	Partners nullable.Nullable[[]Partner] `json:"partners,omitempty"`
@@ -370,11 +352,8 @@ type Field struct {
 	Area nullable.Nullable[float32] `json:"area,omitempty"`
 
 	// Farm The farm this field belongs to.
-	Farm nullable.Nullable[EntityReference] `json:"farm,omitempty"`
-
-	// FieldBoundaries References to the field's boundaries.
-	FieldBoundaries nullable.Nullable[[]EntityReference] `json:"field_boundaries,omitempty"`
-	HarvestPeriod   nullable.Nullable[HarvestPeriod]     `json:"harvest_period,omitempty"`
+	Farm          nullable.Nullable[EntityReference] `json:"farm,omitempty"`
+	HarvestPeriod nullable.Nullable[HarvestPeriod]   `json:"harvest_period,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
@@ -388,8 +367,8 @@ type Field struct {
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
-	// Owner The organization or person holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
-	Owner nullable.Nullable[PartyReference] `json:"owner,omitempty"`
+	// Owner The party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
+	Owner nullable.Nullable[EntityReference] `json:"owner,omitempty"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int                        `json:"revision,omitempty"`
@@ -430,8 +409,11 @@ type FieldBoundary struct {
 	//
 	//
 	// Examples: UNKNOWN, MANUAL, DRIVEN, SURVEYED, AUTO_OPERATION, AUTO_IMAGERY, ADMINISTRATIVE
-	CreationMethod nullable.Nullable[string]        `json:"creation_method,omitempty"`
-	HarvestPeriod  nullable.Nullable[HarvestPeriod] `json:"harvest_period,omitempty"`
+	CreationMethod nullable.Nullable[string] `json:"creation_method,omitempty"`
+
+	// Field The field this boundary describes. A field's boundaries are the boundaries that name it.
+	Field         EntityReference                  `json:"field"`
+	HarvestPeriod nullable.Nullable[HarvestPeriod] `json:"harvest_period,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
@@ -442,8 +424,11 @@ type FieldBoundary struct {
 	Metadata nullable.Nullable[map[string]interface{}] `json:"metadata,omitempty"`
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
-	ModifiedAt *time.Time                    `json:"modified_at,omitempty"`
-	Obstacles  nullable.Nullable[[]Obstacle] `json:"obstacles,omitempty"`
+	ModifiedAt *time.Time `json:"modified_at,omitempty"`
+
+	// Name The name the boundary is known by, e.g. a field name and season.
+	Name      nullable.Nullable[string]     `json:"name,omitempty"`
+	Obstacles nullable.Nullable[[]Obstacle] `json:"obstacles,omitempty"`
 
 	// RegulatoryRequirements [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A regulatory constraint applying to the boundary.
 	//
@@ -645,10 +630,10 @@ type Membership struct {
 	// MemberRole [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A role drawn from the ADAPT Role data type.
 	//
 	//
-	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
+	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER, COLLECTOR
 	MemberRole Role `json:"member_role"`
 
-	// OrganizationId The organization the person belongs to.
+	// OrganizationId The organization the person belongs to: a party whose `details` is an organization. A write naming any other party is a `400`, and so is a change or removal of party type on an organization that persons still name.
 	OrganizationId EntityReference `json:"organization_id"`
 }
 
@@ -663,18 +648,37 @@ type Obstacle struct {
 	Type interface{} `json:"type"`
 }
 
-// Organization A legal entity that may hold land and to which persons may belong. It plays no fixed role: whether it acts as a contractor or as a client follows from the relations it stands in, not from an attribute.
-type Organization struct {
+// OrganizationDetails A legal entity to which persons may belong.
+type OrganizationDetails struct {
+	// CommercialRegistryNumber Identifier from the commercial register.
+	CommercialRegistryNumber nullable.Nullable[string] `json:"commercial_registry_number,omitempty"`
+	PartyType                interface{}               `json:"party_type"`
+}
+
+// Partner A party holding a role on a farm — the contractor that works it, the advisor that reads it. Records a business relationship only. It does NOT grant visibility of the farm: what an endpoint receives is decided by opt-in and routing.
+type Partner struct {
+	// PartnerId The party acting as partner.
+	PartnerId EntityReference `json:"partner_id"`
+
+	// PartnerRole [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A role drawn from the ADAPT Role data type.
+	//
+	//
+	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER, COLLECTOR
+	PartnerRole Role `json:"partner_role"`
+}
+
+// Party A legal or natural actor: a person, an organization, or a party whose party type its sender does not record. It plays no fixed role: whether it acts as a contractor or as a client follows from the relations it stands in, not from an attribute.
+type Party struct {
 	Active  *bool                      `json:"active,omitempty"`
 	Address nullable.Nullable[Address] `json:"address,omitempty"`
 
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId   *openapi_types.UUID        `json:"agrirouter_id,omitempty"`
 	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
+	Contact        nullable.Nullable[Contact] `json:"contact,omitempty"`
 
-	// CommercialRegistryNumber Identifier from the commercial register.
-	CommercialRegistryNumber nullable.Nullable[string]  `json:"commercial_registry_number,omitempty"`
-	Contact                  nullable.Nullable[Contact] `json:"contact,omitempty"`
+	// Details Whether the party is a person or an organization, with the attributes specific to that party type. Absent means the party type is unknown. Whatever a write sends here is stated to every participant, whether the sender recorded the party type or chose it.
+	Details nullable.Nullable[PartyDetails] `json:"details,omitempty"`
 
 	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
 	//
@@ -683,7 +687,9 @@ type Organization struct {
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
-	Name       string     `json:"name"`
+
+	// Name The name the party is known by: an organization's name, a person's full name.
+	Name string `json:"name"`
 
 	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
 	Revision *int `json:"revision,omitempty"`
@@ -709,97 +715,20 @@ type Organization struct {
 	Type interface{} `json:"type"`
 }
 
-// Partner A party holding a role on a farm — the contractor that works it, the advisor that reads it. Records a business relationship only. It does NOT grant visibility of the farm: what an endpoint receives is decided by opt-in and routing.
-type Partner struct {
-	// PartnerId The organization or person acting as partner.
-	PartnerId PartyReference `json:"partner_id"`
-
-	// PartnerRole [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A role drawn from the ADAPT Role data type.
-	//
-	//
-	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
-	PartnerRole Role `json:"partner_role"`
+// PartyDetails The type of a party. `party_type` is a closed set, since it selects the schema of the remaining attributes, and each type admits only its own attributes.
+type PartyDetails struct {
+	union json.RawMessage
 }
 
-// Party Attributes common to every party, whether an organization or a natural person. A farmer carries the fiscal identifiers as much as a company does; only the commercial register entry is specific to organizations.
-type Party struct {
-	Address        nullable.Nullable[Address] `json:"address,omitempty"`
-	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
-	Contact        nullable.Nullable[Contact] `json:"contact,omitempty"`
-
-	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId nullable.Nullable[string] `json:"tax_id,omitempty"`
-
-	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber nullable.Nullable[string] `json:"tax_number,omitempty"`
-
-	// TradeId Numerical identifier assigned by public authorities.
-	TradeId nullable.Nullable[string] `json:"trade_id,omitempty"`
-}
-
-// PartyReference A reference to a party. The slot admits both organizations and persons, so the entity type is required: a receiver that does not hold the target must lazy-load it, and the request endpoints are per entity type. Typed slots such as a field's farm need no discriminator.
-type PartyReference struct {
-	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
-	LocalId      *string             `json:"local_id,omitempty"`
-	Type         PartyReferenceType  `json:"type"`
-	union        json.RawMessage
-}
-
-// PartyReferenceType defines model for PartyReference.Type.
-type PartyReferenceType string
-
-// PartyReference0 defines model for PartyReference.0.
-type PartyReference0 = interface{}
-
-// PartyReference1 defines model for PartyReference.1.
-type PartyReference1 = interface{}
-
-// Person A natural person. A person may hold land, and may belong to one or more organizations through `memberships`.
-type Person struct {
-	Active  *bool                      `json:"active,omitempty"`
-	Address nullable.Nullable[Address] `json:"address,omitempty"`
-
-	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
-	AgrirouterId   *openapi_types.UUID        `json:"agrirouter_id,omitempty"`
-	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
-	Contact        nullable.Nullable[Contact] `json:"contact,omitempty"`
-	FirstName      nullable.Nullable[string]  `json:"first_name,omitempty"`
-	LastName       string                     `json:"last_name"`
-
-	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
-	//
-	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
-	LocalId *string `json:"local_id,omitempty"`
+// PersonDetails A natural person. A person may belong to one or more organizations through `memberships`.
+type PersonDetails struct {
+	FirstName nullable.Nullable[string] `json:"first_name,omitempty"`
+	LastName  nullable.Nullable[string] `json:"last_name,omitempty"`
 
 	// Memberships The organizations this person belongs to, each with the role held there. A person carrying at least one entry is a member.
 	Memberships nullable.Nullable[[]Membership] `json:"memberships,omitempty"`
-
-	// ModifiedAt Assigned by agrirouter. Ignored on send.
-	ModifiedAt *time.Time `json:"modified_at,omitempty"`
-
-	// Revision Monotonic per-object counter maintained by agrirouter. Never taken from the body: the revision a write was made from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded. Ignored on send.
-	Revision *int `json:"revision,omitempty"`
-
-	// SourceEndpointId The agrirouter identifier of the endpoint whose change produced this revision. It always belongs to `tenant_id`. Ignored on send.
-	SourceEndpointId *openapi_types.UUID `json:"source_endpoint_id,omitempty"`
-
-	// TaxId Numerical identifier assigned by tax authorities.
-	TaxId nullable.Nullable[string] `json:"tax_id,omitempty"`
-
-	// TaxNumber Identifier assigned by tax authorities.
-	TaxNumber nullable.Nullable[string] `json:"tax_number,omitempty"`
-
-	// TenantId The tenant the object belongs to. Assigned by agrirouter. On send the tenant follows from the endpoint named in `x-agrirouter-endpoint-id`; a `tenant_id` sent must be that tenant.
-	//
-	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
-	TenantId *openapi_types.UUID       `json:"tenant_id,omitempty"`
-	Title    nullable.Nullable[string] `json:"title,omitempty"`
-
-	// TradeId Numerical identifier assigned by public authorities.
-	TradeId nullable.Nullable[string] `json:"trade_id,omitempty"`
-
-	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
-	Type interface{} `json:"type"`
+	PartyType   interface{}                     `json:"party_type"`
+	Title       nullable.Nullable[string]       `json:"title,omitempty"`
 }
 
 // PutEndpointRequest defines model for PutEndpointRequest.
@@ -863,7 +792,7 @@ type RevisionConflictError struct {
 
 // Role [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A role drawn from the ADAPT Role data type.
 //
-// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER
+// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER, COLLECTOR
 type Role = string
 
 // RouteChangedEventData Data structure for `ROUTE_CHANGED` events on `/masterdata/events`. It states which entity types the user has selected for one of the application's endpoints.
@@ -883,7 +812,7 @@ type RouteChangedEventData struct {
 	// An empty array is a statement and not an omission: it says the endpoint exchanges nothing, because the user deselected the last entity type or the route was removed.
 	//
 	//
-	// Examples: [{"entity_type":"organization"},{"entity_type":"person"},{"entity_type":"farm"}]
+	// Examples: [{"entity_type":"party"},{"entity_type":"farm"}]
 	EntityTypes []EntityTypeToggle `json:"entity_types"`
 
 	// EventType Discriminator; matches the `event:` line.
@@ -1200,8 +1129,8 @@ type BindFieldMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// RequestOrganizationParams defines parameters for RequestOrganization.
-type RequestOrganizationParams struct {
+// RequestPartyParams defines parameters for RequestParty.
+type RequestPartyParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1211,26 +1140,8 @@ type RequestOrganizationParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// PutOrganizationParams defines parameters for PutOrganization.
-type PutOrganizationParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
-	//
-	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
-
-	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
-
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
-	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
-	//
-	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
-}
-
-// DeactivateOrganizationParams defines parameters for DeactivateOrganization.
-type DeactivateOrganizationParams struct {
+// PutPartyParams defines parameters for PutParty.
+type PutPartyParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1247,41 +1158,8 @@ type DeactivateOrganizationParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// UnbindOrganizationMappingParams defines parameters for UnbindOrganizationMapping.
-type UnbindOrganizationMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
-	//
-	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
-
-	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
-}
-
-// BindOrganizationMappingParams defines parameters for BindOrganizationMapping.
-type BindOrganizationMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
-	//
-	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
-
-	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
-}
-
-// RequestPersonParams defines parameters for RequestPerson.
-type RequestPersonParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
-	//
-	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
-
-	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
-}
-
-// PutPersonParams defines parameters for PutPerson.
-type PutPersonParams struct {
+// DeactivatePartyParams defines parameters for DeactivateParty.
+type DeactivatePartyParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1298,26 +1176,8 @@ type PutPersonParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// DeactivatePersonParams defines parameters for DeactivatePerson.
-type DeactivatePersonParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
-	//
-	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
-
-	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
-
-	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
-	//
-	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
-	//
-	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
-	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
-}
-
-// UnbindPersonMappingParams defines parameters for UnbindPersonMapping.
-type UnbindPersonMappingParams struct {
+// UnbindPartyMappingParams defines parameters for UnbindPartyMapping.
+type UnbindPartyMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1327,8 +1187,8 @@ type UnbindPersonMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// BindPersonMappingParams defines parameters for BindPersonMapping.
-type BindPersonMappingParams struct {
+// BindPartyMappingParams defines parameters for BindPartyMapping.
+type BindPartyMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1362,77 +1222,37 @@ type RequestFieldJSONRequestBody = EntityRequest
 // PutFieldJSONRequestBody defines body for PutField for application/json ContentType.
 type PutFieldJSONRequestBody = Field
 
-// RequestOrganizationJSONRequestBody defines body for RequestOrganization for application/json ContentType.
-type RequestOrganizationJSONRequestBody = EntityRequest
+// RequestPartyJSONRequestBody defines body for RequestParty for application/json ContentType.
+type RequestPartyJSONRequestBody = EntityRequest
 
-// PutOrganizationJSONRequestBody defines body for PutOrganization for application/json ContentType.
-type PutOrganizationJSONRequestBody = Organization
+// PutPartyJSONRequestBody defines body for PutParty for application/json ContentType.
+type PutPartyJSONRequestBody = Party
 
-// RequestPersonJSONRequestBody defines body for RequestPerson for application/json ContentType.
-type RequestPersonJSONRequestBody = EntityRequest
-
-// PutPersonJSONRequestBody defines body for PutPerson for application/json ContentType.
-type PutPersonJSONRequestBody = Person
-
-// AsOrganization returns the union data inside the Entity as a Organization
-func (t Entity) AsOrganization() (Organization, error) {
-	var body Organization
+// AsParty returns the union data inside the Entity as a Party
+func (t Entity) AsParty() (Party, error) {
+	var body Party
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromOrganization overwrites any union data inside the Entity as the provided Organization
-func (t *Entity) FromOrganization(v Organization) error {
+// FromParty overwrites any union data inside the Entity as the provided Party
+func (t *Entity) FromParty(v Party) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	b, err = runtime.JSONMerge(b, []byte(`{"type":"organization"}`))
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"party"}`))
 	t.union = b
 	return err
 }
 
-// MergeOrganization performs a merge with any union data inside the Entity, using the provided Organization
-func (t *Entity) MergeOrganization(v Organization) error {
+// MergeParty performs a merge with any union data inside the Entity, using the provided Party
+func (t *Entity) MergeParty(v Party) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	b, err = runtime.JSONMerge(b, []byte(`{"type":"organization"}`))
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPerson returns the union data inside the Entity as a Person
-func (t Entity) AsPerson() (Person, error) {
-	var body Person
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPerson overwrites any union data inside the Entity as the provided Person
-func (t *Entity) FromPerson(v Person) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	b, err = runtime.JSONMerge(b, []byte(`{"type":"person"}`))
-	t.union = b
-	return err
-}
-
-// MergePerson performs a merge with any union data inside the Entity, using the provided Person
-func (t *Entity) MergePerson(v Person) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	b, err = runtime.JSONMerge(b, []byte(`{"type":"person"}`))
+	b, err = runtime.JSONMerge(b, []byte(`{"type":"party"}`))
 	if err != nil {
 		return err
 	}
@@ -1564,10 +1384,8 @@ func (t Entity) ValueByDiscriminator() (interface{}, error) {
 		return t.AsField()
 	case "fieldBoundary":
 		return t.AsFieldBoundary()
-	case "organization":
-		return t.AsOrganization()
-	case "person":
-		return t.AsPerson()
+	case "party":
+		return t.AsParty()
 	default:
 		return nil, errors.New("unknown discriminator value: " + discriminator)
 	}
@@ -1693,23 +1511,31 @@ func (t *EntityReference) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsPartyReference0 returns the union data inside the PartyReference as a PartyReference0
-func (t PartyReference) AsPartyReference0() (PartyReference0, error) {
-	var body PartyReference0
+// AsPersonDetails returns the union data inside the PartyDetails as a PersonDetails
+func (t PartyDetails) AsPersonDetails() (PersonDetails, error) {
+	var body PersonDetails
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromPartyReference0 overwrites any union data inside the PartyReference as the provided PartyReference0
-func (t *PartyReference) FromPartyReference0(v PartyReference0) error {
+// FromPersonDetails overwrites any union data inside the PartyDetails as the provided PersonDetails
+func (t *PartyDetails) FromPersonDetails(v PersonDetails) error {
 	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"party_type":"PERSON"}`))
 	t.union = b
 	return err
 }
 
-// MergePartyReference0 performs a merge with any union data inside the PartyReference, using the provided PartyReference0
-func (t *PartyReference) MergePartyReference0(v PartyReference0) error {
+// MergePersonDetails performs a merge with any union data inside the PartyDetails, using the provided PersonDetails
+func (t *PartyDetails) MergePersonDetails(v PersonDetails) error {
 	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"party_type":"PERSON"}`))
 	if err != nil {
 		return err
 	}
@@ -1719,23 +1545,31 @@ func (t *PartyReference) MergePartyReference0(v PartyReference0) error {
 	return err
 }
 
-// AsPartyReference1 returns the union data inside the PartyReference as a PartyReference1
-func (t PartyReference) AsPartyReference1() (PartyReference1, error) {
-	var body PartyReference1
+// AsOrganizationDetails returns the union data inside the PartyDetails as a OrganizationDetails
+func (t PartyDetails) AsOrganizationDetails() (OrganizationDetails, error) {
+	var body OrganizationDetails
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromPartyReference1 overwrites any union data inside the PartyReference as the provided PartyReference1
-func (t *PartyReference) FromPartyReference1(v PartyReference1) error {
+// FromOrganizationDetails overwrites any union data inside the PartyDetails as the provided OrganizationDetails
+func (t *PartyDetails) FromOrganizationDetails(v OrganizationDetails) error {
 	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"party_type":"ORGANIZATION"}`))
 	t.union = b
 	return err
 }
 
-// MergePartyReference1 performs a merge with any union data inside the PartyReference, using the provided PartyReference1
-func (t *PartyReference) MergePartyReference1(v PartyReference1) error {
+// MergeOrganizationDetails performs a merge with any union data inside the PartyDetails, using the provided OrganizationDetails
+func (t *PartyDetails) MergeOrganizationDetails(v OrganizationDetails) error {
 	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"party_type":"ORGANIZATION"}`))
 	if err != nil {
 		return err
 	}
@@ -1745,74 +1579,36 @@ func (t *PartyReference) MergePartyReference1(v PartyReference1) error {
 	return err
 }
 
-func (t PartyReference) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
+func (t PartyDetails) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"party_type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t PartyDetails) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
 	if err != nil {
 		return nil, err
 	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
+	switch discriminator {
+	case "ORGANIZATION":
+		return t.AsOrganizationDetails()
+	case "PERSON":
+		return t.AsPersonDetails()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
 	}
+}
 
-	if t.AgrirouterId != nil {
-		object["agrirouter_id"], err = json.Marshal(t.AgrirouterId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'agrirouter_id': %w", err)
-		}
-	}
-
-	if t.LocalId != nil {
-		object["local_id"], err = json.Marshal(t.LocalId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'local_id': %w", err)
-		}
-	}
-
-	object["type"], err = json.Marshal(t.Type)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'type': %w", err)
-	}
-
-	b, err = json.Marshal(object)
+func (t PartyDetails) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *PartyReference) UnmarshalJSON(b []byte) error {
+func (t *PartyDetails) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["agrirouter_id"]; found {
-		err = json.Unmarshal(raw, &t.AgrirouterId)
-		if err != nil {
-			return fmt.Errorf("error reading 'agrirouter_id': %w", err)
-		}
-	}
-
-	if raw, found := object["local_id"]; found {
-		err = json.Unmarshal(raw, &t.LocalId)
-		if err != nil {
-			return fmt.Errorf("error reading 'local_id': %w", err)
-		}
-	}
-
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &t.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-	}
-
 	return err
 }
 
@@ -1881,36 +1677,21 @@ type ServerInterface interface {
 	// BindFieldMapping Bind a local identifier to an existing field
 	// (PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldMappingParams) error
-	// RequestOrganization Request an organization (lazy loading)
-	// (POST /masterdata/organizations/requests)
-	RequestOrganization(ctx echo.Context, params RequestOrganizationParams) error
-	// PutOrganization Send (create or update) an organization
-	// (PUT /masterdata/organizations/{local_id})
-	PutOrganization(ctx echo.Context, localId LocalId, params PutOrganizationParams) error
-	// DeactivateOrganization Deactivate an organization
-	// (POST /masterdata/organizations/{local_id}/deactivation)
-	DeactivateOrganization(ctx echo.Context, localId LocalId, params DeactivateOrganizationParams) error
-	// UnbindOrganizationMapping Declare that this endpoint no longer holds an organization
-	// (DELETE /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id})
-	UnbindOrganizationMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindOrganizationMappingParams) error
-	// BindOrganizationMapping Bind a local identifier to an existing organization
-	// (PUT /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id})
-	BindOrganizationMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindOrganizationMappingParams) error
-	// RequestPerson Request a person (lazy loading)
-	// (POST /masterdata/persons/requests)
-	RequestPerson(ctx echo.Context, params RequestPersonParams) error
-	// PutPerson Send (create or update) a person
-	// (PUT /masterdata/persons/{local_id})
-	PutPerson(ctx echo.Context, localId LocalId, params PutPersonParams) error
-	// DeactivatePerson Deactivate a person
-	// (POST /masterdata/persons/{local_id}/deactivation)
-	DeactivatePerson(ctx echo.Context, localId LocalId, params DeactivatePersonParams) error
-	// UnbindPersonMapping Declare that this endpoint no longer holds a person
-	// (DELETE /masterdata/persons/{local_id}/id-mapping/{agrirouter_id})
-	UnbindPersonMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindPersonMappingParams) error
-	// BindPersonMapping Bind a local identifier to an existing person
-	// (PUT /masterdata/persons/{local_id}/id-mapping/{agrirouter_id})
-	BindPersonMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindPersonMappingParams) error
+	// RequestParty Request a party (lazy loading)
+	// (POST /masterdata/parties/requests)
+	RequestParty(ctx echo.Context, params RequestPartyParams) error
+	// PutParty Send (create or update) a party
+	// (PUT /masterdata/parties/{local_id})
+	PutParty(ctx echo.Context, localId LocalId, params PutPartyParams) error
+	// DeactivateParty Deactivate a party
+	// (POST /masterdata/parties/{local_id}/deactivation)
+	DeactivateParty(ctx echo.Context, localId LocalId, params DeactivatePartyParams) error
+	// UnbindPartyMapping Declare that this endpoint no longer holds a party
+	// (DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
+	UnbindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindPartyMappingParams) error
+	// BindPartyMapping Bind a local identifier to an existing party
+	// (PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
+	BindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindPartyMappingParams) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -3079,12 +2860,12 @@ func (w *ServerInterfaceWrapper) BindFieldMapping(ctx echo.Context) error {
 	return err
 }
 
-// RequestOrganization converts echo context to params.
-func (w *ServerInterfaceWrapper) RequestOrganization(ctx echo.Context) error {
+// RequestParty converts echo context to params.
+func (w *ServerInterfaceWrapper) RequestParty(ctx echo.Context) error {
 	var err error
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params RequestOrganizationParams
+	var params RequestPartyParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3123,12 +2904,12 @@ func (w *ServerInterfaceWrapper) RequestOrganization(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.RequestOrganization(ctx, params)
+	err = w.Handler.RequestParty(ctx, params)
 	return err
 }
 
-// PutOrganization converts echo context to params.
-func (w *ServerInterfaceWrapper) PutOrganization(ctx echo.Context) error {
+// PutParty converts echo context to params.
+func (w *ServerInterfaceWrapper) PutParty(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3139,7 +2920,7 @@ func (w *ServerInterfaceWrapper) PutOrganization(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params PutOrganizationParams
+	var params PutPartyParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3193,12 +2974,12 @@ func (w *ServerInterfaceWrapper) PutOrganization(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PutOrganization(ctx, localId, params)
+	err = w.Handler.PutParty(ctx, localId, params)
 	return err
 }
 
-// DeactivateOrganization converts echo context to params.
-func (w *ServerInterfaceWrapper) DeactivateOrganization(ctx echo.Context) error {
+// DeactivateParty converts echo context to params.
+func (w *ServerInterfaceWrapper) DeactivateParty(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3209,7 +2990,7 @@ func (w *ServerInterfaceWrapper) DeactivateOrganization(ctx echo.Context) error 
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params DeactivateOrganizationParams
+	var params DeactivatePartyParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3263,12 +3044,12 @@ func (w *ServerInterfaceWrapper) DeactivateOrganization(ctx echo.Context) error 
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeactivateOrganization(ctx, localId, params)
+	err = w.Handler.DeactivateParty(ctx, localId, params)
 	return err
 }
 
-// UnbindOrganizationMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) UnbindOrganizationMapping(ctx echo.Context) error {
+// UnbindPartyMapping converts echo context to params.
+func (w *ServerInterfaceWrapper) UnbindPartyMapping(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3287,7 +3068,7 @@ func (w *ServerInterfaceWrapper) UnbindOrganizationMapping(ctx echo.Context) err
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params UnbindOrganizationMappingParams
+	var params UnbindPartyMappingParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3326,12 +3107,12 @@ func (w *ServerInterfaceWrapper) UnbindOrganizationMapping(ctx echo.Context) err
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UnbindOrganizationMapping(ctx, localId, agrirouterId, params)
+	err = w.Handler.UnbindPartyMapping(ctx, localId, agrirouterId, params)
 	return err
 }
 
-// BindOrganizationMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) BindOrganizationMapping(ctx echo.Context) error {
+// BindPartyMapping converts echo context to params.
+func (w *ServerInterfaceWrapper) BindPartyMapping(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3350,7 +3131,7 @@ func (w *ServerInterfaceWrapper) BindOrganizationMapping(ctx echo.Context) error
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params BindOrganizationMappingParams
+	var params BindPartyMappingParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3389,321 +3170,7 @@ func (w *ServerInterfaceWrapper) BindOrganizationMapping(ctx echo.Context) error
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BindOrganizationMapping(ctx, localId, agrirouterId, params)
-	return err
-}
-
-// RequestPerson converts echo context to params.
-func (w *ServerInterfaceWrapper) RequestPerson(ctx echo.Context) error {
-	var err error
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params RequestPersonParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.RequestPerson(ctx, params)
-	return err
-}
-
-// PutPerson converts echo context to params.
-func (w *ServerInterfaceWrapper) PutPerson(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params PutPersonParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
-		var XAgrirouterBaseRevision BaseRevision
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
-		}
-
-		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.PutPerson(ctx, localId, params)
-	return err
-}
-
-// DeactivatePerson converts echo context to params.
-func (w *ServerInterfaceWrapper) DeactivatePerson(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params DeactivatePersonParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-	// ------------- Optional header parameter "x-agrirouter-base-revision" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-base-revision")]; found {
-		var XAgrirouterBaseRevision BaseRevision
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-base-revision, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-base-revision", valueList[0], &XAgrirouterBaseRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-base-revision: %s", err))
-		}
-
-		params.XAgrirouterBaseRevision = &XAgrirouterBaseRevision
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeactivatePerson(ctx, localId, params)
-	return err
-}
-
-// UnbindPersonMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) UnbindPersonMapping(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// ------------- Path parameter "agrirouter_id" -------------
-	var agrirouterId IdMappingAgrirouterId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agrirouter_id", ctx.Param("agrirouter_id"), &agrirouterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter agrirouter_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params UnbindPersonMappingParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UnbindPersonMapping(ctx, localId, agrirouterId, params)
-	return err
-}
-
-// BindPersonMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) BindPersonMapping(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// ------------- Path parameter "agrirouter_id" -------------
-	var agrirouterId IdMappingAgrirouterId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agrirouter_id", ctx.Param("agrirouter_id"), &agrirouterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter agrirouter_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params BindPersonMappingParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.BindPersonMapping(ctx, localId, agrirouterId, params)
+	err = w.Handler.BindPartyMapping(ctx, localId, agrirouterId, params)
 	return err
 }
 
@@ -3754,16 +3221,11 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 		Handler: si,
 	}
 
-	router.PUT(options.BaseURL+"/masterdata/organizations/:local_id", wrapper.PutOrganization, options.OperationMiddlewares["putOrganization"]...)
-	router.DELETE(options.BaseURL+"/masterdata/organizations/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindOrganizationMapping, options.OperationMiddlewares["unbindOrganizationMapping"]...)
-	router.PUT(options.BaseURL+"/masterdata/organizations/:local_id/id-mapping/:agrirouter_id", wrapper.BindOrganizationMapping, options.OperationMiddlewares["bindOrganizationMapping"]...)
-	router.POST(options.BaseURL+"/masterdata/organizations/:local_id/deactivation", wrapper.DeactivateOrganization, options.OperationMiddlewares["deactivateOrganization"]...)
-	router.POST(options.BaseURL+"/masterdata/organizations/requests", wrapper.RequestOrganization, options.OperationMiddlewares["requestOrganization"]...)
-	router.PUT(options.BaseURL+"/masterdata/persons/:local_id", wrapper.PutPerson, options.OperationMiddlewares["putPerson"]...)
-	router.DELETE(options.BaseURL+"/masterdata/persons/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindPersonMapping, options.OperationMiddlewares["unbindPersonMapping"]...)
-	router.PUT(options.BaseURL+"/masterdata/persons/:local_id/id-mapping/:agrirouter_id", wrapper.BindPersonMapping, options.OperationMiddlewares["bindPersonMapping"]...)
-	router.POST(options.BaseURL+"/masterdata/persons/:local_id/deactivation", wrapper.DeactivatePerson, options.OperationMiddlewares["deactivatePerson"]...)
-	router.POST(options.BaseURL+"/masterdata/persons/requests", wrapper.RequestPerson, options.OperationMiddlewares["requestPerson"]...)
+	router.PUT(options.BaseURL+"/masterdata/parties/:local_id", wrapper.PutParty, options.OperationMiddlewares["putParty"]...)
+	router.DELETE(options.BaseURL+"/masterdata/parties/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindPartyMapping, options.OperationMiddlewares["unbindPartyMapping"]...)
+	router.PUT(options.BaseURL+"/masterdata/parties/:local_id/id-mapping/:agrirouter_id", wrapper.BindPartyMapping, options.OperationMiddlewares["bindPartyMapping"]...)
+	router.POST(options.BaseURL+"/masterdata/parties/:local_id/deactivation", wrapper.DeactivateParty, options.OperationMiddlewares["deactivateParty"]...)
+	router.POST(options.BaseURL+"/masterdata/parties/requests", wrapper.RequestParty, options.OperationMiddlewares["requestParty"]...)
 	router.PUT(options.BaseURL+"/masterdata/farms/:local_id", wrapper.PutFarm, options.OperationMiddlewares["putFarm"]...)
 	router.DELETE(options.BaseURL+"/masterdata/farms/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindFarmMapping, options.OperationMiddlewares["unbindFarmMapping"]...)
 	router.PUT(options.BaseURL+"/masterdata/farms/:local_id/id-mapping/:agrirouter_id", wrapper.BindFarmMapping, options.OperationMiddlewares["bindFarmMapping"]...)
@@ -5283,25 +4745,25 @@ func (response BindFieldMapping409JSONResponse) VisitBindFieldMappingResponse(w 
 	return err
 }
 
-type RequestOrganizationRequestObject struct {
-	Params RequestOrganizationParams
-	Body   *RequestOrganizationJSONRequestBody
+type RequestPartyRequestObject struct {
+	Params RequestPartyParams
+	Body   *RequestPartyJSONRequestBody
 }
 
-type RequestOrganizationResponseObject interface {
-	VisitRequestOrganizationResponse(w http.ResponseWriter) error
+type RequestPartyResponseObject interface {
+	VisitRequestPartyResponse(w http.ResponseWriter) error
 }
 
-type RequestOrganization202Response = RequestAcceptedResponse
+type RequestParty202Response = RequestAcceptedResponse
 
-func (response RequestOrganization202Response) VisitRequestOrganizationResponse(w http.ResponseWriter) error {
+func (response RequestParty202Response) VisitRequestPartyResponse(w http.ResponseWriter) error {
 	w.WriteHeader(202)
 	return nil
 }
 
-type RequestOrganization403JSONResponse struct{ ForbiddenJSONResponse }
+type RequestParty403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response RequestOrganization403JSONResponse) VisitRequestOrganizationResponse(w http.ResponseWriter) error {
+func (response RequestParty403JSONResponse) VisitRequestPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5313,9 +4775,9 @@ func (response RequestOrganization403JSONResponse) VisitRequestOrganizationRespo
 	return err
 }
 
-type RequestOrganization404JSONResponse struct{ NotFoundJSONResponse }
+type RequestParty404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response RequestOrganization404JSONResponse) VisitRequestOrganizationResponse(w http.ResponseWriter) error {
+func (response RequestParty404JSONResponse) VisitRequestPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5327,19 +4789,19 @@ func (response RequestOrganization404JSONResponse) VisitRequestOrganizationRespo
 	return err
 }
 
-type PutOrganizationRequestObject struct {
+type PutPartyRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  PutOrganizationParams
-	Body    *PutOrganizationJSONRequestBody
+	Params  PutPartyParams
+	Body    *PutPartyJSONRequestBody
 }
 
-type PutOrganizationResponseObject interface {
-	VisitPutOrganizationResponse(w http.ResponseWriter) error
+type PutPartyResponseObject interface {
+	VisitPutPartyResponse(w http.ResponseWriter) error
 }
 
-type PutOrganization200JSONResponse Organization
+type PutParty200JSONResponse Party
 
-func (response PutOrganization200JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty200JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5351,9 +4813,9 @@ func (response PutOrganization200JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type PutOrganization201JSONResponse Organization
+type PutParty201JSONResponse Party
 
-func (response PutOrganization201JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty201JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5365,9 +4827,9 @@ func (response PutOrganization201JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type PutOrganization400JSONResponse struct{ ValidationErrorJSONResponse }
+type PutParty400JSONResponse struct{ ValidationErrorJSONResponse }
 
-func (response PutOrganization400JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty400JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5379,9 +4841,9 @@ func (response PutOrganization400JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type PutOrganization403JSONResponse struct{ ForbiddenJSONResponse }
+type PutParty403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response PutOrganization403JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty403JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5393,9 +4855,9 @@ func (response PutOrganization403JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type PutOrganization409JSONResponse struct{ MappingConflictJSONResponse }
+type PutParty409JSONResponse struct{ MappingConflictJSONResponse }
 
-func (response PutOrganization409JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty409JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5407,9 +4869,9 @@ func (response PutOrganization409JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type PutOrganization412JSONResponse struct{ RevisionConflictJSONResponse }
+type PutParty412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response PutOrganization412JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty412JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5421,11 +4883,11 @@ func (response PutOrganization412JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type PutOrganization428JSONResponse struct {
+type PutParty428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response PutOrganization428JSONResponse) VisitPutOrganizationResponse(w http.ResponseWriter) error {
+func (response PutParty428JSONResponse) VisitPutPartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5437,18 +4899,18 @@ func (response PutOrganization428JSONResponse) VisitPutOrganizationResponse(w ht
 	return err
 }
 
-type DeactivateOrganizationRequestObject struct {
+type DeactivatePartyRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  DeactivateOrganizationParams
+	Params  DeactivatePartyParams
 }
 
-type DeactivateOrganizationResponseObject interface {
-	VisitDeactivateOrganizationResponse(w http.ResponseWriter) error
+type DeactivatePartyResponseObject interface {
+	VisitDeactivatePartyResponse(w http.ResponseWriter) error
 }
 
-type DeactivateOrganization200JSONResponse Organization
+type DeactivateParty200JSONResponse Party
 
-func (response DeactivateOrganization200JSONResponse) VisitDeactivateOrganizationResponse(w http.ResponseWriter) error {
+func (response DeactivateParty200JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5460,9 +4922,9 @@ func (response DeactivateOrganization200JSONResponse) VisitDeactivateOrganizatio
 	return err
 }
 
-type DeactivateOrganization403JSONResponse struct{ ForbiddenJSONResponse }
+type DeactivateParty403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response DeactivateOrganization403JSONResponse) VisitDeactivateOrganizationResponse(w http.ResponseWriter) error {
+func (response DeactivateParty403JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5474,9 +4936,9 @@ func (response DeactivateOrganization403JSONResponse) VisitDeactivateOrganizatio
 	return err
 }
 
-type DeactivateOrganization404JSONResponse struct{ NotFoundJSONResponse }
+type DeactivateParty404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response DeactivateOrganization404JSONResponse) VisitDeactivateOrganizationResponse(w http.ResponseWriter) error {
+func (response DeactivateParty404JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5488,9 +4950,9 @@ func (response DeactivateOrganization404JSONResponse) VisitDeactivateOrganizatio
 	return err
 }
 
-type DeactivateOrganization412JSONResponse struct{ RevisionConflictJSONResponse }
+type DeactivateParty412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response DeactivateOrganization412JSONResponse) VisitDeactivateOrganizationResponse(w http.ResponseWriter) error {
+func (response DeactivateParty412JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5502,11 +4964,11 @@ func (response DeactivateOrganization412JSONResponse) VisitDeactivateOrganizatio
 	return err
 }
 
-type DeactivateOrganization428JSONResponse struct {
+type DeactivateParty428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response DeactivateOrganization428JSONResponse) VisitDeactivateOrganizationResponse(w http.ResponseWriter) error {
+func (response DeactivateParty428JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5518,27 +4980,27 @@ func (response DeactivateOrganization428JSONResponse) VisitDeactivateOrganizatio
 	return err
 }
 
-type UnbindOrganizationMappingRequestObject struct {
+type UnbindPartyMappingRequestObject struct {
 	LocalId      LocalId               `json:"local_id"`
 	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       UnbindOrganizationMappingParams
+	Params       UnbindPartyMappingParams
 }
 
-type UnbindOrganizationMappingResponseObject interface {
-	VisitUnbindOrganizationMappingResponse(w http.ResponseWriter) error
+type UnbindPartyMappingResponseObject interface {
+	VisitUnbindPartyMappingResponse(w http.ResponseWriter) error
 }
 
-type UnbindOrganizationMapping204Response struct {
+type UnbindPartyMapping204Response struct {
 }
 
-func (response UnbindOrganizationMapping204Response) VisitUnbindOrganizationMappingResponse(w http.ResponseWriter) error {
+func (response UnbindPartyMapping204Response) VisitUnbindPartyMappingResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
 	return nil
 }
 
-type UnbindOrganizationMapping403JSONResponse struct{ ForbiddenJSONResponse }
+type UnbindPartyMapping403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response UnbindOrganizationMapping403JSONResponse) VisitUnbindOrganizationMappingResponse(w http.ResponseWriter) error {
+func (response UnbindPartyMapping403JSONResponse) VisitUnbindPartyMappingResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5550,9 +5012,9 @@ func (response UnbindOrganizationMapping403JSONResponse) VisitUnbindOrganization
 	return err
 }
 
-type UnbindOrganizationMapping404JSONResponse struct{ NotFoundJSONResponse }
+type UnbindPartyMapping404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response UnbindOrganizationMapping404JSONResponse) VisitUnbindOrganizationMappingResponse(w http.ResponseWriter) error {
+func (response UnbindPartyMapping404JSONResponse) VisitUnbindPartyMappingResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5564,27 +5026,27 @@ func (response UnbindOrganizationMapping404JSONResponse) VisitUnbindOrganization
 	return err
 }
 
-type BindOrganizationMappingRequestObject struct {
+type BindPartyMappingRequestObject struct {
 	LocalId      LocalId               `json:"local_id"`
 	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       BindOrganizationMappingParams
+	Params       BindPartyMappingParams
 }
 
-type BindOrganizationMappingResponseObject interface {
-	VisitBindOrganizationMappingResponse(w http.ResponseWriter) error
+type BindPartyMappingResponseObject interface {
+	VisitBindPartyMappingResponse(w http.ResponseWriter) error
 }
 
-type BindOrganizationMapping204Response struct {
+type BindPartyMapping204Response struct {
 }
 
-func (response BindOrganizationMapping204Response) VisitBindOrganizationMappingResponse(w http.ResponseWriter) error {
+func (response BindPartyMapping204Response) VisitBindPartyMappingResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
 	return nil
 }
 
-type BindOrganizationMapping403JSONResponse struct{ ForbiddenJSONResponse }
+type BindPartyMapping403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response BindOrganizationMapping403JSONResponse) VisitBindOrganizationMappingResponse(w http.ResponseWriter) error {
+func (response BindPartyMapping403JSONResponse) VisitBindPartyMappingResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5596,9 +5058,9 @@ func (response BindOrganizationMapping403JSONResponse) VisitBindOrganizationMapp
 	return err
 }
 
-type BindOrganizationMapping404JSONResponse struct{ NotFoundJSONResponse }
+type BindPartyMapping404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response BindOrganizationMapping404JSONResponse) VisitBindOrganizationMappingResponse(w http.ResponseWriter) error {
+func (response BindPartyMapping404JSONResponse) VisitBindPartyMappingResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5610,350 +5072,9 @@ func (response BindOrganizationMapping404JSONResponse) VisitBindOrganizationMapp
 	return err
 }
 
-type BindOrganizationMapping409JSONResponse struct{ MappingConflictJSONResponse }
+type BindPartyMapping409JSONResponse struct{ MappingConflictJSONResponse }
 
-func (response BindOrganizationMapping409JSONResponse) VisitBindOrganizationMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestPersonRequestObject struct {
-	Params RequestPersonParams
-	Body   *RequestPersonJSONRequestBody
-}
-
-type RequestPersonResponseObject interface {
-	VisitRequestPersonResponse(w http.ResponseWriter) error
-}
-
-type RequestPerson202Response = RequestAcceptedResponse
-
-func (response RequestPerson202Response) VisitRequestPersonResponse(w http.ResponseWriter) error {
-	w.WriteHeader(202)
-	return nil
-}
-
-type RequestPerson403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response RequestPerson403JSONResponse) VisitRequestPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestPerson404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response RequestPerson404JSONResponse) VisitRequestPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPersonRequestObject struct {
-	LocalId LocalId `json:"local_id"`
-	Params  PutPersonParams
-	Body    *PutPersonJSONRequestBody
-}
-
-type PutPersonResponseObject interface {
-	VisitPutPersonResponse(w http.ResponseWriter) error
-}
-
-type PutPerson200JSONResponse Person
-
-func (response PutPerson200JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPerson201JSONResponse Person
-
-func (response PutPerson201JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPerson400JSONResponse struct{ ValidationErrorJSONResponse }
-
-func (response PutPerson400JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPerson403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response PutPerson403JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPerson409JSONResponse struct{ MappingConflictJSONResponse }
-
-func (response PutPerson409JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPerson412JSONResponse struct{ RevisionConflictJSONResponse }
-
-func (response PutPerson412JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(412)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutPerson428JSONResponse struct {
-	BaseRevisionRequiredJSONResponse
-}
-
-func (response PutPerson428JSONResponse) VisitPutPersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(428)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeactivatePersonRequestObject struct {
-	LocalId LocalId `json:"local_id"`
-	Params  DeactivatePersonParams
-}
-
-type DeactivatePersonResponseObject interface {
-	VisitDeactivatePersonResponse(w http.ResponseWriter) error
-}
-
-type DeactivatePerson200JSONResponse Person
-
-func (response DeactivatePerson200JSONResponse) VisitDeactivatePersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeactivatePerson403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response DeactivatePerson403JSONResponse) VisitDeactivatePersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeactivatePerson404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response DeactivatePerson404JSONResponse) VisitDeactivatePersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeactivatePerson412JSONResponse struct{ RevisionConflictJSONResponse }
-
-func (response DeactivatePerson412JSONResponse) VisitDeactivatePersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(412)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeactivatePerson428JSONResponse struct {
-	BaseRevisionRequiredJSONResponse
-}
-
-func (response DeactivatePerson428JSONResponse) VisitDeactivatePersonResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(428)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UnbindPersonMappingRequestObject struct {
-	LocalId      LocalId               `json:"local_id"`
-	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       UnbindPersonMappingParams
-}
-
-type UnbindPersonMappingResponseObject interface {
-	VisitUnbindPersonMappingResponse(w http.ResponseWriter) error
-}
-
-type UnbindPersonMapping204Response struct {
-}
-
-func (response UnbindPersonMapping204Response) VisitUnbindPersonMappingResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type UnbindPersonMapping403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response UnbindPersonMapping403JSONResponse) VisitUnbindPersonMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UnbindPersonMapping404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response UnbindPersonMapping404JSONResponse) VisitUnbindPersonMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type BindPersonMappingRequestObject struct {
-	LocalId      LocalId               `json:"local_id"`
-	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       BindPersonMappingParams
-}
-
-type BindPersonMappingResponseObject interface {
-	VisitBindPersonMappingResponse(w http.ResponseWriter) error
-}
-
-type BindPersonMapping204Response struct {
-}
-
-func (response BindPersonMapping204Response) VisitBindPersonMappingResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type BindPersonMapping403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response BindPersonMapping403JSONResponse) VisitBindPersonMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type BindPersonMapping404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response BindPersonMapping404JSONResponse) VisitBindPersonMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type BindPersonMapping409JSONResponse struct{ MappingConflictJSONResponse }
-
-func (response BindPersonMapping409JSONResponse) VisitBindPersonMappingResponse(w http.ResponseWriter) error {
+func (response BindPartyMapping409JSONResponse) VisitBindPartyMappingResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -6030,36 +5151,21 @@ type StrictServerInterface interface {
 	// BindFieldMapping Bind a local identifier to an existing field
 	// (PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldMapping(ctx context.Context, request BindFieldMappingRequestObject) (BindFieldMappingResponseObject, error)
-	// RequestOrganization Request an organization (lazy loading)
-	// (POST /masterdata/organizations/requests)
-	RequestOrganization(ctx context.Context, request RequestOrganizationRequestObject) (RequestOrganizationResponseObject, error)
-	// PutOrganization Send (create or update) an organization
-	// (PUT /masterdata/organizations/{local_id})
-	PutOrganization(ctx context.Context, request PutOrganizationRequestObject) (PutOrganizationResponseObject, error)
-	// DeactivateOrganization Deactivate an organization
-	// (POST /masterdata/organizations/{local_id}/deactivation)
-	DeactivateOrganization(ctx context.Context, request DeactivateOrganizationRequestObject) (DeactivateOrganizationResponseObject, error)
-	// UnbindOrganizationMapping Declare that this endpoint no longer holds an organization
-	// (DELETE /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id})
-	UnbindOrganizationMapping(ctx context.Context, request UnbindOrganizationMappingRequestObject) (UnbindOrganizationMappingResponseObject, error)
-	// BindOrganizationMapping Bind a local identifier to an existing organization
-	// (PUT /masterdata/organizations/{local_id}/id-mapping/{agrirouter_id})
-	BindOrganizationMapping(ctx context.Context, request BindOrganizationMappingRequestObject) (BindOrganizationMappingResponseObject, error)
-	// RequestPerson Request a person (lazy loading)
-	// (POST /masterdata/persons/requests)
-	RequestPerson(ctx context.Context, request RequestPersonRequestObject) (RequestPersonResponseObject, error)
-	// PutPerson Send (create or update) a person
-	// (PUT /masterdata/persons/{local_id})
-	PutPerson(ctx context.Context, request PutPersonRequestObject) (PutPersonResponseObject, error)
-	// DeactivatePerson Deactivate a person
-	// (POST /masterdata/persons/{local_id}/deactivation)
-	DeactivatePerson(ctx context.Context, request DeactivatePersonRequestObject) (DeactivatePersonResponseObject, error)
-	// UnbindPersonMapping Declare that this endpoint no longer holds a person
-	// (DELETE /masterdata/persons/{local_id}/id-mapping/{agrirouter_id})
-	UnbindPersonMapping(ctx context.Context, request UnbindPersonMappingRequestObject) (UnbindPersonMappingResponseObject, error)
-	// BindPersonMapping Bind a local identifier to an existing person
-	// (PUT /masterdata/persons/{local_id}/id-mapping/{agrirouter_id})
-	BindPersonMapping(ctx context.Context, request BindPersonMappingRequestObject) (BindPersonMappingResponseObject, error)
+	// RequestParty Request a party (lazy loading)
+	// (POST /masterdata/parties/requests)
+	RequestParty(ctx context.Context, request RequestPartyRequestObject) (RequestPartyResponseObject, error)
+	// PutParty Send (create or update) a party
+	// (PUT /masterdata/parties/{local_id})
+	PutParty(ctx context.Context, request PutPartyRequestObject) (PutPartyResponseObject, error)
+	// DeactivateParty Deactivate a party
+	// (POST /masterdata/parties/{local_id}/deactivation)
+	DeactivateParty(ctx context.Context, request DeactivatePartyRequestObject) (DeactivatePartyResponseObject, error)
+	// UnbindPartyMapping Declare that this endpoint no longer holds a party
+	// (DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
+	UnbindPartyMapping(ctx context.Context, request UnbindPartyMappingRequestObject) (UnbindPartyMappingResponseObject, error)
+	// BindPartyMapping Bind a local identifier to an existing party
+	// (PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
+	BindPartyMapping(ctx context.Context, request BindPartyMappingRequestObject) (BindPartyMappingResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx echo.Context, request any) (any, error)
@@ -6750,13 +5856,13 @@ func (sh *strictHandler) BindFieldMapping(ctx echo.Context, localId LocalId, agr
 	return nil
 }
 
-// RequestOrganization operation middleware
-func (sh *strictHandler) RequestOrganization(ctx echo.Context, params RequestOrganizationParams) error {
-	var request RequestOrganizationRequestObject
+// RequestParty operation middleware
+func (sh *strictHandler) RequestParty(ctx echo.Context, params RequestPartyParams) error {
+	var request RequestPartyRequestObject
 
 	request.Params = params
 
-	var body RequestOrganizationJSONRequestBody
+	var body RequestPartyJSONRequestBody
 	var err error
 	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
 		// Bind only the request body, so that path and query parameters
@@ -6773,32 +5879,32 @@ func (sh *strictHandler) RequestOrganization(ctx echo.Context, params RequestOrg
 	request.Body = &body
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.RequestOrganization(ctx.Request().Context(), request.(RequestOrganizationRequestObject))
+		return sh.ssi.RequestParty(ctx.Request().Context(), request.(RequestPartyRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RequestOrganization")
+		handler = middleware(handler, "RequestParty")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(RequestOrganizationResponseObject); ok {
-		return validResponse.VisitRequestOrganizationResponse(ctx.Response())
+	} else if validResponse, ok := response.(RequestPartyResponseObject); ok {
+		return validResponse.VisitRequestPartyResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
 	return nil
 }
 
-// PutOrganization operation middleware
-func (sh *strictHandler) PutOrganization(ctx echo.Context, localId LocalId, params PutOrganizationParams) error {
-	var request PutOrganizationRequestObject
+// PutParty operation middleware
+func (sh *strictHandler) PutParty(ctx echo.Context, localId LocalId, params PutPartyParams) error {
+	var request PutPartyRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
-	var body PutOrganizationJSONRequestBody
+	var body PutPartyJSONRequestBody
 	var err error
 	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
 		// Bind only the request body, so that path and query parameters
@@ -6815,261 +5921,98 @@ func (sh *strictHandler) PutOrganization(ctx echo.Context, localId LocalId, para
 	request.Body = &body
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.PutOrganization(ctx.Request().Context(), request.(PutOrganizationRequestObject))
+		return sh.ssi.PutParty(ctx.Request().Context(), request.(PutPartyRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PutOrganization")
+		handler = middleware(handler, "PutParty")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(PutOrganizationResponseObject); ok {
-		return validResponse.VisitPutOrganizationResponse(ctx.Response())
+	} else if validResponse, ok := response.(PutPartyResponseObject); ok {
+		return validResponse.VisitPutPartyResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
 	return nil
 }
 
-// DeactivateOrganization operation middleware
-func (sh *strictHandler) DeactivateOrganization(ctx echo.Context, localId LocalId, params DeactivateOrganizationParams) error {
-	var request DeactivateOrganizationRequestObject
+// DeactivateParty operation middleware
+func (sh *strictHandler) DeactivateParty(ctx echo.Context, localId LocalId, params DeactivatePartyParams) error {
+	var request DeactivatePartyRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeactivateOrganization(ctx.Request().Context(), request.(DeactivateOrganizationRequestObject))
+		return sh.ssi.DeactivateParty(ctx.Request().Context(), request.(DeactivatePartyRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeactivateOrganization")
+		handler = middleware(handler, "DeactivateParty")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(DeactivateOrganizationResponseObject); ok {
-		return validResponse.VisitDeactivateOrganizationResponse(ctx.Response())
+	} else if validResponse, ok := response.(DeactivatePartyResponseObject); ok {
+		return validResponse.VisitDeactivatePartyResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
 	return nil
 }
 
-// UnbindOrganizationMapping operation middleware
-func (sh *strictHandler) UnbindOrganizationMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindOrganizationMappingParams) error {
-	var request UnbindOrganizationMappingRequestObject
-
-	request.LocalId = localId
-	request.AgrirouterId = agrirouterId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UnbindOrganizationMapping(ctx.Request().Context(), request.(UnbindOrganizationMappingRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UnbindOrganizationMapping")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UnbindOrganizationMappingResponseObject); ok {
-		return validResponse.VisitUnbindOrganizationMappingResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// BindOrganizationMapping operation middleware
-func (sh *strictHandler) BindOrganizationMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindOrganizationMappingParams) error {
-	var request BindOrganizationMappingRequestObject
+// UnbindPartyMapping operation middleware
+func (sh *strictHandler) UnbindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindPartyMappingParams) error {
+	var request UnbindPartyMappingRequestObject
 
 	request.LocalId = localId
 	request.AgrirouterId = agrirouterId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.BindOrganizationMapping(ctx.Request().Context(), request.(BindOrganizationMappingRequestObject))
+		return sh.ssi.UnbindPartyMapping(ctx.Request().Context(), request.(UnbindPartyMappingRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "BindOrganizationMapping")
+		handler = middleware(handler, "UnbindPartyMapping")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(BindOrganizationMappingResponseObject); ok {
-		return validResponse.VisitBindOrganizationMappingResponse(ctx.Response())
+	} else if validResponse, ok := response.(UnbindPartyMappingResponseObject); ok {
+		return validResponse.VisitUnbindPartyMappingResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
 	return nil
 }
 
-// RequestPerson operation middleware
-func (sh *strictHandler) RequestPerson(ctx echo.Context, params RequestPersonParams) error {
-	var request RequestPersonRequestObject
-
-	request.Params = params
-
-	var body RequestPersonJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
-	}
-	if err != nil {
-		return err
-	}
-	request.Body = &body
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.RequestPerson(ctx.Request().Context(), request.(RequestPersonRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RequestPerson")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(RequestPersonResponseObject); ok {
-		return validResponse.VisitRequestPersonResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// PutPerson operation middleware
-func (sh *strictHandler) PutPerson(ctx echo.Context, localId LocalId, params PutPersonParams) error {
-	var request PutPersonRequestObject
-
-	request.LocalId = localId
-	request.Params = params
-
-	var body PutPersonJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
-	}
-	if err != nil {
-		return err
-	}
-	request.Body = &body
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.PutPerson(ctx.Request().Context(), request.(PutPersonRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PutPerson")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(PutPersonResponseObject); ok {
-		return validResponse.VisitPutPersonResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// DeactivatePerson operation middleware
-func (sh *strictHandler) DeactivatePerson(ctx echo.Context, localId LocalId, params DeactivatePersonParams) error {
-	var request DeactivatePersonRequestObject
-
-	request.LocalId = localId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeactivatePerson(ctx.Request().Context(), request.(DeactivatePersonRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeactivatePerson")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(DeactivatePersonResponseObject); ok {
-		return validResponse.VisitDeactivatePersonResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// UnbindPersonMapping operation middleware
-func (sh *strictHandler) UnbindPersonMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindPersonMappingParams) error {
-	var request UnbindPersonMappingRequestObject
+// BindPartyMapping operation middleware
+func (sh *strictHandler) BindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindPartyMappingParams) error {
+	var request BindPartyMappingRequestObject
 
 	request.LocalId = localId
 	request.AgrirouterId = agrirouterId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UnbindPersonMapping(ctx.Request().Context(), request.(UnbindPersonMappingRequestObject))
+		return sh.ssi.BindPartyMapping(ctx.Request().Context(), request.(BindPartyMappingRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UnbindPersonMapping")
+		handler = middleware(handler, "BindPartyMapping")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(UnbindPersonMappingResponseObject); ok {
-		return validResponse.VisitUnbindPersonMappingResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// BindPersonMapping operation middleware
-func (sh *strictHandler) BindPersonMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindPersonMappingParams) error {
-	var request BindPersonMappingRequestObject
-
-	request.LocalId = localId
-	request.AgrirouterId = agrirouterId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.BindPersonMapping(ctx.Request().Context(), request.(BindPersonMappingRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "BindPersonMapping")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(BindPersonMappingResponseObject); ok {
-		return validResponse.VisitBindPersonMappingResponse(ctx.Response())
+	} else if validResponse, ok := response.(BindPartyMappingResponseObject); ok {
+		return validResponse.VisitBindPartyMappingResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}

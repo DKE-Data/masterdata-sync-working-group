@@ -34,12 +34,11 @@ type Record struct {
 // columns names the protocol attributes each entity type has real columns for.
 // Everything else on a delivered object is left to agrirouter.
 var columns = map[agmasync.EntityType][]string{
-	agmasync.TypeOrganization: {"name", "commercial_registry_number", "address"},
-	agmasync.TypePerson:       {"last_name", "first_name", "title"},
-	agmasync.TypeFarm:         {"name", "owner", "address"},
-	agmasync.TypeField:        {"name", "area", "farm"},
+	agmasync.TypeParty: {"name", "details", "address"},
+	agmasync.TypeFarm:  {"name", "owner", "address"},
+	agmasync.TypeField: {"name", "area", "farm"},
 	agmasync.TypeFieldBoundary: {
-		"boundary_type", "creation_method", "boundary",
+		"field", "name", "boundary_type", "creation_method", "boundary",
 	},
 }
 
@@ -93,10 +92,27 @@ func FromEntity(typ agmasync.EntityType, entity oapi.Entity) (Record, error) {
 }
 
 // modelledAddress names the parts of an address each entity type has columns
-// for.
+// for. A party's depends on its kind: see [Record.addressParts].
 var modelledAddress = map[agmasync.EntityType][]string{
-	agmasync.TypeOrganization: {"city", "country"},
-	agmasync.TypeFarm:         {"city"},
+	agmasync.TypeParty: {"city", "country"},
+	agmasync.TypeFarm:  {"city"},
+}
+
+// addressParts names the parts of an address the record's table has columns
+// for. The person table has none: this platform keeps addresses for
+// organizations only.
+func (r Record) addressParts() []string {
+	if r.EntityType == agmasync.TypeParty && r.partyType() == agmasync.PartyTypePerson {
+		return nil
+	}
+	return modelledAddress[r.EntityType]
+}
+
+// modelledDetails names the attributes of each party type the platform has
+// columns for. A person's memberships are not among them, and so are kept.
+var modelledDetails = map[string][]string{
+	agmasync.PartyTypePerson:       {"title", "first_name", "last_name"},
+	agmasync.PartyTypeOrganization: {"commercial_registry_number"},
 }
 
 // notNullable are the modelled attributes a write never sends as null: the ones
@@ -104,7 +120,7 @@ var modelledAddress = map[agmasync.EntityType][]string{
 // empty column does not say the reference was cleared — it is also what an
 // unresolved one leaves behind — and so must not remove the canonical one.
 var notNullable = map[string]bool{
-	"name": true, "last_name": true, "boundary": true, "owner": true, "farm": true,
+	"name": true, "boundary": true, "owner": true, "farm": true, "field": true,
 }
 
 // ToEntity is FromEntity in reverse: the platform's own record as an entity to send.
@@ -113,19 +129,33 @@ var notNullable = map[string]bool{
 // nothing more. Every modelled attribute goes out: with its value, or as null
 // where the platform holds none, since leaving it out would keep whatever
 // agrirouter has. An address goes out as the parts the platform models, which
-// leaves the rest of it alone. Unmodelled attributes are left out, and kept.
+// leaves the rest of it alone, and so do a party's details. Unmodelled
+// attributes are left out, and kept.
 func (r Record) ToEntity(localID string) (oapi.Entity, error) {
 	fields := map[string]json.RawMessage{}
 	for k, v := range r.Modelled {
 		fields[k] = v
 	}
 	for _, name := range columns[r.EntityType] {
-		if _, held := fields[name]; held || notNullable[name] || name == "address" {
+		if _, held := fields[name]; held || notNullable[name] || name == "address" || name == "details" {
 			continue
 		}
 		fields[name] = json.RawMessage("null")
 	}
-	if parts := modelledAddress[r.EntityType]; len(parts) > 0 {
+	if r.EntityType == agmasync.TypeParty {
+		if _, known := modelledDetails[r.partyType()]; !known {
+			delete(fields, "details")
+		} else {
+			details, err := detailsPatch(r.Modelled["details"])
+			if err != nil {
+				return oapi.Entity{}, err
+			}
+			fields["details"] = details
+		}
+	}
+	if parts := r.addressParts(); len(parts) == 0 {
+		delete(fields, "address")
+	} else {
 		address, err := addressPatch(r.Modelled["address"], parts)
 		if err != nil {
 			return oapi.Entity{}, err
@@ -197,33 +227,96 @@ func addressPatch(raw json.RawMessage, parts []string) (json.RawMessage, error) 
 	return json.Marshal(out)
 }
 
-// tableOf maps an entity type to the platform's table for it.
-func tableOf(typ agmasync.EntityType) (string, error) {
-	switch typ {
-	case agmasync.TypeOrganization:
-		return "organization", nil
-	case agmasync.TypePerson:
-		return "person", nil
-	case agmasync.TypeFarm:
-		return "farm", nil
-	case agmasync.TypeField:
-		return "field", nil
-	case agmasync.TypeFieldBoundary:
-		return "field_boundary", nil
-	default:
-		return "", fmt.Errorf("%w: %q", agmasync.ErrUnknownEntityType, typ)
+// partyType is the kind of party a record states, "" where it states none.
+func (r Record) partyType() string {
+	var details struct {
+		PartyType string `json:"party_type"`
 	}
+	if raw := r.Modelled["details"]; len(raw) > 0 {
+		_ = json.Unmarshal(raw, &details)
+	}
+	return details.PartyType
+}
+
+// detailsPatch renders a party's details as its party_type and the attributes
+// of that type the platform models, null for those it holds no value for. It
+// carries the party_type on every write, as the specification requires: what
+// the rest merges into depends on it, and a changed one replaces the details
+// whole. A record that states no party type sends no details at all — see
+// [Record.ToEntity].
+func detailsPatch(raw json.RawMessage) (json.RawMessage, error) {
+	held := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &held); err != nil {
+		return nil, fmt.Errorf("reading details: %w", err)
+	}
+	var partyType string
+	if err := json.Unmarshal(held["party_type"], &partyType); err != nil {
+		return nil, fmt.Errorf("reading party_type: %w", err)
+	}
+	out := map[string]json.RawMessage{"party_type": held["party_type"]}
+	for _, part := range modelledDetails[partyType] {
+		value, ok := held[part]
+		if !ok {
+			value = json.RawMessage("null")
+		}
+		out[part] = value
+	}
+	return json.Marshal(out)
+}
+
+// tablesOf lists the platform's tables a record of an entity type may sit in.
+//
+// One per type, except parties. The protocol has one party type and states in
+// `details` whether it is a person or an organization; this platform, like most
+// farm management systems, keeps persons and organizations in tables of their
+// own, and the mapping between the two shapes is the codec's.
+func tablesOf(typ agmasync.EntityType) ([]string, error) {
+	switch typ {
+	case agmasync.TypeParty:
+		return []string{"organization", "person"}, nil
+	case agmasync.TypeFarm:
+		return []string{"farm"}, nil
+	case agmasync.TypeField:
+		return []string{"field"}, nil
+	case agmasync.TypeFieldBoundary:
+		return []string{"field_boundary"}, nil
+	default:
+		return nil, fmt.Errorf("%w: %q", agmasync.ErrUnknownEntityType, typ)
+	}
+}
+
+// tableFor picks the table a record goes into.
+//
+// A party goes by the party type its details state. One of unknown party type
+// still has to go somewhere in a store that knows only persons and
+// organizations, and organization is the lesser guess: it needs nothing but a
+// name, where a person would need a name split into parts nobody gave.
+//
+// The guess is not kept apart from a recorded party type, so this platform's
+// next write of the party states ORGANIZATION to every participant. That is
+// this platform's choice, not the protocol's: one that wants to leave the party
+// type open would mark the row and leave details out of its writes. See "Party
+// details" in specification.md.
+func tableFor(r Record) (string, error) {
+	tables, err := tablesOf(r.EntityType)
+	if err != nil {
+		return "", err
+	}
+	if r.EntityType == agmasync.TypeParty && r.partyType() == agmasync.PartyTypePerson {
+		return "person", nil
+	}
+	return tables[0], nil
 }
 
 // columnValues maps the modelled attributes onto the table's columns.
 //
 // This is the mapping work an integration actually has to do, and it is per
-// type because the platform's schema is its own rather than a mirror of the
+// table because the platform's schema is its own rather than a mirror of the
 // protocol's.
 //
 // It runs in a transaction because references have to be resolved against the
 // platform's own mapping; see [Tx.resolveRef].
-func (t *Tx) columnValues(r Record) (map[string]any, error) {
+func (t *Tx) columnValues(r Record, table string) (map[string]any, error) {
 	out := map[string]any{}
 
 	var errs []error
@@ -246,35 +339,55 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 		}
 	}
 
-	switch r.EntityType {
-	case agmasync.TypeOrganization:
+	// The details of the record's own party type. A party that changed party
+	// type moves table, so nothing of the other party type is held.
+	details := map[string]json.RawMessage{}
+	if raw, ok := r.Modelled["details"]; ok && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &details); err != nil {
+			return nil, fmt.Errorf("reading details: %w", err)
+		}
+	}
+	detail := func(key string) {
+		out[key] = nil
+		var v *string
+		if raw, ok := details[key]; ok {
+			if err := json.Unmarshal(raw, &v); err != nil {
+				errs = append(errs, fmt.Errorf("reading %s: %w", key, err))
+				return
+			}
+		}
+		if v != nil {
+			out[key] = *v
+		}
+	}
+
+	switch table {
+	case "organization":
 		str("name", "name")
-		str("commercial_registry_number", "commercial_registry_number")
+		detail("commercial_registry_number")
 		city, country, err := addressParts(r.Modelled["address"])
 		if err != nil {
 			return nil, err
 		}
 		out["city"], out["country"] = city, country
-	case agmasync.TypePerson:
-		str("last_name", "last_name")
-		str("first_name", "first_name")
-		str("title", "title")
-	case agmasync.TypeFarm:
+	case "person":
+		str("name", "name")
+		detail("title")
+		detail("first_name")
+		detail("last_name")
+	case "farm":
 		str("name", "name")
 		city, _, err := addressParts(r.Modelled["address"])
 		if err != nil {
 			return nil, err
 		}
 		out["city"] = city
-		// A party slot admits either, and a delivered party reference says
-		// which, so both are candidates only where it does not.
-		ownerType, ownerLocal, err := t.resolveRef(
-			r.Modelled["owner"], agmasync.TypeOrganization, agmasync.TypePerson)
+		ownerLocal, err := t.resolveRef(r.Modelled["owner"], agmasync.TypeParty)
 		if err != nil {
 			return nil, err
 		}
-		out["owner_type"], out["owner_local_id"] = ownerType, ownerLocal
-	case agmasync.TypeField:
+		out["owner_local_id"] = ownerLocal
+	case "field":
 		str("name", "name")
 		out["area"] = nil
 		if raw, ok := r.Modelled["area"]; ok {
@@ -286,12 +399,18 @@ func (t *Tx) columnValues(r Record) (map[string]any, error) {
 				out["area"] = *area
 			}
 		}
-		_, farmLocal, err := t.resolveRef(r.Modelled["farm"], agmasync.TypeFarm)
+		farmLocal, err := t.resolveRef(r.Modelled["farm"], agmasync.TypeFarm)
 		if err != nil {
 			return nil, err
 		}
 		out["farm_local_id"] = farmLocal
-	case agmasync.TypeFieldBoundary:
+	case "field_boundary":
+		fieldLocal, err := t.resolveRef(r.Modelled["field"], agmasync.TypeField)
+		if err != nil {
+			return nil, err
+		}
+		out["field_local_id"] = fieldLocal
+		str("name", "name")
 		str("boundary_type", "boundary_type")
 		str("creation_method", "creation_method")
 		out["boundary"] = nil
@@ -329,14 +448,13 @@ func addressParts(raw json.RawMessage) (any, any, error) {
 }
 
 // resolveRef turns a delivered reference into the platform's own foreign key
-// for its target, and reports the target's entity type where the reference
-// names one.
+// for its target, an object of type typ.
 //
 // A delivered reference carries the receiving participant's own identifier for
 // the target only where agrirouter held one when the frame was rendered — which,
 // for the whole of a first initial load, it does not: every object in the set is
-// rendered before the endpoint has bound any of it. So the localId is a
-// shortcut, and agrirouterId is what a reference actually resolves through.
+// rendered before the endpoint has bound any of it. So the local_id is a
+// shortcut, and agrirouter_id is what a reference actually resolves through.
 //
 // This is why delivery order matters. A referenced object precedes the objects
 // referencing it, so by the time the reference is applied the platform has
@@ -344,48 +462,33 @@ func addressParts(raw json.RawMessage) (any, any, error) {
 // reference that still resolves to nothing is left null rather than guessed at:
 // the platform does not hold the target, and [Applier] will create and bind it
 // when it arrives.
-func (t *Tx) resolveRef(
-	raw json.RawMessage, candidates ...agmasync.EntityType,
-) (any, any, error) {
+func (t *Tx) resolveRef(raw json.RawMessage, typ agmasync.EntityType) (any, error) {
 	if len(raw) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
 	var ref struct {
-		Type         *string    `json:"type"`
 		LocalID      *string    `json:"local_id"`
 		AgrirouterID *uuid.UUID `json:"agrirouter_id"`
 	}
 	if err := json.Unmarshal(raw, &ref); err != nil {
-		return nil, nil, fmt.Errorf("reading reference: %w", err)
-	}
-
-	var kind any
-	if ref.Type != nil {
-		kind = *ref.Type
-		candidates = []agmasync.EntityType{agmasync.EntityType(*ref.Type)}
+		return nil, fmt.Errorf("reading reference: %w", err)
 	}
 	if ref.LocalID != nil {
-		return kind, *ref.LocalID, nil
+		return *ref.LocalID, nil
 	}
 	if ref.AgrirouterID == nil {
-		return kind, nil, nil
+		return nil, nil
 	}
 
-	for _, typ := range candidates {
-		row, err := t.SyncRowByAgrirouterID(typ, *ref.AgrirouterID)
-		switch {
-		case err == nil:
-			if kind == nil {
-				kind = string(typ)
-			}
-			return kind, row.LocalID, nil
-		case errors.Is(err, ErrNotFound):
-			continue
-		default:
-			return nil, nil, err
-		}
+	row, err := t.SyncRowByAgrirouterID(typ, *ref.AgrirouterID)
+	switch {
+	case err == nil:
+		return row.LocalID, nil
+	case errors.Is(err, ErrNotFound):
+		return nil, nil
+	default:
+		return nil, err
 	}
-	return kind, nil, nil
 }
 
 // UpsertRecord writes one of the platform's records and records that the
@@ -397,11 +500,11 @@ func (t *Tx) resolveRef(
 // tenant adds is the membership row — which is what a listing walks, and what a
 // deletion removes.
 func (t *Tx) UpsertRecord(r Record, localID string) error {
-	table, err := tableOf(r.EntityType)
+	table, err := tableFor(r)
 	if err != nil {
 		return err
 	}
-	values, err := t.columnValues(r)
+	values, err := t.columnValues(r, table)
 	if err != nil {
 		return err
 	}
@@ -425,6 +528,18 @@ func (t *Tx) UpsertRecord(r Record, localID string) error {
 	if _, err := t.tx.Exec(query, args...); err != nil {
 		return fmt.Errorf("writing %s: %w", table, err)
 	}
+	// A party whose party type changed leaves the table of its old one.
+	tables, _ := tablesOf(r.EntityType)
+	for _, other := range tables {
+		if other == table {
+			continue
+		}
+		if _, err := t.tx.Exec(
+			fmt.Sprintf("DELETE FROM %s WHERE local_id = ?", other), localID,
+		); err != nil {
+			return fmt.Errorf("moving out of %s: %w", other, err)
+		}
+	}
 	return t.hold(r.EntityType, localID)
 }
 
@@ -447,12 +562,22 @@ func (t *Tx) hold(typ agmasync.EntityType, localID string) error {
 // one that does not both read the same row. Whether a tenant holds it is
 // [Tx.Exists].
 func (t *Tx) LoadRecord(typ agmasync.EntityType, localID string) (Record, error) {
-	table, err := tableOf(typ)
+	tables, err := tablesOf(typ)
 	if err != nil {
 		return Record{}, err
 	}
+	for _, table := range tables {
+		out, err := t.loadFrom(table, typ, localID)
+		if errors.Is(err, ErrNotFound) {
+			continue
+		}
+		return out, err
+	}
+	return Record{}, ErrNotFound
+}
 
-	names := scanColumns(typ)
+func (t *Tx) loadFrom(table string, typ agmasync.EntityType, localID string) (Record, error) {
+	names := scanColumns(table)
 	query := fmt.Sprintf(
 		"SELECT archived, %s FROM %s WHERE local_id = ?",
 		join(names), table)
@@ -482,25 +607,25 @@ func (t *Tx) LoadRecord(typ agmasync.EntityType, localID string) (Record, error)
 	for i, name := range names {
 		values[name] = scanned[i]
 	}
-	if err := rebuildModelled(&out, values); err != nil {
+	if err := rebuildModelled(&out, table, values); err != nil {
 		return Record{}, err
 	}
 	return out, nil
 }
 
-// scanColumns names the type-specific columns LoadRecord reads back.
-func scanColumns(typ agmasync.EntityType) []string {
-	switch typ {
-	case agmasync.TypeOrganization:
+// scanColumns names the table-specific columns LoadRecord reads back.
+func scanColumns(table string) []string {
+	switch table {
+	case "organization":
 		return []string{"name", "commercial_registry_number", "city", "country"}
-	case agmasync.TypePerson:
-		return []string{"last_name", "first_name", "title"}
-	case agmasync.TypeFarm:
-		return []string{"name", "owner_type", "owner_local_id", "city"}
-	case agmasync.TypeField:
+	case "person":
+		return []string{"name", "title", "first_name", "last_name"}
+	case "farm":
+		return []string{"name", "owner_local_id", "city"}
+	case "field":
 		return []string{"name", "area", "farm_local_id"}
-	case agmasync.TypeFieldBoundary:
-		return []string{"boundary_type", "creation_method", "boundary"}
+	case "field_boundary":
+		return []string{"field_local_id", "name", "boundary_type", "creation_method", "boundary"}
 	default:
 		return nil
 	}
@@ -513,7 +638,7 @@ func scanColumns(typ agmasync.EntityType) []string {
 // target, which agrirouter resolves against its mapping. That is what keeps
 // canonical identifiers off the write path — the platform never has to hold one
 // to build a reference.
-func rebuildModelled(r *Record, values map[string]sql.NullString) error {
+func rebuildModelled(r *Record, table string, values map[string]sql.NullString) error {
 	set := func(key string, value any) error {
 		raw, err := json.Marshal(value)
 		if err != nil {
@@ -542,30 +667,35 @@ func rebuildModelled(r *Record, values map[string]sql.NullString) error {
 		return set("address", out)
 	}
 
-	switch r.EntityType {
-	case agmasync.TypeOrganization:
+	details := func(partyType string, parts ...string) error {
+		out := map[string]string{"party_type": partyType}
+		for _, part := range parts {
+			if v, ok := values[part]; ok && v.Valid {
+				out[part] = v.String
+			}
+		}
+		return set("details", out)
+	}
+
+	switch table {
+	case "organization":
 		return errors.Join(
 			str("name", "name"),
-			str("commercial_registry_number", "commercial_registry_number"),
+			details(agmasync.PartyTypeOrganization, "commercial_registry_number"),
 			address(),
 		)
-	case agmasync.TypePerson:
+	case "person":
 		return errors.Join(
-			str("last_name", "last_name"),
-			str("first_name", "first_name"),
-			str("title", "title"),
+			str("name", "name"),
+			details(agmasync.PartyTypePerson, "title", "first_name", "last_name"),
 		)
-	case agmasync.TypeFarm:
+	case "farm":
 		var owner error
 		if id, ok := values["owner_local_id"]; ok && id.Valid {
-			ref := map[string]string{"local_id": id.String}
-			if kind, ok := values["owner_type"]; ok && kind.Valid {
-				ref["type"] = kind.String
-			}
-			owner = set("owner", ref)
+			owner = set("owner", map[string]string{"local_id": id.String})
 		}
 		return errors.Join(str("name", "name"), owner, address())
-	case agmasync.TypeField:
+	case "field":
 		var area error
 		if v, ok := values["area"]; ok && v.Valid {
 			parsed, err := strconv.ParseFloat(v.String, 64)
@@ -580,12 +710,18 @@ func rebuildModelled(r *Record, values map[string]sql.NullString) error {
 			farm = set("farm", map[string]string{"local_id": v.String})
 		}
 		return errors.Join(str("name", "name"), area, farm)
-	case agmasync.TypeFieldBoundary:
+	case "field_boundary":
 		var boundary error
 		if v, ok := values["boundary"]; ok && v.Valid {
 			r.Modelled["boundary"] = json.RawMessage(v.String)
 		}
+		var field error
+		if v, ok := values["field_local_id"]; ok && v.Valid {
+			field = set("field", map[string]string{"local_id": v.String})
+		}
 		return errors.Join(
+			field,
+			str("name", "name"),
 			str("boundary_type", "boundary_type"),
 			str("creation_method", "creation_method"),
 			boundary,
@@ -611,7 +747,7 @@ func rebuildModelled(r *Record, values map[string]sql.NullString) error {
 // platform shares is not a deactivation either: what it deactivates for
 // everybody is [Applier.Deactivate].
 func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
-	table, err := tableOf(typ)
+	tables, err := tablesOf(typ)
 	if err != nil {
 		return err
 	}
@@ -632,10 +768,8 @@ func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 		return nil
 	}
 
-	if _, err := t.tx.Exec(
-		fmt.Sprintf("DELETE FROM %s WHERE local_id = ?", table), localID,
-	); err != nil {
-		return fmt.Errorf("deleting from %s: %w", table, err)
+	if err := t.deleteFrom(tables, localID); err != nil {
+		return err
 	}
 	if _, err := t.tx.Exec(`
 		DELETE FROM agmasync_object
@@ -657,7 +791,7 @@ func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 // what a request needs, and agrirouter is not told anything, since the platform
 // wants the object back rather than to say it no longer holds it.
 func (t *Tx) ForgetRecord(typ agmasync.EntityType, localID string) error {
-	table, err := tableOf(typ)
+	tables, err := tablesOf(typ)
 	if err != nil {
 		return err
 	}
@@ -676,10 +810,8 @@ func (t *Tx) ForgetRecord(typ agmasync.EntityType, localID string) error {
 	if held {
 		return nil
 	}
-	if _, err := t.tx.Exec(
-		fmt.Sprintf("DELETE FROM %s WHERE local_id = ?", table), localID,
-	); err != nil {
-		return fmt.Errorf("deleting from %s: %w", table, err)
+	if err := t.deleteFrom(tables, localID); err != nil {
+		return err
 	}
 	return nil
 }
@@ -707,15 +839,29 @@ func (t *Tx) heldByAny(typ agmasync.EntityType, localID string) (bool, error) {
 // statement about the entity in the world, delivered to every participant, so
 // showing it as current in the product's other tenants would be a local fiction.
 func (t *Tx) SetArchived(typ agmasync.EntityType, localID string, archived bool) error {
-	table, err := tableOf(typ)
+	tables, err := tablesOf(typ)
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.Exec(
-		fmt.Sprintf("UPDATE %s SET archived = ? WHERE local_id = ?", table),
-		boolToInt(archived), localID)
-	if err != nil {
-		return fmt.Errorf("archiving %s: %w", table, err)
+	for _, table := range tables {
+		if _, err := t.tx.Exec(
+			fmt.Sprintf("UPDATE %s SET archived = ? WHERE local_id = ?", table),
+			boolToInt(archived), localID,
+		); err != nil {
+			return fmt.Errorf("archiving %s: %w", table, err)
+		}
+	}
+	return nil
+}
+
+// deleteFrom removes a record from whichever of its type's tables holds it.
+func (t *Tx) deleteFrom(tables []string, localID string) error {
+	for _, table := range tables {
+		if _, err := t.tx.Exec(
+			fmt.Sprintf("DELETE FROM %s WHERE local_id = ?", table), localID,
+		); err != nil {
+			return fmt.Errorf("deleting from %s: %w", table, err)
+		}
 	}
 	return nil
 }
@@ -728,7 +874,7 @@ func (t *Tx) SetArchived(typ agmasync.EntityType, localID string, archived bool)
 // initial load walks — the endpoint offers agrirouter what its tenant holds —
 // and what reconciliation matches a delivered object against.
 func (t *Tx) LocalIDs(typ agmasync.EntityType) ([]string, error) {
-	if _, err := tableOf(typ); err != nil {
+	if _, err := tablesOf(typ); err != nil {
 		return nil, err
 	}
 	rows, err := t.tx.Query(`
@@ -755,7 +901,7 @@ func (t *Tx) LocalIDs(typ agmasync.EntityType) ([]string, error) {
 // identifier. A record only another tenant holds is not this one's, even though
 // it is the same record and the same binding.
 func (t *Tx) Exists(typ agmasync.EntityType, localID string) (bool, error) {
-	if _, err := tableOf(typ); err != nil {
+	if _, err := tablesOf(typ); err != nil {
 		return false, err
 	}
 	var one int

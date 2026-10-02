@@ -8,7 +8,7 @@
        button is what works without scripting; the select only saves a click. */}}
   <form method="get" action="/objects" class="typepick">
     <div class="field">
-      <label for="new">Entity type</label>
+      <label for="new">Record type</label>
       <select name="new" id="new" onchange="this.form.submit()">
         {{$sel := .NewType}}
         {{range .Types}}

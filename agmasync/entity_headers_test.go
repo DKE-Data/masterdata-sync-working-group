@@ -27,9 +27,9 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 			default:
 			}
 			w.Header().Set("Content-Type", "application/json")
-			// Enough of an organization to be read back as one, every call
+			// Enough of a party to be read back as one, every call
 			// under test being about the request rather than the response.
-			_, _ = w.Write([]byte(`{"type":"organization","local_id":"o-1","name":"Hof Nord"}`))
+			_, _ = w.Write([]byte(`{"type":"party","local_id":"o-1","name":"Hof Nord"}`))
 		}))
 	defer srv.Close()
 
@@ -41,8 +41,8 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 		uuid.New(), tenant, uuid.New(), oapi.EndpointTypeToCreate("cloud_software"))
 
 	localID := "o-1"
-	organization, err := agmasync.FromOrganization(oapi.Organization{
-		Type: "organization", LocalId: &localID, Name: "Hof Nord",
+	party, err := agmasync.FromParty(oapi.Party{
+		Type: "party", LocalId: &localID, Name: "Hof Nord",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -51,21 +51,21 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 	ctx := context.Background()
 	calls := map[string]func() error{
 		"Put": func() error {
-			_, err := endpoint.Put(ctx, organization, nil)
+			_, err := endpoint.Put(ctx, party, nil)
 			return err
 		},
 		"Bind": func() error {
-			return endpoint.Bind(ctx, agmasync.TypeOrganization, "o-1", uuid.New())
+			return endpoint.Bind(ctx, agmasync.TypeParty, "o-1", uuid.New())
 		},
 		"Unbind": func() error {
-			return endpoint.Unbind(ctx, agmasync.TypeOrganization, "o-1", uuid.New())
+			return endpoint.Unbind(ctx, agmasync.TypeParty, "o-1", uuid.New())
 		},
 		"Deactivate": func() error {
-			_, err := endpoint.Deactivate(ctx, agmasync.TypeOrganization, "o-1", nil)
+			_, err := endpoint.Deactivate(ctx, agmasync.TypeParty, "o-1", nil)
 			return err
 		},
 		"Request": func() error {
-			return endpoint.Request(ctx, agmasync.TypeOrganization, uuid.New())
+			return endpoint.Request(ctx, agmasync.TypeParty, uuid.New())
 		},
 	}
 

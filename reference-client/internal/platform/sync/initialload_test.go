@@ -497,14 +497,14 @@ func TestRejectionIsResolvedAgainstTheWholePairNotTheLocalIdAlone(t *testing.T) 
 	shared := outcome.LocalID
 	if err := b.Store.Tx(b.Tenant, func(tx *store.Tx) error {
 		return tx.UpsertRecord(store.Record{
-			EntityType: agmasync.TypeOrganization,
+			EntityType: agmasync.TypeParty,
 			LocalID:    shared,
 			Modelled:   map[string]json.RawMessage{"name": mustJSON(t, "Genossenschaft Nord")},
 		}, shared)
 	}); err != nil {
 		t.Fatalf("seeding the organization: %v", err)
 	}
-	if _, err := b.Send(context.Background(), agmasync.TypeOrganization, shared); err != nil {
+	if _, err := b.Send(context.Background(), agmasync.TypeParty, shared); err != nil {
 		t.Fatalf("binding the organization: %v", err)
 	}
 
@@ -527,7 +527,7 @@ func TestRejectionIsResolvedAgainstTheWholePairNotTheLocalIdAlone(t *testing.T) 
 	if syncRow(t, b, agmasync.TypeFarm, shared).Bound() {
 		t.Error("the farm's claim was refused and must not be kept")
 	}
-	if !syncRow(t, b, agmasync.TypeOrganization, shared).Bound() {
+	if !syncRow(t, b, agmasync.TypeParty, shared).Bound() {
 		t.Error("the organization's binding stands and must survive another type's rejection")
 	}
 }

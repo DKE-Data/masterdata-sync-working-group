@@ -9,40 +9,37 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/google/uuid"
+	"github.com/oapi-codegen/nullable"
 )
 
 func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 	// Opt-in must be dependency-closed, because a receiving endpoint has to be
-	// able to resolve every reference on the objects it is sent. Fields pull in
-	// the whole graph; a field boundary references nothing and pulls in nothing.
+	// able to resolve every reference on the objects it is sent. Field
+	// boundaries pull in the whole graph; a party references nothing outside
+	// its own type and pulls in nothing.
 	tests := map[string]struct {
 		in   []agmasync.EntityType
 		want []agmasync.EntityType
 	}{
-		"fields reach everything": {
+		"field boundaries reach everything": {
+			in: []agmasync.EntityType{agmasync.TypeFieldBoundary},
+			want: []agmasync.EntityType{
+				agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary,
+			},
+		},
+		"fields reach their farms and owning parties": {
 			in: []agmasync.EntityType{agmasync.TypeField},
 			want: []agmasync.EntityType{
-				agmasync.TypeOrganization, agmasync.TypePerson,
-				agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary,
+				agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField,
 			},
 		},
 		"farms reach their owning and partner parties": {
-			in: []agmasync.EntityType{agmasync.TypeFarm},
-			want: []agmasync.EntityType{
-				agmasync.TypeOrganization, agmasync.TypePerson, agmasync.TypeFarm,
-			},
+			in:   []agmasync.EntityType{agmasync.TypeFarm},
+			want: []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeFarm},
 		},
-		"persons reach the organizations they belong to": {
-			in:   []agmasync.EntityType{agmasync.TypePerson},
-			want: []agmasync.EntityType{agmasync.TypeOrganization, agmasync.TypePerson},
-		},
-		"field boundaries reference nothing": {
-			in:   []agmasync.EntityType{agmasync.TypeFieldBoundary},
-			want: []agmasync.EntityType{agmasync.TypeFieldBoundary},
-		},
-		"organizations reference nothing": {
-			in:   []agmasync.EntityType{agmasync.TypeOrganization},
-			want: []agmasync.EntityType{agmasync.TypeOrganization},
+		"parties reference nothing outside their type": {
+			in:   []agmasync.EntityType{agmasync.TypeParty},
+			want: []agmasync.EntityType{agmasync.TypeParty},
 		},
 	}
 
@@ -84,14 +81,14 @@ func TestSelectedTypesReadsTheSelectionInDependencyOrder(t *testing.T) {
 		ExternalId: "ep-a",
 		EntityTypes: []oapi.EntityTypeToggle{
 			{EntityType: "field"},
-			{EntityType: "organization"},
+			{EntityType: "party"},
 			{EntityType: "farm"},
 		},
 	}
 
 	got := agmasync.SelectedTypes(selection)
 	want := []agmasync.EntityType{
-		agmasync.TypeOrganization, agmasync.TypeFarm, agmasync.TypeField,
+		agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("SelectedTypes = %v, want %v", got, want)
@@ -145,11 +142,8 @@ func TestEnvelopeOfSetsTheDiscriminatorForEveryType(t *testing.T) {
 		want agmasync.EntityType
 		make func() (oapi.Entity, error)
 	}{
-		{agmasync.TypeOrganization, func() (oapi.Entity, error) {
-			return agmasync.FromOrganization(oapi.Organization{Name: "Acme"})
-		}},
-		{agmasync.TypePerson, func() (oapi.Entity, error) {
-			return agmasync.FromPerson(oapi.Person{LastName: "Schmidt"})
+		{agmasync.TypeParty, func() (oapi.Entity, error) {
+			return agmasync.FromParty(oapi.Party{Name: "Acme"})
 		}},
 		{agmasync.TypeFarm, func() (oapi.Entity, error) {
 			return agmasync.FromFarm(oapi.Farm{Name: "Hof Nord"})
@@ -228,17 +222,42 @@ func TestIsRepeatLoad(t *testing.T) {
 	}
 }
 
-func TestLocalPartyRefRequiresAParty(t *testing.T) {
-	// A party reference carries a discriminator because a receiver that does
-	// not hold the target has to request it, and requests are per entity type.
-	if _, err := agmasync.LocalPartyRef(agmasync.TypeOrganization, "ORG-1"); err != nil {
-		t.Errorf("organization should be a valid party: %v", err)
+func TestPartyTierOrdersPersonsAfterOrganizations(t *testing.T) {
+	// A membership names an organization from a person, so persons go one tier
+	// below every other party. The tier is read from the object, not its type.
+	person := func() oapi.Party {
+		var d oapi.PartyDetails
+		if err := d.FromPersonDetails(oapi.PersonDetails{PartyType: agmasync.PartyTypePerson}); err != nil {
+			t.Fatal(err)
+		}
+		return oapi.Party{Name: "Anna Schmidt", Details: nullable.NewNullableWithValue(d)}
 	}
-	if _, err := agmasync.LocalPartyRef(agmasync.TypePerson, "PSN-1"); err != nil {
-		t.Errorf("person should be a valid party: %v", err)
+	organization := func() oapi.Party {
+		var d oapi.PartyDetails
+		if err := d.FromOrganizationDetails(oapi.OrganizationDetails{PartyType: agmasync.PartyTypeOrganization}); err != nil {
+			t.Fatal(err)
+		}
+		return oapi.Party{Name: "Acme", Details: nullable.NewNullableWithValue(d)}
 	}
-	if _, err := agmasync.LocalPartyRef(agmasync.TypeField, "PFD-1"); !errors.Is(
-		err, agmasync.ErrUnknownEntityType) {
-		t.Errorf("field is not a party; error = %v, want ErrUnknownEntityType", err)
+
+	for _, tc := range []struct {
+		name      string
+		party     oapi.Party
+		partyType string
+		tier      int
+	}{
+		{"unknown party type", oapi.Party{Name: "Hof Nord"}, "", 0},
+		{"null details", oapi.Party{Name: "Hof Nord", Details: nullable.NewNullNullable[oapi.PartyDetails]()}, "", 0},
+		{"organization", organization(), agmasync.PartyTypeOrganization, 0},
+		{"person", person(), agmasync.PartyTypePerson, 1},
+	} {
+		partyType, err := agmasync.PartyTypeOf(tc.party)
+		if err != nil || partyType != tc.partyType {
+			t.Errorf("%s: PartyTypeOf = %q, %v; want %q", tc.name, partyType, err, tc.partyType)
+		}
+		tier, err := agmasync.PartyTier(tc.party)
+		if err != nil || tier != tc.tier {
+			t.Errorf("%s: PartyTier = %d, %v; want %d", tc.name, tier, err, tc.tier)
+		}
 	}
 }

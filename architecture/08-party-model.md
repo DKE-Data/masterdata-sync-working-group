@@ -16,7 +16,7 @@ A model that expresses them as relations does not.
 
 Many source systems do not record whether a party is a person or an organization
 at all. ISOXML's Customer, FarmSPT's Customer/Grower and ADAPT's Grower carry a
-name and contact data, nothing more. Such a system cannot tell which of two kinds
+name and contact data, nothing more. Such a system cannot tell which of two party types
 it holds, and any guess it makes will disagree with a system that does know.
 
 ## Decision
@@ -31,17 +31,18 @@ company does.
 - `PERSON`: `title`, `first_name`, `last_name`, `memberships`
 - `ORGANIZATION`: `commercial_registry_number`
 
-A party without `details` is of unknown kind. A participant that does not
+A party without `details` is of unknown party type. A participant that does not
 distinguish never sends `details`, and on update its absence keeps what another
-participant stated. A participant sends `details` only when its own data records
-the kind, never inferred from a name or a legal-form suffix.
+participant stated. One that files such a party under a party type of its own, or
+lets its user pick one, states that party type to every participant on its next
+write.
 
 **A member is a person holding a role in an organization.** Membership is state
 on the person, expressed as a list inside its `details`, so only a person can
 carry one and one agronomist advising three organizations is one canonical
 person rather than three copies. The target of a membership must be a party whose
 `details` is an `ORGANIZATION`. agrirouter checks this on write, and rejects a
-change or removal of kind on an organization that persons still name.
+change or removal of party type on an organization that persons still name.
 
 **A partner is a party holding a role on a farm** - the contractor that works it,
 the advisor that reads it. Partnership is state on the farm, also a list.
@@ -49,7 +50,7 @@ the advisor that reads it. Partnership is state on the farm, also a list.
 Membership and partnership are the same idea at two attachment points, and both
 draw their role from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
 
-**A farm is owned by a party**, of any kind.
+**A farm is owned by a party**, of any party type.
 
 There is no attribute anywhere declaring that a party *is* a contractor or *is* a
 customer. Those are relations, read off the graph.
@@ -154,7 +155,7 @@ flowchart LR
 Brookfield owns land, works Ashcroft's land, and hires Fenland for its own harvest. All
 three hold simultaneously. No single attribute on Brookfield could have carried them.
 
-### Scenario E: a customer of unknown kind
+### Scenario E: a customer of unknown party type
 
 ```mermaid
 flowchart LR
@@ -170,8 +171,8 @@ canonical party throughout.
 
 - Entity types are `party`, `farm`, `field`, `fieldBoundary`.
 - `details` merges like any nested object while its `party_type` is unchanged. A write
-  that changes `party_type` replaces `details` whole, so no attribute of the other kind
-  survives.
+  that changes `party_type` replaces `details` whole, so no attribute of the other party
+  type survives.
 - A membership references a party of the same entity type. Delivery order is
   therefore per object, not per type: parties with person `details` follow all
   other parties (see [ADR 07](07-sync-streaming.md)). A participant sends in the
@@ -195,10 +196,10 @@ canonical party throughout.
 
 **`Party` is ADAPT's term.** ADAPT defines a party as a business entity or an
 individual, carrying a required party type code: `ORGANIZATION`, `INDIVIDUAL` or
-`UNKNOWN`. AgmaSync takes the concept, the name and the three kinds, with two
+`UNKNOWN`. AgmaSync takes the concept, the name and the three party types, with two
 departures: it says **person** where ADAPT says *individual*, and it expresses
 `UNKNOWN` as the absence of `details`, so a participant that does not record the
-kind has nothing to send. A Grower without a Party maps to a party without
+party type has nothing to send. A Grower without a Party maps to a party without
 `details` as well. The role vocabulary on memberships and partners is ADAPT's as
 well.
 

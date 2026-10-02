@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/google/uuid"
 )
 
@@ -262,31 +261,29 @@ func (r *Router) catchUp(appID, lastEventID string) []frame {
 		frames = append(frames, routeChangedFrame(ep, encodePosition(ep.selectionChangedSeq)))
 	}
 
-	for _, typ := range deliveryOrder {
-		for _, obj := range r.store.sortedObjects(typ) {
-			if obj.seq <= from {
+	for _, obj := range r.store.sortedObjects() {
+		if obj.seq <= from {
+			continue
+		}
+		// Origin suppression applies here as it does live, which is why a
+		// full re-delivery is not a complete recovery: it withholds the
+		// objects whose current revision this participant's own endpoint
+		// wrote. One frame per object, as live delivery does: entitlement
+		// is decided per endpoint, but the frame it produces belongs to
+		// the application, so siblings collapse to one.
+		for _, ep := range r.store.recipients(obj, obj.sourceEndpointID) {
+			if ep.appID != appID {
 				continue
 			}
-			// Origin suppression applies here as it does live, which is why a
-			// full re-delivery is not a complete recovery: it withholds the
-			// objects whose current revision this participant's own endpoint
-			// wrote. One frame per object, as live delivery does: entitlement
-			// is decided per endpoint, but the frame it produces belongs to
-			// the application, so siblings collapse to one.
-			for _, ep := range r.store.recipients(obj, obj.sourceEndpointID) {
-				if ep.appID != appID {
-					continue
-				}
-				event := eventMasterdataChanged
-				if !obj.active {
-					event = eventMasterdataDeactivated
-				}
-				frames = append(frames, frame{
-					event:  event,
-					id:     encodePosition(obj.seq),
-					entity: r.store.renderLocked(obj, ep),
-				})
+			event := eventMasterdataChanged
+			if !obj.active {
+				event = eventMasterdataDeactivated
 			}
+			frames = append(frames, frame{
+				event:  event,
+				id:     encodePosition(obj.seq),
+				entity: r.store.renderLocked(obj, ep),
+			})
 		}
 	}
 
@@ -308,24 +305,19 @@ func (r *Router) initialLoadStream(ctx context.Context, ep *endpoint) io.Reader 
 
 	r.store.mu.Lock()
 	frames := []frame{}
-	for _, typ := range deliveryOrder {
-		if !ep.optedInto(typ) {
+	for _, obj := range r.store.sortedObjects() {
+		if !ep.optedInto(obj.typ) || obj.tenantID != ep.tenantID {
 			continue
 		}
-		for _, obj := range r.store.sortedObjects(typ) {
-			if obj.tenantID != ep.tenantID {
-				continue
-			}
-			// The set is complete in two ways participants get wrong. Objects
-			// that are inactive are part of it, and so are objects whose
-			// current revision this participant itself wrote: origin
-			// suppression does not apply here, since an endpoint taking the set
-			// has declared that it does not know what it holds.
-			frames = append(frames, frame{
-				event:  eventMasterdataChanged,
-				entity: r.store.renderLocked(obj, ep),
-			})
-		}
+		// The set is complete in two ways participants get wrong. Objects
+		// that are inactive are part of it, and so are objects whose
+		// current revision this participant itself wrote: origin
+		// suppression does not apply here, since an endpoint taking the set
+		// has declared that it does not know what it holds.
+		frames = append(frames, frame{
+			event:  eventMasterdataChanged,
+			entity: r.store.renderLocked(obj, ep),
+		})
 	}
 	r.store.mu.Unlock()
 
@@ -374,12 +366,6 @@ func (r *Router) initialLoadStream(ctx context.Context, ep *endpoint) io.Reader 
 	return pipeR
 }
 
-// sortedObjects returns one type's objects in a stable order, so that two runs
-// of the same scenario deliver the same sequence.
-//
-// Within a type the order is by the position at which each object last changed,
-// which keeps a parent created before its child ahead of it even where both are
-// the same type — a person who belongs to an organization, for instance.
 // sortedEndpoints iterates the endpoints in a stable order, so that two reads of
 // the selection collection return them the same way.
 func (s *store) sortedEndpoints() []*endpoint {
@@ -412,15 +398,17 @@ func (s *store) sortedResets() []uuid.UUID {
 	return out
 }
 
-func (s *store) sortedObjects(typ agmasync.EntityType) []*object {
-	var out []*object
+// sortedObjects returns every object in delivery order: by tier, so a
+// referenced object precedes the objects referencing it, and within a tier by
+// the position at which each last changed, so two runs of the same scenario
+// deliver the same sequence.
+func (s *store) sortedObjects() []*object {
+	out := make([]*object, 0, len(s.objects))
 	for _, obj := range s.objects {
-		if obj.typ == typ {
-			out = append(out, obj)
-		}
+		out = append(out, obj)
 	}
 	slices.SortFunc(out, func(a, b *object) int {
-		return cmp.Compare(a.seq, b.seq)
+		return cmp.Or(cmp.Compare(tierOf(a), tierOf(b)), cmp.Compare(a.seq, b.seq))
 	})
 	return out
 }

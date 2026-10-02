@@ -427,25 +427,25 @@ func TestAClearedAttributeIsSentAsNull(t *testing.T) {
 	// models has to say so. Only the part of the address it models is cleared:
 	// the street, which it does not model, stays.
 	h := newHarness(t)
-	a := h.join("fmis-a", "ep-a", agmasync.TypeOrganization)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeParty)
 
-	upsertLocal(t, a, agmasync.TypeOrganization, "ORG-1", map[string]any{"name": "Agrar GmbH"})
-	if _, err := a.Send(context.Background(), agmasync.TypeOrganization, "ORG-1"); err != nil {
+	upsertLocal(t, a, agmasync.TypeParty, "ORG-1", map[string]any{"name": "Agrar GmbH"})
+	if _, err := a.Send(context.Background(), agmasync.TypeParty, "ORG-1"); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	applyRaw(t, a,
-		`{"type":"organization","local_id":"ORG-1",`+
+		`{"type":"party","local_id":"ORG-1",`+
 			`"address":{"street":"Dorfstr. 1","city":"Husum","country":"DE"}}`,
-		revisionAfter(t, canonicalOf(t, a, agmasync.TypeOrganization, "ORG-1")))
+		revisionAfter(t, canonicalOf(t, a, agmasync.TypeParty, "ORG-1")))
 
-	upsertLocal(t, a, agmasync.TypeOrganization, "ORG-1", map[string]any{
+	upsertLocal(t, a, agmasync.TypeParty, "ORG-1", map[string]any{
 		"name": "Agrar GmbH", "address": map[string]any{"city": nil, "country": "DE"},
 	})
-	if _, err := a.Send(context.Background(), agmasync.TypeOrganization, "ORG-1"); err != nil {
+	if _, err := a.Send(context.Background(), agmasync.TypeParty, "ORG-1"); err != nil {
 		t.Fatalf("clearing the city: %v", err)
 	}
 
-	got := canonicalOf(t, a, agmasync.TypeOrganization, "ORG-1")
+	got := canonicalOf(t, a, agmasync.TypeParty, "ORG-1")
 	if string(got["address"]) != `{"country":"DE","street":"Dorfstr. 1"}` {
 		t.Errorf("address = %s, want the city removed and the rest kept", got["address"])
 	}
@@ -667,4 +667,90 @@ func TestOneTenantsBindingSpeaksForTheWholePlatform(t *testing.T) {
 	if !holds {
 		t.Error("applying a delivery in a tenant must leave that tenant holding the record")
 	}
+}
+
+func TestAPartyOfUnknownTypeIsFiledAndSentAsAnOrganization(t *testing.T) {
+	// This platform keeps only persons and organizations, so a party delivered
+	// without details lands in the organization table, and its next write
+	// states ORGANIZATION to everyone. That is its choice, which the
+	// specification leaves to each participant.
+	h := newHarness(t)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeParty)
+
+	created := putRaw(t, a, `{"type":"party","local_id":"PTY-1","name":"Hof Müller"}`, nil)
+	if _, err := a.Apply(entityFrom(t, created), ""); err != nil {
+		t.Fatalf("applying: %v", err)
+	}
+	if _, err := a.Send(context.Background(), agmasync.TypeParty, "PTY-1"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	got := canonicalOf(t, a, agmasync.TypeParty, "PTY-1")
+	if string(got["details"]) != `{"party_type":"ORGANIZATION"}` {
+		t.Errorf("details = %s, want the platform's ORGANIZATION stated", got["details"])
+	}
+}
+
+func TestAPartyTypeChangeMovesTheRecordAndKeepsWhatItDoesNotModel(t *testing.T) {
+	// A delivery stating PERSON moves the record to the person table. Its writes
+	// then carry the person's modelled parts and leave memberships, which this
+	// platform does not model, to whoever does.
+	h := newHarness(t)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeParty)
+
+	for _, id := range []string{"ORG-1", "PTY-1"} {
+		upsertLocal(t, a, agmasync.TypeParty, id, map[string]any{
+			"name": id, "details": map[string]any{"party_type": "ORGANIZATION"},
+		})
+		if _, err := a.Send(context.Background(), agmasync.TypeParty, id); err != nil {
+			t.Fatalf("create %s: %v", id, err)
+		}
+	}
+
+	applyRaw(t, a,
+		`{"type":"party","local_id":"PTY-1","details":{"party_type":"PERSON","last_name":"Meyer",`+
+			`"memberships":[{"organization_id":{"local_id":"ORG-1"},"member_role":"OWNER"}]}}`,
+		revisionAfter(t, canonicalOf(t, a, agmasync.TypeParty, "PTY-1")))
+
+	// Read back from the person table. The organization table is read first, so
+	// a row left behind there would answer instead.
+	record := loadRecord(t, a, agmasync.TypeParty, "PTY-1")
+	if string(record.Modelled["details"]) != `{"last_name":"Meyer","party_type":"PERSON"}` {
+		t.Errorf("held details = %s, want the person's modelled parts", record.Modelled["details"])
+	}
+	record.Modelled["name"] = mustJSON(t, "Anke Meyer")
+	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		return tx.UpsertRecord(record, "PTY-1")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Send(context.Background(), agmasync.TypeParty, "PTY-1"); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	var details struct {
+		PartyType   string            `json:"party_type"`
+		LastName    string            `json:"last_name"`
+		Memberships []json.RawMessage `json:"memberships"`
+	}
+	got := canonicalOf(t, a, agmasync.TypeParty, "PTY-1")
+	if err := json.Unmarshal(got["details"], &details); err != nil {
+		t.Fatal(err)
+	}
+	if details.PartyType != "PERSON" || details.LastName != "Meyer" || len(details.Memberships) != 1 {
+		t.Errorf("details = %s, want the person kept with its membership", got["details"])
+	}
+}
+
+func entityFrom(t *testing.T, attributes map[string]json.RawMessage) oapi.Entity {
+	t.Helper()
+	raw, err := json.Marshal(attributes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ent oapi.Entity
+	if err := ent.UnmarshalJSON(raw); err != nil {
+		t.Fatal(err)
+	}
+	return ent
 }

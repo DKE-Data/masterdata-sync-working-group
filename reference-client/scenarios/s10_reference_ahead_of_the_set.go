@@ -48,7 +48,7 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	if err := alpha.AddPerson("alpha-person-1", "Petersen", "Jens"); err != nil {
 		return err
 	}
-	if _, err := alpha.Send(ctx, agmasync.TypePerson, "alpha-person-1"); err != nil {
+	if _, err := alpha.Send(ctx, agmasync.TypeParty, "alpha-person-1"); err != nil {
 		return err
 	}
 
@@ -56,16 +56,10 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := beta.OptIn(ctx, agmasync.TypeOrganization); err != nil {
-		return err
-	}
-	if _, err := beta.Load(ctx); err != nil {
-		return err
-	}
 	if _, err := beta.CatchUp(ctx); err != nil {
 		return err
 	}
-	say.Step("Beta is opted into organizations only and does not receive the person.")
+	say.Step("Beta is opted into nothing yet, catches up, and does not receive the person.")
 
 	say.Step("The user opts into farms for Beta's endpoint, which starts a load.")
 	if err := beta.OptIn(ctx, agmasync.TypeFarm); err != nil {
@@ -75,7 +69,7 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(len(selected) == 3,
+	if err := say.Check(len(selected) == 2,
 		"the frame states what that came to: %s", names(selected)); err != nil {
 		return err
 	}
@@ -94,7 +88,7 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	}
 
 	say.Step("Before Beta takes that set, Alpha assigns the farm to Jens Petersen.")
-	if err := alpha.Owned("alpha-farm-1", agmasync.TypePerson, "alpha-person-1"); err != nil {
+	if err := alpha.Owned("alpha-farm-1", "alpha-person-1"); err != nil {
 		return err
 	}
 	if _, err := alpha.Send(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
@@ -137,10 +131,6 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 		"the farm named the target entity, so Beta knows what it is waiting for"); err != nil {
 		return err
 	}
-	if err := say.Check(owner.Type != nil && *owner.Type == string(agmasync.TypePerson),
-		"and it names the kind of party, %q", derefOr(owner.Type)); err != nil {
-		return err
-	}
 
 	say.Step("Beta does not ask for it, because the set has not finished arriving.")
 	status, err := beta.Status(ctx)
@@ -165,7 +155,7 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	betaPeople, err := beta.LocalIDs(agmasync.TypePerson)
+	betaPeople, err := beta.LocalIDs(agmasync.TypeParty)
 	if err != nil {
 		return err
 	}
@@ -188,7 +178,6 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 type reference struct {
 	AgrirouterID *uuid.UUID `json:"agrirouter_id"`
 	LocalID      *string    `json:"local_id"`
-	Type         *string    `json:"type"`
 }
 
 // referenceOn reads one reference slot off a delivered entity.
@@ -219,11 +208,4 @@ func containsLocalID(raw json.RawMessage, localID string) bool {
 		return false
 	}
 	return ref.LocalID != nil && *ref.LocalID == localID
-}
-
-func derefOr(s *string) string {
-	if s == nil {
-		return "none"
-	}
-	return *s
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	// Aliased: this package is itself called sync, and an unqualified mention of
 	// the name below should read as the standard library's.
 	stdsync "sync"
@@ -594,7 +595,9 @@ func (l *Loader) dropRejected(rejected []oapi.IdMappingRejection) (map[ref]bool,
 // and agrirouter has no canonical object for. In dependency order, because a
 // reference travels as this platform's own identifier for its target and
 // resolves against the mapping — a field sent before its farm names a farm
-// agrirouter cannot resolve.
+// agrirouter cannot resolve. Within parties the order is per object, persons
+// after the organizations their memberships name, but this platform does not
+// model memberships and so sends parties that name nothing.
 //
 // A real product also re-sends here what its user changed while resolving
 // conflicts. That is an ordinary [Applier.Send] against a bound record, and this

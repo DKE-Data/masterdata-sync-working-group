@@ -851,7 +851,7 @@ func TestSelectingAnUndeclaredTypeIsRefused(t *testing.T) {
 	f := newFixture(t)
 	f.router.AddEndpoint("fmis-a", f.tenant, "ep-a")
 
-	if err := f.router.Declare("ep-a", agmasync.TypeOrganization, agmasync.TypePerson); err != nil {
+	if err := f.router.Declare("ep-a", agmasync.TypeParty); err != nil {
 		t.Fatalf("declare: %v", err)
 	}
 	if err := f.router.OptIn("ep-a", agmasync.TypeFarm); err == nil {
@@ -860,7 +860,7 @@ func TestSelectingAnUndeclaredTypeIsRefused(t *testing.T) {
 
 	// The declared types are selectable, so the refusal is about the bound and
 	// not about the call.
-	if err := f.router.OptIn("ep-a", agmasync.TypeOrganization); err != nil {
+	if err := f.router.OptIn("ep-a", agmasync.TypeParty); err != nil {
 		t.Fatalf("selecting a declared type: %v", err)
 	}
 }
@@ -914,14 +914,12 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 	// Connecting restates what this endpoint already exchanges, the selection
 	// having moved above the position this stream was opened from.
 	onConnecting := next()
-	want := []agmasync.EntityType{
-		agmasync.TypeOrganization, agmasync.TypePerson, agmasync.TypeFarm,
-	}
+	want := []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeFarm}
 	if got := agmasync.SelectedTypes(*onConnecting); !slices.Equal(got, want) {
 		t.Errorf("selection on connecting = %v, want %v", got, want)
 	}
 
-	if err := f.router.OptIn("ep-a", agmasync.TypeFarm, agmasync.TypeField); err != nil {
+	if err := f.router.OptIn("ep-a", agmasync.TypeFarm, agmasync.TypeFieldBoundary); err != nil {
 		t.Fatalf("widening the selection: %v", err)
 	}
 
@@ -946,8 +944,8 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 		t.Error("frame carries no changedAt")
 	}
 
-	// The frame states the closure and not just what the user clicked. Fields
-	// pull in the whole graph, opt-in being dependency-closed.
+	// The frame states the closure and not just what the user clicked. Field
+	// boundaries pull in the whole graph, opt-in being dependency-closed.
 	if got := agmasync.SelectedTypes(*frame); !slices.Equal(got, agmasync.DependencyOrder) {
 		t.Errorf("selected types = %v, want %v", got, agmasync.DependencyOrder)
 	}
@@ -958,7 +956,7 @@ func TestDeselectingIsStatedToo(t *testing.T) {
 	// ones that take something away. Without this a participant is left inferring
 	// from silence that a type it was sending is no longer wanted.
 	f := newFixture(t)
-	p := f.join("fmis-a", "ep-a", agmasync.TypeField)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeFieldBoundary)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -970,7 +968,7 @@ func TestDeselectingIsStatedToo(t *testing.T) {
 	defer stream.Close()
 	next := nextSelection(t, stream, "ep-a")
 
-	// Stated on connecting. Fields pull in the whole graph, and SelectedTypes
+	// Stated on connecting. Field boundaries pull in the whole graph, and SelectedTypes
 	// hands them back in dependency order so a parent is always sent before what
 	// references it.
 	first := next()
@@ -984,9 +982,7 @@ func TestDeselectingIsStatedToo(t *testing.T) {
 		t.Fatalf("narrowing the selection: %v", err)
 	}
 
-	want := []agmasync.EntityType{
-		agmasync.TypeOrganization, agmasync.TypePerson, agmasync.TypeFarm,
-	}
+	want := []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeFarm}
 	if got := agmasync.SelectedTypes(*next()); !slices.Equal(got, want) {
 		t.Errorf("narrowed selection = %v, want %v", got, want)
 	}
@@ -1268,7 +1264,7 @@ func TestOptInOverTheControlPlaneBehavesAsInProcess(t *testing.T) {
 
 	// The declaration bounds the selection on this path too, and the refusal
 	// carries which type is missing.
-	if err := f.router.Declare("ep-a", agmasync.TypeOrganization); err != nil {
+	if err := f.router.Declare("ep-a", agmasync.TypeParty); err != nil {
 		t.Fatalf("narrowing the declaration: %v", err)
 	}
 	if code := optInOverHTTP(t, f, "ep-a", "farm"); code != http.StatusBadRequest {
@@ -1352,7 +1348,7 @@ func TestPutEndpointCreatesAnEndpointTheRouterHasNotHeardOf(t *testing.T) {
 	f := newFixture(t)
 
 	code, created := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
-		agmasync.TypeOrganization)
+		agmasync.TypeParty)
 	if code != http.StatusCreated {
 		t.Fatalf("first put = %d, want 201", code)
 	}
@@ -1368,7 +1364,7 @@ func TestPutEndpointCreatesAnEndpointTheRouterHasNotHeardOf(t *testing.T) {
 
 	// The endpoint it minted is a whole one, not a placeholder: the user can be
 	// offered what it declared, and the endpoint reaches its initial load.
-	if err := f.router.OptIn("ep-new", agmasync.TypeOrganization); err != nil {
+	if err := f.router.OptIn("ep-new", agmasync.TypeParty); err != nil {
 		t.Fatalf("opting the created endpoint in: %v", err)
 	}
 	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-new"))
@@ -1387,7 +1383,7 @@ func TestPutEndpointCreatesAnEndpointTheRouterHasNotHeardOf(t *testing.T) {
 	// The second call is the update half, and the identifier is stable: an id
 	// that moved would strand every mapping already made against it.
 	code, again := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
-		agmasync.TypeOrganization, agmasync.TypePerson)
+		agmasync.TypeParty)
 	if code != http.StatusOK {
 		t.Fatalf("second put = %d, want 200", code)
 	}
@@ -1405,7 +1401,7 @@ func TestPutEndpointWillNotTakeOverAnotherApplicationsEndpoint(t *testing.T) {
 	f.router.AddEndpoint("fmis-a", f.tenant, "ep-a")
 
 	if code, _ := putEndpointOverHTTP(t, f, "fmis-b", "ep-a", f.tenant,
-		agmasync.TypeOrganization); code != http.StatusForbidden {
+		agmasync.TypeParty); code != http.StatusForbidden {
 		t.Errorf("foreign put = %d, want 403", code)
 	}
 }
@@ -1425,7 +1421,7 @@ func TestPutEndpointRejectedForClosureCreatesNothing(t *testing.T) {
 		t.Fatalf("unclosed put = %d, want 400", code)
 	}
 	if code, _ := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
-		agmasync.TypeOrganization); code != http.StatusCreated {
+		agmasync.TypeParty); code != http.StatusCreated {
 		t.Errorf("retry after rejection = %d, want 201 — the rejected call left an endpoint", code)
 	}
 }

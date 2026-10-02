@@ -162,9 +162,9 @@ func TestARequestIsAnsweredOnTheNamedTypeAlone(t *testing.T) {
 	}
 
 	// Opting into farms pulls in the parties farms reference, so this endpoint is
-	// entitled to organizations too. What refuses the request is the type of the
+	// entitled to parties too. What refuses the request is the type of the
 	// object behind the identifier, not the endpoint's selection.
-	err = p.endpoint.Request(context.Background(), agmasync.TypeOrganization, *env.AgrirouterId)
+	err = p.endpoint.Request(context.Background(), agmasync.TypeParty, *env.AgrirouterId)
 	if !errors.Is(err, agmasync.ErrNotFound) {
 		t.Errorf("request on the wrong type = %v, want not found", err)
 	}

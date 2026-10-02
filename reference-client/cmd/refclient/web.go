@@ -228,8 +228,9 @@ type objectsView struct {
 	// Types are every type a record may be created as, which is not the same as
 	// the types that can be sent. Creating is the platform's own act; sending is
 	// what the user routed. NewType is the one the form is currently showing.
-	Types   []agmasync.EntityType
-	NewType agmasync.EntityType
+	// Both are the platform's record types, not the protocol's entity types.
+	Types   []recordType
+	NewType recordType
 
 	// NewRouted says a record of NewType leaves as soon as it is created. It
 	// changes what the button promises, so the screen says which it will be
@@ -242,7 +243,7 @@ type objectsView struct {
 }
 
 type objectGroup struct {
-	Type agmasync.EntityType
+	Type recordType
 	// Routed says whether this type is still one the user routed. Objects of a
 	// type routed away from stay held and stay shown — narrowing a routing does
 	// not unmake what was already received — but nothing more can be sent about
@@ -252,7 +253,7 @@ type objectGroup struct {
 }
 
 type objectRow struct {
-	Type         agmasync.EntityType
+	Type         recordType
 	Name         string
 	LocalID      string
 	AgrirouterID string
@@ -289,13 +290,13 @@ func (row *objectRow) deletability(routed bool) {
 // defaultNewType picks the type the create form opens on: the first routed one
 // in dependency order, so what is typed first is what everything else refers
 // to, and an organization where nothing is routed at all.
-func defaultNewType(routed []agmasync.EntityType) agmasync.EntityType {
-	for _, typ := range agmasync.DependencyOrder {
-		if slices.Contains(routed, typ) {
+func defaultNewType(routed []agmasync.EntityType) recordType {
+	for _, typ := range recordTypes {
+		if slices.Contains(routed, typ.entityType()) {
 			return typ
 		}
 	}
-	return agmasync.TypeOrganization
+	return recordOrganization
 }
 
 func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
@@ -306,38 +307,45 @@ func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 	// routing, and the form says so rather than hiding the types it cannot send:
 	// a farm management system whose user cannot enter a farm because of what
 	// agrirouter was told is not a farm management system.
-	newType := agmasync.EntityType(r.URL.Query().Get("new"))
-	if !newType.Valid() {
+	newType, err := parseRecordType(r.URL.Query().Get("new"))
+	if err != nil {
 		newType = defaultNewType(p.Routed)
 	}
 
 	view := objectsView{
 		page:      p,
-		Types:     agmasync.EntityTypes,
+		Types:     recordTypes,
 		NewType:   newType,
-		NewRouted: slices.Contains(p.Routed, newType),
+		NewRouted: slices.Contains(p.Routed, newType.entityType()),
 		SampleGeo: sampleGeometry,
 	}
-	err := in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
+	err = in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
 		var err error
 		if view.Fields, err = fillChoices(tx, formFields(newType)); err != nil {
 			return err
 		}
+		// Listed by entity type, which is what the store keeps them by, and
+		// grouped by record type, which is what the user knows them as.
+		rows := map[recordType][]objectRow{}
 		for _, typ := range agmasync.DependencyOrder {
 			localIDs, err := tx.LocalIDs(typ)
 			if err != nil {
 				return err
 			}
-			if len(localIDs) == 0 {
-				continue
-			}
-
-			group := objectGroup{Type: typ, Routed: slices.Contains(p.Routed, typ)}
 			for _, localID := range localIDs {
 				row, err := objectRowOf(tx, typ, localID)
 				if err != nil {
 					return err
 				}
+				rows[row.Type] = append(rows[row.Type], row)
+			}
+		}
+		for _, typ := range recordTypes {
+			if len(rows[typ]) == 0 {
+				continue
+			}
+			group := objectGroup{Type: typ, Routed: slices.Contains(p.Routed, typ.entityType())}
+			for _, row := range rows[typ] {
 				row.deletability(group.Routed)
 				group.Records = append(group.Records, row)
 			}
@@ -352,12 +360,13 @@ func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func objectRowOf(tx *store.Tx, typ agmasync.EntityType, localID string) (objectRow, error) {
-	out := objectRow{Type: typ, LocalID: localID, AgrirouterID: "—", Revision: "—"}
+	out := objectRow{LocalID: localID, AgrirouterID: "—", Revision: "—"}
 
 	record, err := tx.LoadRecord(typ, localID)
 	if err != nil {
 		return out, err
 	}
+	out.Type = recordTypeOf(record)
 	out.Archived = record.Archived
 	out.Attributes = attributesOfRecord(record)
 	out.Name = nameOfRecord(record)
@@ -379,7 +388,7 @@ func objectRowOf(tx *store.Tx, typ agmasync.EntityType, localID string) (objectR
 }
 
 func (in *instance) postObject(w http.ResponseWriter, r *http.Request) {
-	typ, err := agmasyncType(r.FormValue("type"))
+	typ, err := parseRecordType(r.FormValue("type"))
 	if err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
@@ -397,7 +406,7 @@ func (in *instance) postObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	localID, sent, err := in.create(r.Context(), typ, attributes)
+	localID, sent, err := in.create(r.Context(), typ.entityType(), attributes)
 	if err != nil {
 		if localID == "" {
 			redirect(w, r, "/objects?new="+string(typ), "", err.Error())
@@ -412,13 +421,13 @@ func (in *instance) postObject(w http.ResponseWriter, r *http.Request) {
 
 	what := fmt.Sprintf("%s %s created and sent", typ, localID)
 	if !sent {
-		what = fmt.Sprintf("%s %s created; %s is not routed", typ, localID, typ)
+		what = fmt.Sprintf("%s %s created; %s is not routed", typ, localID, typ.entityType())
 	}
 	redirect(w, r, objectPath(typ, localID), what, "")
 }
 
 // objectPath is where one record lives on these screens.
-func objectPath(typ agmasync.EntityType, localID string) string {
+func objectPath(typ recordType, localID string) string {
 	return "/objects/" + url.PathEscape(string(typ)) + "/" + url.PathEscape(localID)
 }
 
@@ -449,11 +458,12 @@ type detailAttr struct {
 }
 
 func (in *instance) showObject(w http.ResponseWriter, r *http.Request) {
-	typ, err := agmasyncType(r.PathValue("type"))
+	recType, err := parseRecordType(r.PathValue("type"))
 	if err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
+	typ := recType.entityType()
 	localID := r.PathValue("localId")
 
 	p := in.page("objects")
@@ -492,7 +502,7 @@ func (in *instance) showObject(w http.ResponseWriter, r *http.Request) {
 // from [formFields].
 func detailAttrs(tx *store.Tx, record store.Record) []detailAttr {
 	var out []detailAttr
-	for _, field := range formFields(record.EntityType) {
+	for _, field := range formFields(recordTypeOf(record)) {
 		raw, ok := valueAt(record.Modelled, field.Name)
 		if !ok {
 			continue
@@ -501,16 +511,18 @@ func detailAttrs(tx *store.Tx, record store.Record) []detailAttr {
 		attr := detailAttr{Label: field.Label, Value: compact(raw)}
 		switch field.Kind {
 		case "ref":
-			targetType, targetID := refTarget(raw)
+			targetID := refTarget(raw)
 			if targetID == "" {
 				break
 			}
 			attr.Value = targetID
-			if targetType.Valid() {
-				attr.Link = objectPath(targetType, targetID)
-				if name, err := displayName(tx, targetType, targetID); err == nil && name != "" {
-					attr.Value = fmt.Sprintf("%s — %s", name, targetID)
-				}
+			target, err := tx.LoadRecord(field.RefType, targetID)
+			if err != nil {
+				break
+			}
+			attr.Link = objectPath(recordTypeOf(target), targetID)
+			if name := nameOfRecord(target); name != "" {
+				attr.Value = fmt.Sprintf("%s — %s", name, targetID)
 			}
 		case "geometry":
 			// Summarised, then shown. Indenting a polygon puts every coordinate
@@ -582,26 +594,25 @@ func countPoints(coordinates any) int {
 	return total
 }
 
-func refTarget(raw json.RawMessage) (agmasync.EntityType, string) {
+func refTarget(raw json.RawMessage) string {
 	var ref struct {
-		Type    string `json:"type"`
 		LocalID string `json:"local_id"`
 	}
 	if err := json.Unmarshal(raw, &ref); err != nil {
-		return "", ""
+		return ""
 	}
-	return agmasync.EntityType(ref.Type), ref.LocalID
+	return ref.LocalID
 }
 
 func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {
-	typ, err := agmasyncType(r.FormValue("type"))
+	typ, err := parseRecordType(r.FormValue("type"))
 	if err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
 	localID := r.FormValue("local_id")
 
-	if err := in.deactivate(r.Context(), typ, localID); err != nil {
+	if err := in.deactivate(r.Context(), typ.entityType(), localID); err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
@@ -609,14 +620,14 @@ func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (in *instance) postDelete(w http.ResponseWriter, r *http.Request) {
-	typ, err := agmasyncType(r.FormValue("type"))
+	typ, err := parseRecordType(r.FormValue("type"))
 	if err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
 	localID := r.FormValue("local_id")
 
-	if err := in.deleteRecord(r.Context(), typ, localID); err != nil {
+	if err := in.deleteRecord(r.Context(), typ.entityType(), localID); err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}

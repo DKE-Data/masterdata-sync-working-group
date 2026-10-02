@@ -191,8 +191,8 @@ agmactl bind farm FRM-1 <agrirouterId>
 carry `type` and `local_id`, since those travel in the payload rather than as separate flags:
 
 ```
-echo '{"type":"organization","local_id":"org-1","name":"gamma corp"}' \
-  | agmactl put organization -
+echo '{"type":"party","local_id":"org-1","name":"gamma corp","details":{"party_type":"ORGANIZATION"}}' \
+  | agmactl put party -
 ```
 
 ### Driving an initial load

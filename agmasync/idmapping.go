@@ -34,17 +34,9 @@ func (e *Endpoint) Bind(
 	ctx context.Context, t EntityType, localID string, agrirouterID uuid.UUID,
 ) error {
 	switch t {
-	case TypeOrganization:
-		r, err := e.client.api.BindOrganizationMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindOrganizationMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
-		if err != nil {
-			return transportErr(err)
-		}
-		return mappingResult{r.StatusCode(), r.JSON403, r.JSON404, r.JSON409, r.Body}.err()
-
-	case TypePerson:
-		r, err := e.client.api.BindPersonMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.BindPersonMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
+	case TypeParty:
+		r, err := e.client.api.BindPartyMappingWithResponse(ctx, localID, agrirouterID,
+			&oapi.BindPartyMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}
@@ -103,18 +95,9 @@ func (e *Endpoint) Unbind(
 	ctx context.Context, t EntityType, localID string, agrirouterID uuid.UUID,
 ) error {
 	switch t {
-	case TypeOrganization:
-		r, err := e.client.api.UnbindOrganizationMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindOrganizationMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
-		if err != nil {
-			return transportErr(err)
-		}
-		return mappingResult{statusCode: r.StatusCode(), forbidden: r.JSON403,
-			notFound: r.JSON404, body: r.Body}.err()
-
-	case TypePerson:
-		r, err := e.client.api.UnbindPersonMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindPersonMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
+	case TypeParty:
+		r, err := e.client.api.UnbindPartyMappingWithResponse(ctx, localID, agrirouterID,
+			&oapi.UnbindPartyMappingParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID})
 		if err != nil {
 			return transportErr(err)
 		}

@@ -91,8 +91,8 @@ paths:
 
         `details` carries its `party_type` on every write that includes it. It merges
         like any nested object while that `party_type` is unchanged; a write that
-        changes it replaces `details` whole, so no attribute of the other kind
-        survives. A participant that does not record whether a party is a
+        changes it replaces `details` whole, so no attribute of the other party
+        type survives. A participant that does not record whether a party is a
         person or an organization leaves `details` out, which keeps what another
         participant stated.
       operationId: putParty
@@ -1733,7 +1733,7 @@ components:
     Party:
       description: >
         A legal or natural actor: a person, an organization, or a party whose
-        kind its sender does not record. It plays no fixed role: whether it acts
+        party type its sender does not record. It plays no fixed role: whether it acts
         as a contractor or as a client follows from the relations it stands in,
         not from an attribute.
       allOf:
@@ -1756,9 +1756,9 @@ components:
                 - type: 'null'
               description: >
                 Whether the party is a person or an organization, with the
-                attributes specific to that kind. Absent means the kind is
-                unknown. Sent only where the sender's own data records the kind,
-                never inferred from a name or a legal-form suffix.
+                attributes specific to that party type. Absent means the party
+                type is unknown. Whatever a write sends here is stated to every
+                participant.
             address:
               oneOf:
                 - $ref: '#/components/schemas/Address'
@@ -1839,8 +1839,8 @@ components:
           description: >
             The organization the person belongs to: a party whose `details` is
             an organization. A write naming any other party is a `400`, and so
-            is a change or removal of kind on an organization that persons
-            still name.
+            is a change or removal of party type on an organization that
+            persons still name.
         member_role:
           $ref: '#/components/schemas/Role'
       required: [organization_id, member_role]

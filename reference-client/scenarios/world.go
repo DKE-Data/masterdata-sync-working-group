@@ -242,7 +242,7 @@ func bearing(applicationID uuid.UUID) agmasync.Option {
 // participant's own first call, and a scenario that faked it would be hiding the
 // one step every reader has to make work first.
 //
-// This platform's software handles all five entity types, so it says so.
+// This platform's software handles all four entity types, so it says so.
 // Declaring enables nothing: it is the list the user is later offered a choice
 // from, and until they choose, the endpoint exchanges nothing.
 func (w *World) onboard(
@@ -509,33 +509,38 @@ func (p *Platform) AddFarm(localID, name, city string) error {
 	})
 }
 
-// AddOrganization creates an organization: a party that can hold a farm.
+// AddOrganization creates a party the platform records as an organization.
 func (p *Platform) AddOrganization(localID, name, city string) error {
 	p.ids.reserve(localID)
-	return p.Edit(agmasync.TypeOrganization, localID, map[string]any{
+	return p.Edit(agmasync.TypeParty, localID, map[string]any{
 		"name":    name,
+		"details": map[string]string{"party_type": agmasync.PartyTypeOrganization},
 		"address": map[string]string{"city": city},
 	})
 }
 
-// AddPerson creates a person: the other kind of party, which is why a reference
-// to one carries a type discriminator.
+// AddPerson creates a party the platform records as a person.
 func (p *Platform) AddPerson(localID, lastName, firstName string) error {
 	p.ids.reserve(localID)
-	return p.Edit(agmasync.TypePerson, localID, map[string]any{
-		"last_name":  lastName,
-		"first_name": firstName,
+	return p.Edit(agmasync.TypeParty, localID, map[string]any{
+		"name": firstName + " " + lastName,
+		"details": map[string]string{
+			"party_type": agmasync.PartyTypePerson,
+			"last_name":  lastName,
+			"first_name": firstName,
+		},
 	})
 }
 
-// AddBoundary creates a field boundary.
+// AddBoundary creates a field boundary of one of the platform's own fields.
 //
 // creationMethod is an extensible enumeration: the values in the specification
 // are those known when it was written, and a participant must relay one it has
 // never seen rather than reject the entity over it.
-func (p *Platform) AddBoundary(localID, boundaryType, creationMethod string) error {
+func (p *Platform) AddBoundary(localID, fieldLocalID, boundaryType, creationMethod string) error {
 	p.ids.reserve(localID)
 	return p.Edit(agmasync.TypeFieldBoundary, localID, map[string]any{
+		"field":           map[string]string{"local_id": fieldLocalID},
 		"boundary_type":   boundaryType,
 		"creation_method": creationMethod,
 		"boundary": map[string]any{
@@ -547,14 +552,12 @@ func (p *Platform) AddBoundary(localID, boundaryType, creationMethod string) err
 
 // Owned records in the platform's own tables that a farm belongs to a party.
 //
-// The reference is built out of the platform's own identifier for the party and
-// the kind of party it is, which is all a sender needs: agrirouter resolves it
-// against the sender's mapping, so a canonical identifier never has to be held
-// to build one. The type travels because the slot admits either kind — see
-// [Platform.Request].
-func (p *Platform) Owned(farmLocalID string, party agmasync.EntityType, partyLocalID string) error {
+// The reference is built out of the platform's own identifier for the party,
+// which is all a sender needs: agrirouter resolves it against the sender's
+// mapping, so a canonical identifier never has to be held to build one.
+func (p *Platform) Owned(farmLocalID, partyLocalID string) error {
 	return p.Edit(agmasync.TypeFarm, farmLocalID, map[string]any{
-		"owner": map[string]string{"type": string(party), "local_id": partyLocalID},
+		"owner": map[string]string{"local_id": partyLocalID},
 	})
 }
 

@@ -9,8 +9,8 @@ import (
 )
 
 // This file implements oapi.StrictServerInterface. Each entity type has its own
-// four operations and its own generated response types, so the twenty entity
-// handlers below are the same handler written five times over. The behaviour
+// five operations and its own generated response types, so the twenty entity
+// handlers below are the same handler written four times over. The behaviour
 // lives in the generic helpers in handlers_core.go; these only carry a
 // result into the concrete response type the generated code demands.
 //
@@ -18,232 +18,118 @@ import (
 // give every entity type its own paths, rather than one polymorphic resource,
 // is what produces the repetition, and it is worth seeing.
 
-// PutOrganization implements oapi.StrictServerInterface.
-func (r *Router) PutOrganization(
-	ctx context.Context, req oapi.PutOrganizationRequestObject,
-) (oapi.PutOrganizationResponseObject, error) {
-	raw, created, err := r.doPut(ctx, agmasync.TypeOrganization, req.LocalId,
+// PutParty implements oapi.StrictServerInterface.
+func (r *Router) PutParty(
+	ctx context.Context, req oapi.PutPartyRequestObject,
+) (oapi.PutPartyResponseObject, error) {
+	raw, created, err := r.doPut(ctx, agmasync.TypeParty, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 400:
-			return oapi.PutOrganization400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
+			return oapi.PutParty400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
 		case 403:
-			return oapi.PutOrganization403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.PutParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 409:
-			return oapi.PutOrganization409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
+			return oapi.PutParty409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
 		case 428:
-			return oapi.PutOrganization428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.PutParty428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.PutOrganization412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.PutParty412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
-	var entity oapi.Organization
+	var entity oapi.Party
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
 	if created {
-		return oapi.PutOrganization201JSONResponse(entity), nil
+		return oapi.PutParty201JSONResponse(entity), nil
 	}
-	return oapi.PutOrganization200JSONResponse(entity), nil
+	return oapi.PutParty200JSONResponse(entity), nil
 }
 
-// DeactivateOrganization implements oapi.StrictServerInterface.
-func (r *Router) DeactivateOrganization(
-	ctx context.Context, req oapi.DeactivateOrganizationRequestObject,
-) (oapi.DeactivateOrganizationResponseObject, error) {
-	raw, err := r.doDeactivate(ctx, agmasync.TypeOrganization, req.LocalId,
+// DeactivateParty implements oapi.StrictServerInterface.
+func (r *Router) DeactivateParty(
+	ctx context.Context, req oapi.DeactivatePartyRequestObject,
+) (oapi.DeactivatePartyResponseObject, error) {
+	raw, err := r.doDeactivate(ctx, agmasync.TypeParty, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.DeactivateOrganization403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.DeactivateParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.DeactivateOrganization404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.DeactivateParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.DeactivateOrganization428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.DeactivateParty428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.DeactivateOrganization412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.DeactivateParty412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
-	var entity oapi.Organization
+	var entity oapi.Party
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.DeactivateOrganization200JSONResponse(entity), nil
+	return oapi.DeactivateParty200JSONResponse(entity), nil
 }
 
-// BindOrganizationMapping implements oapi.StrictServerInterface.
-func (r *Router) BindOrganizationMapping(
-	ctx context.Context, req oapi.BindOrganizationMappingRequestObject,
-) (oapi.BindOrganizationMappingResponseObject, error) {
-	err := r.doBind(ctx, agmasync.TypeOrganization, req.LocalId, req.AgrirouterId,
+// BindPartyMapping implements oapi.StrictServerInterface.
+func (r *Router) BindPartyMapping(
+	ctx context.Context, req oapi.BindPartyMappingRequestObject,
+) (oapi.BindPartyMappingResponseObject, error) {
+	err := r.doBind(ctx, agmasync.TypeParty, req.LocalId, req.AgrirouterId,
 		req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.BindOrganizationMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.BindPartyMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 409:
-			return oapi.BindOrganizationMapping409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
+			return oapi.BindPartyMapping409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
 		default:
-			return oapi.BindOrganizationMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.BindPartyMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		}
 	}
-	return oapi.BindOrganizationMapping204Response{}, nil
+	return oapi.BindPartyMapping204Response{}, nil
 }
 
-// UnbindOrganizationMapping implements oapi.StrictServerInterface.
-func (r *Router) UnbindOrganizationMapping(
-	ctx context.Context, req oapi.UnbindOrganizationMappingRequestObject,
-) (oapi.UnbindOrganizationMappingResponseObject, error) {
-	err := r.doUnbind(ctx, agmasync.TypeOrganization, req.LocalId, req.AgrirouterId,
+// UnbindPartyMapping implements oapi.StrictServerInterface.
+func (r *Router) UnbindPartyMapping(
+	ctx context.Context, req oapi.UnbindPartyMappingRequestObject,
+) (oapi.UnbindPartyMappingResponseObject, error) {
+	err := r.doUnbind(ctx, agmasync.TypeParty, req.LocalId, req.AgrirouterId,
 		req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
 		if f.status == 403 {
-			return oapi.UnbindOrganizationMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.UnbindPartyMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		}
-		return oapi.UnbindOrganizationMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+		return oapi.UnbindPartyMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 	}
-	return oapi.UnbindOrganizationMapping204Response{}, nil
+	return oapi.UnbindPartyMapping204Response{}, nil
 }
 
-// RequestOrganization implements oapi.StrictServerInterface.
-func (r *Router) RequestOrganization(
-	ctx context.Context, req oapi.RequestOrganizationRequestObject,
-) (oapi.RequestOrganizationResponseObject, error) {
+// RequestParty implements oapi.StrictServerInterface.
+func (r *Router) RequestParty(
+	ctx context.Context, req oapi.RequestPartyRequestObject,
+) (oapi.RequestPartyResponseObject, error) {
 	if req.Body == nil {
-		return oapi.RequestOrganization404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(oapi.Error{Message: "no request body"})}, nil
+		return oapi.RequestParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(oapi.Error{Message: "no request body"})}, nil
 	}
-	err := r.doRequest(ctx, agmasync.TypeOrganization, req.Body.AgrirouterId,
+	err := r.doRequest(ctx, agmasync.TypeParty, req.Body.AgrirouterId,
 		req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
 		if f.status == 403 {
-			return oapi.RequestOrganization403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.RequestParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		}
-		return oapi.RequestOrganization404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+		return oapi.RequestParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 	}
-	return oapi.RequestOrganization202Response{}, nil
-}
-
-// PutPerson implements oapi.StrictServerInterface.
-func (r *Router) PutPerson(
-	ctx context.Context, req oapi.PutPersonRequestObject,
-) (oapi.PutPersonResponseObject, error) {
-	raw, created, err := r.doPut(ctx, agmasync.TypePerson, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
-	if err != nil {
-		f := faultOf(err)
-		switch f.status {
-		case 400:
-			return oapi.PutPerson400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
-		case 403:
-			return oapi.PutPerson403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
-		case 409:
-			return oapi.PutPerson409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
-		case 428:
-			return oapi.PutPerson428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
-		default:
-			return oapi.PutPerson412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
-		}
-	}
-
-	var entity oapi.Person
-	if err := json.Unmarshal(raw, &entity); err != nil {
-		return nil, err
-	}
-	if created {
-		return oapi.PutPerson201JSONResponse(entity), nil
-	}
-	return oapi.PutPerson200JSONResponse(entity), nil
-}
-
-// DeactivatePerson implements oapi.StrictServerInterface.
-func (r *Router) DeactivatePerson(
-	ctx context.Context, req oapi.DeactivatePersonRequestObject,
-) (oapi.DeactivatePersonResponseObject, error) {
-	raw, err := r.doDeactivate(ctx, agmasync.TypePerson, req.LocalId,
-		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
-	if err != nil {
-		f := faultOf(err)
-		switch f.status {
-		case 403:
-			return oapi.DeactivatePerson403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
-		case 404:
-			return oapi.DeactivatePerson404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
-		case 428:
-			return oapi.DeactivatePerson428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
-		default:
-			return oapi.DeactivatePerson412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
-		}
-	}
-
-	var entity oapi.Person
-	if err := json.Unmarshal(raw, &entity); err != nil {
-		return nil, err
-	}
-	return oapi.DeactivatePerson200JSONResponse(entity), nil
-}
-
-// BindPersonMapping implements oapi.StrictServerInterface.
-func (r *Router) BindPersonMapping(
-	ctx context.Context, req oapi.BindPersonMappingRequestObject,
-) (oapi.BindPersonMappingResponseObject, error) {
-	err := r.doBind(ctx, agmasync.TypePerson, req.LocalId, req.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
-	if err != nil {
-		f := faultOf(err)
-		switch f.status {
-		case 403:
-			return oapi.BindPersonMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
-		case 409:
-			return oapi.BindPersonMapping409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
-		default:
-			return oapi.BindPersonMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
-		}
-	}
-	return oapi.BindPersonMapping204Response{}, nil
-}
-
-// UnbindPersonMapping implements oapi.StrictServerInterface.
-func (r *Router) UnbindPersonMapping(
-	ctx context.Context, req oapi.UnbindPersonMappingRequestObject,
-) (oapi.UnbindPersonMappingResponseObject, error) {
-	err := r.doUnbind(ctx, agmasync.TypePerson, req.LocalId, req.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
-	if err != nil {
-		f := faultOf(err)
-		if f.status == 403 {
-			return oapi.UnbindPersonMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
-		}
-		return oapi.UnbindPersonMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
-	}
-	return oapi.UnbindPersonMapping204Response{}, nil
-}
-
-// RequestPerson implements oapi.StrictServerInterface.
-func (r *Router) RequestPerson(
-	ctx context.Context, req oapi.RequestPersonRequestObject,
-) (oapi.RequestPersonResponseObject, error) {
-	if req.Body == nil {
-		return oapi.RequestPerson404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(oapi.Error{Message: "no request body"})}, nil
-	}
-	err := r.doRequest(ctx, agmasync.TypePerson, req.Body.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
-	if err != nil {
-		f := faultOf(err)
-		if f.status == 403 {
-			return oapi.RequestPerson403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
-		}
-		return oapi.RequestPerson404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
-	}
-	return oapi.RequestPerson202Response{}, nil
+	return oapi.RequestParty202Response{}, nil
 }
 
 // PutFarm implements oapi.StrictServerInterface.

@@ -7,7 +7,7 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 )
 
-// EntityType is one of the five master-data entity types of the MVP scope.
+// EntityType is one of the four master-data entity types of the MVP scope.
 //
 // The values are the ones the `type` discriminator carries on the wire, and an
 // `entityType` toggle carries the same, so a declaration or a selection can be
@@ -21,8 +21,7 @@ type EntityType string
 
 // The entity types. See "Scope" in specification.md.
 const (
-	TypeOrganization  EntityType = "organization"
-	TypePerson        EntityType = "person"
+	TypeParty         EntityType = "party"
 	TypeFarm          EntityType = "farm"
 	TypeField         EntityType = "field"
 	TypeFieldBoundary EntityType = "fieldBoundary"
@@ -31,7 +30,7 @@ const (
 // EntityTypes lists every supported type. Iterating it is how the sample
 // platform avoids hard-coding the set in more than one place.
 var EntityTypes = []EntityType{
-	TypeOrganization, TypePerson, TypeFarm, TypeField, TypeFieldBoundary,
+	TypeParty, TypeFarm, TypeField, TypeFieldBoundary,
 }
 
 // DependencyOrder lists the types so that a referenced type precedes the types
@@ -44,8 +43,12 @@ var EntityTypes = []EntityType{
 // reference's target is already bound by the time it is used.
 //
 // It is not [EntityTypes], which is the set rather than an order.
+//
+// Parties are the one type it does not order fully: a membership references a
+// party from a party, so within parties the order is per object — see
+// [PartyTier].
 var DependencyOrder = []EntityType{
-	TypeOrganization, TypePerson, TypeFarm, TypeFieldBoundary, TypeField,
+	TypeParty, TypeFarm, TypeField, TypeFieldBoundary,
 }
 
 // Valid reports whether the type is one this version of the protocol defines.
@@ -56,7 +59,7 @@ var DependencyOrder = []EntityType{
 // participant can do with an entity whose type it has never heard of.
 func (t EntityType) Valid() bool {
 	switch t {
-	case TypeOrganization, TypePerson, TypeFarm, TypeField, TypeFieldBoundary:
+	case TypeParty, TypeFarm, TypeField, TypeFieldBoundary:
 		return true
 	default:
 		return false
@@ -80,10 +83,10 @@ type Envelope struct {
 
 // EnvelopeOf reads the common fields of an entity of any type.
 //
-// The event stream carries all five types over one connection, so a receiver
+// The event stream carries all four types over one connection, so a receiver
 // has to read `type`, `revision`, and `localId` before it knows which concrete
 // schema to decode into. That ordering is why this exists rather than a
-// five-way type switch at every call site.
+// four-way type switch at every call site.
 func EnvelopeOf(e oapi.Entity) (Envelope, error) {
 	raw, err := e.MarshalJSON()
 	if err != nil {
@@ -102,16 +105,10 @@ func EnvelopeOf(e oapi.Entity) (Envelope, error) {
 // Entity wrappers. The generated union has From* methods on a zero value; these
 // save every caller the same three lines.
 
-// FromOrganization wraps an organization as an entity.
-func FromOrganization(v oapi.Organization) (oapi.Entity, error) {
+// FromParty wraps a party as an entity.
+func FromParty(v oapi.Party) (oapi.Entity, error) {
 	var e oapi.Entity
-	return e, e.FromOrganization(v)
-}
-
-// FromPerson wraps a person as an entity.
-func FromPerson(v oapi.Person) (oapi.Entity, error) {
-	var e oapi.Entity
-	return e, e.FromPerson(v)
+	return e, e.FromParty(v)
 }
 
 // FromFarm wraps a farm as an entity.
@@ -146,21 +143,44 @@ func LocalRef(localID string) oapi.EntityReference {
 	return oapi.EntityReference{LocalId: &localID}
 }
 
-// LocalPartyRef builds a reference to an organization or person from the
-// referencing endpoint's own identifier.
-//
-// A party reference carries a type discriminator because the target may be
-// either, and a receiver that does not hold it has to request it — a request
-// being per entity type, an agrirouterId alone would not say which collection
-// to ask. Slots whose type is fixed, such as a field's farm, use [LocalRef].
-func LocalPartyRef(t EntityType, localID string) (oapi.PartyReference, error) {
-	if t != TypeOrganization && t != TypePerson {
-		return oapi.PartyReference{}, fmt.Errorf(
-			"agmasync: %w: a party reference is an organization or a person, not %q",
-			ErrUnknownEntityType, t)
+// The party types `details` states. A party without `details` is of unknown
+// party type. See "Party details" in specification.md.
+const (
+	PartyTypePerson       = "PERSON"
+	PartyTypeOrganization = "ORGANIZATION"
+)
+
+// PartyTypeOf reads the party type a party states: [PartyTypePerson],
+// [PartyTypeOrganization], or "" where it carries no `details`.
+func PartyTypeOf(p oapi.Party) (string, error) {
+	if !p.Details.IsSpecified() || p.Details.IsNull() {
+		return "", nil
 	}
-	return oapi.PartyReference{
-		Type:    oapi.PartyReferenceType(t),
-		LocalId: &localID,
-	}, nil
+	d, err := p.Details.Get()
+	if err != nil {
+		return "", fmt.Errorf("agmasync: reading party details: %w", err)
+	}
+	t, err := d.Discriminator()
+	if err != nil {
+		return "", fmt.Errorf("agmasync: reading party details: %w", err)
+	}
+	return t, nil
+}
+
+// PartyTier is the position of a party in send and delivery order: 1 for a
+// party with person `details`, which may name organizations through its
+// memberships, and 0 for any other, which references nothing.
+//
+// Sending tier 0 before tier 1 means every membership target is bound by the
+// time a person names it. See "Entity dependencies" in specification.md and
+// ADR 07.
+func PartyTier(p oapi.Party) (int, error) {
+	t, err := PartyTypeOf(p)
+	if err != nil {
+		return 0, err
+	}
+	if t == PartyTypePerson {
+		return 1, nil
+	}
+	return 0, nil
 }

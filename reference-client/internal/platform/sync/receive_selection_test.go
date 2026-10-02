@@ -102,7 +102,7 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 	// standing in for whatever a product actually does — and then fails.
 	mark := func(tx *store.Tx) error {
 		return tx.UpsertRecord(store.Record{
-			EntityType: agmasync.TypeOrganization,
+			EntityType: agmasync.TypeParty,
 			LocalID:    "SEL-MARK",
 			Modelled:   map[string]json.RawMessage{"name": mustJSON(t, "ep-a")},
 		}, "SEL-MARK")
@@ -137,7 +137,7 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 		t.Errorf("position = %q, want none taken for a selection that was not recorded", position)
 	}
 	if err := applier.Store.Tx(applier.Tenant, func(tx *store.Tx) error {
-		_, err := tx.LoadRecord(agmasync.TypeOrganization, "SEL-MARK")
+		_, err := tx.LoadRecord(agmasync.TypeParty, "SEL-MARK")
 		if !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("loading the marker = %v, want it rolled back with the position", err)
 		}
@@ -170,7 +170,7 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 		t.Error("position = none, want the selection's own position once it was recorded")
 	}
 	if err := applier.Store.Tx(applier.Tenant, func(tx *store.Tx) error {
-		_, err := tx.LoadRecord(agmasync.TypeOrganization, "SEL-MARK")
+		_, err := tx.LoadRecord(agmasync.TypeParty, "SEL-MARK")
 		return err
 	}); err != nil {
 		t.Errorf("loading the marker after the retry: %v", err)
@@ -222,7 +222,7 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 	// The frame states the closure and not just what the user clicked: a
 	// participant acts on it as it stands rather than closing it itself.
 	want := []agmasync.EntityType{
-		agmasync.TypeOrganization, agmasync.TypePerson, agmasync.TypeFarm,
+		agmasync.TypeParty, agmasync.TypeFarm,
 	}
 	if len(seen) == 0 || !slices.Equal(seen[len(seen)-1], want) {
 		t.Errorf("selection after the move = %v, want %v", seen, want)
