@@ -106,7 +106,7 @@ classDiagram
     PartyDetails <|-- PersonDetails
     PartyDetails <|-- OrganizationDetails
     PersonDetails "1" *-- "0..n" Membership : memberships
-    Party "1" o-- "0..n" Farm : owns
+    Party "0..1" o-- "0..n" Farm : owns
     Farm "1" *-- "0..n" Partner : partners
     Farm "0..1" o-- "0..n" Field : farm
     Party "0..1" o-- "0..n" Field : owns

@@ -924,10 +924,11 @@ paths:
         Masterdata routes must be separately created by a user, selecting a subset of 
         these entity types. There is no default routing for masterdata. 
         The configuration MUST be dependency-closed: enabling field boundaries
-        requires the fields they reference, enabling fields requires the farms
-        and parties those fields reference, and enabling farms requires the
-        parties those farms reference, to be enabled as well. A configuration that is
-        not dependency-closed is rejected with `400`.
+        requires the fields they reference to be enabled as well. A configuration
+        that is not dependency-closed is rejected with `400`. Every other
+        reference is optional, so any other combination of entity types is
+        valid, for example parties and fields without farms, or farms and
+        fields without parties.
       security:
         - agrirouterOauthQA: ["endpoints:manage"]
         - agrirouterOauthPROD: ["endpoints:manage"]
@@ -1904,8 +1905,12 @@ components:
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
             owner:
-              $ref: '#/components/schemas/EntityReference'
-              description: The party that holds the farm.
+              oneOf:
+                - $ref: '#/components/schemas/EntityReference'
+                - type: 'null'
+              description: >
+                The party that holds the farm. Absent where the farm's system
+                does not record parties.
             name:
               type: string
             specialised_usage_type:
@@ -1930,7 +1935,7 @@ components:
                 - $ref: '#/components/schemas/Geometry'
                 - type: 'null'
               description: A GeoJSON Point (longitude, latitude) locating the farm.
-          required: [type, owner, name]
+          required: [type, name]
 
     SoilInfo:
       type: object
