@@ -87,8 +87,7 @@ never asked.
 ### The flow in concrete calls
 
 The same six steps expressed as the actual operations of the master-data API,
-for an endpoint opted into parties and farms - the smallest
-dependency-closed set that includes farms. `{eid}` is the endpoint's
+for an endpoint opted into parties and farms. `{eid}` is the endpoint's
 `external_id`.
 
 ```mermaid
@@ -171,11 +170,12 @@ Points worth noting about the calls themselves:
   missed or advanced having been sent nothing.
 - **Dependency order is agrirouter's.** The stream delivers a referenced object
   before the objects referencing it, by tier, and opt-in is dependency-closed, so
-  every target is in the set. The endpoint applies each object as it arrives and
-  sequences nothing. What the order does *not* say is where one type ends and
-  another begins, or that the order will stay the way it is: the specification
-  reserves the right to change it, and the only promise is that references
-  resolve. During a load the one source of a reference that does not resolve yet
+  every target of a selected type is in the set. A reference to a type not
+  selected is ignored ([ADR 13](13-optional-references.md)). The endpoint applies
+  each object as it arrives and sequences nothing. What the order does *not* say
+  is where one type ends and another begins, or that the order will stay the way
+  it is: the specification reserves the right to change it, and the only promise
+  is that references to selected types resolve. During a load the one source of a reference that does not resolve yet
   is the live stream, which is independent of this one; the endpoint requests
   such an object rather than waiting.
 - **Declaring and selecting are two steps with two actors.** `PUT

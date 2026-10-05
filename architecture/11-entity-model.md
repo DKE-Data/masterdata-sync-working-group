@@ -106,7 +106,7 @@ classDiagram
     PartyDetails <|-- PersonDetails
     PartyDetails <|-- OrganizationDetails
     PersonDetails "1" *-- "0..n" Membership : memberships
-    Party "1" o-- "0..n" Farm : owns
+    Party "0..1" o-- "0..n" Farm : owns
     Farm "1" *-- "0..n" Partner : partners
     Farm "0..1" o-- "0..n" Field : farm
     Party "0..1" o-- "0..n" Field : owns
@@ -291,11 +291,14 @@ file.
 Participants fall into three groups. Their share is not known (see Open
 questions).
 
-| Participant | A | B | C | E |
-| --- | --- | --- | --- | --- |
-| Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: `adapt` passes through unchanged, `extensions` are typed |
-| Built on ISOXML / EFDI | low: FarmSPT maps its attributes to ISO 11783 Customer / Farm / Partfield | high: map to ADAPT, then to context items | low | medium to high: map to ADAPT, no context items |
-| Proprietary REST (client / farm / field) | medium | medium to high | medium | medium to high |
+| Participant | A | B | C | D | E |
+| --- | --- | --- | --- | --- | --- |
+| Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: send B's shape | low: `adapt` passes through unchanged, `extensions` are typed |
+| Built on ISOXML / EFDI | low: FarmSPT maps its attributes to ISO 11783 Customer / Farm / Partfield | high: map to ADAPT, then to context items | low | low: send A's shape | medium to high: map to ADAPT, no context items |
+| Proprietary REST (client / farm / field) | medium | medium to high | medium | medium: send A's shape | medium to high |
+
+D is cheapest for participants because each picks its format; the cost moves to
+agrirouter (see 7).
 
 B lowers the cost for one group and raises it for the group FarmSPT and ADR 2
 aligned with. The saving for ADAPT systems is also smaller than it looks. 25 of
@@ -336,10 +339,11 @@ the schema, so implementations diverge in how strictly they apply it.
 - **Identity.** ADAPT has no stable identity per object across exchanges. Its
   references are scoped to one file. B keeps AgmaSync's envelope entirely as
   extensions, and must redefine what `farmId`, `growerId` and similar mean on a
-  per-object API. In the example, a field's `"farmId": "0b6e…4a54"` only works
-  because the sample chose to use the agrirouter id as `referenceId`. ADAPT
-  would equally allow `"farmId": "FARM-3001"`, the sending application's own
-  local id, which means nothing to other applications:
+  per-object API. In the example, a field's `"farmId": "0b6e…4a54"` is an
+  agrirouter id, but ADAPT equally allows `"farmId": "FARM-3001"`, the sender's
+  local id. Both are legitimate on send. Unlike `EntityReference`, a bare string
+  does not say which it is, so B needs a rule for that and agrirouter has to
+  tell them apart by lookup:
 
   ```json
   "farms": [
@@ -360,7 +364,7 @@ the schema, so implementations diverge in how strictly they apply it.
   ]
   ```
 
-  Equally valid ADAPT, where the reference is the sender's local id:
+  Same reference, as the sender's local id:
 
   ```json
   "farms":  [ { "id": { "referenceId": "FARM-3001" }, "name": "Hofgut Sonnenberg", … } ],
