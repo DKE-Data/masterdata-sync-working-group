@@ -1,6 +1,6 @@
 # ADR 13 - Optional references between parties, farms and fields
 
-- **Status:** WIP
+- **Status:** Decided
 - **Scope:** Which references constrain opt-in, and who enforces the rest
 
 ## Context

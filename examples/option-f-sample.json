@@ -1,0 +1,284 @@
+[
+  {
+    "type": "party",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51",
+    "active": true,
+    "revision": 7,
+    "modified_at": "2026-09-14T08:12:45Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "ORG-1001" },
+      "name": "Hofgut Sonnenberg Agrar GmbH",
+      "partyTypeCode": "ORGANIZATION",
+      "contactInfo": {
+        "addressContactMethods": [
+          {
+            "addressContactTypeCode": "PHYSICAL",
+            "addressLines": ["Dorfstraße 12"],
+            "city": "Springe",
+            "postalCode": "31832",
+            "countrySubdivision": "Niedersachsen",
+            "countryCode": "DE"
+          },
+          {
+            "addressContactTypeCode": "LEGAL",
+            "addressLines": ["", "Postfach 1120"],
+            "city": "Springe",
+            "postalCode": "31827",
+            "countrySubdivision": "Niedersachsen",
+            "countryCode": "DE"
+          }
+        ],
+        "telecommunicationContactMethods": [
+          { "valueText": "+49 5041 98760", "telecommunicationContactTypeCode": "FIXED_PHONE" },
+          { "valueText": "+49 171 2345678", "telecommunicationContactTypeCode": "MOBILE_PHONE" },
+          { "valueText": "info@hofgut-sonnenberg.de", "telecommunicationContactTypeCode": "EMAIL" }
+        ]
+      },
+      "-agmasync-commercialRegistryNumber": "HRA 204518, Amtsgericht Hannover",
+      "-agmasync-taxNumber": "DE287654321",
+      "-agmasync-tradeId": "DE287654321-00001"
+    }
+  },
+  {
+    "type": "party",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53",
+    "active": true,
+    "revision": 2,
+    "modified_at": "2026-03-02T15:40:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "ORG-1002" },
+      "name": "Lohnunternehmen Meyer GmbH & Co. KG",
+      "partyTypeCode": "UNKNOWN",
+      "contactInfo": {
+        "addressContactMethods": [
+          {
+            "addressContactTypeCode": "PHYSICAL",
+            "addressLines": ["Industriestraße 4"],
+            "city": "Bad Münder am Deister",
+            "postalCode": "31848",
+            "countrySubdivision": "Niedersachsen",
+            "countryCode": "DE"
+          }
+        ],
+        "telecommunicationContactMethods": [
+          { "valueText": "+49 5042 55120", "telecommunicationContactTypeCode": "FIXED_PHONE" }
+        ]
+      }
+    }
+  },
+  {
+    "type": "party",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52",
+    "active": true,
+    "revision": 4,
+    "modified_at": "2026-08-30T10:05:12Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "PER-2001" },
+      "name": "Dr. Katharina Brandt",
+      "partyTypeCode": "INDIVIDUAL",
+      "contactInfo": {
+        "telecommunicationContactMethods": [
+          { "valueText": "+49 160 9876543", "telecommunicationContactTypeCode": "MOBILE_PHONE" },
+          { "valueText": "k.brandt@hofgut-sonnenberg.de", "telecommunicationContactTypeCode": "EMAIL" }
+        ]
+      },
+      "-agmasync-title": "Dr.",
+      "-agmasync-firstName": "Katharina",
+      "-agmasync-lastName": "Brandt",
+      "-agmasync-memberships": [
+        {
+          "organization_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
+          "member_role": "FARM_MANAGER"
+        }
+      ],
+      "-agmasync-taxId": "12345678901"
+    }
+  },
+  {
+    "type": "party",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57",
+    "active": true,
+    "revision": 1,
+    "modified_at": "2026-02-18T09:20:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "PER-2002" },
+      "name": "Jonas Weber",
+      "partyTypeCode": "INDIVIDUAL",
+      "contactInfo": {
+        "addressContactMethods": [
+          {
+            "addressContactTypeCode": "PHYSICAL",
+            "addressLines": ["Lindenweg 3"],
+            "city": "Ronnenberg",
+            "postalCode": "30952",
+            "countrySubdivision": "Niedersachsen",
+            "countryCode": "DE"
+          }
+        ],
+        "telecommunicationContactMethods": [
+          { "valueText": "+49 152 3344556", "telecommunicationContactTypeCode": "MOBILE_PHONE" },
+          { "valueText": "weber@agrarberatung-weber.de", "telecommunicationContactTypeCode": "EMAIL" }
+        ]
+      },
+      "-agmasync-firstName": "Jonas",
+      "-agmasync-lastName": "Weber",
+      "-agmasync-taxNumber": "DE312345678"
+    }
+  },
+  {
+    "type": "grower",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a58",
+    "active": true,
+    "revision": 1,
+    "modified_at": "2026-02-18T09:00:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "GRW-0001" },
+      "name": "Hofgut Sonnenberg Agrar GmbH",
+      "partyId": "ORG-1001",
+      "-agmasync-canonicalPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
+    }
+  },
+  {
+    "type": "grower",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a5a",
+    "active": true,
+    "revision": 1,
+    "modified_at": "2026-04-11T06:30:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "GRW-0002" },
+      "name": "Dr. Katharina Brandt",
+      "partyId": "PER-2001",
+      "-agmasync-canonicalPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
+    }
+  },
+  {
+    "type": "farm",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+    "active": true,
+    "revision": 12,
+    "modified_at": "2026-09-14T08:15:02Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "FARM-3001" },
+      "name": "Hofgut Sonnenberg",
+      "growerId": "GRW-0001",
+      "-agmasync-canonicalGrowerId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a58",
+      "-agmasync-specialisedUsageType": "arable farming",
+      "-agmasync-partners": [
+        {
+          "partner_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "local_id": "ORG-1002" },
+          "partner_role": "CUSTOM_SERVICE_PROVIDER"
+        },
+        {
+          "partner_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57", "local_id": "PER-2002" },
+          "partner_role": "CROP_ADVISOR"
+        }
+      ],
+      "-agmasync-addressContactMethods": [
+        {
+          "addressContactTypeCode": "PHYSICAL",
+          "addressLines": ["Dorfstraße 12"],
+          "city": "Springe",
+          "postalCode": "31832",
+          "countrySubdivision": "Niedersachsen",
+          "countryCode": "DE"
+        }
+      ],
+      "-agmasync-geoReference": { "type": "Point", "coordinates": [9.5531, 52.2089] }
+    }
+  },
+  {
+    "type": "field",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+    "active": true,
+    "revision": 5,
+    "modified_at": "2026-04-11T06:30:00Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "FLD-4001" },
+      "name": "Am Mühlenbach",
+      "farmId": "FARM-3001",
+      "-agmasync-canonicalFarmId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+      "arableArea": { "numericValue": 12.45, "unitOfMeasureCode": "ha" },
+      "-agmasync-growerId": "GRW-0002",
+      "-agmasync-canonicalGrowerId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a5a",
+      "-agmasync-soil": { "type": "SANDY_TO_SILTY_LOAM", "rating_points": 62 },
+      "-agmasync-topography": 3.5,
+      "-agmasync-harvestPeriod": { "valid_from": "2025-08-01", "valid_to": "2026-07-31", "label": "2025/2026" },
+      "-agmasync-metadata": { "flik": "DENILI0512345678", "nutzungscode": 115 }
+    }
+  },
+  {
+    "type": "fieldBoundary",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56",
+    "active": true,
+    "revision": 4,
+    "modified_at": "2026-09-20T14:02:10Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "5c7e9d1f-2a3b-4c5d-8e6f-7a8b9c0d1e2f",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "id": { "referenceId": "FB-5001" },
+      "name": "Am Mühlenbach 2025/2026",
+      "fieldId": "FLD-4001",
+      "-agmasync-canonicalFieldId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+      "boundary": {
+        "geometry": "POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))",
+        "boundaryCreationMethodCode": "ADMINISTRATIVE"
+      },
+      "-agmasync-canonicalSeasonIds": ["0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a59"],
+      "obstacles": [
+        {
+          "boundary": { "geometry": "POINT (9.5621 52.2062)" },
+          "-agmasync-kind": "pole"
+        },
+        {
+          "boundary": {
+            "geometry": "POLYGON ((9.564 52.2068, 9.5646 52.2068, 9.5646 52.2072, 9.564 52.2072, 9.564 52.2068))"
+          },
+          "-agmasync-kind": "waterhole"
+        }
+      ],
+      "-agmasync-boundaryType": "ADMINISTRATIVE_RECEIVED",
+      "-agmasync-regulatoryRequirements": "RED_ZONE_NITROGEN",
+      "-agmasync-metadata": { "source": "SLA Niedersachsen, Antragsgeometrie 2026" }
+    }
+  },
+  {
+    "type": "season",
+    "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a59",
+    "active": true,
+    "revision": 1,
+    "modified_at": "2026-09-20T14:01:55Z",
+    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
+    "source_endpoint_id": "5c7e9d1f-2a3b-4c5d-8e6f-7a8b9c0d1e2f",
+    "adapt_version": "2.0.2",
+    "adapt": {
+      "name": "2025/2026",
+      "start": "2025-08-01T00:00:00Z",
+      "end": "2026-07-31T23:59:59Z"
+    }
+  }
+]

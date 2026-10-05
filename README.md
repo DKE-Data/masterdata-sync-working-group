@@ -17,7 +17,7 @@ Use [pull requests](https://github.com/DKE-Data/masterdata-sync-working-group/pu
 
 - [./openapi.yaml](./openapi.yaml) - **DRAFT** The OpenAPI specification for the Masterdata Sync API.
 - [./specification.md](./specification.md) - **DRAFT** The specification for the Masterdata Sync API, explaining the details and reasoning that are not covered by the OpenAPI specification.
-- [./adapt-mapping.md](./adapt-mapping.md) - **DRAFT** The normative mapping between AgmaSync and ADAPT 2, with the `AgmaSync-` custom definitions in [./adapt-definitions.json](./adapt-definitions.json).
+- [./examples](./examples) - One farm encoded both as AgmaSync and as an ADAPT 2 catalog.
 - [./architecture](./architecture) - non normative collection of architecture decision records illustrating masterdata sync concepts and flows and reasoning behind the specification.
 
 Other:

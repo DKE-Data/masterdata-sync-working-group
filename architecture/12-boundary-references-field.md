@@ -1,6 +1,6 @@
 # ADR 12 - A field boundary references its field
 
-- **Status:** WIP
+- **Status:** Decided
 - **Scope:** The direction of the reference between a field and its boundaries
 
 ## Context

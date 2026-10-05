@@ -429,8 +429,7 @@ and MAY use `label` to round-trip its own presentation.
 The entities are encoded in this protocol's own schema, not in the
 [ADAPT](https://adaptstandard.org/) data model
 ([ADR 11](./architecture/11-entity-model.md)). A participant built on ADAPT
-converts at its edge, following the normative [AgmaSync–ADAPT mapping](./adapt-mapping.md)
-and the `AgmaSync-` custom definitions it publishes.
+converts at its edge. [examples](./examples/) shows one farm in both encodings.
 
 # Encoding and canonicity
 
