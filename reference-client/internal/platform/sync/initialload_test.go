@@ -43,7 +43,7 @@ func syncRow(t *testing.T, a *psync.Applier, typ agmasync.EntityType, localID st
 	var row store.SyncRow
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(typ, localID)
+		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
 		return err
 	}); err != nil {
 		t.Fatalf("reading the sync row for %s %q: %v", typ, localID, err)
@@ -444,7 +444,7 @@ func TestAmbiguousMatchStopsTheLoadForAPersonAndResumesOnceTheyAnswer(t *testing
 	}
 	if err := b.Store.Tx(b.Tenant, func(tx *store.Tx) error {
 		if err := tx.PutSyncRow(store.SyncRow{
-			EntityType: agmasync.TypeFarm, LocalID: "B-1", AgrirouterID: &blocked,
+			TenantID: b.Endpoint.TenantID(), EntityType: agmasync.TypeFarm, LocalID: "B-1", AgrirouterID: &blocked,
 		}); err != nil {
 			return err
 		}

@@ -61,15 +61,15 @@ type store struct {
 	objects map[uuid.UUID]*object
 
 	// local maps a participant's own identifier to a canonical object. The key
-	// is (application, entity type, localId): a participant keeps one store
-	// behind however many endpoints it operates, so the same string from two of
-	// its endpoints names the same record. Which endpoint acted still decides
-	// entitlement and sourceEndpointId; it does not partition this.
+	// is (application, tenant, entity type, localId): a participant keeps one
+	// store behind however many endpoints it operates, so the same string from
+	// two of its endpoints in a tenant names the same record. Which endpoint
+	// acted still decides entitlement and sourceEndpointId; it does not
+	// partition this.
 	//
-	// Tenant does not partition it either, so a participant operating in several
-	// tenants must keep its local identifiers unique across all of them, not per
-	// tenant. Reusing one string in a second tenant is rejected: the identifier
-	// is already taken here, and the object it names is untouchable from there.
+	// Tenant does, because a canonical object belongs to one tenant. A
+	// participant holding one record in several tenants sends it under the same
+	// localId in each, and each tenant resolves it to its own canonical object.
 	local map[localKey]uuid.UUID
 
 	// canonical is the same mapping read the other way, which delivery needs:
@@ -93,11 +93,19 @@ type store struct {
 }
 
 type localKey struct {
-	appID   string
-	typ     agmasync.EntityType
-	localID string
+	appID    string
+	tenantID uuid.UUID
+	typ      agmasync.EntityType
+	localID  string
 }
 
+// localKeyOf is the mapping key an endpoint's localId resolves under: its
+// application's, in its tenant.
+func localKeyOf(ep *endpoint, typ agmasync.EntityType, localID string) localKey {
+	return localKey{ep.appID, ep.tenantID, typ, localID}
+}
+
+// canonicalKey needs no tenant: the object it names belongs to exactly one.
 type canonicalKey struct {
 	appID string
 	objID uuid.UUID
@@ -140,12 +148,12 @@ func (s *store) put(
 	if err := checkDetails(typ, incoming); err != nil {
 		return nil, false, err
 	}
-	if err := s.resolveRefs(ep.appID, typ, incoming); err != nil {
+	if err := s.resolveRefs(ep, typ, incoming); err != nil {
 		return nil, false, err
 	}
 	active := activeOf(body)
 
-	objID, known := s.local[localKey{ep.appID, typ, localID}]
+	objID, known := s.local[localKeyOf(ep, typ, localID)]
 	if err := sent.checkBinding(localID, objID, known); err != nil {
 		return nil, false, err
 	}
@@ -275,7 +283,7 @@ func (s *store) create(
 		obj.history[k] = []attributeValue{{revision: 1, value: v}}
 	}
 	s.objects[obj.id] = obj
-	s.local[localKey{ep.appID, typ, localID}] = obj.id
+	s.local[localKeyOf(ep, typ, localID)] = obj.id
 	s.canonical[canonicalKey{ep.appID, obj.id}] = localID
 	return obj
 }
@@ -294,7 +302,7 @@ func (s *store) deactivate(
 	if !ep.optedInto(typ) {
 		return nil, errForbidden
 	}
-	objID, known := s.local[localKey{ep.appID, typ, localID}]
+	objID, known := s.local[localKeyOf(ep, typ, localID)]
 	if !known {
 		return nil, errNotFound
 	}
@@ -344,7 +352,7 @@ func (s *store) bindLocked(
 		return errForbidden
 	}
 
-	if existing, ok := s.local[localKey{ep.appID, typ, localID}]; ok {
+	if existing, ok := s.local[localKeyOf(ep, typ, localID)]; ok {
 		if existing == objID {
 			return nil // idempotent
 		}
@@ -360,7 +368,7 @@ func (s *store) bindLocked(
 		}
 	}
 
-	s.local[localKey{ep.appID, typ, localID}] = objID
+	s.local[localKeyOf(ep, typ, localID)] = objID
 	s.canonical[canonicalKey{ep.appID, objID}] = localID
 	return nil
 }
@@ -380,8 +388,8 @@ func (s *store) unbind(
 	if !ok || obj.typ != typ {
 		return errNotFound
 	}
-	if current, ok := s.local[localKey{ep.appID, typ, localID}]; ok && current == objID {
-		delete(s.local, localKey{ep.appID, typ, localID})
+	if current, ok := s.local[localKeyOf(ep, typ, localID)]; ok && current == objID {
+		delete(s.local, localKeyOf(ep, typ, localID))
 		delete(s.canonical, canonicalKey{ep.appID, objID})
 	}
 	return nil
@@ -460,8 +468,9 @@ func (s *store) deliverTo(ep *endpoint, obj *object) {
 
 // render produces the object as one participant sees it. Every localId in the
 // result — the envelope's own and one per reference — is resolved in the
-// participant's namespace, which is keyed by application: two endpoints of one
-// application render identically, and the frame names no endpoint at all.
+// participant's namespace, which is keyed by application and tenant: two
+// endpoints of one application in the object's tenant render identically, and
+// the frame names no endpoint at all.
 func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 	out := map[string]json.RawMessage{}
 	for k, v := range obj.content {

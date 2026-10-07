@@ -70,11 +70,12 @@ paths:
       summary: Send (create or update) a party
       description: >
         Submits a party from the calling endpoint. If the
-        (application, local_id) pair is already mapped to a canonical object, that
-        object is updated; otherwise a new canonical object is created and an
-        `agrirouter_id` is assigned. The mapping is keyed by the application, not
+        (application, local_id) pair is already mapped to a canonical
+        object in the tenant, that object is updated; otherwise a new canonical object is
+        created in the tenant and an `agrirouter_id` is
+        assigned. The mapping is keyed by the application and the tenant, not
         the endpoint: a `local_id` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        application's endpoints in the tenant sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
@@ -145,8 +146,8 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        A local identifier denotes exactly one canonical object in the tenant,
+        so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindPartyMapping
       responses:
@@ -268,11 +269,12 @@ paths:
       summary: Send (create or update) a farm
       description: >
         Submits a farm from the calling endpoint. If the
-        (application, local_id) pair is already mapped to a canonical object, that
-        object is updated; otherwise a new canonical object is created and an
-        `agrirouter_id` is assigned. The mapping is keyed by the application, not
+        (application, local_id) pair is already mapped to a canonical
+        object in the tenant, that object is updated; otherwise a new canonical object is
+        created in the tenant and an `agrirouter_id` is
+        assigned. The mapping is keyed by the application and the tenant, not
         the endpoint: a `local_id` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        application's endpoints in the tenant sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
@@ -335,8 +337,8 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        A local identifier denotes exactly one canonical object in the tenant,
+        so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFarmMapping
       responses:
@@ -458,11 +460,12 @@ paths:
       summary: Send (create or update) a field
       description: >
         Submits a field from the calling endpoint. If the
-        (application, local_id) pair is already mapped to a canonical object, that
-        object is updated; otherwise a new canonical object is created and an
-        `agrirouter_id` is assigned. The mapping is keyed by the application, not
+        (application, local_id) pair is already mapped to a canonical
+        object in the tenant, that object is updated; otherwise a new canonical object is
+        created in the tenant and an `agrirouter_id` is
+        assigned. The mapping is keyed by the application and the tenant, not
         the endpoint: a `local_id` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        application's endpoints in the tenant sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
@@ -525,8 +528,8 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        A local identifier denotes exactly one canonical object in the tenant,
+        so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFieldMapping
       responses:
@@ -648,11 +651,12 @@ paths:
       summary: Send (create or update) a field boundary
       description: >
         Submits a field boundary from the calling endpoint. If the
-        (application, local_id) pair is already mapped to a canonical object, that
-        object is updated; otherwise a new canonical object is created and an
-        `agrirouter_id` is assigned. The mapping is keyed by the application, not
+        (application, local_id) pair is already mapped to a canonical
+        object in the tenant, that object is updated; otherwise a new canonical object is
+        created in the tenant and an `agrirouter_id` is
+        assigned. The mapping is keyed by the application and the tenant, not
         the endpoint: a `local_id` names the same record whichever of the
-        application's endpoints sends it. An update carries the revision it was
+        application's endpoints in the tenant sends it. An update carries the revision it was
         edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
         base where the changes do not overlap and rejects with `412` where they
         do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
@@ -715,8 +719,8 @@ paths:
         received: an unbound send does not resolve and creates a duplicate.
 
 
-        A local identifier denotes exactly one canonical object, so this is a
-        singleton: binding a second one is the `409`. The request has no body,
+        A local identifier denotes exactly one canonical object in the tenant,
+        so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFieldBoundaryMapping
       responses:
@@ -1285,10 +1289,12 @@ components:
       required: true
       description: >
         The sending application's own identifier for the entity. Unique across
-        the whole application per entity type, whichever of its endpoints sends
-        it: the mapping is keyed `(application, local_id)`. A local identifier
-        already mapped to a different canonical object is rejected (see the
-        specification, "Identifier mapping").
+        the whole application per entity type and tenant, whichever of its
+        endpoints in the tenant sends it: the mapping is keyed
+        `(application, tenant, local_id)`. The same identifier in another tenant names another
+        canonical object. A local identifier already mapped to a different
+        canonical object in the tenant is rejected (see the specification,
+        "Identifier mapping").
       schema:
         type: string
     AgrirouterEndpointId:
@@ -1300,8 +1306,9 @@ components:
         the holder of a binding. The token authorizes an *application*, which
         holds many endpoints across many tenants, so the acting one is named per
         request rather than derived. It decides entitlement and the tenant, and it
-        becomes the `source_endpoint_id` of any revision produced. It does not
-        scope `local_id`, which resolves in the application's namespace.
+        becomes the `source_endpoint_id` of any revision produced. It scopes
+        `local_id` only through its tenant: the identifier resolves in the
+        application's namespace for that tenant.
 
 
         This is the agrirouter endpoint ID — the `id` of the endpoint, not the
@@ -1457,7 +1464,8 @@ components:
         The supplied local identifier is already mapped to a different canonical
         object, or — when binding — the canonical object is already bound to a
         different local identifier of this application. Both are checked across
-        the whole application, not just the calling endpoint. Either way an asymmetric /
+        the application's endpoints in the tenant, not just the calling
+        endpoint; another tenant's mappings never conflict. Either way an asymmetric /
         n:1 mapping the caller must resolve. The body names which of the two
         identifiers is taken, and the mapping that holds it, since that is what
         the resolving side has to show its user.
@@ -1641,7 +1649,10 @@ components:
             both directions: on send the sender's, on delivery the receiving
             application's. It never carries another application's identifier.
             One store per application, so the identifier is the same whichever
-            of the application's endpoints sends or receives it.
+            of the application's endpoints in the tenant sends or receives it.
+            It resolves within the object's tenant: a record the application
+            holds in several tenants carries the same identifier in each, bound
+            to each tenant's own canonical object.
 
 
             Required on send. On delivery it is present when agrirouter holds a

@@ -78,10 +78,12 @@ the version of an entity held by agrirouter in the Single Source of Truth store
 Local identifier:
 the identifier a participant uses for an entity within its own system — the
   identifier by which that participant knows the entity in its own store. A
-  participant keeps one store behind however many endpoints it operates, so a
-  local identifier is unique across the whole participant and denotes the same
-  record whichever of its endpoints sends it. It is not unique beyond the
-  participant.
+  participant keeps one store behind however many endpoints it operates, so
+  within a tenant a local identifier is unique across the whole participant and
+  denotes the same record whichever of its endpoints there sends it. It is
+  scoped to the tenant: a canonical object belongs to one tenant, so the same
+  local identifier used in two tenants names two canonical objects. It is not
+  unique beyond the participant.
 
 agrirouter identifier:
 the stable, globally unique identifier that agrirouter assigns to the canonical
@@ -235,9 +237,11 @@ interchangeable in both directions:
 
 - **On send**, a participant MAY use either. A reference carrying only a `local_id`
   is resolved by agrirouter against the sender's own
-  [identifier mapping](#identifier-mapping). If it does not resolve — the target has
-  not been sent yet — the request MUST be rejected, and the participant MUST send the
-  target before the object referencing it.
+  [identifier mapping](#identifier-mapping) in the acting endpoint's tenant. If it
+  does not resolve — the target has not been sent yet — the request MUST be
+  rejected, and the participant MUST send the target before the object referencing
+  it. A target is always in the referencing object's tenant: an `agrirouter_id`
+  naming an object of another tenant does not resolve either.
   A participant may also hold an object whose target it does not hold, the
   reference having been delivered without a `local_id` (see
   [Identifier mapping](#identifier-mapping)). It cannot name that target in either
@@ -479,15 +483,24 @@ not an exhaustive set. Normatively:
 
 agrirouter maintains, per canonical object, a mapping between its `agrirouter_id`
 and each participant's `local_id` for that object. The mapping is keyed by the
-**participant**, not by the endpoint: a participant has one local store, so a
-`local_id` names the same record whichever of the participant's endpoints sends it
-(see [Terminology](#terminology)). Which endpoint acts on a request still matters
-for entitlement and for `source_endpoint_id`; it does not partition the mapping.
+**participant and the tenant**, not by the endpoint: a participant has one local
+store, so a `local_id` names the same record whichever of the participant's
+endpoints in the tenant sends it (see [Terminology](#terminology)). The tenant is
+part of the key because a canonical object belongs to exactly one tenant: a
+participant that holds one record in several tenants is bound to a separate
+canonical object in each, under the same `local_id`. Which endpoint acts on a
+request still matters for entitlement and for `source_endpoint_id`; it does not
+partition the mapping.
 
-- On receiving an entity sent under `local_id` X by an endpoint of participant P:
+A record held in several tenants is therefore sent into each of them by the
+participant, not by agrirouter: a change it applies from one tenant reaches
+another only if the participant sends it there. Whether it does is the
+participant's decision about its own data.
 
-  - if the mapping already resolves (P, X) to a canonical object, that object is updated;
-  - otherwise a new canonical object is created, `agrirouter_id` is assigned, and (P, X) is recorded in its mapping.
+- On receiving an entity sent under `local_id` X by an endpoint of participant P in tenant T:
+
+  - if the mapping already resolves (P, T, X) to a canonical object, that object is updated;
+  - otherwise a new canonical object is created in T, `agrirouter_id` is assigned, and (P, T, X) is recorded in its mapping.
 - When agrirouter delivers a canonical object to an endpoint of participant P, it MUST set `local_id` to P's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit `local_id` when it holds none. An absent `local_id` is meaningful: it states that agrirouter does not believe P holds this object, which is what makes an unbound or unbound-again object recognisable as one P must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
 - **The mapping is delivered one participant at a time, and only to that participant.** A canonical object holds every participant's `local_id`, but a delivered copy carries at most the recipient's own. agrirouter MUST NOT disclose one participant's local identifiers to another: nothing in synchronization consumes them — a receiver resolves through `agrirouter_id` — and they are a participant's internal keys for a user's data. See [Security considerations](#security-considerations).
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to task-data-based tooling.
@@ -541,7 +554,7 @@ endpoint's masterdata route is removed, or when an endpoint is removed (see
 [masterdata reset](#masterdata-reset) discards it.
 
 A participant MUST NOT reuse one of its local identifiers for two distinct
-canonical objects, through any of its endpoints. If a participant sends a `local_id`
+canonical objects in one tenant, through any of its endpoints. If a participant sends a `local_id`
 that is already mapped to a *different* canonical object than the one implied by
 the request, agrirouter MUST reject it (see
 [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)).
@@ -695,7 +708,7 @@ correspondence, is not covered by this and is not expected to be: such a loss is
 a property of the participant's whole store rather than of one endpoint, so it
 would take every tenant and every endpoint with it, and re-onboarding is then the
 proportionate answer. The identifier mapping is keyed by the participant and
-survives endpoint removal (see [Identifier mapping](#identifier-mapping)), so a
+the tenant, not the endpoint, and survives endpoint removal (see [Identifier mapping](#identifier-mapping)), so a
 re-onboarded endpoint is sent the canonical set carrying its own `local_id`s and
 matches rather than reconciles.
 
@@ -919,8 +932,8 @@ synchronizing against them.
 
 The identifier mapping is retained in every case except a reset, for the same reason it is
 retained across [deactivation](#deactivation) — it is a property of the canonical
-object, not of the connection, and it is keyed by the participant rather than by
-the endpoint (see [Identifier mapping](#identifier-mapping)), so no endpoint's
+object, not of the connection, and it is keyed by the participant and the tenant
+rather than by the endpoint (see [Identifier mapping](#identifier-mapping)), so no endpoint's
 removal takes it away. Discarding it would not withhold anything: `agrirouter_id`
 is stable, so a participant that kept its own correspondence table simply
 re-declares the same bindings on return. It would only degrade the returning

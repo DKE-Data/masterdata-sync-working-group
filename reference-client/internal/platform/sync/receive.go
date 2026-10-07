@@ -85,6 +85,9 @@ type ReceiveResult struct {
 
 	Created, Matched, Superseded, Ignored, Bound int
 
+	// Discarded counts objects that named no tenant and were not applied.
+	Discarded int
+
 	// Position is where the participant may resume from, which is the position
 	// of the last frame it durably applied.
 	Position string
@@ -222,6 +225,13 @@ func (r *Receiver) consume(
 			// A frame type this version does not know is tolerated rather than
 			// treated as a failure, and its position is not taken: the
 			// participant has not applied whatever it carried.
+			continue
+		}
+		if ev.Envelope.TenantId == nil {
+			// Discarded, and like an unknown frame its position is not taken.
+			// The next frame applied moves the position past it.
+			logDiscarded(ev.Envelope)
+			res.Discarded++
 			continue
 		}
 
@@ -375,8 +385,9 @@ func (r *Receiver) tenantOf(sel oapi.RouteChangedEventData) string {
 
 // applierFor routes a frame to the tenant its object belongs to.
 //
-// The localId in a frame is resolved in the application's namespace, so the
-// identifiers would be the same whichever applier took it. What the tenant
+// The localId in a frame is resolved in the application's namespace for the
+// object's tenant, so the identifiers would be the same whichever of the
+// application's endpoints in that tenant took it. What the tenant
 // decides is whose data this is: the tenancy the object belongs to is the one
 // that ends up holding the record, and the one whose user sees it. A delivered
 // object names no recipient, so `tenantId` is what says which — one stream
@@ -385,13 +396,8 @@ func (r *Receiver) tenantOf(sel oapi.RouteChangedEventData) string {
 func (r *Receiver) applierFor(ev agmasync.Event) (*Applier, error) {
 	id := ev.Envelope.TenantId
 	if id == nil {
-		// One tenant and none named leaves nothing to get wrong. With several
-		// there is, so it is refused rather than guessed at.
-		if len(r.Tenants) == 1 {
-			for _, a := range r.Tenants {
-				return a, nil
-			}
-		}
+		// Not guessed at, even with one tenant: an object naming none is
+		// discarded, and consume does so before routing.
 		return nil, fmt.Errorf("sync: a delivered object names no tenant")
 	}
 

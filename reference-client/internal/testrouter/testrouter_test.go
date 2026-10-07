@@ -48,8 +48,16 @@ func newFixture(t *testing.T) *fixture {
 // goes through the control plane rather than through the client.
 func (f *fixture) join(appID, externalID string, types ...agmasync.EntityType) *participant {
 	f.t.Helper()
+	return f.joinIn(f.tenant, appID, externalID, types...)
+}
 
-	endpointID := f.router.AddEndpoint(appID, f.tenant, externalID)
+// joinIn is join in a tenant other than the fixture's own.
+func (f *fixture) joinIn(
+	tenant uuid.UUID, appID, externalID string, types ...agmasync.EntityType,
+) *participant {
+	f.t.Helper()
+
+	endpointID := f.router.AddEndpoint(appID, tenant, externalID)
 	if err := f.router.OptIn(externalID, types...); err != nil {
 		f.t.Fatalf("opt in %s: %v", externalID, err)
 	}
@@ -59,7 +67,7 @@ func (f *fixture) join(appID, externalID string, types ...agmasync.EntityType) *
 		f.t.Fatalf("building client: %v", err)
 	}
 	return &participant{client: client, endpoint: client.For(
-		endpointID, externalID, uuid.New(), f.tenant, uuid.New(), "cloud_software")}
+		endpointID, externalID, uuid.New(), tenant, uuid.New(), "cloud_software")}
 }
 
 func farm(localID, name string) oapi.Entity {
@@ -630,9 +638,10 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 }
 
 func TestTwoEndpointsOfOneApplicationShareOneNamespace(t *testing.T) {
-	// The mapping is keyed by the application, not by the endpoint. A product
-	// that holds two organizations onboards each as its own endpoint over one
-	// store, so the same local identifier in each names the same record — and
+	// Within a tenant the mapping is keyed by the application, not by the
+	// endpoint. A product that holds two organizations onboards each as its own
+	// endpoint over one store, so the same local identifier in each names the
+	// same record — and
 	// the second organization's send resolves to the canonical object the first
 	// created rather than minting a second for one record.
 	f := newFixture(t)
@@ -713,6 +722,137 @@ func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
 	}
 	if *echoedEnv.Revision != base {
 		t.Errorf("revision = %d, want %d: an equal payload is a no-op", *echoedEnv.Revision, base)
+	}
+}
+
+func TestTheSameLocalIdInTwoTenantsNamesTwoObjects(t *testing.T) {
+	// The mapping is keyed by the tenant too, because a canonical object belongs
+	// to one tenant. A product holding one record in two tenants sends it under
+	// the same localId in each, and each send creates that tenant's own object
+	// rather than resolving to the other tenant's, which it could not touch.
+	f := newFixture(t)
+	other := f.router.AddTenant()
+	inFirst := f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
+	inSecond := f.joinIn(other, "fmis-a", "ep-a2", agmasync.TypeFarm)
+
+	first, err := inFirst.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create in the first tenant: %v", err)
+	}
+	// No base: in the second tenant FRM-1 names nothing yet, so this is a create.
+	second, err := inSecond.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create in the second tenant: %v", err)
+	}
+	firstEnv, _ := agmasync.EnvelopeOf(first)
+	secondEnv, _ := agmasync.EnvelopeOf(second)
+
+	if *firstEnv.AgrirouterId == *secondEnv.AgrirouterId {
+		t.Fatal("one localId in two tenants must name two canonical objects")
+	}
+	if *firstEnv.TenantId != f.tenant || *secondEnv.TenantId != other {
+		t.Errorf("tenants = %s, %s, want each object in the tenant that sent it",
+			*firstEnv.TenantId, *secondEnv.TenantId)
+	}
+
+	// Each tenant's later sends resolve to its own object.
+	base := *secondEnv.Revision
+	updated, err := inSecond.endpoint.Put(context.Background(), farm("FRM-1", "Hof Süd"), &base)
+	if err != nil {
+		t.Fatalf("update in the second tenant: %v", err)
+	}
+	updatedEnv, _ := agmasync.EnvelopeOf(updated)
+	if *updatedEnv.AgrirouterId != *secondEnv.AgrirouterId {
+		t.Error("the second tenant's update must resolve to its own object")
+	}
+}
+
+func TestABindingInOneTenantDoesNotConflictWithAnother(t *testing.T) {
+	// Recognising the same record in two tenants binds one localId to each
+	// tenant's object. Keyed by application alone, the second bind would be a
+	// LOCAL_ID_ALREADY_BOUND for an identifier the first tenant holds.
+	f := newFixture(t)
+	other := f.router.AddTenant()
+	senderFirst := f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
+	senderSecond := f.joinIn(other, "fmis-a", "ep-a2", agmasync.TypeFarm)
+	receiverFirst := f.join("fmis-b", "ep-b1", agmasync.TypeFarm)
+	receiverSecond := f.joinIn(other, "fmis-b", "ep-b2", agmasync.TypeFarm)
+
+	for _, c := range []struct {
+		sender, receiver *participant
+	}{{senderFirst, receiverFirst}, {senderSecond, receiverSecond}} {
+		created, err := c.sender.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		env, _ := agmasync.EnvelopeOf(created)
+		if err := c.receiver.endpoint.Bind(
+			context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterId,
+		); err != nil {
+			t.Fatalf("binding SHARED-1 in tenant %s: %v", *env.TenantId, err)
+		}
+	}
+}
+
+func TestAResetDiscardsOnlyThatTenantsBindings(t *testing.T) {
+	// A reset wipes one tenant's mapping. The same localId bound in another
+	// tenant is that tenant's, and keeps resolving.
+	f := newFixture(t)
+	other := f.router.AddTenant()
+	inFirst := f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
+	inSecond := f.joinIn(other, "fmis-a", "ep-a2", agmasync.TypeFarm)
+
+	if _, err := inFirst.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil); err != nil {
+		t.Fatalf("create in the first tenant: %v", err)
+	}
+	kept, err := inSecond.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create in the second tenant: %v", err)
+	}
+	keptEnv, _ := agmasync.EnvelopeOf(kept)
+
+	if err := f.router.ResetTenant(f.tenant); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+
+	base := *keptEnv.Revision
+	updated, err := inSecond.endpoint.Put(context.Background(), farm("FRM-1", "Hof Süd"), &base)
+	if err != nil {
+		t.Fatalf("update in the tenant that was not reset: %v", err)
+	}
+	updatedEnv, _ := agmasync.EnvelopeOf(updated)
+	if *updatedEnv.AgrirouterId != *keptEnv.AgrirouterId {
+		t.Error("the other tenant's binding must survive the reset")
+	}
+}
+
+func TestAReferenceToAnotherTenantsObjectIsRejected(t *testing.T) {
+	// A reference stays inside the tenant whichever identifier names its
+	// target. By localId that holds by construction; by agrirouterId it is
+	// checked, or a field could hang off a farm its own tenant cannot see.
+	f := newFixture(t)
+	other := f.router.AddTenant()
+	elsewhere := f.joinIn(other, "fmis-a", "ep-a1", agmasync.TypeFarm)
+	here := f.join("fmis-a", "ep-a2", agmasync.TypeFarm, agmasync.TypeField)
+
+	created, err := elsewhere.endpoint.Put(context.Background(), farm("FRM-1", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create in the other tenant: %v", err)
+	}
+	env, _ := agmasync.EnvelopeOf(created)
+
+	field, err := agmasync.FromField(oapi.Field{
+		LocalId: strptr("PFD-1"),
+		Name:    "North 40",
+		Farm:    nullable.NewNullableWithValue(oapi.EntityReference{AgrirouterId: env.AgrirouterId}),
+	})
+	if err != nil {
+		t.Fatalf("building field: %v", err)
+	}
+	if _, err := here.endpoint.Put(context.Background(), field, nil); !errors.Is(
+		err, agmasync.ErrValidation,
+	) {
+		t.Errorf("error = %v, want ErrValidation for a reference into another tenant", err)
 	}
 }
 

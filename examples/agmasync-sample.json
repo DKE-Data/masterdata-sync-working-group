@@ -11,7 +11,7 @@
     "name": "Hofgut Sonnenberg Agrar GmbH",
     "details": {
       "party_type": "ORGANIZATION",
-      "commercial_registry_number": "HRB 204518, Amtsgericht Hannover"
+      "commercial_registry_number": "HRA 204518, Amtsgericht Hannover"
     },
     "address": {
       "street": "Dorfstraße 12",
@@ -32,9 +32,8 @@
       "mobile": "+49 171 2345678",
       "email": "info@hofgut-sonnenberg.de"
     },
-    "tax_number": "24/203/01234",
-    "tax_id": "DE287654321",
-    "trade_id": "276030000012345"
+    "tax_number": "DE287654321",
+    "trade_id": "DE287654321-00001"
   },
   {
     "type": "party",
@@ -111,7 +110,7 @@
       "mobile": "+49 152 3344556",
       "email": "weber@agrarberatung-weber.de"
     },
-    "tax_number": "23/115/04567"
+    "tax_number": "DE312345678"
   },
   {
     "type": "farm",

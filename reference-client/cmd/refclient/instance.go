@@ -611,7 +611,7 @@ func (in *instance) deleteRecord(
 ) error {
 	var bound bool
 	if err := in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
-		row, err := tx.SyncRow(typ, localID)
+		row, err := tx.SyncRow(in.cfg.tenantID, typ, localID)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				return nil

@@ -42,8 +42,8 @@ func (r *Router) ResetTenant(tenantID uuid.UUID) error {
 			delete(r.store.objects, id)
 		}
 	}
-	for key, objID := range r.store.local {
-		if _, ok := r.store.objects[objID]; !ok {
+	for key := range r.store.local {
+		if key.tenantID == tenantID {
 			delete(r.store.local, key)
 		}
 	}
