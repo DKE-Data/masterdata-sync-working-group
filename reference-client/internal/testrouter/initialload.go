@@ -194,7 +194,7 @@ func (r *Router) applyBindings(ep *endpoint, bindings []binding) []oapiRejection
 	duplicateIDs := map[uuid.UUID]int{}
 	for _, b := range bindings {
 		if obj, ok := r.store.objects[b.AgrirouterID]; ok {
-			duplicates[localKey{ep.appID, obj.typ, b.LocalID}]++
+			duplicates[localKeyOf(ep, obj.typ, b.LocalID)]++
 		}
 		duplicateIDs[b.AgrirouterID]++
 	}
@@ -203,7 +203,7 @@ func (r *Router) applyBindings(ep *endpoint, bindings []binding) []oapiRejection
 	for _, b := range bindings {
 		duplicated := false
 		if obj, ok := r.store.objects[b.AgrirouterID]; ok {
-			duplicated = duplicates[localKey{ep.appID, obj.typ, b.LocalID}] > 1
+			duplicated = duplicates[localKeyOf(ep, obj.typ, b.LocalID)] > 1
 		}
 		if duplicated || duplicateIDs[b.AgrirouterID] > 1 {
 			rejections = append(rejections, oapiRejection{

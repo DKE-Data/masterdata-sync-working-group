@@ -234,8 +234,8 @@ func (r *Router) createEndpoint(ctx echo.Context) error {
 // PutEndpoint creates through here as a participant does, and the control plane
 // through here as well, so an endpoint is the same thing however it arrived.
 //
-// appID is the application that owns the endpoint, which is what entitlement and
-// the identifier-mapping namespace are keyed by.
+// appID is the application that owns the endpoint, which is what entitlement and,
+// with tenantID, the identifier-mapping namespace are keyed by.
 func (r *Router) insertEndpoint(externalID, appID string, tenantID uuid.UUID) *endpoint {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()

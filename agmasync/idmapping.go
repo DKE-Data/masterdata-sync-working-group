@@ -21,12 +21,12 @@ import (
 // canonical object for the same entity — the duplicate this operation exists
 // to prevent.
 //
-// The mapping is keyed by the endpoint, so this binds for this endpoint alone:
-// a participant that keeps one store behind several endpoints binds once per
-// endpoint, often against the same localID, and a sibling endpoint's bindings
-// neither satisfy this one nor conflict with it.
+// The mapping is keyed by the application and the tenant, so this binds for
+// every one of the application's endpoints in this endpoint's tenant: a sibling
+// endpoint there that already bound the pair has done this one's work, and one
+// in another tenant binds its own tenant's object, often under the same localID.
 //
-// Within this endpoint a local identifier denotes exactly one canonical object,
+// Within the tenant a local identifier denotes exactly one canonical object,
 // so binding a second one is [ErrMappingConflict]. The bindings produced while reconciling a whole
 // canonical set travel in bulk on the initial-load confirmation instead; see
 // [Endpoint.ConfirmReconciled]. See "Identifier mapping" in specification.md.

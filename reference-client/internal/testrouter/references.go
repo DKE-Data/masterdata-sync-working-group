@@ -27,7 +27,7 @@ type reference struct {
 // localId is looked up. A membership additionally has to name an
 // organization, which is a check on the target's content rather than its type.
 func (s *store) resolveRefs(
-	appID string, typ agmasync.EntityType, content map[string]json.RawMessage,
+	ep *endpoint, typ agmasync.EntityType, content map[string]json.RawMessage,
 ) error {
 	return s.walkRefs(typ, content, func(slot refSlot, ref *reference) error {
 		var target uuid.UUID
@@ -35,7 +35,7 @@ func (s *store) resolveRefs(
 		case ref.AgrirouterID != nil:
 			target = *ref.AgrirouterID
 		case ref.LocalID != nil:
-			id, ok := s.local[localKey{appID, slot.target, *ref.LocalID}]
+			id, ok := s.local[localKeyOf(ep, slot.target, *ref.LocalID)]
 			if !ok {
 				return errUnresolvedRef
 			}
@@ -43,8 +43,11 @@ func (s *store) resolveRefs(
 		default:
 			return errUnresolvedRef
 		}
+		// A reference stays inside the tenant, whichever identifier names the
+		// target: a localId resolves there by construction, an agrirouterId
+		// has to be checked.
 		obj, ok := s.objects[target]
-		if !ok || obj.typ != slot.target {
+		if !ok || obj.typ != slot.target || obj.tenantID != ep.tenantID {
 			return errUnresolvedRef
 		}
 		if slot.partyType != "" && partyTypeOf(obj.content["details"]) != slot.partyType {

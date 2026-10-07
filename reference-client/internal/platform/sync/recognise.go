@@ -43,7 +43,7 @@ func (ByName) Recognise(
 
 	var found []string
 	for _, id := range ids {
-		row, err := tx.SyncRow(env.Type, id)
+		row, err := tx.SyncRow(*env.TenantId, env.Type, id)
 		switch {
 		case err == nil && row.Bound():
 			continue

@@ -446,7 +446,7 @@ func (p *Platform) Supplement(
 		if record, err = tx.LoadRecord(typ, localID); err != nil {
 			return err
 		}
-		row, err = tx.SyncRow(typ, localID)
+		row, err = tx.SyncRow(p.world.Tenant, typ, localID)
 		return err
 	})
 	if err != nil {
@@ -844,7 +844,7 @@ func (p *Platform) Row(typ agmasync.EntityType, localID string) (store.SyncRow, 
 	var row store.SyncRow
 	err := p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(typ, localID)
+		row, err = tx.SyncRow(p.world.Tenant, typ, localID)
 		return err
 	})
 	return row, err
@@ -915,7 +915,7 @@ func (p *Platform) Adopt(
 	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		return tx.PutSyncRow(store.SyncRow{
 			EntityType: typ, LocalID: localID, AgrirouterID: &agrirouterID,
-			TenantID: &p.world.Tenant,
+			TenantID: p.world.Tenant,
 		})
 	})
 }

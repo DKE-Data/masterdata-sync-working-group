@@ -137,6 +137,11 @@ func (c *Client) For(
 // ID returns the endpoint's agrirouter identifier.
 func (e *Endpoint) ID() uuid.UUID { return e.id }
 
+// TenantID returns the agrirouter tenant the endpoint belongs to. It scopes the
+// endpoint's local identifiers: the identifier mapping is keyed by application
+// and tenant.
+func (e *Endpoint) TenantID() uuid.UUID { return e.tenantID }
+
 // ExternalID returns the application's own identifier for the endpoint.
 func (e *Endpoint) ExternalID() string { return e.externalID }
 

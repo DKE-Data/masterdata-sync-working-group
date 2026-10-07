@@ -19,11 +19,14 @@
 -- product, an organization is a company the master data is about.
 --
 -- The shape follows the identifier mapping. agrirouter keys the mapping by the
--- participant rather than by the endpoint, so the same local_id sent through two
--- of the product's endpoints resolves to one canonical object — which is only
--- coherent if it is one record here too. Partitioning the tables by tenant would
--- put two rows behind one canonical object and leave the platform unable to say
--- which of them agrirouter is talking about.
+-- participant and the tenant rather than by the endpoint, so the same local_id
+-- sent through two of the product's endpoints in a tenant resolves to one
+-- canonical object — which is only coherent if it is one record here too.
+-- Partitioning the tables by tenant would put two rows behind one canonical
+-- object and leave the platform unable to say which of them agrirouter is
+-- talking about. A record held in two agrirouter tenants is still one record
+-- here; it is the bookkeeping that has a row per tenant, one for each tenant's
+-- canonical object.
 --
 -- The second half is the sync bookkeeping, in tables prefixed agmasync_. It is
 -- separate because `revision` and the delivery position have nowhere to live in
@@ -39,7 +42,8 @@
 -- they switch between. Each is onboarded to agrirouter separately and therefore
 -- has its own endpoint, which is what acts on a request. A delivery is not
 -- addressed to it: the stream is the application's, and the tenant is read off
--- the envelope. It is not what the identifier mapping is keyed by either.
+-- the envelope. It is not what the identifier mapping is keyed by either: that
+-- is agrirouter's tenant, which a tenancy is onboarded into.
 CREATE TABLE IF NOT EXISTS tenant (
     tenant_id            TEXT PRIMARY KEY,
     name                 TEXT NOT NULL,
@@ -112,9 +116,10 @@ CREATE TABLE IF NOT EXISTS field_boundary (
 --
 -- A record may be held by more than one, which is the ordinary case this table
 -- exists for: the same farm appearing in two of a user's tenancies is one record
--- here and one canonical object in agrirouter, listed twice. Under a schema that
--- put tenant_id in the record's primary key it would have been two rows fighting
--- over one binding.
+-- here, listed twice. Under a schema that put tenant_id in the record's primary
+-- key it would have been two records for one farm. In agrirouter it is one
+-- canonical object per agrirouter tenant, each with its own row in
+-- agmasync_object.
 --
 -- Membership is the platform's own bookkeeping and is exchanged with nobody. It
 -- lines up with agrirouter's `tenantId` because each tenancy is onboarded as its
@@ -143,13 +148,18 @@ CREATE INDEX IF NOT EXISTS tenant_entity_by_record
 -- restore with the rest of its data — losing it means losing the ability to
 -- send, since an ordinary write resolves through a localId already mapped.
 --
--- It is keyed by (entity_type, local_id) and by nothing else, because that is
--- what agrirouter keys it by: the mapping belongs to the participant, so one
--- pair covers the record however many of the product's tenants hold it and
--- whichever of its endpoints sends it. A tenant_id in this key would be a
--- second, finer namespace the far end does not have, and every tenant after the
--- first would bind an identifier agrirouter has already given to the first.
+-- It is keyed by (agrirouter_tenant_id, entity_type, local_id), because that is
+-- what agrirouter keys it by: the mapping belongs to the participant within a
+-- tenant, so one pair covers the record whichever of the product's endpoints in
+-- that tenant sends it. The tenant is in the key because a canonical object
+-- belongs to one: a record held in two agrirouter tenants is two canonical
+-- objects, bound under the same local_id, each with its own revision.
 CREATE TABLE IF NOT EXISTS agmasync_object (
+    -- agrirouter_tenant_id is the agrirouter tenant the canonical object
+    -- belongs to, as its `tenantId` said. It is not the product's tenancy in
+    -- tenant_entity: two tenancies onboarded into one agrirouter tenant share
+    -- a row here. A masterdata reset, which is per tenant, discards by it.
+    agrirouter_tenant_id TEXT NOT NULL,
     entity_type   TEXT NOT NULL,
     local_id      TEXT NOT NULL,
     agrirouter_id TEXT,
@@ -165,18 +175,14 @@ CREATE TABLE IF NOT EXISTS agmasync_object (
     -- a second canonical object for an entity that already has one, so the row
     -- outlives the pair for exactly as long as the record does.
     unbound       INTEGER NOT NULL DEFAULT 0,
-    -- agrirouter_tenant_id is the agrirouter tenant the canonical object
-    -- belongs to, as its `tenantId` said. It is not part of the key, the
-    -- mapping being the platform's; it is what a masterdata reset, which is
-    -- per tenant, discards by.
-    agrirouter_tenant_id TEXT,
-    PRIMARY KEY (entity_type, local_id)
+    PRIMARY KEY (agrirouter_tenant_id, entity_type, local_id)
 );
 
 -- One canonical object is known by at most one local identifier, and the other
--- way round. The constraint is agrirouter's `409`, decided per participant, so
--- it is enforced here at the same scope: a mistaken binding then fails locally
--- rather than becoming a `409` nobody expected.
+-- way round. The constraint is agrirouter's `409`, decided per participant and
+-- tenant, so it is enforced here at the same scope: a mistaken binding then
+-- fails locally rather than becoming a `409` nobody expected. The canonical
+-- side needs no tenant column, an agrirouter_id belonging to one tenant.
 CREATE UNIQUE INDEX IF NOT EXISTS agmasync_object_canonical
     ON agmasync_object (entity_type, agrirouter_id)
     WHERE agrirouter_id IS NOT NULL;

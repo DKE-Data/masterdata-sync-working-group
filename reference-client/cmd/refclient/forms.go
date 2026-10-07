@@ -77,7 +77,7 @@ func formFields(typ recordType) []formField {
 			{Name: "name", Label: "Name", Kind: "text",
 				Placeholder: "Hof Nord GmbH", Required: true},
 			{Name: "details.commercial_registry_number", Label: "Commercial registry number",
-				Kind: "text", Placeholder: "HRB 12345"},
+				Kind: "text", Placeholder: "HRA 12345"},
 			{Name: "address.city", Label: "City", Kind: "text", Placeholder: "Osnabrück"},
 			{Name: "address.country", Label: "Country", Kind: "text", Placeholder: "DE"},
 		}

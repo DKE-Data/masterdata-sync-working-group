@@ -125,7 +125,7 @@ func (i *inbox) Recognise(
 		return matched, nil
 	}
 
-	candidates, err := plausibleRecords(tx, env.Type, entity)
+	candidates, err := plausibleRecords(tx, *env.TenantId, env.Type, entity)
 	if err != nil {
 		return psync.Recognition{}, err
 	}
@@ -267,7 +267,12 @@ func (i *inbox) Answered() []answered {
 // which is a stronger statement than never having been bound — it told
 // agrirouter it no longer holds that object, and the object's next delivery is
 // meant to be created afresh rather than quietly reattached to what was let go.
-func unboundRecords(tx *store.Tx, typ agmasync.EntityType) ([]candidate, error) {
+// unboundRecords lists the records not bound in the given agrirouter tenant. A
+// record bound in another tenant is still a candidate here: that binding is to
+// the other tenant's canonical object.
+func unboundRecords(
+	tx *store.Tx, tenantID uuid.UUID, typ agmasync.EntityType,
+) ([]candidate, error) {
 	localIDs, err := tx.LocalIDs(typ)
 	if err != nil {
 		return nil, err
@@ -275,7 +280,7 @@ func unboundRecords(tx *store.Tx, typ agmasync.EntityType) ([]candidate, error) 
 
 	var out []candidate
 	for _, localID := range localIDs {
-		row, err := tx.SyncRow(typ, localID)
+		row, err := tx.SyncRow(tenantID, typ, localID)
 		switch {
 		case err == nil && (row.Bound() || row.Unbound):
 			continue
@@ -308,7 +313,7 @@ func unboundRecords(tx *store.Tx, typ agmasync.EntityType) ([]candidate, error) 
 // same stance [psync.ByName] takes on field boundaries, and for the same
 // reason: there is nothing to compare, so there is no question to ask.
 func plausibleRecords(
-	tx *store.Tx, typ agmasync.EntityType, entity oapi.Entity,
+	tx *store.Tx, tenantID uuid.UUID, typ agmasync.EntityType, entity oapi.Entity,
 ) ([]candidate, error) {
 	delivered, err := store.FromEntity(typ, entity)
 	if err != nil {
@@ -319,7 +324,7 @@ func plausibleRecords(
 		return nil, nil
 	}
 
-	held, err := unboundRecords(tx, typ)
+	held, err := unboundRecords(tx, tenantID, typ)
 	if err != nil {
 		return nil, err
 	}

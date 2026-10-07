@@ -91,7 +91,7 @@ func TestAResetDropsThePairsAndKeepsTheRecords(t *testing.T) {
 		t.Error("the reset's position was not held before what followed it was applied")
 	}
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		if _, err := tx.SyncRow(agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
+		if _, err := tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("sync row after reset: err = %v, want none", err)
 		}
 		held, err := tx.Exists(agmasync.TypeFarm, "FRM-1")
@@ -163,7 +163,7 @@ func TestAResetClearsThePairsOfATenantNoApplierClaims(t *testing.T) {
 	}
 
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		if _, err := tx.SyncRow(agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
+		if _, err := tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("sync row after reset: err = %v, want none", err)
 		}
 		return nil

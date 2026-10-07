@@ -118,7 +118,7 @@ func (a *Attention) reached() (raised bool, err error) {
 //
 // A local identifier alone does not name a record. The platform mints them per
 // type, so a farm and a field may hold the same one, and the mapping — like
-// every table it is read from — is keyed by the pair. Anything that resolves a
+// every table it is read from — is keyed by the pair, within a tenant. Anything that resolves a
 // rejection back to a record has to carry both or it can resolve to the wrong
 // one.
 type ref struct {
@@ -218,6 +218,9 @@ type LoadResult struct {
 
 	// Counts over the last complete take of the set.
 	Received, Created, Matched, Ignored, Superseded int
+
+	// Discarded counts objects that named no tenant and were not applied.
+	Discarded int
 
 	// AwaitingUser is true where recognising something needed a person and
 	// agrirouter was told so — whether the recogniser said so on the way back or
@@ -415,6 +418,7 @@ func (l *Loader) takeCanonicalSet(
 	// Counted per take, so what a scenario reports describes the delivery it
 	// ended on rather than the sum of the ones that failed.
 	res.Received, res.Created, res.Matched, res.Ignored, res.Superseded = 0, 0, 0, 0, 0
+	res.Discarded = 0
 	res.Blocked = nil
 
 	for ev, err := range stream.Events() {
@@ -433,6 +437,10 @@ func (l *Loader) takeCanonicalSet(
 		out, err := l.Applier.apply(ev.Entity, "", l.Reconciler)
 		if err != nil {
 			return nil, err
+		}
+		if out.Discarded {
+			res.Discarded++
+			continue
 		}
 
 		res.Received++
@@ -495,7 +503,7 @@ func (l *Loader) bindings(types []agmasync.EntityType) ([]oapi.IdMappingBinding,
 	var rows []store.SyncRow
 	if err := l.Applier.Store.Tx(l.Applier.Tenant, func(tx *store.Tx) error {
 		var err error
-		rows, err = tx.Bindings()
+		rows, err = tx.Bindings(l.Applier.Endpoint.TenantID())
 		return err
 	}); err != nil {
 		return nil, err
@@ -543,7 +551,7 @@ func (l *Loader) dropRejected(rejected []oapi.IdMappingRejection) (map[ref]bool,
 		// identifier alone would collide across types, and does so precisely in
 		// the DUPLICATE_IN_REQUEST case, where one identifier appearing in
 		// several pairs is what was rejected.
-		rows, err := tx.Bindings()
+		rows, err := tx.Bindings(l.Applier.Endpoint.TenantID())
 		if err != nil {
 			return err
 		}
@@ -571,7 +579,7 @@ func (l *Loader) dropRejected(rejected []oapi.IdMappingRejection) (map[ref]bool,
 					"%q/%s (%s)", r.LocalId, r.AgrirouterId, r.Reason))
 				continue
 			}
-			if err := tx.Unbind(typ, r.LocalId); err != nil {
+			if err := tx.Unbind(l.Applier.Endpoint.TenantID(), typ, r.LocalId); err != nil {
 				return err
 			}
 			dropped[ref{Type: typ, LocalID: r.LocalId}] = true
@@ -615,7 +623,7 @@ func (l *Loader) push(ctx context.Context, res *LoadResult, skip map[ref]bool) e
 				if skip[ref{Type: typ, LocalID: id}] {
 					continue
 				}
-				row, err := tx.SyncRow(typ, id)
+				row, err := tx.SyncRow(l.Applier.Endpoint.TenantID(), typ, id)
 				switch {
 				case err == nil && row.Bound():
 					continue

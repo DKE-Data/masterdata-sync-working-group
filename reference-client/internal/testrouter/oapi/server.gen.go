@@ -266,7 +266,7 @@ type Envelope struct {
 	// AgrirouterId Canonical identifier, assigned by agrirouter. Absent on first send. If sent, it must be the object `local_id` is bound to.
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 
-	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints in the tenant sends or receives it. It resolves within the object's tenant: a record the application holds in several tenants carries the same identifier in each, bound to each tenant's own canonical object.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
@@ -308,7 +308,7 @@ type Farm struct {
 	// GeoReference A GeoJSON Point (longitude, latitude) locating the farm.
 	GeoReference nullable.Nullable[Geometry] `json:"geo_reference,omitempty"`
 
-	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints in the tenant sends or receives it. It resolves within the object's tenant: a record the application holds in several tenants carries the same identifier in each, bound to each tenant's own canonical object.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
@@ -317,8 +317,8 @@ type Farm struct {
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
 	Name       string     `json:"name"`
 
-	// Owner The party that holds the farm.
-	Owner EntityReference `json:"owner"`
+	// Owner The party that holds the farm. Absent where the farm's system does not record parties.
+	Owner nullable.Nullable[EntityReference] `json:"owner,omitempty"`
 
 	// Partners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
 	Partners nullable.Nullable[[]Partner] `json:"partners,omitempty"`
@@ -355,7 +355,7 @@ type Field struct {
 	Farm          nullable.Nullable[EntityReference] `json:"farm,omitempty"`
 	HarvestPeriod nullable.Nullable[HarvestPeriod]   `json:"harvest_period,omitempty"`
 
-	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints in the tenant sends or receives it. It resolves within the object's tenant: a record the application holds in several tenants carries the same identifier in each, bound to each tenant's own canonical object.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
@@ -415,7 +415,7 @@ type FieldBoundary struct {
 	Field         EntityReference                  `json:"field"`
 	HarvestPeriod nullable.Nullable[HarvestPeriod] `json:"harvest_period,omitempty"`
 
-	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints in the tenant sends or receives it. It resolves within the object's tenant: a record the application holds in several tenants carries the same identifier in each, bound to each tenant's own canonical object.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
@@ -677,10 +677,10 @@ type Party struct {
 	BillingAddress nullable.Nullable[Address] `json:"billing_address,omitempty"`
 	Contact        nullable.Nullable[Contact] `json:"contact,omitempty"`
 
-	// Details Whether the party is a person or an organization, with the attributes specific to that party type. Absent means the party type is unknown. Whatever a write sends here is stated to every participant, whether the sender recorded the party type or chose it.
+	// Details Whether the party is a person or an organization, with the attributes specific to that party type. Absent means the party type is unknown. Whatever a write sends here is stated to every participant.
 	Details nullable.Nullable[PartyDetails] `json:"details,omitempty"`
 
-	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints sends or receives it.
+	// LocalId Always the *calling* application's own identifier for the entity, in both directions: on send the sender's, on delivery the receiving application's. It never carries another application's identifier. One store per application, so the identifier is the same whichever of the application's endpoints in the tenant sends or receives it. It resolves within the object's tenant: a record the application holds in several tenants carries the same identifier in each, bound to each tenant's own canonical object.
 	//
 	// Required on send. On delivery it is present when agrirouter holds a mapping for the receiving application, and absent when it does not — an object the application has not bound, or has unbound. An absent `local_id` means "you do not hold this object": create it locally and bind the identifier you issue.
 	LocalId *string `json:"local_id,omitempty"`
@@ -924,7 +924,7 @@ type StreamMasterdataEventsParams struct {
 
 // RequestFarmParams defines parameters for RequestFarm.
 type RequestFarmParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -935,7 +935,7 @@ type RequestFarmParams struct {
 
 // PutFarmParams defines parameters for PutFarm.
 type PutFarmParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -953,7 +953,7 @@ type PutFarmParams struct {
 
 // DeactivateFarmParams defines parameters for DeactivateFarm.
 type DeactivateFarmParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -971,7 +971,7 @@ type DeactivateFarmParams struct {
 
 // UnbindFarmMappingParams defines parameters for UnbindFarmMapping.
 type UnbindFarmMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -982,7 +982,7 @@ type UnbindFarmMappingParams struct {
 
 // BindFarmMappingParams defines parameters for BindFarmMapping.
 type BindFarmMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -993,7 +993,7 @@ type BindFarmMappingParams struct {
 
 // RequestFieldBoundaryParams defines parameters for RequestFieldBoundary.
 type RequestFieldBoundaryParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1004,7 +1004,7 @@ type RequestFieldBoundaryParams struct {
 
 // PutFieldBoundaryParams defines parameters for PutFieldBoundary.
 type PutFieldBoundaryParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1022,7 +1022,7 @@ type PutFieldBoundaryParams struct {
 
 // DeactivateFieldBoundaryParams defines parameters for DeactivateFieldBoundary.
 type DeactivateFieldBoundaryParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1040,7 +1040,7 @@ type DeactivateFieldBoundaryParams struct {
 
 // UnbindFieldBoundaryMappingParams defines parameters for UnbindFieldBoundaryMapping.
 type UnbindFieldBoundaryMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1051,7 +1051,7 @@ type UnbindFieldBoundaryMappingParams struct {
 
 // BindFieldBoundaryMappingParams defines parameters for BindFieldBoundaryMapping.
 type BindFieldBoundaryMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1062,7 +1062,7 @@ type BindFieldBoundaryMappingParams struct {
 
 // RequestFieldParams defines parameters for RequestField.
 type RequestFieldParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1073,7 +1073,7 @@ type RequestFieldParams struct {
 
 // PutFieldParams defines parameters for PutField.
 type PutFieldParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1091,7 +1091,7 @@ type PutFieldParams struct {
 
 // DeactivateFieldParams defines parameters for DeactivateField.
 type DeactivateFieldParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1109,7 +1109,7 @@ type DeactivateFieldParams struct {
 
 // UnbindFieldMappingParams defines parameters for UnbindFieldMapping.
 type UnbindFieldMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1120,7 +1120,7 @@ type UnbindFieldMappingParams struct {
 
 // BindFieldMappingParams defines parameters for BindFieldMapping.
 type BindFieldMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1131,7 +1131,7 @@ type BindFieldMappingParams struct {
 
 // RequestPartyParams defines parameters for RequestParty.
 type RequestPartyParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1142,7 +1142,7 @@ type RequestPartyParams struct {
 
 // PutPartyParams defines parameters for PutParty.
 type PutPartyParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1160,7 +1160,7 @@ type PutPartyParams struct {
 
 // DeactivatePartyParams defines parameters for DeactivateParty.
 type DeactivatePartyParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1178,7 +1178,7 @@ type DeactivatePartyParams struct {
 
 // UnbindPartyMappingParams defines parameters for UnbindPartyMapping.
 type UnbindPartyMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
@@ -1189,7 +1189,7 @@ type UnbindPartyMappingParams struct {
 
 // BindPartyMappingParams defines parameters for BindPartyMapping.
 type BindPartyMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It does not scope `local_id`, which resolves in the application's namespace.
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id` only through its tenant: the identifier resolves in the application's namespace for that tenant.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
 	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`

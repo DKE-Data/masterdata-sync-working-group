@@ -34,7 +34,7 @@ func (a *Applier) Send(
 		if err != nil {
 			return err
 		}
-		row, err = tx.SyncRow(typ, localID)
+		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
 		switch {
 		case err == nil:
 			bound = row.Bound()
@@ -89,7 +89,7 @@ func (a *Applier) Deactivate(
 	var row store.SyncRow
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(typ, localID)
+		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
 		return err
 	}); err != nil {
 		return Outcome{}, err
@@ -119,7 +119,7 @@ func (a *Applier) Unbind(
 	var row store.SyncRow
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(typ, localID)
+		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
 		return err
 	}); err != nil {
 		return err
@@ -132,6 +132,6 @@ func (a *Applier) Unbind(
 		return err
 	}
 	return a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		return tx.Unbind(typ, localID)
+		return tx.Unbind(a.Endpoint.TenantID(), typ, localID)
 	})
 }

@@ -94,7 +94,7 @@ type ClientInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -105,7 +105,7 @@ type ClientInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -210,7 +210,7 @@ type ClientInterface interface {
 
 	// PutFarmWithBody Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -221,7 +221,7 @@ type ClientInterface interface {
 
 	// PutFarm Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -250,7 +250,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 	BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -275,7 +275,7 @@ type ClientInterface interface {
 
 	// PutFieldBoundaryWithBody Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -286,7 +286,7 @@ type ClientInterface interface {
 
 	// PutFieldBoundary Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -315,7 +315,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -340,7 +340,7 @@ type ClientInterface interface {
 
 	// PutFieldWithBody Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -351,7 +351,7 @@ type ClientInterface interface {
 
 	// PutField Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -380,7 +380,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -405,7 +405,7 @@ type ClientInterface interface {
 
 	// PutPartyWithBody Send (create or update) a party
 	//
-	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -418,7 +418,7 @@ type ClientInterface interface {
 
 	// PutParty Send (create or update) a party
 	//
-	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -449,7 +449,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 	BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -459,7 +459,7 @@ type ClientInterface interface {
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 //
 // Takes any type of body and a specified content type.
 //
@@ -480,7 +480,7 @@ func (c *Client) PutEndpointWithBody(ctx context.Context, externalId ExternalId,
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -675,7 +675,7 @@ func (c *Client) RequestFarm(ctx context.Context, params *RequestFarmParams, bod
 
 // PutFarmWithBody Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -696,7 +696,7 @@ func (c *Client) PutFarmWithBody(ctx context.Context, localId LocalId, params *P
 
 // PutFarm Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -755,7 +755,7 @@ func (c *Client) UnbindFarmMapping(ctx context.Context, localId LocalId, agrirou
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -810,7 +810,7 @@ func (c *Client) RequestFieldBoundary(ctx context.Context, params *RequestFieldB
 
 // PutFieldBoundaryWithBody Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -831,7 +831,7 @@ func (c *Client) PutFieldBoundaryWithBody(ctx context.Context, localId LocalId, 
 
 // PutFieldBoundary Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -890,7 +890,7 @@ func (c *Client) UnbindFieldBoundaryMapping(ctx context.Context, localId LocalId
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -945,7 +945,7 @@ func (c *Client) RequestField(ctx context.Context, params *RequestFieldParams, b
 
 // PutFieldWithBody Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -966,7 +966,7 @@ func (c *Client) PutFieldWithBody(ctx context.Context, localId LocalId, params *
 
 // PutField Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -1025,7 +1025,7 @@ func (c *Client) UnbindFieldMapping(ctx context.Context, localId LocalId, agriro
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1080,7 +1080,7 @@ func (c *Client) RequestParty(ctx context.Context, params *RequestPartyParams, b
 
 // PutPartyWithBody Send (create or update) a party
 //
-// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -1103,7 +1103,7 @@ func (c *Client) PutPartyWithBody(ctx context.Context, localId LocalId, params *
 
 // PutParty Send (create or update) a party
 //
-// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -1164,7 +1164,7 @@ func (c *Client) UnbindPartyMapping(ctx context.Context, localId LocalId, agriro
 //
 // Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 func (c *Client) BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -2870,7 +2870,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -2881,7 +2881,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -2994,7 +2994,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFarmWithBodyWithResponse Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3005,7 +3005,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFarmWithResponse Send (create or update) a farm
 	//
-	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3038,7 +3038,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3065,7 +3065,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldBoundaryWithBodyWithResponse Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3076,7 +3076,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldBoundaryWithResponse Send (create or update) a field boundary
 	//
-	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3109,7 +3109,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3136,7 +3136,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldWithBodyWithResponse Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3147,7 +3147,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutFieldWithResponse Send (create or update) a field
 	//
-	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3180,7 +3180,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3207,7 +3207,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutPartyWithBodyWithResponse Send (create or update) a party
 	//
-	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3220,7 +3220,7 @@ type ClientWithResponsesInterface interface {
 
 	// PutPartyWithResponse Send (create or update) a party
 	//
-	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+	// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
@@ -3255,7 +3255,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -4823,7 +4823,7 @@ func (r BindPartyMappingResponse) ContentType() string {
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -4840,7 +4840,7 @@ func (c *ClientWithResponses) PutEndpointWithBodyWithResponse(ctx context.Contex
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference, enabling fields requires the farms and parties those fields reference, and enabling farms requires the parties those farms reference, to be enabled as well. A configuration that is not dependency-closed is rejected with `400`.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well. A configuration that is not dependency-closed is rejected with `400`. Every other reference is optional, so any other combination of entity types is valid, for example parties and fields without farms, or farms and fields without parties.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5007,7 +5007,7 @@ func (c *ClientWithResponses) RequestFarmWithResponse(ctx context.Context, param
 
 // PutFarmWithBodyWithResponse Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5024,7 +5024,7 @@ func (c *ClientWithResponses) PutFarmWithBodyWithResponse(ctx context.Context, l
 
 // PutFarmWithResponse Send (create or update) a farm
 //
-// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a farm from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays, references, and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5075,7 +5075,7 @@ func (c *ClientWithResponses) UnbindFarmMappingWithResponse(ctx context.Context,
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5120,7 +5120,7 @@ func (c *ClientWithResponses) RequestFieldBoundaryWithResponse(ctx context.Conte
 
 // PutFieldBoundaryWithBodyWithResponse Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5137,7 +5137,7 @@ func (c *ClientWithResponses) PutFieldBoundaryWithBodyWithResponse(ctx context.C
 
 // PutFieldBoundaryWithResponse Send (create or update) a field boundary
 //
-// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field boundary from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and geometries are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5188,7 +5188,7 @@ func (c *ClientWithResponses) UnbindFieldBoundaryMappingWithResponse(ctx context
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5233,7 +5233,7 @@ func (c *ClientWithResponses) RequestFieldWithResponse(ctx context.Context, para
 
 // PutFieldWithBodyWithResponse Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5250,7 +5250,7 @@ func (c *ClientWithResponses) PutFieldWithBodyWithResponse(ctx context.Context, 
 
 // PutFieldWithResponse Send (create or update) a field
 //
-// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a field from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5301,7 +5301,7 @@ func (c *ClientWithResponses) UnbindFieldMappingWithResponse(ctx context.Context
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5346,7 +5346,7 @@ func (c *ClientWithResponses) RequestPartyWithResponse(ctx context.Context, para
 
 // PutPartyWithBodyWithResponse Send (create or update) a party
 //
-// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5365,7 +5365,7 @@ func (c *ClientWithResponses) PutPartyWithBodyWithResponse(ctx context.Context, 
 
 // PutPartyWithResponse Send (create or update) a party
 //
-// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created and an `agrirouter_id` is assigned. The mapping is keyed by the application, not the endpoint: a `local_id` names the same record whichever of the application's endpoints sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
+// Submits a party from the calling endpoint. If the (application, local_id) pair is already mapped to a canonical object in the tenant, that object is updated; otherwise a new canonical object is created in the tenant and an `agrirouter_id` is assigned. The mapping is keyed by the application and the tenant, not the endpoint: a `local_id` names the same record whichever of the application's endpoints in the tenant sends it. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // The body is a JSON Merge Patch (RFC 7396) of the entity's attributes: an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
@@ -5418,7 +5418,7 @@ func (c *ClientWithResponses) UnbindPartyMappingWithResponse(ctx context.Context
 //
 // Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// A local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// A local identifier denotes exactly one canonical object in the tenant, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //

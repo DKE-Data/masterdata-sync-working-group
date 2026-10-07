@@ -6,9 +6,11 @@
 
 ## Context
 
-The mapping is keyed `(application, local_id)` - an application keeps one local
-store behind however many endpoints it operates, so a `local_id` is unique across
-the whole application and denotes the same record whichever endpoint sends it -
+The mapping is keyed `(application, tenant, local_id)` - an application keeps one
+local store behind however many endpoints it operates, so within a tenant a
+`local_id` is unique across the whole application and denotes the same record
+whichever endpoint sends it, and a canonical object belongs to one tenant, so the
+same `local_id` in another tenant names another object -
 and a send that does not resolve creates a canonical object
 ([Identifier mapping](../specification.md#identifier-mapping)). That covers the
 endpoint introducing an entity to the network. It does not cover the opposite
@@ -39,7 +41,7 @@ x-agrirouter-endpoint-id: <the endpoint binding>
 ```
 
 - **`204`** - the mapping is recorded. Idempotent: re-binding the same pair changes nothing.
-- **`409`** - `(application, local_id)` is already bound to a different canonical object, or this application already has a different `local_id` bound to that `agrirouter_id`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
+- **`409`** - `(application, tenant, local_id)` is already bound to a different canonical object, or this application already has a different `local_id` bound to that `agrirouter_id`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
 - **`404`** - no such canonical object, or the endpoint is not entitled to it.
 
 The mapping is an association, and both of its ends are in the path, so the
@@ -224,6 +226,10 @@ could not settle it.
 - **`409` at bind time is the earliest the n:1 conflict can surface**, while the
   endpoint is reconciling and has a user in front of it, rather than later on an
   edit with the duplicate already created.
+- **A record held in several tenants is bound once per tenant**, under the same
+  `local_id`, because each tenant has its own canonical object for it. Keyed by
+  application alone, the second tenant's bind would be a `409` and its sends
+  would resolve to the first tenant's object.
 - **An endpoint's mapping tracks its own store in both directions.** What it
   holds it binds, what it loses it unbinds, and neither is a change to the
   entity. A stale pair - mapped to an object the endpoint no longer has - is

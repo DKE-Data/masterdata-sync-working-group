@@ -6,7 +6,7 @@
       {
         "definitionCode": "AgmaSync-CommercialRegistryNumber",
         "name": "Commercial Registry Number",
-        "description": "Party `details.commercial_registry_number`, for a party whose `details` is an organization.",
+        "description": "Party `details.commercial_registry_number`, for a party whose `details` is an organization, e.g. the German Handelsregister A (HRA) number.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -16,7 +16,7 @@
       {
         "definitionCode": "AgmaSync-TaxNumber",
         "name": "Tax Number",
-        "description": "Party `tax_number`, e.g. the German Steuernummer.",
+        "description": "Party `tax_number`, e.g. the German USt-IdNr.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -26,7 +26,7 @@
       {
         "definitionCode": "AgmaSync-TaxId",
         "name": "Tax Id",
-        "description": "Party `tax_id`, e.g. the German USt-IdNr. or Steuer-ID.",
+        "description": "Party `tax_id`, e.g. the German Steuer-ID.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -36,7 +36,7 @@
       {
         "definitionCode": "AgmaSync-TradeId",
         "name": "Trade Id",
-        "description": "Party `trade_id`, e.g. the German Betriebsnummer.",
+        "description": "Party `trade_id`, e.g. the German W-IdNr.",
         "dataDefinitionBaseTypeCode": "TEXT",
         "dataDefinitionStatusCode": "VALID",
         "scopes": [
@@ -386,19 +386,15 @@
         "contextItems": [
           {
             "definitionCode": "AgmaSync-CommercialRegistryNumber",
-            "valueText": "HRB 204518, Amtsgericht Hannover"
+            "valueText": "HRA 204518, Amtsgericht Hannover"
           },
           {
             "definitionCode": "AgmaSync-TaxNumber",
-            "valueText": "24/203/01234"
-          },
-          {
-            "definitionCode": "AgmaSync-TaxId",
             "valueText": "DE287654321"
           },
           {
             "definitionCode": "AgmaSync-TradeId",
-            "valueText": "276030000012345"
+            "valueText": "DE287654321-00001"
           }
         ]
       },
@@ -567,7 +563,7 @@
           },
           {
             "definitionCode": "AgmaSync-TaxNumber",
-            "valueText": "23/115/04567"
+            "valueText": "DE312345678"
           }
         ]
       },

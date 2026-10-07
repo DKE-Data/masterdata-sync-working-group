@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
@@ -37,8 +38,10 @@ type LocalIDs interface {
 //
 // One Applier serves one tenant, through the endpoint that tenant is onboarded
 // as. A product holding several tenants holds several of these over one store,
-// and they share what that store holds: the identifier mapping is keyed by the
-// application, so a record one tenant has bound is bound for all of them. What
+// and they share the records that store holds. The identifier mapping is keyed
+// by the application and the agrirouter tenant, so a record bound through one
+// endpoint is bound for every other endpoint in the same agrirouter tenant, and
+// bound separately, to that tenant's own canonical object, in any other. What
 // the tenant decides is which endpoint acts, and which of them shows the record
 // to a user. What is not shared is the endpoint, which is why there is an
 // Applier per tenant rather than one for the product.
@@ -80,6 +83,10 @@ type Outcome struct {
 	// Ignored is true where the object was inactive and unrecognised, and the
 	// platform correctly created nothing.
 	Ignored bool
+
+	// Discarded is true where the object named no tenant. Nothing was applied
+	// and no position was recorded.
+	Discarded bool
 
 	// Matched is true where the platform recognised the object as one of its
 	// own records rather than creating one — the reconciliation of an initial
@@ -128,6 +135,13 @@ func (a *Applier) apply(
 	if envelope.AgrirouterId == nil {
 		return Outcome{}, fmt.Errorf("sync: a delivered object carries no agrirouterId")
 	}
+	// The bookkeeping is keyed by the object's tenant. An object naming none
+	// is discarded rather than given this applier's: on the live stream it
+	// could belong to any tenant the application is routed to.
+	if envelope.TenantId == nil {
+		logDiscarded(envelope)
+		return Outcome{Discarded: true}, nil
+	}
 
 	var outcome Outcome
 	err = a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
@@ -138,6 +152,18 @@ func (a *Applier) apply(
 		return tx.SetPosition(position)
 	})
 	return outcome, err
+}
+
+// logDiscarded reports an object discarded for naming no tenant. Nothing else
+// records it: its position is not taken, and agrirouter does not send it again
+// once a later frame's is.
+func logDiscarded(envelope agmasync.Envelope) {
+	agrirouterID := ""
+	if envelope.AgrirouterId != nil {
+		agrirouterID = envelope.AgrirouterId.String()
+	}
+	slog.Error("sync: discarded an object naming no tenant",
+		"type", envelope.Type, "agrirouterId", agrirouterID)
 }
 
 func (a *Applier) applyIn(
@@ -172,7 +198,7 @@ func (a *Applier) applyIn(
 	// because a write response may be processed after a later stream frame has
 	// already been applied — so an object whose revision is lower than the one
 	// held must not be applied over it.
-	row, err := tx.SyncRow(typ, localID)
+	row, err := tx.SyncRow(*envelope.TenantId, typ, localID)
 	switch {
 	case err == nil:
 		if row.Revision != nil && envelope.Revision != nil && *envelope.Revision < *row.Revision {
@@ -239,7 +265,7 @@ func (a *Applier) applyUnheldObject(
 			LocalID:      known.LocalID,
 			AgrirouterID: env.AgrirouterId,
 			Revision:     env.Revision,
-			TenantID:     env.TenantId,
+			TenantID:     *env.TenantId,
 		}); err != nil {
 			return Outcome{}, err
 		}
@@ -299,7 +325,7 @@ func (a *Applier) write(
 		LocalID:      localID,
 		AgrirouterID: envelope.AgrirouterId,
 		Revision:     envelope.Revision,
-		TenantID:     envelope.TenantId,
+		TenantID:     *envelope.TenantId,
 	})
 }
 
