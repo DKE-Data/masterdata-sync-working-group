@@ -78,12 +78,10 @@ the version of an entity held by agrirouter in the Single Source of Truth store
 Local identifier:
 the identifier a participant uses for an entity within its own system — the
   identifier by which that participant knows the entity in its own store. A
-  participant keeps one store behind however many endpoints it operates, so
-  within a tenant a local identifier is unique across the whole participant and
-  denotes the same record whichever of its endpoints there sends it. It is
-  scoped to the tenant: a canonical object belongs to one tenant, so the same
-  local identifier used in two tenants names two canonical objects. It is not
-  unique beyond the participant.
+  local identifier is unique per participant and tenant: it denotes the same
+  record whichever of the participant's endpoints in that tenant sends it. The
+  same identifier sent in another tenant names a different object. It is not
+  unique beyond the participant and tenant.
 
 agrirouter identifier:
 the stable, globally unique identifier that agrirouter assigns to the canonical
@@ -483,14 +481,13 @@ not an exhaustive set. Normatively:
 
 agrirouter maintains, per canonical object, a mapping between its `agrirouter_id`
 and each participant's `local_id` for that object. The mapping is keyed by the
-**participant and the tenant**, not by the endpoint: a participant has one local
-store, so a `local_id` names the same record whichever of the participant's
-endpoints in the tenant sends it (see [Terminology](#terminology)). The tenant is
-part of the key because a canonical object belongs to exactly one tenant: a
-participant that holds one record in several tenants is bound to a separate
-canonical object in each, under the same `local_id`. Which endpoint acts on a
-request still matters for entitlement and for `source_endpoint_id`; it does not
-partition the mapping.
+**participant and the tenant**, not by the endpoint: a `local_id` names the same
+record whichever of the participant's endpoints in that tenant sends it (see
+[Terminology](#terminology)). The tenant is the acting endpoint's tenant; the
+participant does not send it separately. Every canonical object belongs to one
+tenant, so a participant using the same `local_id` in two tenants maps it to two
+objects. Which endpoint acts on a request also matters for entitlement and for
+`source_endpoint_id`; within a tenant it does not partition the mapping.
 
 A record held in several tenants is therefore sent into each of them by the
 participant, not by agrirouter: a change it applies from one tenant reaches
@@ -554,7 +551,9 @@ endpoint's masterdata route is removed, or when an endpoint is removed (see
 [masterdata reset](#masterdata-reset) discards it.
 
 A participant MUST NOT reuse one of its local identifiers for two distinct
-canonical objects in one tenant, through any of its endpoints. If a participant sends a `local_id`
+canonical objects in one tenant, through any of its endpoints there. Using the
+same `local_id` in another tenant is not reuse: it is a different key. If a
+participant sends a `local_id`
 that is already mapped to a *different* canonical object than the one implied by
 the request, agrirouter MUST reject it (see
 [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)).

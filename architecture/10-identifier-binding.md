@@ -6,11 +6,9 @@
 
 ## Context
 
-The mapping is keyed `(application, tenant, local_id)` - an application keeps one
-local store behind however many endpoints it operates, so within a tenant a
-`local_id` is unique across the whole application and denotes the same record
-whichever endpoint sends it, and a canonical object belongs to one tenant, so the
-same `local_id` in another tenant names another object -
+The mapping is keyed `(application, tenant, local_id)` - a `local_id` denotes the
+same record whichever of the application's endpoints in that tenant sends it, and
+the tenant is the acting endpoint's ([ADR 14](./14-tenant-scope-of-objects.md)) -
 and a send that does not resolve creates a canonical object
 ([Identifier mapping](../specification.md#identifier-mapping)). That covers the
 endpoint introducing an entity to the network. It does not cover the opposite
