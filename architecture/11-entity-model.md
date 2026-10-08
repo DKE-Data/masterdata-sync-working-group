@@ -273,7 +273,8 @@ file.
   `extensions`, not as context items.
 - **F. Like E, with the extensions inside `adapt`.** The FarmSPT attributes
   ADAPT lacks are typed properties of the ADAPT object itself, named with a
-  vendor prefix as in CSS (`-webkit-…`): `-agmasync-partners`. Once ADAPT adds
+  vendor prefix: `_agmasync_partners`, a valid identifier in JavaScript and
+  most other languages, so generated code and dot access work. Once ADAPT adds
   a slot, agrirouter writes the attribute natively or prefixed, depending on
   the receiver's ADAPT version.
 
@@ -298,7 +299,7 @@ questions).
 
 | Participant | A | B | C | D | E | F |
 | --- | --- | --- | --- | --- | --- | --- |
-| Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: send B's shape | low: `adapt` passes through unchanged, `extensions` are typed | low: `adapt` is a valid ADAPT object, `-agmasync-` properties are typed |
+| Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: send B's shape | low: `adapt` passes through unchanged, `extensions` are typed | low: `adapt` is a valid ADAPT object, `_agmasync_` properties are typed |
 | Built on ISOXML / EFDI | low: FarmSPT maps its attributes to ISO 11783 Customer / Farm / Partfield | high: map to ADAPT, then to context items | low | low: send A's shape | medium to high: map to ADAPT, no context items | medium to high, as E |
 | Proprietary REST (client / farm / field) | medium | medium to high | medium | medium: send A's shape | medium to high | medium to high |
 
@@ -530,7 +531,7 @@ Write semantics keeps them.
 
 | | A | B | C | D | E | F |
 | --- | --- | --- | --- | --- | --- | --- |
-| Schema and validation | exists | rewrite, plus a validator driven by the definitions | exists | both | envelope and `extensions` typed; `adapt` by a tightened copy of the ADAPT schema | as E, with the `-agmasync-` properties declared in the tightened ADAPT schema, one schema per supported ADAPT version |
+| Schema and validation | exists | rewrite, plus a validator driven by the definitions | exists | both | envelope and `extensions` typed; `adapt` by a tightened copy of the ADAPT schema | as E, with the `_agmasync_` properties declared in the tightened ADAPT schema, one schema per supported ADAPT version |
 | Registry of custom definitions | none | required | publish once | required | none | none |
 | Translation | none | none | none, done at the participant's edge | server-side in both directions | none | per ADAPT version, only for attributes that gained a native slot |
 | Conflict and merge semantics | exists | custom merge: keyed by `definitionCode`, plus rules for removal, repeated codes and ADAPT's own arrays | exists | across two representations | RFC 7396; only ADAPT's own arrays are replaced whole | as E |
@@ -621,8 +622,8 @@ The farm from the example under F:
     "name": "Hofgut Sonnenberg",
     "growerId": "GRW-0001",
     …
-    "-agmasync-specialisedUsageType": "arable farming",
-    "-agmasync-partners": [
+    "_agmasync_specialisedUsageType": "arable farming",
+    "_agmasync_partners": [
       {
         "partner_id": { "agrirouter_id": "0b6e…4a53" },
         "partner_role": "CUSTOM_SERVICE_PROVIDER"
@@ -633,10 +634,10 @@ The farm from the example under F:
 }
 ```
 
-A prefixed name is `-agmasync-` plus the AgmaSync attribute name in camelCase,
-following ADAPT (`-agmasync-specialisedUsageType`), and its value has the
-AgmaSync type, as in E's `extensions`. No ADAPT property starts with a
-dash, so the prefix cannot collide with a later ADAPT slot.
+A prefixed name is `_agmasync_` plus the AgmaSync attribute name in camelCase,
+following ADAPT (`_agmasync_specialisedUsageType`), and its value has the
+AgmaSync type, as in E's `extensions`. No ADAPT property starts with an
+underscore, so the prefix cannot collide with a later ADAPT slot.
 
 Compared with E:
 
@@ -653,8 +654,8 @@ Compared with E:
   E. A native reference (`growerId`, `farmId`, `fieldId`, `partyId`,
   `parentPartyId`, `seasonIds`) holds the `local_id` of the participant at the
   near end of the transfer, as `id.referenceId` does. On delivery it comes
-  with the target's `agrirouter_id` in `-agmasync-canonical` plus the ADAPT
-  name: `-agmasync-canonicalGrowerId`. Together the two carry what an
+  with the target's `agrirouter_id` in `_agmasync_canonical` plus the ADAPT
+  name: `_agmasync_canonicalGrowerId`. Together the two carry what an
   `EntityReference` carries.
   - **On send**, the native reference holds the sender's id. agrirouter
     resolves it through the identifier mapping and rejects one that does not
@@ -675,7 +676,7 @@ Compared with E:
   "adapt": {
     "id": { "referenceId": "FARM-3001" },
     "name": "Hofgut Sonnenberg",
-    "-agmasync-canonicalGrowerId": "0b6e…4a58",
+    "_agmasync_canonicalGrowerId": "0b6e…4a58",
     …
   }
   ```
@@ -688,14 +689,14 @@ Compared with E:
     "id": { "referenceId": "FARM-3001" },
     "name": "Hofgut Sonnenberg",
     "growerId": "GRW-0001",
-    "-agmasync-canonicalGrowerId": "0b6e…4a58",
+    "_agmasync_canonicalGrowerId": "0b6e…4a58",
     …
   }
   ```
 
   A reference is set or changed only in the native slot. Where that is
   absent, merge patch keeps the current reference, and `null` removes it. For
-  a list, `-agmasync-canonicalSeasonIds` holds every target and `seasonIds`
+  a list, `_agmasync_canonicalSeasonIds` holds every target and `seasonIds`
   the bound ones. A `seasonIds` sent replaces only the targets the sender has
   bound, so an echoed list keeps the others.
 
@@ -706,8 +707,8 @@ Compared with E:
   [option-f-sample.json](../examples/option-f-sample.json)
   shows the whole farm, with one unbound season.
 - **Contract strength.** Unchanged. The tightened ADAPT schema declares each
-  `-agmasync-` property with its type and still rejects unknown properties, so
-  `-agmasync-partner` (singular) is a `400`, as in AgmaSync.
+  `_agmasync_` property with its type and still rejects unknown properties, so
+  `_agmasync_partner` (singular) is a `400`, as in AgmaSync.
 - **Write semantics and round trip.** Unchanged. Prefixed properties are
   object keys, so RFC 7396 merges them one by one. An ADAPT tool that sends
   `adapt` back without them leaves them in place, since absent keys are kept.
@@ -721,15 +722,15 @@ Compared with E:
   "adapt": {
     "name": "Hofgut Sonnenberg",
     "partyRoles": [ { "partyId": "ORG-1002", "roleCode": "CUSTOM_SERVICE_PROVIDER" } ],
-    "-agmasync-specialisedUsageType": "arable farming",
+    "_agmasync_specialisedUsageType": "arable farming",
     …
   }
   ```
 
-  A receiver still on 2.0.2 keeps getting `-agmasync-partners`, unchanged.
+  A receiver still on 2.0.2 keeps getting `_agmasync_partners`, unchanged.
   On send, agrirouter accepts the shape of the sender's version only, so per
   version each attribute has exactly one place: a sender on the newer version
-  that sends `-agmasync-partners` gets a `400`.
+  that sends `_agmasync_partners` gets a `400`.
 - **Cost of the move.** agrirouter owns one mapping per attribute that gained
   a slot, in both directions. Unlike D, it is between typed shapes that
   agrirouter defines.

@@ -37,9 +37,9 @@
           { "valueText": "info@hofgut-sonnenberg.de", "telecommunicationContactTypeCode": "EMAIL" }
         ]
       },
-      "-agmasync-commercialRegistryNumber": "HRA 204518, Amtsgericht Hannover",
-      "-agmasync-taxNumber": "DE287654321",
-      "-agmasync-tradeId": "DE287654321-00001"
+      "_agmasync_commercialRegistryNumber": "HRA 204518, Amtsgericht Hannover",
+      "_agmasync_taxNumber": "DE287654321",
+      "_agmasync_tradeId": "DE287654321-00001"
     }
   },
   {
@@ -91,16 +91,16 @@
           { "valueText": "k.brandt@hofgut-sonnenberg.de", "telecommunicationContactTypeCode": "EMAIL" }
         ]
       },
-      "-agmasync-title": "Dr.",
-      "-agmasync-firstName": "Katharina",
-      "-agmasync-lastName": "Brandt",
-      "-agmasync-memberships": [
+      "_agmasync_title": "Dr.",
+      "_agmasync_firstName": "Katharina",
+      "_agmasync_lastName": "Brandt",
+      "_agmasync_memberships": [
         {
           "organization_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "local_id": "ORG-1001" },
           "member_role": "FARM_MANAGER"
         }
       ],
-      "-agmasync-taxId": "12345678901"
+      "_agmasync_taxId": "12345678901"
     }
   },
   {
@@ -132,9 +132,9 @@
           { "valueText": "weber@agrarberatung-weber.de", "telecommunicationContactTypeCode": "EMAIL" }
         ]
       },
-      "-agmasync-firstName": "Jonas",
-      "-agmasync-lastName": "Weber",
-      "-agmasync-taxNumber": "DE312345678"
+      "_agmasync_firstName": "Jonas",
+      "_agmasync_lastName": "Weber",
+      "_agmasync_taxNumber": "DE312345678"
     }
   },
   {
@@ -150,7 +150,7 @@
       "id": { "referenceId": "GRW-0001" },
       "name": "Hofgut Sonnenberg Agrar GmbH",
       "partyId": "ORG-1001",
-      "-agmasync-canonicalPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
+      "_agmasync_canonicalPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51"
     }
   },
   {
@@ -166,7 +166,7 @@
       "id": { "referenceId": "GRW-0002" },
       "name": "Dr. Katharina Brandt",
       "partyId": "PER-2001",
-      "-agmasync-canonicalPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
+      "_agmasync_canonicalPartyId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52"
     }
   },
   {
@@ -182,9 +182,9 @@
       "id": { "referenceId": "FARM-3001" },
       "name": "Hofgut Sonnenberg",
       "growerId": "GRW-0001",
-      "-agmasync-canonicalGrowerId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a58",
-      "-agmasync-specialisedUsageType": "arable farming",
-      "-agmasync-partners": [
+      "_agmasync_canonicalGrowerId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a58",
+      "_agmasync_specialisedUsageType": "arable farming",
+      "_agmasync_partners": [
         {
           "partner_id": { "agrirouter_id": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "local_id": "ORG-1002" },
           "partner_role": "CUSTOM_SERVICE_PROVIDER"
@@ -194,7 +194,7 @@
           "partner_role": "CROP_ADVISOR"
         }
       ],
-      "-agmasync-addressContactMethods": [
+      "_agmasync_addressContactMethods": [
         {
           "addressContactTypeCode": "PHYSICAL",
           "addressLines": ["Dorfstraße 12"],
@@ -204,7 +204,7 @@
           "countryCode": "DE"
         }
       ],
-      "-agmasync-geoReference": { "type": "Point", "coordinates": [9.5531, 52.2089] }
+      "_agmasync_geoReference": { "type": "Point", "coordinates": [9.5531, 52.2089] }
     }
   },
   {
@@ -220,14 +220,14 @@
       "id": { "referenceId": "FLD-4001" },
       "name": "Am Mühlenbach",
       "farmId": "FARM-3001",
-      "-agmasync-canonicalFarmId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
+      "_agmasync_canonicalFarmId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a54",
       "arableArea": { "numericValue": 12.45, "unitOfMeasureCode": "ha" },
-      "-agmasync-growerId": "GRW-0002",
-      "-agmasync-canonicalGrowerId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a5a",
-      "-agmasync-soil": { "type": "SANDY_TO_SILTY_LOAM", "rating_points": 62 },
-      "-agmasync-topography": 3.5,
-      "-agmasync-harvestPeriod": { "valid_from": "2025-08-01", "valid_to": "2026-07-31", "label": "2025/2026" },
-      "-agmasync-metadata": { "flik": "DENILI0512345678", "nutzungscode": 115 }
+      "_agmasync_growerId": "GRW-0002",
+      "_agmasync_canonicalGrowerId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a5a",
+      "_agmasync_soil": { "type": "SANDY_TO_SILTY_LOAM", "rating_points": 62 },
+      "_agmasync_topography": 3.5,
+      "_agmasync_harvestPeriod": { "valid_from": "2025-08-01", "valid_to": "2026-07-31", "label": "2025/2026" },
+      "_agmasync_metadata": { "flik": "DENILI0512345678", "nutzungscode": 115 }
     }
   },
   {
@@ -243,27 +243,27 @@
       "id": { "referenceId": "FB-5001" },
       "name": "Am Mühlenbach 2025/2026",
       "fieldId": "FLD-4001",
-      "-agmasync-canonicalFieldId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
+      "_agmasync_canonicalFieldId": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a55",
       "boundary": {
         "geometry": "POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))",
         "boundaryCreationMethodCode": "ADMINISTRATIVE"
       },
-      "-agmasync-canonicalSeasonIds": ["0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a59"],
+      "_agmasync_canonicalSeasonIds": ["0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a59"],
       "obstacles": [
         {
           "boundary": { "geometry": "POINT (9.5621 52.2062)" },
-          "-agmasync-kind": "pole"
+          "_agmasync_kind": "pole"
         },
         {
           "boundary": {
             "geometry": "POLYGON ((9.564 52.2068, 9.5646 52.2068, 9.5646 52.2072, 9.564 52.2072, 9.564 52.2068))"
           },
-          "-agmasync-kind": "waterhole"
+          "_agmasync_kind": "waterhole"
         }
       ],
-      "-agmasync-boundaryType": "ADMINISTRATIVE_RECEIVED",
-      "-agmasync-regulatoryRequirements": "RED_ZONE_NITROGEN",
-      "-agmasync-metadata": { "source": "SLA Niedersachsen, Antragsgeometrie 2026" }
+      "_agmasync_boundaryType": "ADMINISTRATIVE_RECEIVED",
+      "_agmasync_regulatoryRequirements": "RED_ZONE_NITROGEN",
+      "_agmasync_metadata": { "source": "SLA Niedersachsen, Antragsgeometrie 2026" }
     }
   },
   {

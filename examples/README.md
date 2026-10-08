@@ -36,24 +36,24 @@ delivered to one endpoint, in ADAPT 2.0.2.
 - Each object is an AgmaSync envelope with an ADAPT component in `adapt`.
   The receiving endpoint's own id is `adapt.id.referenceId`, in place of the
   envelope's `local_id`. `uniqueIds` is not used.
-- Where ADAPT has no slot, the value is a property `-agmasync-` plus the
+- Where ADAPT has no slot, the value is a property `_agmasync_` plus the
   AgmaSync attribute name in camelCase, with the AgmaSync type. The attributes of a party's
   `details` are named directly, since `partyTypeCode` carries `party_type`.
-  Prefixed properties also appear on nested ADAPT objects (obstacle `-agmasync-kind`).
+  Prefixed properties also appear on nested ADAPT objects (obstacle `_agmasync_kind`).
 - Owner becomes a Grower object of its own, for the farm (`GRW-0001`) and for
   the field (`GRW-0002`). The field has no native slot, so it references its
-  grower as `-agmasync-growerId`, like a native reference with its canonical id.
+  grower as `_agmasync_growerId`, like a native reference with its canonical id.
 - Farm address and geo reference are prefixed, not modelled as an extra Party
   as in the ADAPT sample.
-  The farm address reuses ADAPT's type, as `-agmasync-addressContactMethods`.
+  The farm address reuses ADAPT's type, as `_agmasync_addressContactMethods`.
 - Native references (`growerId`, `partyId`, `farmId`, `fieldId`) hold the
   receiving endpoint's `local_id`, each with the target's `agrirouter_id` in
-  `-agmasync-canonical` plus the ADAPT name. Prefixed AgmaSync attributes keep
+  `_agmasync_canonical` plus the ADAPT name. Prefixed AgmaSync attributes keep
   `EntityReference`.
 - Another endpoint has just created the 2025/2026 season and assigned the
   boundary to it. The receiver has not bound the season yet: the season
   arrives without `id`, and the boundary carries the season's
-  `agrirouter_id` in `-agmasync-canonicalSeasonIds`, with no `seasonIds`.
+  `agrirouter_id` in `_agmasync_canonicalSeasonIds`, with no `seasonIds`.
 - The boundary's harvest period becomes that Season, since ADAPT has
   `seasonIds` on boundaries. The field's stays inline in
-  `-agmasync-harvestPeriod`, since an ADAPT Field has no Season slot.
+  `_agmasync_harvestPeriod`, since an ADAPT Field has no Season slot.
