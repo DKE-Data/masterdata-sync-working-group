@@ -39,13 +39,10 @@ func TestInitialLoadCallsNameTheTenant(t *testing.T) {
 					`{"message":"tenant ID header is missing in request"}`))
 				return
 			}
-			// One body for every call under test: the fields an initial-load
-			// status is read out of and the ones an endpoint is, since what is
-			// asserted here is the request rather than the response.
+			// One body for every call under test, since what is asserted here
+			// is the request rather than the response.
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(
-				`{"state":"COMPLETED","entity_types":[],` +
-					`"masterdata":{"capabilities":[]}}`))
+			_, _ = w.Write([]byte(`{"state":"COMPLETED","entity_types":[]}`))
 		}))
 	defer srv.Close()
 
@@ -53,8 +50,7 @@ func TestInitialLoadCallsNameTheTenant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	endpoint := client.For(uuid.New(), "refclient:tenant:x:alpha",
-		uuid.New(), tenant, uuid.New(), oapi.EndpointTypeToCreate("cloud_software"))
+	endpoint := client.For(uuid.New(), "refclient:tenant:x:alpha", tenant)
 
 	ctx := context.Background()
 	calls := map[string]func() error{
@@ -66,12 +62,6 @@ func TestInitialLoadCallsNameTheTenant(t *testing.T) {
 			_, err := endpoint.SetInitialLoadState(ctx, oapi.InitialLoadStateUpdate{
 				State: agmasync.StateCompleted,
 			})
-			return err
-		},
-		// Declared here too: openapi.yaml does name the tenant on PutEndpoint,
-		// but under the spelling the deployed API does not read.
-		"Declare": func() error {
-			_, err := endpoint.Declare(ctx, oapi.MasterdataConfig{})
 			return err
 		},
 		"ReportUserAttention": func() error {

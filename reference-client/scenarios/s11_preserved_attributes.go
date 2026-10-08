@@ -33,7 +33,7 @@ func preservedAttributes() Scenario {
 func runPreservedAttributes(ctx context.Context, w *World) error {
 	say := w.Say
 
-	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeField)
+	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeFarm, agmasync.TypeField)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	metadata := string(original["metadata"])
 	period := string(original["harvest_period"])
 
-	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta", agmasync.TypeField)
+	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta", agmasync.TypeFarm, agmasync.TypeField)
 	if err != nil {
 		return err
 	}

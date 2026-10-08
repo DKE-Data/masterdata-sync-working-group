@@ -117,9 +117,9 @@ func onboard(
 	// the endpoint exchanges nothing.
 	//
 	// [agmasync.Declaration] closes the set over entity dependencies, so a
-	// declaration naming fields names the farms they hang off whether or not
-	// the caller thought to. An endpoint able to receive one and not the other
-	// could not resolve the references it was sent.
+	// declaration naming field boundaries names the fields they describe
+	// whether or not the caller thought to. An endpoint able to receive one and
+	// not the other could not resolve the references it was sent.
 	declaration := agmasync.Declaration(types...)
 
 	// Where a user is sent to answer what an initial load stopped for, which for

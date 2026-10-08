@@ -173,7 +173,7 @@ func TestDeliveryOrderFollowsReferencesNotAge(t *testing.T) {
 	// member, a field edited after its boundary. Persons sit below the other
 	// parties, boundaries below fields.
 	f := newFixture(t)
-	a := f.join("fmis-a", "ep-a", agmasync.TypeFieldBoundary)
+	a := f.join("fmis-a", "ep-a", agmasync.EntityTypes...)
 
 	orgBase := revisionIn(t, put(t, a, organization, nil))
 	put(t, a, `{"type":"party","local_id":"PTY-1","name":"Anke Meyer",`+
@@ -187,7 +187,7 @@ func TestDeliveryOrderFollowsReferencesNotAge(t *testing.T) {
 		`"boundary":{"type":"Polygon","coordinates":[[[8,52],[8.1,52],[8.1,52.1],[8,52]]]}}`, nil)
 	put(t, a, `{"type":"field","local_id":"PFD-1","name":"North 41"}`, &fieldBase)
 
-	b := f.join("fmis-b", "ep-b", agmasync.TypeFieldBoundary)
+	b := f.join("fmis-b", "ep-b", agmasync.EntityTypes...)
 	stream, err := b.endpoint.InitialLoadEvents(context.Background())
 	if err != nil {
 		t.Fatalf("initial load stream: %v", err)

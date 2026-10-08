@@ -1054,7 +1054,8 @@ whole, so no attribute of the other party type survives (see [Party details](#pa
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every participant supports, so a participant always holds them.
-- `null` for a required attribute or an envelope field is rejected with `400`. An absent `active` leaves the object's state unchanged.- Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
+- `null` for a required attribute or an envelope field is rejected with `400`. An absent `active` leaves the object's state unchanged.
+- Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
 
 This is what relaying amounts to. A participant does not store, and does not send,
 attributes it does not model: leaving them out of its writes keeps them for every

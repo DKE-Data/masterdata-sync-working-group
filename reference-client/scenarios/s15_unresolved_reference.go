@@ -34,11 +34,11 @@ func unresolvedReference() Scenario {
 func runUnresolvedReference(ctx context.Context, w *World) error {
 	say := w.Say
 
-	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeField)
+	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeFarm, agmasync.TypeField)
 	if err != nil {
 		return err
 	}
-	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta", agmasync.TypeField)
+	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta", agmasync.TypeFarm, agmasync.TypeField)
 	if err != nil {
 		return err
 	}

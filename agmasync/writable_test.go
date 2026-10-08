@@ -41,8 +41,7 @@ func TestPutSendsBackWhatAgrirouterAssigns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	endpoint := client.For(uuid.New(), "refclient:tenant:x:alpha",
-		uuid.New(), uuid.New(), uuid.New(), oapi.EndpointTypeToCreate("cloud_software"))
+	endpoint := client.For(uuid.New(), "refclient:tenant:x:alpha", uuid.New())
 
 	localID := "o-1"
 	revision := 7
@@ -122,8 +121,7 @@ func TestPutSendsTheEntityAsTheParticipantBuiltIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	endpoint := client.For(uuid.New(), "refclient:tenant:x:alpha",
-		uuid.New(), uuid.New(), uuid.New(), oapi.EndpointTypeToCreate("cloud_software"))
+	endpoint := client.For(uuid.New(), "refclient:tenant:x:alpha", uuid.New())
 
 	// A farm as a platform holds it: no owner, because the reference it was
 	// delivered with resolved to nothing it holds, a usage type it has cleared,

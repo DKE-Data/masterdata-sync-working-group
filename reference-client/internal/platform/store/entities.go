@@ -29,6 +29,20 @@ type Record struct {
 	// Modelled holds the attributes this platform has columns for, keyed by
 	// their protocol names. One it holds no value for is absent.
 	Modelled map[string]json.RawMessage
+
+	// Ignored names reference attributes a write leaves alone, keeping what the
+	// platform holds for them. They name an entity type not selected on the
+	// endpoint, so what a delivery says about them is not the platform's to
+	// apply (ADR 13).
+	Ignored map[string]bool
+}
+
+// References names, per entity type, the reference attributes the platform
+// models and the entity type each one names.
+var References = map[agmasync.EntityType]map[string]agmasync.EntityType{
+	agmasync.TypeFarm:          {"owner": agmasync.TypeParty},
+	agmasync.TypeField:         {"farm": agmasync.TypeFarm},
+	agmasync.TypeFieldBoundary: {"field": agmasync.TypeField},
 }
 
 // columns names the protocol attributes each entity type has real columns for.
@@ -382,11 +396,9 @@ func (t *Tx) columnValues(r Record, table string) (map[string]any, error) {
 			return nil, err
 		}
 		out["city"] = city
-		ownerLocal, err := t.resolveRef(r.Modelled["owner"], agmasync.TypeParty)
-		if err != nil {
+		if err := t.refColumn(out, r, "owner", "owner_local_id"); err != nil {
 			return nil, err
 		}
-		out["owner_local_id"] = ownerLocal
 	case "field":
 		str("name", "name")
 		out["area"] = nil
@@ -399,17 +411,13 @@ func (t *Tx) columnValues(r Record, table string) (map[string]any, error) {
 				out["area"] = *area
 			}
 		}
-		farmLocal, err := t.resolveRef(r.Modelled["farm"], agmasync.TypeFarm)
-		if err != nil {
+		if err := t.refColumn(out, r, "farm", "farm_local_id"); err != nil {
 			return nil, err
 		}
-		out["farm_local_id"] = farmLocal
 	case "field_boundary":
-		fieldLocal, err := t.resolveRef(r.Modelled["field"], agmasync.TypeField)
-		if err != nil {
+		if err := t.refColumn(out, r, "field", "field_local_id"); err != nil {
 			return nil, err
 		}
-		out["field_local_id"] = fieldLocal
 		str("name", "name")
 		str("boundary_type", "boundary_type")
 		str("creation_method", "creation_method")
@@ -445,6 +453,21 @@ func addressParts(raw json.RawMessage) (any, any, error) {
 		country = *address.Country
 	}
 	return city, country, nil
+}
+
+// refColumn sets the foreign-key column for a reference attribute, unless the
+// record ignores the attribute: then the column is not written, and keeps what
+// the platform holds.
+func (t *Tx) refColumn(out map[string]any, r Record, attribute, column string) error {
+	if r.Ignored[attribute] {
+		return nil
+	}
+	local, err := t.resolveRef(r.Modelled[attribute], References[r.EntityType][attribute])
+	if err != nil {
+		return err
+	}
+	out[column] = local
+	return nil
 }
 
 // resolveRef turns a delivered reference into the platform's own foreign key

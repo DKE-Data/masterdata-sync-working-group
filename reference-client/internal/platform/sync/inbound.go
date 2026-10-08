@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
@@ -122,11 +123,14 @@ type Outcome struct {
 // against existing records is the work of an initial load, where the platform
 // has declared that it does not know what it holds — see [Loader].
 func (a *Applier) Apply(entity oapi.Entity, position string) (Outcome, error) {
-	return a.apply(entity, position, nil)
+	return a.apply(entity, position, nil, nil)
 }
 
+// apply is [Applier.Apply] with a recogniser, and with the selection to apply
+// against where the caller holds it rather than the one recorded: see
+// [Applier.unselectedRefs].
 func (a *Applier) apply(
-	entity oapi.Entity, position string, recognise Reconciler,
+	entity oapi.Entity, position string, recognise Reconciler, selected []agmasync.EntityType,
 ) (Outcome, error) {
 	envelope, err := agmasync.EnvelopeOf(entity)
 	if err != nil {
@@ -145,7 +149,7 @@ func (a *Applier) apply(
 
 	var outcome Outcome
 	err = a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		outcome, err = a.applyIn(tx, envelope, entity, recognise)
+		outcome, err = a.applyIn(tx, envelope, entity, recognise, selected)
 		if err != nil {
 			return err
 		}
@@ -168,6 +172,7 @@ func logDiscarded(envelope agmasync.Envelope) {
 
 func (a *Applier) applyIn(
 	tx *store.Tx, envelope agmasync.Envelope, entity oapi.Entity, recognise Reconciler,
+	selected []agmasync.EntityType,
 ) (Outcome, error) {
 	typ := envelope.Type
 	active := envelope.Active == nil || *envelope.Active
@@ -190,7 +195,7 @@ func (a *Applier) applyIn(
 	}
 
 	if localID == "" {
-		return a.applyUnheldObject(tx, envelope, entity, active, recognise)
+		return a.applyUnheldObject(tx, envelope, entity, active, recognise, selected)
 	}
 
 	// Apply is guarded by revision. Within the stream, order suffices: a later
@@ -211,7 +216,7 @@ func (a *Applier) applyIn(
 		return Outcome{}, err
 	}
 
-	if err := a.write(tx, typ, localID, entity, envelope, active); err != nil {
+	if err := a.write(tx, typ, localID, entity, envelope, active, selected); err != nil {
 		return Outcome{}, err
 	}
 	return Outcome{LocalID: localID}, nil
@@ -226,7 +231,7 @@ func (a *Applier) applyIn(
 // record, creating one, and — for an inactive object — doing neither.
 func (a *Applier) applyUnheldObject(
 	tx *store.Tx, env agmasync.Envelope, entity oapi.Entity, active bool,
-	recognise Reconciler,
+	recognise Reconciler, selected []agmasync.EntityType,
 ) (Outcome, error) {
 	var known Recognition
 	if recognise != nil {
@@ -280,7 +285,7 @@ func (a *Applier) applyUnheldObject(
 		// attribute by attribute with its user — which is what AwaitingUser is
 		// for — but the direction is not in doubt, agrirouter being the source of
 		// truth for what it holds.
-		if err := a.write(tx, env.Type, known.LocalID, entity, env, active); err != nil {
+		if err := a.write(tx, env.Type, known.LocalID, entity, env, active, selected); err != nil {
 			return Outcome{}, err
 		}
 		return Outcome{
@@ -298,7 +303,7 @@ func (a *Applier) applyUnheldObject(
 	}
 
 	localID := a.IDs.New(env.Type)
-	if err := a.write(tx, env.Type, localID, entity, env, active); err != nil {
+	if err := a.write(tx, env.Type, localID, entity, env, active, selected); err != nil {
 		return Outcome{}, err
 	}
 	return Outcome{
@@ -309,13 +314,16 @@ func (a *Applier) applyUnheldObject(
 
 func (a *Applier) write(
 	tx *store.Tx, typ agmasync.EntityType, localID string,
-	entity oapi.Entity, envelope agmasync.Envelope, active bool,
+	entity oapi.Entity, envelope agmasync.Envelope, active bool, selected []agmasync.EntityType,
 ) error {
 	record, err := store.FromEntity(typ, entity)
 	if err != nil {
 		return err
 	}
 	record.Archived = !active
+	if record.Ignored, err = a.unselectedRefs(tx, typ, selected); err != nil {
+		return err
+	}
 
 	if err := tx.UpsertRecord(record, localID); err != nil {
 		return err
@@ -327,6 +335,41 @@ func (a *Applier) write(
 		Revision:     envelope.Revision,
 		TenantID:     *envelope.TenantId,
 	})
+}
+
+// unselectedRefs names the reference attributes of an entity type whose target
+// type is not selected on the endpoint.
+//
+// Such a reference is optional (only a boundary's field is required, and
+// selection is closed over it), and the specification says what to do with
+// one: ignore it on delivery, since its target is never sent and cannot be
+// requested, and leave it out of writes, which keeps it for the participants
+// that do exchange its target (ADR 13). The platform keeps its own value for
+// the attribute either way.
+//
+// The selection is the one the caller holds where it passes one — a [Loader]
+// knows what it is loading for before the receiver has recorded that frame —
+// and otherwise the one recorded from the last ROUTE_CHANGED frame. An endpoint
+// with neither ignores nothing: it has been told nothing to go on.
+func (a *Applier) unselectedRefs(
+	tx *store.Tx, typ agmasync.EntityType, selected []agmasync.EntityType,
+) (map[string]bool, error) {
+	routed := selected
+	if routed == nil {
+		var recorded bool
+		var err error
+		routed, recorded, err = tx.Routing(a.Endpoint.ID())
+		if err != nil || !recorded {
+			return nil, err
+		}
+	}
+	out := map[string]bool{}
+	for attribute, target := range store.References[typ] {
+		if !slices.Contains(routed, target) {
+			out[attribute] = true
+		}
+	}
+	return out, nil
 }
 
 // Bind tells agrirouter what the platform calls an object it has just created,

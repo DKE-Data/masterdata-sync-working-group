@@ -118,8 +118,7 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 		loads:      make(chan struct{}, 1),
 	}
 	in.declared = cfg.masterdata
-	in.endpoint = client.For(endpointID, cfg.externalID(),
-		cfg.applicationID, cfg.tenantID, cfg.softwareVersionID, endpointType)
+	in.endpoint = client.For(endpointID, cfg.externalID(), cfg.tenantID)
 
 	if in.ids, err = newLocalIDs(db, cfg.instance, cfg.tenantID.String()); err != nil {
 		_ = db.Close()
@@ -398,21 +397,18 @@ func (in *instance) routedTypes() ([]agmasync.EntityType, error) {
 	return out, err
 }
 
-// onRouteChanged persists the routing the frame states, in the transaction that
-// records the frame's position.
+// onRouteChanged reacts to the routing the frame states, which the receiver
+// has already recorded in the transaction that records the frame's position.
 //
 // What it must not do is act on it here. This runs inside the receive loop's
 // transaction, and taking the initial-load stream from in here would hold that
 // transaction open across the whole load.
 func (in *instance) onRouteChanged(tx *store.Tx, sel oapi.RouteChangedEventData) error {
 	types := agmasync.SelectedTypes(sel)
-	if err := tx.SetRoute(sel.EndpointId, types); err != nil {
-		return err
-	}
 
 	if sel.EndpointId != in.endpointID {
-		// Another of this application's endpoints. Recorded, because the frame is
-		// not restated once this position is taken, but not ours to load for.
+		// Another of this application's endpoints: recorded by the receiver,
+		// but not ours to load for.
 		return nil
 	}
 
@@ -430,7 +426,7 @@ func (in *instance) onRouteChanged(tx *store.Tx, sel oapi.RouteChangedEventData)
 }
 
 // onReset reports a masterdata reset. The receiver has already dropped the
-// pairs and passed on each endpoint's empty routing, which onRouteChanged recorded.
+// pairs and recorded each endpoint's empty routing.
 func (in *instance) onReset(_ *store.Tx, _ oapi.MasterdataResetEventData, discarded int) error {
 	in.log.say("reset", fmt.Sprintf(
 		"agrirouter's master data for this tenant was wiped: dropped %d bindings", discarded))
@@ -504,8 +500,8 @@ func (in *instance) declare(ctx context.Context, types []agmasync.EntityType) er
 		return err
 	}
 
-	// What went out is the closure, not the ticks: a declaration naming fields
-	// names the farms they hang off. Reading it back from the same helper keeps
+	// What went out is the closure, not the ticks: a declaration naming field
+	// boundaries names the fields they describe. Reading it back from the same helper keeps
 	// the screen honest about what agrirouter was actually told.
 	declared := agmasync.DependencyClosure(types)
 	in.mu.Lock()

@@ -88,11 +88,10 @@ func (h *harness) joinAgrirouterTenant(
 	}
 
 	return &psync.Applier{
-		Store:  db,
-		Tenant: tenant,
-		Endpoint: client.For(endpointID, externalID,
-			uuid.New(), agrirouterTenant, uuid.New(), "cloud_software"),
-		IDs: &counterIDs{prefix: tenant},
+		Store:    db,
+		Tenant:   tenant,
+		Endpoint: client.For(endpointID, externalID, agrirouterTenant),
+		IDs:      &counterIDs{prefix: tenant},
 	}
 }
 

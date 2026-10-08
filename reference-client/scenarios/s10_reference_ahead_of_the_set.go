@@ -33,7 +33,8 @@ func referenceAheadOfTheSet() Scenario {
 func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	say := w.Say
 
-	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeFarm)
+	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha",
+		agmasync.TypeParty, agmasync.TypeFarm)
 	if err != nil {
 		return err
 	}
@@ -61,8 +62,8 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	}
 	say.Step("Beta is opted into nothing yet, catches up, and does not receive the person.")
 
-	say.Step("The user opts into farms for Beta's endpoint, which starts a load.")
-	if err := beta.OptIn(ctx, agmasync.TypeFarm); err != nil {
+	say.Step("The user opts into parties and farms for Beta's endpoint, which starts a load.")
+	if err := beta.OptIn(ctx, agmasync.TypeParty, agmasync.TypeFarm); err != nil {
 		return err
 	}
 	selected, err := beta.Selection(ctx)

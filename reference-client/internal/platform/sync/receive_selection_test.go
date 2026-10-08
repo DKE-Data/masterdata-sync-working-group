@@ -210,9 +210,10 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 		t.Fatalf("selection on connecting = %v, want nothing stated", seen)
 	}
 
-	// The user selects farms, which pulls in the parties farms reference.
-	if err := h.router.OptIn("ep-a", agmasync.TypeFarm); err != nil {
-		t.Fatalf("selecting farms: %v", err)
+	// The user selects field boundaries, which pulls in the fields they
+	// describe.
+	if err := h.router.OptIn("ep-a", agmasync.TypeFieldBoundary); err != nil {
+		t.Fatalf("selecting field boundaries: %v", err)
 	}
 
 	if _, err := receiver.CatchUp(context.Background()); err != nil {
@@ -222,7 +223,7 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 	// The frame states the closure and not just what the user clicked: a
 	// participant acts on it as it stands rather than closing it itself.
 	want := []agmasync.EntityType{
-		agmasync.TypeParty, agmasync.TypeFarm,
+		agmasync.TypeField, agmasync.TypeFieldBoundary,
 	}
 	if len(seen) == 0 || !slices.Equal(seen[len(seen)-1], want) {
 		t.Errorf("selection after the move = %v, want %v", seen, want)

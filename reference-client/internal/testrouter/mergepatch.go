@@ -25,7 +25,7 @@ import (
 // every write, so null — removing one — is never a valid value for them.
 var requiredAttributes = map[agmasync.EntityType][]string{
 	agmasync.TypeParty:         {"name"},
-	agmasync.TypeFarm:          {"owner", "name"},
+	agmasync.TypeFarm:          {"name"},
 	agmasync.TypeField:         {"name"},
 	agmasync.TypeFieldBoundary: {"field", "boundary"},
 }

@@ -48,19 +48,14 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 		t.Fatalf("receiver client: %v", err)
 	}
 
-	senderEndpoint := sender.For(senderID, "ep-a", uuid.New(), tenant, uuid.New(), "cloud_software")
-	receiverEndpoint := receiver.For(receiverID, "ep-b", uuid.New(), tenant, uuid.New(), "cloud_software")
+	senderEndpoint := sender.For(senderID, "ep-a", tenant)
+	receiverEndpoint := receiver.For(receiverID, "ep-b", tenant)
 
 	// Declaring comes first and enables nothing: it is what the user's
 	// selection is then drawn from, and a selection naming an undeclared type
 	// is refused.
-	for _, endpoint := range []*agmasync.Endpoint{senderEndpoint, receiverEndpoint} {
-		if _, err := endpoint.Declare(
-			ctx, agmasync.Declaration(agmasync.TypeFarm),
-		); err != nil {
-			t.Fatalf("declaring: %v", err)
-		}
-	}
+	declare(t, router.BaseURL, "fmis-a", "ep-a", tenant, agmasync.TypeFarm)
+	declare(t, router.BaseURL, "fmis-b", "ep-b", tenant, agmasync.TypeFarm)
 	optIn(t, router.BaseURL, "ep-a", "farm")
 	optIn(t, router.BaseURL, "ep-b", "farm")
 
@@ -161,6 +156,44 @@ func createEndpoint(
 	}
 	post(t, baseURL+"/_test/endpoints", body, &out)
 	return out.EndpointID
+}
+
+// declare is the participant's own PutEndpoint call, carrying the declaration
+// as its masterdata configuration.
+func declare(
+	t *testing.T, baseURL, token, externalID string, tenant uuid.UUID,
+	types ...agmasync.EntityType,
+) {
+	t.Helper()
+	cfg := agmasync.Declaration(types...)
+	raw, err := json.Marshal(oapi.PutEndpointRequest{
+		ApplicationId:     uuid.New(),
+		SoftwareVersionId: uuid.New(),
+		EndpointType:      "cloud_software",
+		Capabilities:      []oapi.EndpointCapability{},
+		Subscriptions:     []oapi.EndpointSubscription{},
+		Masterdata:        &cfg,
+	})
+	if err != nil {
+		t.Fatalf("marshalling endpoint: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPut,
+		baseURL+"/endpoints/"+externalID, strings.NewReader(string(raw)))
+	if err != nil {
+		t.Fatalf("building declare request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("x-agrirouter-tenant-id", tenant.String())
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("declaring: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		t.Fatalf("declaring returned %d", resp.StatusCode)
+	}
 }
 
 func optIn(t *testing.T, baseURL, externalID string, types ...string) {

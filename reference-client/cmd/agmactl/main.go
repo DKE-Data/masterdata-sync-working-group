@@ -29,7 +29,6 @@ import (
 	"syscall"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
-	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/google/uuid"
 )
 
@@ -52,11 +51,10 @@ type env struct {
 	// so knowing both is knowing the id, and neither has to be read out of a log.
 	instance string
 
-	// applicationID, tenantID, softwareVersionID and endpointType are only
-	// needed by the "declare" command, which goes through PutEndpoint — a full
-	// endpoint upsert rather than a masterdata-only call. They are empty (zero
-	// UUID) unless the caller supplies them, which is fine for every other
-	// command.
+	// applicationID, softwareVersionID and endpointType are only needed by the
+	// "declare" command, which goes through PutEndpoint — a full endpoint upsert
+	// rather than a masterdata-only call. tenantID is sent on every call. They
+	// are empty (zero UUID) unless the caller supplies them.
 	applicationID     string
 	tenantID          string
 	softwareVersionID string
@@ -75,7 +73,8 @@ func commands() []command {
 		{"status", "status", "read the endpoint's declaration and initial-load state",
 			runStatus},
 		{"declare", "declare <type>[,<type>...]",
-			"declare what this participant's software can exchange", runDeclare},
+			"declare what this participant's software can exchange (upserts the whole endpoint)",
+			runDeclare},
 		{"put", "put <type> <file|->", "send an entity, creating or updating it", runPut},
 		{"deactivate", "deactivate <type> <localId>",
 			"report that an entity was deactivated here", runDeactivate},
@@ -194,21 +193,11 @@ func (e *env) endpoint() (*agmasync.Endpoint, error) {
 	if err != nil {
 		return nil, fmt.Errorf("-endpoint is not a uuid: %w", err)
 	}
-	applicationID, err := parseUUIDOrZero(e.applicationID)
-	if err != nil {
-		return nil, fmt.Errorf("-application is not a uuid: %w", err)
-	}
 	tenantID, err := parseUUIDOrZero(e.tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("-tenant is not a uuid: %w", err)
 	}
-	softwareVersionID, err := parseUUIDOrZero(e.softwareVersionID)
-	if err != nil {
-		return nil, fmt.Errorf("-software-version is not a uuid: %w", err)
-	}
-	return client.For(id, e.externalID,
-		applicationID, tenantID, softwareVersionID,
-		oapi.EndpointTypeToCreate(e.endpointType)), nil
+	return client.For(id, e.externalID, tenantID), nil
 }
 
 func parseUUIDOrZero(s string) (uuid.UUID, error) {

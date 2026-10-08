@@ -223,8 +223,9 @@ func (c *Client) Events(ctx context.Context, lastEventID string) (*Stream, error
 // declared that it does not know what it holds.
 //
 // Order is agrirouter's. A referenced object precedes the objects that
-// reference it, and opt-in is dependency-closed, so every reference resolves as
-// objects arrive and each can be applied on arrival. That is the only property
+// reference it, and opt-in is dependency-closed, so every reference to a
+// selected type resolves as objects arrive and each can be applied on arrival.
+// A reference to a type not selected is ignored (ADR 13). That is the only property
 // of the order to rely on: a participant MUST NOT depend on the position of one
 // entity type relative to another, or read completeness of a type out of it.
 //

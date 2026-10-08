@@ -135,6 +135,23 @@ func TestNullOnARequiredAttributeIsRejected(t *testing.T) {
 	}
 }
 
+func TestAFarmsOwnerIsOptional(t *testing.T) {
+	// A farm may be written without an owner, and null removes one, since a
+	// system that records no parties has none to give (ADR 13).
+	f := newFixture(t)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeParty, agmasync.TypeFarm)
+	putFarm(t, p, `{"type":"party","local_id":"PTY-1","name":"Jens Petersen",`+
+		`"details":{"party_type":"PERSON"}}`, nil)
+	base := revisionOf(t, putFarm(t, p,
+		`{"type":"farm","local_id":"FRM-1","name":"Hof Nord","owner":{"local_id":"PTY-1"}}`, nil))
+
+	got := attributesOf(t, putFarm(t, p,
+		`{"type":"farm","local_id":"FRM-1","owner":null}`, &base))
+	if raw, ok := got["owner"]; ok {
+		t.Errorf("owner = %s, want it removed", raw)
+	}
+}
+
 func TestNullOnCreateMeansAbsent(t *testing.T) {
 	f := newFixture(t)
 	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm)

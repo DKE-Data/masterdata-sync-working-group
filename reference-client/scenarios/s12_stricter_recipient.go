@@ -36,7 +36,7 @@ func stricterRecipient() Scenario {
 func runStricterRecipient(ctx context.Context, w *World) error {
 	say := w.Say
 
-	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeField)
+	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeFarm, agmasync.TypeField)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func runStricterRecipient(ctx context.Context, w *World) error {
 	if err := beta.AddFarm("beta-farm-1", "Hof Süd", "Rendsburg"); err != nil {
 		return err
 	}
-	if err := beta.OptIn(ctx, agmasync.TypeField); err != nil {
+	if err := beta.OptIn(ctx, agmasync.TypeFarm, agmasync.TypeField); err != nil {
 		return err
 	}
 	say.Step("Beta requires a farm on every field. Its user opts it in, and it loads.")

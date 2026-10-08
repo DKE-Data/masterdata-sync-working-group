@@ -240,6 +240,12 @@ func needsUser(r oapi.IdMappingRejection) string {
 // Declaring enables nothing on its own and starts no load: it is the list the
 // user is offered a choice from, and the choice is theirs to make in
 // agrirouter.
+//
+// The declaration travels on PutEndpoint, which upserts the whole endpoint, so
+// this states the endpoint as exchanging master data and nothing else: no
+// message capabilities and no subscriptions. Against an endpoint that has
+// them, it withdraws them. A participant that also exchanges messages declares
+// on its own PutEndpoint call, which is why agmasync does not make this one.
 func runDeclare(ctx context.Context, e *env, args []string) error {
 	if err := wantArgs(args, 1, "declare <type>[,<type>...]"); err != nil {
 		return err
@@ -248,17 +254,57 @@ func runDeclare(ctx context.Context, e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	endpoint, err := e.endpoint()
+	if e.token == "" {
+		return errors.New("a bearer token is required: pass -token")
+	}
+	if e.externalID == "" {
+		return errors.New("an endpoint is required: pass -external")
+	}
+	applicationID, err := parseUUIDOrZero(e.applicationID)
 	if err != nil {
-		return err
+		return fmt.Errorf("-application is not a uuid: %w", err)
+	}
+	tenantID, err := parseUUIDOrZero(e.tenantID)
+	if err != nil {
+		return fmt.Errorf("-tenant is not a uuid: %w", err)
+	}
+	softwareVersionID, err := parseUUIDOrZero(e.softwareVersionID)
+	if err != nil {
+		return fmt.Errorf("-software-version is not a uuid: %w", err)
 	}
 
-	config, err := endpoint.Declare(ctx, agmasync.Declaration(types...))
+	api, err := oapi.NewClientWithResponses(e.baseURL, oapi.WithRequestEditorFn(
+		func(_ context.Context, req *http.Request) error {
+			req.Header.Set("Authorization", "Bearer "+e.token)
+			return nil
+		}))
 	if err != nil {
 		return err
 	}
-	declared := make([]string, 0, len(config.Capabilities))
-	for _, toggle := range config.Capabilities {
+	declaration := agmasync.Declaration(types...)
+	r, err := api.PutEndpointWithResponse(ctx, e.externalID,
+		&oapi.PutEndpointParams{XAgrirouterTenantId: tenantID},
+		oapi.PutEndpointJSONRequestBody{
+			ApplicationId:     applicationID,
+			SoftwareVersionId: softwareVersionID,
+			EndpointType:      oapi.EndpointTypeToCreate(e.endpointType),
+			Capabilities:      []oapi.EndpointCapability{},
+			Subscriptions:     []oapi.EndpointSubscription{},
+			Masterdata:        &declaration,
+		})
+	if err != nil {
+		return err
+	}
+	ep := r.JSON200
+	if ep == nil {
+		ep = r.JSON201
+	}
+	if ep == nil || ep.Masterdata == nil {
+		return fmt.Errorf("declare: HTTP %d: %s", r.StatusCode(), strings.TrimSpace(string(r.Body)))
+	}
+
+	declared := make([]string, 0, len(ep.Masterdata.Capabilities))
+	for _, toggle := range ep.Masterdata.Capabilities {
 		declared = append(declared, toggle.EntityType)
 	}
 	fmt.Printf("declared: %s\n", orNone(strings.Join(declared, ", ")))

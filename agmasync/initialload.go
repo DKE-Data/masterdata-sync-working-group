@@ -39,12 +39,18 @@ const (
 	StateCompleted = oapi.COMPLETED
 )
 
-// Declaration builds a masterdata configuration declaring the given entity
-// types.
+// Declaration builds the masterdata configuration declaring the given entity
+// types, closed over entity dependencies (see [DependencyClosure]).
 //
-// It closes the set over entity dependencies, since a declaration that is not
-// dependency-closed is rejected: an endpoint that could receive fields but not
-// the farms they hang off could not resolve their references.
+// It is the `masterdata` field of the application's own PutEndpoint call. This
+// package does not make that call: PutEndpoint upserts the whole endpoint, so a
+// call carrying only the declaration would withdraw the endpoint's message
+// capabilities and subscriptions. The application, which knows those, sends
+// the declaration alongside them.
+//
+// Withdrawing a type narrows any selection naming it, which for that type has
+// the effect of the user deselecting it. That is the only way a declaration
+// changes what is delivered, and it can only ever remove.
 func Declaration(types ...EntityType) oapi.MasterdataConfig {
 	closure := DependencyClosure(types)
 	toggles := make([]oapi.EntityTypeToggle, 0, len(closure))
@@ -52,41 +58,6 @@ func Declaration(types ...EntityType) oapi.MasterdataConfig {
 		toggles = append(toggles, oapi.EntityTypeToggle{EntityType: string(t)})
 	}
 	return oapi.MasterdataConfig{Capabilities: toggles}
-}
-
-// Declare states which entity types this endpoint is able to exchange.
-//
-// The declaration must be dependency-closed — see [DependencyClosure] — since an
-// endpoint that could receive fields but not the farms they hang off could not
-// resolve their references.
-//
-// Withdrawing a type narrows any selection naming it, which for that type has the
-// effect of the user deselecting it. That is the only way a call made here
-// changes what is delivered, and it can only ever remove.
-func (e *Endpoint) Declare(ctx context.Context, cfg oapi.MasterdataConfig) (oapi.MasterdataConfig, error) {
-	r, err := e.client.api.PutEndpointWithResponse(ctx, e.externalID,
-		&oapi.PutEndpointParams{XAgrirouterTenantId: e.tenantID},
-		oapi.PutEndpointJSONRequestBody{
-			ApplicationId:     e.applicationID,
-			SoftwareVersionId: e.softwareVersionID,
-			EndpointType:      e.endpointType,
-			Capabilities:      []oapi.EndpointCapability{},
-			Masterdata:        &cfg,
-		})
-	if err != nil {
-		return oapi.MasterdataConfig{}, transportErr(err)
-	}
-	if resErr := (writeResult{
-		statusCode: r.StatusCode(),
-		validation: errorFrom(r.JSON400), forbidden: errorFrom(r.JSON403), body: r.Body,
-	}).err(); resErr != nil {
-		return oapi.MasterdataConfig{}, resErr
-	}
-	ep := firstNonNil(r.JSON200, r.JSON201)
-	if ep == nil || ep.Masterdata == nil {
-		return oapi.MasterdataConfig{}, fmt.Errorf("agmasync: empty configuration response")
-	}
-	return *ep.Masterdata, nil
 }
 
 // DependencyClosure expands a set of entity types to the dependency-closed set
@@ -107,14 +78,10 @@ func DependencyClosure(types []EntityType) []EntityType {
 			return
 		}
 		want[t] = true
-		switch t {
-		case TypeFieldBoundary:
+		// A boundary's field is the only required reference. Every other one
+		// is optional, so it constrains nothing (ADR 13).
+		if t == TypeFieldBoundary {
 			add(TypeField)
-		case TypeField:
-			add(TypeFarm)
-			add(TypeParty)
-		case TypeFarm:
-			add(TypeParty)
 		}
 	}
 	for _, t := range types {

@@ -187,6 +187,12 @@ agmactl replay -follow                     # watch the live stream
 agmactl bind farm FRM-1 <agrirouterId>
 ```
 
+`declare` is a PutEndpoint call, which upserts the whole endpoint: it sends no
+message capabilities or subscriptions, so it withdraws any the endpoint has. A
+participant that also exchanges messages declares on its own PutEndpoint call,
+with [`agmasync.Declaration`](../agmasync/initialload.go) as its `masterdata`
+field.
+
 `put` reads a type and a file (or `-` for stdin); the JSON body itself must
 carry `type` and `local_id`, since those travel in the payload rather than as separate flags:
 

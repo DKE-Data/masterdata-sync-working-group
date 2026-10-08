@@ -27,6 +27,7 @@ func All() []Scenario {
 		splitAndMerge(),
 		unresolvedReference(),
 		masterdataReset(),
+		optionalReferences(),
 	}
 }
 

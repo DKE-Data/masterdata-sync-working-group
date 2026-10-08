@@ -285,7 +285,8 @@ func (l *Loader) Run(ctx context.Context) (res LoadResult, err error) {
 
 	// What the set will contain, and so what may be bound and offered back. The
 	// selection is dependency-closed, so walking it in dependency order is
-	// enough to send parents before the objects referencing them.
+	// enough to send parents of a selected type before the objects referencing
+	// them.
 	for _, typ := range agmasync.DependencyOrder {
 		for _, selected := range l.Types {
 			if selected == typ {
@@ -434,7 +435,7 @@ func (l *Loader) takeCanonicalSet(
 
 		// No position: an initial-load stream carries none, delivering a fixed
 		// set rather than a sequence of changes.
-		out, err := l.Applier.apply(ev.Entity, "", l.Reconciler)
+		out, err := l.Applier.apply(ev.Entity, "", l.Reconciler, l.Types)
 		if err != nil {
 			return nil, err
 		}
@@ -654,7 +655,7 @@ func (l *Loader) push(ctx context.Context, res *LoadResult, skip map[ref]bool) e
 		}
 
 		for _, id := range pending {
-			if _, err := l.Applier.Send(ctx, typ, id); err != nil {
+			if _, err := l.Applier.send(ctx, typ, id, l.Types); err != nil {
 				return err
 			}
 			res.Sent++

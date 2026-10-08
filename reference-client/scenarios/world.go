@@ -201,11 +201,10 @@ func (w *World) Join(ctx context.Context, name, appID, externalID string) (*Plat
 		ids: &counterIDs{prefix: local},
 	}
 	p.Applier = &psync.Applier{
-		Store:  db,
-		Tenant: "tenant-" + externalID,
-		Endpoint: client.For(endpointID, externalID,
-			applicationID, w.Tenant, softwareVersionID, endpointType),
-		IDs: p.ids,
+		Store:    db,
+		Tenant:   "tenant-" + externalID,
+		Endpoint: client.For(endpointID, externalID, w.Tenant),
+		IDs:      p.ids,
 	}
 	p.Receiver = &psync.Receiver{
 		Client:  client,

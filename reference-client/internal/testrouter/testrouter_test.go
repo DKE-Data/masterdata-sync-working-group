@@ -66,8 +66,7 @@ func (f *fixture) joinIn(
 	if err != nil {
 		f.t.Fatalf("building client: %v", err)
 	}
-	return &participant{client: client, endpoint: client.For(
-		endpointID, externalID, uuid.New(), tenant, uuid.New(), "cloud_software")}
+	return &participant{client: client, endpoint: client.For(endpointID, externalID, tenant)}
 }
 
 func farm(localID, name string) oapi.Entity {
@@ -1016,17 +1015,17 @@ func TestDeclaringEnablesNothingOnItsOwn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(endpointID, "ep-a", uuid.New(), f.tenant, uuid.New(), "cloud_software")
+	ep := client.For(endpointID, "ep-a", f.tenant)
 
 	// The write echoes the declaration back in full — there is no resource to
 	// read it from afterwards — and it says nothing about what is exchanged: it
 	// is the endpoint's capability, not the user's choice.
-	cfg, err := ep.Declare(context.Background(), agmasync.Declaration(agmasync.EntityTypes...))
-	if err != nil {
-		t.Fatalf("declare: %v", err)
+	code, created := putEndpointOverHTTP(t, f, "fmis-a", "ep-a", f.tenant, agmasync.EntityTypes...)
+	if code != http.StatusOK {
+		t.Fatalf("declare status = %d, want 200", code)
 	}
-	if len(cfg.Capabilities) != len(agmasync.EntityTypes) {
-		t.Errorf("declared %d types, want %d", len(cfg.Capabilities), len(agmasync.EntityTypes))
+	if created.Masterdata == nil || len(created.Masterdata.Capabilities) != len(agmasync.EntityTypes) {
+		t.Errorf("declared %+v, want all %d types", created.Masterdata, len(agmasync.EntityTypes))
 	}
 
 	if _, err := ep.InitialLoadStatus(context.Background()); !errors.Is(err, agmasync.ErrNotFound) {
@@ -1039,7 +1038,7 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 	// stream carries ROUTE_CHANGED. It states the selection in full, so there is
 	// nothing to go and read behind it.
 	f := newFixture(t)
-	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeParty, agmasync.TypeFarm)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1084,10 +1083,12 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 		t.Error("frame carries no changedAt")
 	}
 
-	// The frame states the closure and not just what the user clicked. Field
-	// boundaries pull in the whole graph, opt-in being dependency-closed.
-	if got := agmasync.SelectedTypes(*frame); !slices.Equal(got, agmasync.DependencyOrder) {
-		t.Errorf("selected types = %v, want %v", got, agmasync.DependencyOrder)
+	// The frame states the closure and not just what the user clicked: field
+	// boundaries pull in the fields they describe, opt-in being
+	// dependency-closed. Parties, no longer clicked, are deselected.
+	want = []agmasync.EntityType{agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary}
+	if got := agmasync.SelectedTypes(*frame); !slices.Equal(got, want) {
+		t.Errorf("selected types = %v, want %v", got, want)
 	}
 }
 
@@ -1096,7 +1097,7 @@ func TestDeselectingIsStatedToo(t *testing.T) {
 	// ones that take something away. Without this a participant is left inferring
 	// from silence that a type it was sending is no longer wanted.
 	f := newFixture(t)
-	p := f.join("fmis-a", "ep-a", agmasync.TypeFieldBoundary)
+	p := f.join("fmis-a", "ep-a", agmasync.EntityTypes...)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1108,17 +1109,16 @@ func TestDeselectingIsStatedToo(t *testing.T) {
 	defer stream.Close()
 	next := nextSelection(t, stream, "ep-a")
 
-	// Stated on connecting. Field boundaries pull in the whole graph, and SelectedTypes
-	// hands them back in dependency order so a parent is always sent before what
-	// references it.
+	// Stated on connecting. SelectedTypes hands the types back in dependency
+	// order so a parent is always sent before what references it.
 	first := next()
 	if got := agmasync.SelectedTypes(*first); !slices.Equal(got, agmasync.DependencyOrder) {
 		t.Fatalf("selection on connecting = %v, want %v", got, agmasync.DependencyOrder)
 	}
 
-	// The user narrows to farms. No load starts — agrirouter has nothing more to
-	// send — but the participant is told all the same.
-	if err := f.router.OptIn("ep-a", agmasync.TypeFarm); err != nil {
+	// The user narrows to parties and farms. No load starts — agrirouter has
+	// nothing more to send — but the participant is told all the same.
+	if err := f.router.OptIn("ep-a", agmasync.TypeParty, agmasync.TypeFarm); err != nil {
 		t.Fatalf("narrowing the selection: %v", err)
 	}
 
@@ -1271,7 +1271,7 @@ func TestNarrowingLeavesTheInitialLoadStateAlone(t *testing.T) {
 	// vacuously: a narrowing that wrongly called startLoad would look exactly
 	// like a widening.
 	f := newFixture(t)
-	p := f.join("fmis-a", "ep-a", agmasync.TypeField)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm, agmasync.TypeField)
 	completeLoad(t, p)
 
 	ctx := context.Background()
@@ -1283,8 +1283,8 @@ func TestNarrowingLeavesTheInitialLoadStateAlone(t *testing.T) {
 		t.Fatalf("state = %q, want %q before narrowing", before.State, agmasync.StateCompleted)
 	}
 
-	// Drop fields and field boundaries, keeping the farms and the parties they
-	// reference — a narrowing that still leaves the endpoint taking part.
+	// Drop fields, keeping the farms — a narrowing that still leaves the
+	// endpoint taking part.
 	if err := f.router.OptIn("ep-a", agmasync.TypeFarm); err != nil {
 		t.Fatalf("narrowing the selection: %v", err)
 	}
@@ -1381,7 +1381,7 @@ func TestOptInOverTheControlPlaneBehavesAsInProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(endpointID, "ep-a", uuid.New(), f.tenant, uuid.New(), "cloud_software")
+	ep := client.For(endpointID, "ep-a", f.tenant)
 
 	if code := optInOverHTTP(t, f, "ep-a", "farm"); code != http.StatusOK {
 		t.Fatalf("opt-in status = %d, want 200", code)
@@ -1426,9 +1426,9 @@ func TestOptInOverTheControlPlaneBehavesAsInProcess(t *testing.T) {
 // returns the status code with the endpoint the router answered.
 //
 // It goes over HTTP rather than through agmasync because what is under test is
-// the status code and the identifier agrirouter minted, and [agmasync.Endpoint]
-// has neither: Declare returns the masterdata configuration alone, and a handle
-// is built from an id the caller already has.
+// the status code and the identifier agrirouter minted, and agmasync does not
+// make this call: it is the participant's own, since PutEndpoint upserts the
+// whole endpoint.
 func putEndpointOverHTTP(
 	t *testing.T, f *fixture, token, externalID string, tenant uuid.UUID,
 	types ...agmasync.EntityType,
@@ -1511,7 +1511,7 @@ func TestPutEndpointCreatesAnEndpointTheRouterHasNotHeardOf(t *testing.T) {
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(created.Id, "ep-new", uuid.New(), f.tenant, uuid.New(), "cloud_software")
+	ep := client.For(created.Id, "ep-new", f.tenant)
 	status, err := ep.InitialLoadStatus(context.Background())
 	if err != nil {
 		t.Fatalf("status: %v", err)
@@ -1552,9 +1552,9 @@ func TestPutEndpointRejectedForClosureCreatesNothing(t *testing.T) {
 	// to be a creation, not an update to something it never successfully made.
 	f := newFixture(t)
 
-	// Fields without the farms they hang off.
+	// Field boundaries without the fields they describe.
 	unclosed := oapi.MasterdataConfig{Capabilities: []oapi.EntityTypeToggle{
-		{EntityType: string(agmasync.TypeField)},
+		{EntityType: string(agmasync.TypeFieldBoundary)},
 	}}
 	if code, _ := putConfigOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
 		unclosed); code != http.StatusBadRequest {

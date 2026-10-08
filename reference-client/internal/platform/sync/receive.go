@@ -51,7 +51,9 @@ type Receiver struct {
 	// OnSelection is called once per ROUTE_CHANGED frame, with the endpoint's
 	// selection as it stands after the change.
 	//
-	// The receiver cannot act on it itself: what a narrowing means is a product
+	// The receiver records the selection itself, in the same transaction (see
+	// [store.Tx.Routing]): [Applier] reads it to ignore references to entity
+	// types not selected (ADR 13). Beyond that it cannot act on it: what a narrowing means is a product
 	// decision — stop offering those types, tell the user, perhaps archive
 	// something — and an empty EntityTypes means exchange has ended for that
 	// endpoint. What the receiver must not do is drop it silently, which would
@@ -300,12 +302,14 @@ func (r *Receiver) consume(
 func (r *Receiver) applySelection(
 	ev agmasync.Event, sel oapi.RouteChangedEventData,
 ) (bool, error) {
-	if r.OnSelection == nil {
-		return false, nil
-	}
 	err := r.Store.Tx(r.tenantOf(sel), func(tx *store.Tx) error {
-		if err := r.OnSelection(tx, sel); err != nil {
+		if err := tx.SetRoute(sel.EndpointId, agmasync.SelectedTypes(sel)); err != nil {
 			return err
+		}
+		if r.OnSelection != nil {
+			if err := r.OnSelection(tx, sel); err != nil {
+				return err
+			}
 		}
 		return tx.SetPosition(ev.ID)
 	})
@@ -342,16 +346,20 @@ func (r *Receiver) applyReset(ev agmasync.Event, reset oapi.MasterdataResetEvent
 		if err != nil {
 			return err
 		}
-		if r.OnSelection != nil {
-			for _, ep := range reset.Endpoints {
-				if err := r.OnSelection(tx, oapi.RouteChangedEventData{
-					EventType:   oapi.ROUTECHANGED,
-					EndpointId:  ep.EndpointId,
-					ExternalId:  ep.ExternalId,
-					EntityTypes: []oapi.EntityTypeToggle{},
-				}); err != nil {
-					return err
-				}
+		for _, ep := range reset.Endpoints {
+			if err := tx.SetRoute(ep.EndpointId, nil); err != nil {
+				return err
+			}
+			if r.OnSelection == nil {
+				continue
+			}
+			if err := r.OnSelection(tx, oapi.RouteChangedEventData{
+				EventType:   oapi.ROUTECHANGED,
+				EndpointId:  ep.EndpointId,
+				ExternalId:  ep.ExternalId,
+				EntityTypes: []oapi.EntityTypeToggle{},
+			}); err != nil {
+				return err
 			}
 		}
 		if r.OnReset != nil {

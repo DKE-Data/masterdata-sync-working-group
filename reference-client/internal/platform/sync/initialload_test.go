@@ -17,11 +17,10 @@ import (
 // recognition step behind it.
 //
 // The types are passed in rather than read here, as they are in the loader
-// itself. Every endpoint the harness joins is opted into farms, which pulls in
-// the parties farms reference.
+// itself. Unless a test says otherwise, the endpoint is opted into farms.
 func loader(a *psync.Applier, types ...agmasync.EntityType) *psync.Loader {
 	if len(types) == 0 {
-		types = agmasync.DependencyClosure([]agmasync.EntityType{agmasync.TypeFarm})
+		types = []agmasync.EntityType{agmasync.TypeFarm}
 	}
 	return &psync.Loader{Applier: a, Reconciler: psync.ByName{}, Types: types}
 }
@@ -374,6 +373,44 @@ func TestUnrecognisedDeactivatedObjectIsIgnored(t *testing.T) {
 	}
 }
 
+func TestALoadOffersBackAFieldWithoutTheFarmItDoesNotExchange(t *testing.T) {
+	// An endpoint selected for fields and not farms may still file its fields
+	// under farms of its own. Offering such a field back leaves the farm out:
+	// the farm is bound nowhere, so naming it would not resolve and the load
+	// would fail on it (ADR 13). The loader knows the selection before the
+	// receiver has recorded it, which is the case here: nothing has been
+	// received yet. The platform keeps the link.
+	h := newHarness(t)
+	b := h.join("fmis-b", "ep-b", agmasync.TypeField)
+	createLocalFarm(t, b, "B-FRM-1", "Hof West")
+	upsertLocal(t, b, agmasync.TypeField, "B-FLD-1", map[string]any{
+		"name": "Westacker", "farm": map[string]string{"local_id": "B-FRM-1"},
+	})
+
+	res, err := loader(b, agmasync.TypeField).Run(context.Background())
+	if err != nil {
+		t.Fatalf("initial load: %v", err)
+	}
+	if res.Sent != 1 {
+		t.Errorf("sent %d records, want the field", res.Sent)
+	}
+	if !syncRow(t, b, agmasync.TypeField, "B-FLD-1").Bound() {
+		t.Error("the field offered back holds no canonical identifier")
+	}
+
+	var record store.Record
+	if err := b.Store.Tx(b.Tenant, func(tx *store.Tx) error {
+		var err error
+		record, err = tx.LoadRecord(agmasync.TypeField, "B-FLD-1")
+		return err
+	}); err != nil {
+		t.Fatalf("reading the field: %v", err)
+	}
+	if got := string(record.Modelled["farm"]); got != `{"local_id":"B-FRM-1"}` {
+		t.Errorf("farm = %s, want the platform's own farm kept", got)
+	}
+}
+
 func TestAmbiguousMatchStopsTheLoadForAPersonAndResumesOnceTheyAnswer(t *testing.T) {
 	// Two of the endpoint's records answer to one canonical object: the n:1
 	// granularity mismatch the protocol pushes back to the participating
@@ -480,8 +517,7 @@ func TestRejectionIsResolvedAgainstTheWholePairNotTheLocalIdAlone(t *testing.T) 
 	// refused one keeps a claim it has no right to.
 	h := newHarness(t)
 	contributed(t, h, "Hof Nord")
-	b := h.join("fmis-b", "ep-b",
-		agmasync.DependencyClosure([]agmasync.EntityType{agmasync.TypeFarm})...)
+	b := h.join("fmis-b", "ep-b", agmasync.TypeParty, agmasync.TypeFarm)
 
 	delivered := deliverTo(t, h, "fmis-b")
 	if len(delivered) == 0 {

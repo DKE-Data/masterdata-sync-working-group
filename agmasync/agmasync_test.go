@@ -13,33 +13,35 @@ import (
 )
 
 func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
-	// Opt-in must be dependency-closed, because a receiving endpoint has to be
-	// able to resolve every reference on the objects it is sent. Field
-	// boundaries pull in the whole graph; a party references nothing outside
-	// its own type and pulls in nothing.
+	// Opt-in must be dependency-closed over the required references, because a
+	// receiving endpoint has to be able to resolve them on the objects it is
+	// sent. A boundary's field is the only one (ADR 13): every other reference
+	// is optional and pulls in nothing.
 	tests := map[string]struct {
 		in   []agmasync.EntityType
 		want []agmasync.EntityType
 	}{
-		"field boundaries reach everything": {
-			in: []agmasync.EntityType{agmasync.TypeFieldBoundary},
-			want: []agmasync.EntityType{
-				agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary,
-			},
+		"field boundaries reach their fields": {
+			in:   []agmasync.EntityType{agmasync.TypeFieldBoundary},
+			want: []agmasync.EntityType{agmasync.TypeField, agmasync.TypeFieldBoundary},
 		},
-		"fields reach their farms and owning parties": {
-			in: []agmasync.EntityType{agmasync.TypeField},
-			want: []agmasync.EntityType{
-				agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField,
-			},
+		"fields pull in neither farms nor parties": {
+			in:   []agmasync.EntityType{agmasync.TypeField},
+			want: []agmasync.EntityType{agmasync.TypeField},
 		},
-		"farms reach their owning and partner parties": {
+		"farms pull in no parties": {
 			in:   []agmasync.EntityType{agmasync.TypeFarm},
-			want: []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeFarm},
+			want: []agmasync.EntityType{agmasync.TypeFarm},
 		},
 		"parties reference nothing outside their type": {
 			in:   []agmasync.EntityType{agmasync.TypeParty},
 			want: []agmasync.EntityType{agmasync.TypeParty},
+		},
+		"order follows EntityTypes": {
+			in: []agmasync.EntityType{agmasync.TypeFieldBoundary, agmasync.TypeParty},
+			want: []agmasync.EntityType{
+				agmasync.TypeParty, agmasync.TypeField, agmasync.TypeFieldBoundary,
+			},
 		},
 	}
 

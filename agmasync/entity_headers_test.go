@@ -37,8 +37,7 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	endpoint := client.For(endpointID, "refclient:tenant:x:alpha",
-		uuid.New(), tenant, uuid.New(), oapi.EndpointTypeToCreate("cloud_software"))
+	endpoint := client.For(endpointID, "refclient:tenant:x:alpha", tenant)
 
 	localID := "o-1"
 	party, err := agmasync.FromParty(oapi.Party{

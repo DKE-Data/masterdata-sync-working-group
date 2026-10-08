@@ -309,8 +309,8 @@ func (r *Router) setOptIn(ctx echo.Context) error {
 // It states the whole selection rather than adding to it, as the user's own
 // choice does: types not named are deselected, and naming none deselects
 // everything. The set is closed over entity dependencies first, because a
-// receiving endpoint has to be able to resolve every reference on the objects it
-// is sent.
+// receiving endpoint has to be able to resolve every required reference on the
+// objects it is sent.
 func (r *Router) selectTypes(ep *endpoint, types []agmasync.EntityType) error {
 	closure := agmasync.DependencyClosure(types)
 
@@ -428,8 +428,8 @@ func (r *Router) declarationFor(ep *endpoint) oapi.MasterdataConfig {
 // selection to it.
 //
 // The declaration has to be dependency-closed for the same reason the selection
-// does: an endpoint that could receive fields but not the farms they hang off
-// could not resolve their references. Narrowing is the only way a participant's
+// does: an endpoint that could receive boundaries but not the fields they
+// describe could not resolve them. Narrowing is the only way a participant's
 // own call changes what is delivered, and it can only ever remove — withdrawing
 // a type has the effect on it that the user deselecting it would.
 func (r *Router) declare(ep *endpoint, types []agmasync.EntityType) error {

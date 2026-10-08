@@ -102,35 +102,22 @@ type Endpoint struct {
 	// interchangeable, so both are held here.
 	externalID string
 
-	// applicationID, tenantID, softwareVersionID and endpointType are the
-	// endpoint-management fields PutEndpoint requires on every call (it is a
-	// full create-or-update, not a masterdata-only operation). They are fixed
-	// for the lifetime of the endpoint, so they are captured once in [Client.For]
-	// rather than threaded through every call that needs them.
-	applicationID     uuid.UUID
-	tenantID          uuid.UUID
-	softwareVersionID uuid.UUID
-	endpointType      oapi.EndpointTypeToCreate
+	// tenantID is sent as x-agrirouter-tenant-id on every operation.
+	tenantID uuid.UUID
 }
 
 // For returns a handle on one of the application's endpoints.
 //
-// applicationID, tenantID, softwareVersionID and endpointType are carried on
-// the handle because [Endpoint.Declare] calls PutEndpoint, which upserts the
-// whole endpoint rather than just its masterdata configuration.
-func (c *Client) For(
-	endpointID uuid.UUID, externalEndpointID string,
-	applicationID, tenantID, softwareVersionID uuid.UUID,
-	endpointType oapi.EndpointTypeToCreate,
-) *Endpoint {
+// Declaring the endpoint's master data is not done here: PutEndpoint upserts
+// the whole endpoint, capabilities and subscriptions included, so the
+// declaration travels on the application's own PutEndpoint call (see
+// [Declaration]).
+func (c *Client) For(endpointID uuid.UUID, externalEndpointID string, tenantID uuid.UUID) *Endpoint {
 	return &Endpoint{
-		client:            c,
-		id:                endpointID,
-		externalID:        externalEndpointID,
-		applicationID:     applicationID,
-		tenantID:          tenantID,
-		softwareVersionID: softwareVersionID,
-		endpointType:      endpointType,
+		client:     c,
+		id:         endpointID,
+		externalID: externalEndpointID,
+		tenantID:   tenantID,
 	}
 }
 
@@ -486,26 +473,10 @@ func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.
 	}
 }
 
-func firstNonNil[T any](a, b *T) *T {
-	if a != nil {
-		return a
-	}
-	return b
-}
-
 func convErr(t EntityType, err error) error {
 	return fmt.Errorf("agmasync: converting %s entity: %w", t, err)
 }
 
 func transportErr(err error) error {
 	return fmt.Errorf("agmasync: request failed: %w", err)
-}
-
-// errorFrom adapts an ErrorResponse (used by the endpoint-management
-// operations) to the Error shape [writeResult] branches on.
-func errorFrom(e *oapi.ErrorResponse) *oapi.Error {
-	if e == nil {
-		return nil
-	}
-	return &oapi.Error{Message: e.Message}
 }

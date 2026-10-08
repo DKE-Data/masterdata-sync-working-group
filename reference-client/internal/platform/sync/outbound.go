@@ -24,6 +24,14 @@ import (
 func (a *Applier) Send(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) (Outcome, error) {
+	return a.send(ctx, typ, localID, nil)
+}
+
+// send is [Applier.Send] against the selection the caller holds, where it
+// passes one: see [Applier.unselectedRefs].
+func (a *Applier) send(
+	ctx context.Context, typ agmasync.EntityType, localID string, selected []agmasync.EntityType,
+) (Outcome, error) {
 	var record store.Record
 	var row store.SyncRow
 	var bound bool
@@ -33,6 +41,16 @@ func (a *Applier) Send(
 		record, err = tx.LoadRecord(typ, localID)
 		if err != nil {
 			return err
+		}
+		// A reference to a type not selected is left out rather than sent: its
+		// target is not bound here, so it would not resolve, and leaving it out
+		// keeps what agrirouter holds for it.
+		unselected, err := a.unselectedRefs(tx, typ, selected)
+		if err != nil {
+			return err
+		}
+		for attribute := range unselected {
+			delete(record.Modelled, attribute)
 		}
 		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
 		switch {
@@ -77,8 +95,9 @@ func (a *Applier) Send(
 
 	// No position: a write response is not a delivery on the stream and carries
 	// none. Applying it still has to go through the revision guard, because it
-	// may arrive after a later stream frame has already been applied.
-	return a.Apply(result, "")
+	// may arrive after a later stream frame has already been applied, and
+	// against the same selection, or the reference left out would be cleared.
+	return a.apply(result, "", nil, selected)
 }
 
 // Deactivate tells agrirouter that a record has been deactivated locally, and

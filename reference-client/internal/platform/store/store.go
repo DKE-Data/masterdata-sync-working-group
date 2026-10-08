@@ -413,15 +413,22 @@ func (t *Tx) SetPosition(lastEventID string) error {
 // row and no types, which is not an error: it is an endpoint that exchanges
 // nothing.
 func (t *Tx) Route(endpointID uuid.UUID) ([]agmasync.EntityType, error) {
+	types, _, err := t.Routing(endpointID)
+	return types, err
+}
+
+// Routing is [Tx.Route] that also reports whether any ROUTE_CHANGED frame was
+// recorded for the endpoint, which an empty list alone does not say.
+func (t *Tx) Routing(endpointID uuid.UUID) ([]agmasync.EntityType, bool, error) {
 	var list string
 	err := t.tx.QueryRow(`
 		SELECT entity_types FROM agmasync_route WHERE endpoint_id = ?`,
 		endpointID.String()).Scan(&list)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reading routing: %w", err)
+		return nil, false, fmt.Errorf("reading routing: %w", err)
 	}
 
 	var out []agmasync.EntityType
@@ -430,7 +437,7 @@ func (t *Tx) Route(endpointID uuid.UUID) ([]agmasync.EntityType, error) {
 			out = append(out, agmasync.EntityType(name))
 		}
 	}
-	return out, nil
+	return out, true, nil
 }
 
 // SetRoute records what an endpoint is routed to exchange.
