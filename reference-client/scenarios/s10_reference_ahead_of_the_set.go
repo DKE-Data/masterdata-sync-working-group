@@ -7,6 +7,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/google/uuid"
 )
@@ -84,7 +85,8 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	var delivered oapi.Entity
 	beta.Receiver.OnApplied = func(ev agmasync.Event, _ psync.Outcome) {
 		if ev.Envelope.Type == agmasync.TypeFarm {
-			delivered = ev.Entity
+			// A farm frame decodes into a farm, so this cannot fail.
+			delivered, _ = agrirouter.EntityOf(ev.Object)
 		}
 	}
 

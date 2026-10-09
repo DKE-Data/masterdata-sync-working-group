@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"mime"
 	"net/http"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/google/uuid"
 	"github.com/tmaxmax/go-sse"
 )
 
@@ -59,20 +61,15 @@ type Event struct {
 	// carries no position at all, so this is empty there.
 	ID string
 
-	// Entity is the canonical object the frame carries. It is the zero value
+	// Object is the canonical object the frame carries. It is the zero value
 	// on a frame that carries none, such as EventCaughtUp.
-	Entity oapi.Entity
+	Object
 
-	// Envelope holds the common fields of Entity, already decoded. A receiver
-	// needs the type and the revision before it can decide what to do with the
-	// object, and every frame on the live stream may be any of the four types.
-	Envelope Envelope
-
-	// Selection is set on an [EventRouteChanged] frame and nil on every other.
+	// RouteChange is set on an [EventRouteChanged] frame and nil on every other.
 	// It is the one frame on the stream that carries something other than an
 	// entity, and what it carries is the endpoint's whole selection as it
 	// stands after the change.
-	Selection *oapi.RouteChangedEventData
+	RouteChange *oapi.RouteChangedEventData
 
 	// Reset is set on an [EventMasterdataReset] frame and nil on every other.
 	// A participant receiving it discards every binding it holds in the tenant
@@ -94,6 +91,10 @@ type Stream struct {
 	// positioned is false for the initial-load stream, which delivers a fixed
 	// set rather than a sequence of changes and therefore carries no position.
 	positioned bool
+
+	// MaxEventSize bounds one frame, in bytes; a larger frame ends the
+	// iteration with an error. Zero means [DefaultMaxEventSize].
+	MaxEventSize int
 }
 
 // Close releases the stream's connection.
@@ -104,7 +105,7 @@ func (s *Stream) Close() error {
 	return s.resp.Body.Close()
 }
 
-// Events iterates the stream's frames until it ends, the context is cancelled,
+// Events iterates the stream's frames until it ends, the context is canceled,
 // or a frame cannot be decoded.
 //
 // The iteration ending is not by itself proof of anything. On the live stream
@@ -112,10 +113,22 @@ func (s *Stream) Close() error {
 // durably applied position. On an initial-load stream it does not prove the
 // canonical set arrived — a dropped connection ends the response exactly as an
 // orderly completion does — so the endpoint's initial-load state is what has to
-// be consulted; see [Endpoint.InitialLoadStatus].
+// be consulted; see [GetInitialLoadStatus].
 func (s *Stream) Events() iter.Seq2[Event, error] {
 	return func(yield func(Event, error) bool) {
-		for raw, err := range sse.Read(s.resp.Body, nil) {
+		// The response is parsed with sse.Read rather than consumed through an
+		// sse.Client, as the SDK's other event streams are, because an
+		// sse.Client reconnects on its own and resumes from the id of the last
+		// frame it read. On the live stream the resume position must be the last
+		// frame the participant has durably applied, which only the participant
+		// knows, so a dropped connection ends the iteration instead and the
+		// participant reconnects with its own position. The initial-load stream
+		// carries no position at all and is restarted from the beginning.
+		maxEventSize := s.MaxEventSize
+		if maxEventSize <= 0 {
+			maxEventSize = DefaultMaxEventSize
+		}
+		for raw, err := range sse.Read(s.resp.Body, &sse.ReadConfig{MaxEventSize: maxEventSize}) {
 			if err != nil {
 				if errIsStreamEnd(err) {
 					return
@@ -133,16 +146,12 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 			case raw.Data == "":
 
 			case raw.Type == EventMasterdataChanged || raw.Type == EventMasterdataDeactivated:
-				if err := json.Unmarshal([]byte(raw.Data), &ev.Entity); err != nil {
+				obj, err := ObjectOf([]byte(raw.Data))
+				if err != nil {
 					yield(Event{}, fmt.Errorf("agmasync: decoding %s frame: %w", raw.Type, err))
 					return
 				}
-				env, err := EnvelopeOf(ev.Entity)
-				if err != nil {
-					yield(Event{}, err)
-					return
-				}
-				ev.Envelope = env
+				ev.Object = obj
 
 			case raw.Type == EventRouteChanged:
 				var selection oapi.RouteChangedEventData
@@ -150,7 +159,7 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 					yield(Event{}, fmt.Errorf("agmasync: decoding %s frame: %w", raw.Type, err))
 					return
 				}
-				ev.Selection = &selection
+				ev.RouteChange = &selection
 
 			case raw.Type == EventMasterdataReset:
 				var reset oapi.MasterdataResetEventData
@@ -167,6 +176,10 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 		}
 	}
 }
+
+// DefaultMaxEventSize is the frame bound a [Stream] applies unless told
+// otherwise.
+const DefaultMaxEventSize = 16 << 20
 
 func errIsStreamEnd(err error) bool {
 	return errors.Is(err, io.EOF)
@@ -187,9 +200,7 @@ func errIsStreamEnd(err error) bool {
 // that it has not yet applied.
 //
 // An empty lastEventID is served as a first connection: agrirouter delivers
-// everything the application is entitled to. That is the widest way to ask for
-// data again, so a participant that needs less should ask for one endpoint's
-// canonical set or request objects individually instead.
+// everything the application is entitled to.
 //
 // Positions do not expire. agrirouter serves catch-up from the current state of
 // each entity rather than from a retained log, so a long absence is a larger
@@ -197,13 +208,13 @@ func errIsStreamEnd(err error) bool {
 // receives each changed entity once carrying its current value and MUST NOT
 // assume it observed every intermediate change. Catch-up ends with an
 // [EventCaughtUp] frame.
-func (c *Client) Events(ctx context.Context, lastEventID string) (*Stream, error) {
+func Events(ctx context.Context, api *oapi.ClientWithResponses, lastEventID string) (*Stream, error) {
 	var params oapi.StreamMasterdataEventsParams
 	if lastEventID != "" {
 		// Passed back exactly as agrirouter issued it in the frame's id field.
 		params.LastEventID = &lastEventID
 	}
-	resp, err := c.api.StreamMasterdataEvents(ctx, &params, acceptEventStream)
+	resp, err := api.StreamMasterdataEvents(ctx, &params, acceptEventStream)
 	if err != nil {
 		return nil, fmt.Errorf("agmasync: opening stream: %w", err)
 	}
@@ -213,14 +224,7 @@ func (c *Client) Events(ctx context.Context, lastEventID string) (*Stream, error
 // InitialLoadEvents opens this endpoint's initial-load stream and collects the
 // canonical set it is owed.
 //
-// The set is every object of every entity type the endpoint is opted into that
-// it is entitled to, and it is complete in two ways participants get wrong.
-// Objects that are inactive are part of it, carrying active false, because
-// omitting them would have an endpoint taking the set report its own copy as
-// missing from the SSOT and so resurrect something a user archived. Objects whose
-// current revision this participant itself wrote are part of it too — origin
-// suppression does not apply here, since an endpoint taking the set has
-// declared that it does not know what it holds.
+// The set is every object of every entity type the endpoint is entitled to.
 //
 // Order is agrirouter's. A referenced object precedes the objects that
 // reference it, and opt-in is dependency-closed, so every reference to a
@@ -232,9 +236,12 @@ func (c *Client) Events(ctx context.Context, lastEventID string) (*Stream, error
 // The stream carries no position and takes no Last-Event-ID. A connection that
 // drops before the set is complete is recovered by connecting again and taking
 // the set from the beginning.
-func (e *Endpoint) InitialLoadEvents(ctx context.Context) (*Stream, error) {
-	resp, err := e.client.api.StreamInitialLoadEvents(ctx, e.externalID,
-		&oapi.StreamInitialLoadEventsParams{XAgrirouterTenantId: e.tenantID},
+func InitialLoadEvents(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	externalEndpointID string, tenantID uuid.UUID,
+) (*Stream, error) {
+	resp, err := api.StreamInitialLoadEvents(ctx, externalEndpointID,
+		&oapi.StreamInitialLoadEventsParams{XAgrirouterTenantId: tenantID},
 		acceptEventStream)
 	if err != nil {
 		return nil, fmt.Errorf("agmasync: opening stream: %w", err)
@@ -244,12 +251,6 @@ func (e *Endpoint) InitialLoadEvents(ctx context.Context) (*Stream, error) {
 
 // acceptEventStream asks the two stream operations for the media type they
 // answer in, and says the response must not be cached.
-//
-// The generated client sets neither: Accept is not a parameter any operation
-// declares, and no-store is about how this response must be handled rather than
-// about the request. Everything the operations do declare — the tenant on the
-// initial-load stream, Last-Event-ID on the live one — comes from the generated
-// params, so there is no header named by hand here that openapi.yaml also names.
 var acceptEventStream oapi.RequestEditorFn = func(
 	_ context.Context, req *http.Request,
 ) error {
@@ -270,10 +271,19 @@ var acceptEventStream oapi.RequestEditorFn = func(
 // positioned says whether the stream carries a delivery position, which the
 // live stream does and the initial-load stream does not.
 func openStream(resp *http.Response, positioned bool) (*Stream, error) {
+	const maxErrorBody = 4096
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
 		_ = resp.Body.Close()
 		return nil, writeResult{statusCode: resp.StatusCode, body: body}.err()
+	}
+	// A 200 in another media type is not a stream and parsed as one it would yield no
+	// frames and no error.
+	if mt, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); err != nil || mt != "text/event-stream" {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
+		_ = resp.Body.Close()
+		return nil, &APIError{resp.StatusCode, fmt.Sprintf("stream answered as %q, not text/event-stream: %s",
+			resp.Header.Get("Content-Type"), unexpected(body)), ErrNotEventStream}
 	}
 	return &Stream{resp: resp, positioned: positioned}, nil
 }

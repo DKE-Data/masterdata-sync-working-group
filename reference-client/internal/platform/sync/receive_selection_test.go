@@ -9,6 +9,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ func TestAWithdrawalMadeWhileAwayArrivesOnCatchUp(t *testing.T) {
 		t.Fatalf("deselecting everything: %v", err)
 	}
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
@@ -93,7 +94,7 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 		t.Fatalf("deselecting everything: %v", err)
 	}
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
@@ -183,7 +184,7 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 	h := newHarness(t)
 	applier := h.join("fmis-a", "ep-a")
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}

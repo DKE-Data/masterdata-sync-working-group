@@ -29,6 +29,7 @@ import (
 	"syscall"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/google/uuid"
 )
 
@@ -180,7 +181,7 @@ func usage() {
 }
 
 // endpoint builds the handle every operation but replay acts through.
-func (e *env) endpoint() (*agmasync.Endpoint, error) {
+func (e *env) endpoint() (*agrirouter.Endpoint, error) {
 	client, err := e.client()
 	if err != nil {
 		return nil, err
@@ -197,7 +198,7 @@ func (e *env) endpoint() (*agmasync.Endpoint, error) {
 	if err != nil {
 		return nil, fmt.Errorf("-tenant is not a uuid: %w", err)
 	}
-	return client.For(id, e.externalID, tenantID), nil
+	return agrirouter.For(client, id, e.externalID, tenantID), nil
 }
 
 func parseUUIDOrZero(s string) (uuid.UUID, error) {
@@ -207,15 +208,15 @@ func parseUUIDOrZero(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
 }
 
-func (e *env) client() (*agmasync.Client, error) {
+func (e *env) client() (*agrirouter.Client, error) {
 	if e.token == "" {
 		return nil, errors.New("a bearer token is required: pass -token")
 	}
 	// No timeout on the client: the streams are long-lived by design, and an
 	// ordinary request is bounded by the context instead.
-	return agmasync.NewClient(e.baseURL,
-		agmasync.WithHTTPClient(&http.Client{}),
-		agmasync.WithBearerToken(e.token))
+	return agrirouter.NewClient(e.baseURL,
+		agrirouter.WithHTTPClient(&http.Client{}),
+		agrirouter.WithBearerToken(e.token))
 }
 
 // parseType reads the wire name of an entity type.

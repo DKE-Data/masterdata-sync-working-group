@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 )
 
@@ -101,7 +102,11 @@ func runUnresolvedReference(ctx context.Context, w *World) error {
 			deliveredField = ev
 		}
 	}
-	farm, err := referenceOn(deliveredField.Entity, "farm")
+	fieldEntity, err := agrirouter.EntityOf(deliveredField.Object)
+	if err != nil {
+		return err
+	}
+	farm, err := referenceOn(fieldEntity, "farm")
 	if err != nil {
 		return err
 	}
@@ -157,7 +162,11 @@ func runUnresolvedReference(ctx context.Context, w *World) error {
 	if len(next) != 1 {
 		return fmt.Errorf("Alpha has %d objects waiting, want the renamed field", len(next))
 	}
-	renamed, err := referenceOn(next[0].Entity, "farm")
+	renamedEntity, err := agrirouter.EntityOf(next[0].Object)
+	if err != nil {
+		return err
+	}
+	renamed, err := referenceOn(renamedEntity, "farm")
 	if err != nil {
 		return err
 	}

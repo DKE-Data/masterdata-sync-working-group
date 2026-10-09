@@ -11,14 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
-	const (
-		endpointHeader = "X-Agrirouter-Endpoint-Id"
-		tenantHeader   = "X-Agrirouter-Tenant-Id"
-	)
-	endpointID := uuid.MustParse("1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed")
-	tenant := uuid.MustParse("6f1a4dcb-4a1a-4b1e-9d9a-5a0e6a2c2f11")
-
+// recordHeaders answers every request with a party and hands back the first
+// request's headers.
+func recordHeaders(t *testing.T) (*oapi.ClientWithResponses, <-chan http.Header) {
+	t.Helper()
 	seen := make(chan http.Header, 1)
 	srv := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -31,40 +27,46 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 			// under test being about the request rather than the response.
 			_, _ = w.Write([]byte(`{"type":"party","local_id":"o-1","name":"Hof Nord"}`))
 		}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 
-	client, err := agmasync.NewClient(srv.URL)
+	api, err := oapi.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	endpoint := client.For(endpointID, "refclient:tenant:x:alpha", tenant)
+	return api, seen
+}
+
+func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
+	const (
+		endpointHeader = "X-Agrirouter-Endpoint-Id"
+		tenantHeader   = "X-Agrirouter-Tenant-Id"
+	)
+	endpointID := uuid.MustParse("1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed")
+	tenant := uuid.MustParse("6f1a4dcb-4a1a-4b1e-9d9a-5a0e6a2c2f11")
+
+	api, seen := recordHeaders(t)
 
 	localID := "o-1"
-	party, err := agmasync.FromParty(oapi.Party{
-		Type: "party", LocalId: &localID, Name: "Hof Nord",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	party := oapi.Party{LocalId: &localID, Name: "Hof Nord"}
 
 	ctx := context.Background()
 	calls := map[string]func() error{
 		"Put": func() error {
-			_, err := endpoint.Put(ctx, party, nil)
+			_, err := agmasync.PutParty(ctx, api, endpointID, tenant, party, nil)
 			return err
 		},
 		"Bind": func() error {
-			return endpoint.Bind(ctx, agmasync.TypeParty, "o-1", uuid.New())
+			return agmasync.Bind(ctx, api, endpointID, tenant, agmasync.TypeParty, "o-1", uuid.New())
 		},
 		"Unbind": func() error {
-			return endpoint.Unbind(ctx, agmasync.TypeParty, "o-1", uuid.New())
+			return agmasync.Unbind(ctx, api, endpointID, tenant, agmasync.TypeParty, "o-1", uuid.New())
 		},
 		"Deactivate": func() error {
-			_, err := endpoint.Deactivate(ctx, agmasync.TypeParty, "o-1", nil)
+			_, err := agmasync.Deactivate(ctx, api, endpointID, tenant, agmasync.TypeParty, "o-1", nil)
 			return err
 		},
 		"Request": func() error {
-			return endpoint.Request(ctx, agmasync.TypeParty, uuid.New())
+			return agmasync.Request(ctx, api, endpointID, tenant, agmasync.TypeParty, uuid.New())
 		},
 	}
 

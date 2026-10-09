@@ -14,6 +14,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/testrouter"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
@@ -30,8 +31,8 @@ type fixture struct {
 }
 
 type participant struct {
-	client   *agmasync.Client
-	endpoint *agmasync.Endpoint
+	client   *agrirouter.Client
+	endpoint *agrirouter.Endpoint
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -62,15 +63,15 @@ func (f *fixture) joinIn(
 		f.t.Fatalf("opt in %s: %v", externalID, err)
 	}
 
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken(appID))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken(appID))
 	if err != nil {
 		f.t.Fatalf("building client: %v", err)
 	}
-	return &participant{client: client, endpoint: client.For(endpointID, externalID, tenant)}
+	return &participant{client: client, endpoint: agrirouter.For(client, endpointID, externalID, tenant)}
 }
 
 func farm(localID, name string) oapi.Entity {
-	ent, err := agmasync.FromFarm(oapi.Farm{LocalId: &localID, Name: name})
+	ent, err := agrirouter.FromFarm(oapi.Farm{LocalId: &localID, Name: name})
 	if err != nil {
 		panic(err)
 	}
@@ -79,7 +80,7 @@ func farm(localID, name string) oapi.Entity {
 
 func revisionOf(t *testing.T, ent oapi.Entity) int {
 	t.Helper()
-	env, err := agmasync.EnvelopeOf(ent)
+	env, err := agrirouter.EnvelopeOf(ent)
 	if err != nil {
 		t.Fatalf("reading envelope: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestCreateAssignsAgrirouterIDAndFirstRevision(t *testing.T) {
 		t.Fatalf("put: %v", err)
 	}
 
-	env, err := agmasync.EnvelopeOf(got)
+	env, err := agrirouter.EnvelopeOf(got)
 	if err != nil {
 		t.Fatalf("reading envelope: %v", err)
 	}
@@ -202,7 +203,7 @@ func TestAssignedFieldsNamingAnotherObjectAreRejected(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			edited := createdFarm
 			edit(&edited)
-			ent, err := agmasync.FromFarm(edited)
+			ent, err := agrirouter.FromFarm(edited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -226,7 +227,7 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 	base := *env.Revision
 
 	// B recognises the object as one it holds and binds its own identifier.
@@ -238,14 +239,14 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 
 	// A renames it, moving the canonical revision on.
 	renamed := oapi.Farm{LocalId: strptr("FRM-1"), Name: "Hof Süd"}
-	entity, _ := agmasync.FromFarm(renamed)
+	entity, _ := agrirouter.FromFarm(renamed)
 	if _, err := a.endpoint.Put(context.Background(), entity, &base); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
 	// B, still on the old base, changes a different attribute.
 	address := oapi.Address{City: nullable.NewNullableWithValue("Rostock")}
-	withAddress, _ := agmasync.FromFarm(oapi.Farm{
+	withAddress, _ := agrirouter.FromFarm(oapi.Farm{
 		LocalId: strptr("B-FARM-9"), Name: "Hof Nord", Address: nullable.NewNullableWithValue(address),
 	})
 	merged, err := b.endpoint.Put(context.Background(), withAddress, &base)
@@ -277,7 +278,7 @@ func TestStaleBaseIsRejectedWhereChangesOverlap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 	base := *env.Revision
 
 	if err := b.endpoint.Bind(
@@ -318,8 +319,8 @@ func TestBindingTheSameLocalIDTwiceIsRejectedWithItsCause(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	firstEnv, _ := agmasync.EnvelopeOf(first)
-	secondEnv, _ := agmasync.EnvelopeOf(second)
+	firstEnv, _ := agrirouter.EnvelopeOf(first)
+	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
 	if err := b.endpoint.Bind(
 		context.Background(), agmasync.TypeFarm, "B-1", *firstEnv.AgrirouterId,
@@ -374,7 +375,7 @@ func TestDeactivationIsIdempotentAndIgnoresBaseOnceInactive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deactivate: %v", err)
 	}
-	firstEnv, _ := agmasync.EnvelopeOf(first)
+	firstEnv, _ := agrirouter.EnvelopeOf(first)
 	if firstEnv.Active == nil || *firstEnv.Active {
 		t.Error("the object should be inactive after deactivation")
 	}
@@ -398,7 +399,7 @@ func TestUnresolvableReferenceIsRejected(t *testing.T) {
 	f := newFixture(t)
 	p := f.join("fmis-a", "ep-a", agmasync.TypeField)
 
-	field, err := agmasync.FromField(oapi.Field{
+	field, err := agrirouter.FromField(oapi.Field{
 		LocalId: strptr("PFD-1"),
 		Name:    "North 40",
 		Farm:    nullable.NewNullableWithValue(oapi.EntityReference{LocalId: strptr("FRM-NOT-SENT-YET")}),
@@ -592,7 +593,7 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 	longAgo := *env.Revision
 
 	if err := b.endpoint.Bind(
@@ -616,7 +617,7 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	// B writes from the revision it saw at the very beginning, touching an
 	// attribute nobody else has.
 	address := oapi.Address{City: nullable.NewNullableWithValue("Rostock")}
-	entity, _ := agmasync.FromFarm(oapi.Farm{
+	entity, _ := agrirouter.FromFarm(oapi.Farm{
 		LocalId: strptr("B-1"), Name: "Hof 0", Address: nullable.NewNullableWithValue(address),
 	})
 	merged, err := b.endpoint.Put(context.Background(), entity, &longAgo)
@@ -651,7 +652,7 @@ func TestTwoEndpointsOfOneApplicationShareOneNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create in the first organization: %v", err)
 	}
-	firstEnv, _ := agmasync.EnvelopeOf(first)
+	firstEnv, _ := agrirouter.EnvelopeOf(first)
 
 	// It resolves, so it is an update — and an update without the revision it
 	// was made from is refused. That refusal is itself the evidence: a send
@@ -667,7 +668,7 @@ func TestTwoEndpointsOfOneApplicationShareOneNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update from the second organization: %v", err)
 	}
-	secondEnv, _ := agmasync.EnvelopeOf(second)
+	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
 	if *firstEnv.AgrirouterId != *secondEnv.AgrirouterId {
 		t.Error("the same localId sent by two endpoints of one application is one object")
@@ -693,7 +694,7 @@ func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 
 	// The receiving participant binds once, through one of its endpoints.
 	if err := org1.endpoint.Bind(
@@ -715,7 +716,7 @@ func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-emitting a bound object: %v", err)
 	}
-	echoedEnv, _ := agmasync.EnvelopeOf(echoed)
+	echoedEnv, _ := agrirouter.EnvelopeOf(echoed)
 	if *echoedEnv.AgrirouterId != *env.AgrirouterId {
 		t.Error("a sibling's send must resolve through the application's binding")
 	}
@@ -743,8 +744,8 @@ func TestTheSameLocalIdInTwoTenantsNamesTwoObjects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create in the second tenant: %v", err)
 	}
-	firstEnv, _ := agmasync.EnvelopeOf(first)
-	secondEnv, _ := agmasync.EnvelopeOf(second)
+	firstEnv, _ := agrirouter.EnvelopeOf(first)
+	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
 	if *firstEnv.AgrirouterId == *secondEnv.AgrirouterId {
 		t.Fatal("one localId in two tenants must name two canonical objects")
@@ -760,7 +761,7 @@ func TestTheSameLocalIdInTwoTenantsNamesTwoObjects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update in the second tenant: %v", err)
 	}
-	updatedEnv, _ := agmasync.EnvelopeOf(updated)
+	updatedEnv, _ := agrirouter.EnvelopeOf(updated)
 	if *updatedEnv.AgrirouterId != *secondEnv.AgrirouterId {
 		t.Error("the second tenant's update must resolve to its own object")
 	}
@@ -784,7 +785,7 @@ func TestABindingInOneTenantDoesNotConflictWithAnother(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create: %v", err)
 		}
-		env, _ := agmasync.EnvelopeOf(created)
+		env, _ := agrirouter.EnvelopeOf(created)
 		if err := c.receiver.endpoint.Bind(
 			context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterId,
 		); err != nil {
@@ -808,7 +809,7 @@ func TestAResetDiscardsOnlyThatTenantsBindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create in the second tenant: %v", err)
 	}
-	keptEnv, _ := agmasync.EnvelopeOf(kept)
+	keptEnv, _ := agrirouter.EnvelopeOf(kept)
 
 	if err := f.router.ResetTenant(f.tenant); err != nil {
 		t.Fatalf("reset: %v", err)
@@ -819,7 +820,7 @@ func TestAResetDiscardsOnlyThatTenantsBindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update in the tenant that was not reset: %v", err)
 	}
-	updatedEnv, _ := agmasync.EnvelopeOf(updated)
+	updatedEnv, _ := agrirouter.EnvelopeOf(updated)
 	if *updatedEnv.AgrirouterId != *keptEnv.AgrirouterId {
 		t.Error("the other tenant's binding must survive the reset")
 	}
@@ -838,9 +839,9 @@ func TestAReferenceToAnotherTenantsObjectIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create in the other tenant: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 
-	field, err := agmasync.FromField(oapi.Field{
+	field, err := agrirouter.FromField(oapi.Field{
 		LocalId: strptr("PFD-1"),
 		Name:    "North 40",
 		Farm:    nullable.NewNullableWithValue(oapi.EntityReference{AgrirouterId: env.AgrirouterId}),
@@ -868,13 +869,13 @@ func TestASiblingsSendResolvesRatherThanDuplicating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 
 	echoed, err := org2.endpoint.Put(context.Background(), farm("SHARED-1", "Hof Nord"), nil)
 	if err != nil {
 		t.Fatalf("the sibling's send: %v", err)
 	}
-	echoedEnv, _ := agmasync.EnvelopeOf(echoed)
+	echoedEnv, _ := agrirouter.EnvelopeOf(echoed)
 	if *echoedEnv.AgrirouterId != *env.AgrirouterId {
 		t.Fatal("a sibling's send must not mint a second canonical object")
 	}
@@ -895,7 +896,7 @@ func TestAnObjectTwoSiblingsAreEntitledToArrivesOnce(t *testing.T) {
 	f.join("fmis-a", "ep-a2", agmasync.TypeFarm)
 	b := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
 
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
@@ -905,7 +906,7 @@ func TestAnObjectTwoSiblingsAreEntitledToArrivesOnce(t *testing.T) {
 
 	// Listening from the live end, so what is counted is the fan-out of the one
 	// write below rather than anything restated by catch-up.
-	stream, err := client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -956,7 +957,7 @@ func TestRemovingAnEndpointLeavesTheMappingStanding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 
 	if err := receiver.endpoint.Bind(
 		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterId,
@@ -976,7 +977,7 @@ func TestRemovingAnEndpointLeavesTheMappingStanding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send after re-onboarding: %v", err)
 	}
-	sentEnv, _ := agmasync.EnvelopeOf(sent)
+	sentEnv, _ := agrirouter.EnvelopeOf(sent)
 	if *sentEnv.AgrirouterId != *env.AgrirouterId {
 		t.Error("a removed endpoint's binding belongs to the participant and must survive")
 	}
@@ -1011,11 +1012,11 @@ func TestDeclaringEnablesNothingOnItsOwn(t *testing.T) {
 	f := newFixture(t)
 	endpointID := f.router.AddEndpoint("fmis-a", f.tenant, "ep-a")
 
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(endpointID, "ep-a", f.tenant)
+	ep := agrirouter.For(client, endpointID, "ep-a", f.tenant)
 
 	// The write echoes the declaration back in full — there is no resource to
 	// read it from afterwards — and it says nothing about what is exchanged: it
@@ -1043,7 +1044,7 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := p.client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, p.client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -1102,7 +1103,7 @@ func TestDeselectingIsStatedToo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := p.client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, p.client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -1150,11 +1151,11 @@ func selectionFrames(
 			if err != nil {
 				return
 			}
-			if ev.Type != agmasync.EventRouteChanged || ev.Selection == nil {
+			if ev.Type != agmasync.EventRouteChanged || ev.RouteChange == nil {
 				continue
 			}
-			if ev.Selection.ExternalId == externalID {
-				frames <- ev.Selection
+			if ev.RouteChange.ExternalId == externalID {
+				frames <- ev.RouteChange
 			}
 		}
 	}()
@@ -1197,7 +1198,7 @@ func TestAWithdrawalSurvivesBeingDisconnectedForIt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := p.client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, p.client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -1217,7 +1218,7 @@ func TestAnEndpointThatNeverTookPartIsNeverMentioned(t *testing.T) {
 	f := newFixture(t)
 	f.router.AddEndpoint("fmis-a", f.tenant, "ep-quiet")
 
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
@@ -1225,7 +1226,7 @@ func TestAnEndpointThatNeverTookPartIsNeverMentioned(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -1377,11 +1378,11 @@ func optInOverHTTP(t *testing.T, f *fixture, externalID string, collections ...s
 func TestOptInOverTheControlPlaneBehavesAsInProcess(t *testing.T) {
 	f := newFixture(t)
 	endpointID := f.router.AddEndpoint("fmis-a", f.tenant, "ep-a")
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(endpointID, "ep-a", f.tenant)
+	ep := agrirouter.For(client, endpointID, "ep-a", f.tenant)
 
 	if code := optInOverHTTP(t, f, "ep-a", "farm"); code != http.StatusOK {
 		t.Fatalf("opt-in status = %d, want 200", code)
@@ -1434,12 +1435,12 @@ func putEndpointOverHTTP(
 	types ...agmasync.EntityType,
 ) (int, oapi.Endpoint) {
 	t.Helper()
-	return putConfigOverHTTP(t, f, token, externalID, tenant, agmasync.Declaration(types...))
+	return putConfigOverHTTP(t, f, token, externalID, tenant, agmasync.DeclareCapabilities(types...))
 }
 
 // putConfigOverHTTP is [putEndpointOverHTTP] with the declaration given
 // verbatim, for the cases that must send one agmasync would not build:
-// [agmasync.Declaration] closes the set over dependencies, so it cannot express
+// [agmasync.DeclareCapabilities] closes the set over dependencies, so it cannot express
 // a declaration the router is supposed to reject.
 func putConfigOverHTTP(
 	t *testing.T, f *fixture, token, externalID string, tenant uuid.UUID,
@@ -1507,11 +1508,11 @@ func TestPutEndpointCreatesAnEndpointTheRouterHasNotHeardOf(t *testing.T) {
 	if err := f.router.OptIn("ep-new", agmasync.TypeParty); err != nil {
 		t.Fatalf("opting the created endpoint in: %v", err)
 	}
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-new"))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-new"))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
-	ep := client.For(created.Id, "ep-new", f.tenant)
+	ep := agrirouter.For(client, created.Id, "ep-new", f.tenant)
 	status, err := ep.InitialLoadStatus(context.Background())
 	if err != nil {
 		t.Fatalf("status: %v", err)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/google/uuid"
@@ -37,8 +38,8 @@ type instance struct {
 	attention *psync.Attention
 
 	endpointID uuid.UUID
-	client     *agmasync.Client
-	endpoint   *agmasync.Endpoint
+	client     *agrirouter.Client
+	endpoint   *agrirouter.Endpoint
 	applier    *psync.Applier
 	receiver   *psync.Receiver
 	ids        *localIDs
@@ -102,7 +103,7 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 		log.say("onboard", "endpoint already existed: "+endpointID.String())
 	}
 
-	client, err := agmasync.NewClient(cfg.baseURL, cfg.options(ctx)...)
+	client, err := agrirouter.NewClient(cfg.baseURL, cfg.options(ctx)...)
 	if err != nil {
 		_ = db.Close()
 		return nil, err
@@ -118,7 +119,7 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 		loads:      make(chan struct{}, 1),
 	}
 	in.declared = cfg.masterdata
-	in.endpoint = client.For(endpointID, cfg.externalID(), cfg.tenantID)
+	in.endpoint = agrirouter.For(client, endpointID, cfg.externalID(), cfg.tenantID)
 
 	if in.ids, err = newLocalIDs(db, cfg.instance, cfg.tenantID.String()); err != nil {
 		_ = db.Close()

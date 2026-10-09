@@ -25,7 +25,7 @@ const httpPort = "8080/tcp"
 type Container struct {
 	testcontainers.Container
 
-	// BaseURL is what an agmasync.Client is pointed at.
+	// BaseURL is what an agrirouter.Client is pointed at.
 	BaseURL string
 }
 

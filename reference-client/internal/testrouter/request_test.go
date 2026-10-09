@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/google/uuid"
 )
 
@@ -20,14 +21,14 @@ import (
 func liveFrames(t *testing.T, f *fixture, appID string) ([]agmasync.Event, <-chan agmasync.Event) {
 	t.Helper()
 
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken(appID))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken(appID))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	stream, err := client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestARequestedObjectIsDeliveredEvenToItsOwnWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, err := agmasync.EnvelopeOf(created)
+	env, err := agrirouter.EnvelopeOf(created)
 	if err != nil {
 		t.Fatalf("reading envelope: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestARequestForAnObjectTheEndpointIsNotEntitledToIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, err := agmasync.EnvelopeOf(created)
+	env, err := agrirouter.EnvelopeOf(created)
 	if err != nil {
 		t.Fatalf("reading envelope: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestARequestIsAnsweredOnTheNamedTypeAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, err := agmasync.EnvelopeOf(created)
+	env, err := agrirouter.EnvelopeOf(created)
 	if err != nil {
 		t.Fatalf("reading envelope: %v", err)
 	}

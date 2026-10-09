@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 )
 
 // untilCaughtUp reads a stream up to and including its CAUGHT_UP frame.
@@ -30,7 +31,7 @@ func openEvents(t *testing.T, p *participant, from string) *agmasync.Stream {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
-	stream, err := p.client.Events(ctx, from)
+	stream, err := agmasync.Events(ctx, p.client, from)
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestAResetDiscardsTheTenantsDataAndIsAnnounced(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	before, _ := agmasync.EnvelopeOf(created)
+	before, _ := agrirouter.EnvelopeOf(created)
 
 	stream := openEvents(t, p, "")
 	untilCaughtUp(t, stream)
@@ -118,7 +119,7 @@ func TestAResetDiscardsTheTenantsDataAndIsAnnounced(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create after reset: %v", err)
 	}
-	after, _ := agmasync.EnvelopeOf(again)
+	after, _ := agrirouter.EnvelopeOf(again)
 	if *after.AgrirouterId == *before.AgrirouterId {
 		t.Error("an agrirouterId was reissued after a reset")
 	}
@@ -173,7 +174,7 @@ func TestAResetIsNotAnnouncedToAnApplicationThatNeverTookPart(t *testing.T) {
 	f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	f.router.AddEndpoint("fmis-b", f.tenant, "ep-b")
 
-	client, err := agmasync.NewClient(f.server.URL, agmasync.WithBearerToken("fmis-b"))
+	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-b"))
 	if err != nil {
 		t.Fatalf("building client: %v", err)
 	}
@@ -213,7 +214,7 @@ func TestAResetReachesAnApplicationWhoseEndpointWasRemoved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 	if err := receiver.endpoint.Bind(
 		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterId,
 	); err != nil {

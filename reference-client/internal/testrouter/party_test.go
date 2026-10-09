@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/google/uuid"
 )
 
@@ -201,7 +202,11 @@ func TestDeliveryOrderFollowsReferencesNotAge(t *testing.T) {
 		}
 		label := string(ev.Envelope.Type)
 		if ev.Envelope.Type == agmasync.TypeParty {
-			attributes := attributesOf(t, ev.Entity)
+			entity, err := agrirouter.EntityOf(ev.Object)
+			if err != nil {
+				t.Fatal(err)
+			}
+			attributes := attributesOf(t, entity)
 			var details struct {
 				PartyType string `json:"party_type"`
 			}

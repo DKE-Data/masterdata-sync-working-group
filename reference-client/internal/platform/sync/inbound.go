@@ -20,6 +20,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	"github.com/google/uuid"
 )
@@ -57,7 +58,7 @@ type Applier struct {
 	// See schema.sql.
 	Tenant string
 
-	Endpoint *agmasync.Endpoint
+	Endpoint *agrirouter.Endpoint
 	IDs      LocalIDs
 }
 
@@ -132,7 +133,7 @@ func (a *Applier) Apply(entity oapi.Entity, position string) (Outcome, error) {
 func (a *Applier) apply(
 	entity oapi.Entity, position string, recognise Reconciler, selected []agmasync.EntityType,
 ) (Outcome, error) {
-	envelope, err := agmasync.EnvelopeOf(entity)
+	envelope, err := agrirouter.EnvelopeOf(entity)
 	if err != nil {
 		return Outcome{}, err
 	}

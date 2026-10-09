@@ -12,6 +12,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/testrouter"
@@ -105,7 +106,7 @@ type Platform struct {
 	ExternalID    string
 	EndpointID    uuid.UUID
 
-	Client   *agmasync.Client
+	Client   *agrirouter.Client
 	Store    *store.Store
 	Applier  *psync.Applier
 	Receiver *psync.Receiver
@@ -183,7 +184,7 @@ func (w *World) Join(ctx context.Context, name, appID, externalID string) (*Plat
 		return nil, err
 	}
 
-	client, err := agmasync.NewClient(w.BaseURL, bearing(applicationID))
+	client, err := agrirouter.NewClient(w.BaseURL, bearing(applicationID))
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +204,7 @@ func (w *World) Join(ctx context.Context, name, appID, externalID string) (*Plat
 	p.Applier = &psync.Applier{
 		Store:    db,
 		Tenant:   "tenant-" + externalID,
-		Endpoint: client.For(endpointID, externalID, w.Tenant),
+		Endpoint: agrirouter.For(client, endpointID, externalID, w.Tenant),
 		IDs:      p.ids,
 	}
 	p.Receiver = &psync.Receiver{
@@ -223,8 +224,8 @@ const endpointType = oapi.EndpointTypeToCreate("cloud_software")
 func token(applicationID uuid.UUID) string { return applicationID.String() }
 
 // bearing authenticates an agmasync client as an application.
-func bearing(applicationID uuid.UUID) agmasync.Option {
-	return agmasync.WithBearerToken(token(applicationID))
+func bearing(applicationID uuid.UUID) agrirouter.Option {
+	return agrirouter.WithBearerToken(token(applicationID))
 }
 
 // onboard creates the participant's endpoint, declaring in the same call what
@@ -256,7 +257,7 @@ func (w *World) onboard(
 		return uuid.Nil, err
 	}
 
-	declaration := agmasync.Declaration(agmasync.EntityTypes...)
+	declaration := agmasync.DeclareCapabilities(agmasync.EntityTypes...)
 	res, err := api.PutEndpointWithResponse(ctx, externalID,
 		&oapi.PutEndpointParams{XAgrirouterTenantId: w.Tenant},
 		oapi.PutEndpointJSONRequestBody{
@@ -311,7 +312,7 @@ func (p *Platform) Deliveries(ctx context.Context) ([]agmasync.Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	stream, err := p.Client.Events(ctx, from)
+	stream, err := agmasync.Events(ctx, p.Client, from)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +341,7 @@ func (p *Platform) Frames(ctx context.Context) ([]agmasync.Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	stream, err := p.Client.Events(ctx, from)
+	stream, err := agmasync.Events(ctx, p.Client, from)
 	if err != nil {
 		return nil, err
 	}
@@ -762,7 +763,7 @@ func (p *Platform) Selections(ctx context.Context) ([]oapi.RouteChangedEventData
 	if err != nil {
 		return nil, err
 	}
-	stream, err := p.Client.Events(ctx, from)
+	stream, err := agmasync.Events(ctx, p.Client, from)
 	if err != nil {
 		return nil, err
 	}
@@ -776,8 +777,8 @@ func (p *Platform) Selections(ctx context.Context) ([]oapi.RouteChangedEventData
 		if ev.Type == agmasync.EventCaughtUp {
 			return out, nil
 		}
-		if ev.Selection != nil && ev.Selection.ExternalId == p.ExternalID {
-			out = append(out, *ev.Selection)
+		if ev.RouteChange != nil && ev.RouteChange.ExternalId == p.ExternalID {
+			out = append(out, *ev.RouteChange)
 		}
 	}
 	return out, nil
@@ -803,7 +804,7 @@ func (p *Platform) selectedTypes(ctx context.Context) ([]agmasync.EntityType, er
 	if err != nil {
 		return nil, err
 	}
-	stream, err := p.Client.Events(ctx, from)
+	stream, err := agmasync.Events(ctx, p.Client, from)
 	if err != nil {
 		return nil, err
 	}
@@ -819,8 +820,8 @@ func (p *Platform) selectedTypes(ctx context.Context) ([]agmasync.EntityType, er
 		}
 		// The last frame naming this endpoint wins: each states the selection
 		// in full, so a later one replaces an earlier rather than adding to it.
-		if ev.Selection != nil && ev.Selection.ExternalId == p.ExternalID {
-			types = agmasync.SelectedTypes(*ev.Selection)
+		if ev.RouteChange != nil && ev.RouteChange.ExternalId == p.ExternalID {
+			types = agmasync.SelectedTypes(*ev.RouteChange)
 		}
 	}
 	return types, nil

@@ -116,11 +116,11 @@ func onboard(
 	// the list the user is later offered a choice from, and until they choose,
 	// the endpoint exchanges nothing.
 	//
-	// [agmasync.Declaration] closes the set over entity dependencies, so a
+	// [agmasync.DeclareCapabilities] closes the set over entity dependencies, so a
 	// declaration naming field boundaries names the fields they describe
 	// whether or not the caller thought to. An endpoint able to receive one and
 	// not the other could not resolve the references it was sent.
-	declaration := agmasync.Declaration(types...)
+	declaration := agmasync.DeclareCapabilities(types...)
 
 	// Where a user is sent to answer what an initial load stopped for, which for
 	// this participant is the decisions screen. agrirouter renders it as a link
@@ -177,4 +177,3 @@ func onboard(
 			strings.TrimSpace(string(res.Body)), errRefused)
 	}
 }
-

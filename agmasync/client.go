@@ -1,315 +1,86 @@
 package agmasync
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/google/uuid"
 )
 
-// Client is an application's connection to agrirouter.
-//
-// It is application-scoped because the OAuth token is: one application holds
-// many endpoints across many tenants, and the live event stream belongs to the
-// application and carries all of them. Operations that act as a particular
-// endpoint hang off [Client.For] instead.
-type Client struct {
-	api *oapi.ClientWithResponses
-
-	// http is kept because [WithBearerToken] wraps its transport, and because
-	// the generated client is built over it. Nothing here builds a request
-	// with it directly — every call, streams included, goes through api.
-	http *http.Client
-}
-
-// Option configures a [Client].
-type Option func(*Client)
-
-// WithHTTPClient supplies the HTTP client used for both ordinary requests and
-// the event streams.
-//
-// Streams are long-lived, so a client with a request timeout will cut them off
-// mid-flight. Where one client cannot serve both, give this a client with no
-// timeout and bound ordinary requests with the context instead.
-func WithHTTPClient(hc *http.Client) Option {
-	return func(c *Client) { c.http = hc }
-}
-
-// WithBearerToken authenticates every request with a static bearer token.
-//
-// A real participant holds a token that expires and renews it; this exists so
-// that the sample and its tests can pass a fixed one. See "Security
-// considerations" in specification.md.
-func WithBearerToken(token string) Option {
-	return func(c *Client) {
-		base := c.http.Transport
-		if base == nil {
-			base = http.DefaultTransport
-		}
-		c.http.Transport = &bearerTransport{base: base, token: token}
-	}
-}
-
-type bearerTransport struct {
-	base  http.RoundTripper
-	token string
-}
-
-func (t *bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Per RoundTripper's contract the request must not be modified in place.
-	clone := req.Clone(req.Context())
-	clone.Header.Set("Authorization", "Bearer "+t.token)
-	return t.base.RoundTrip(clone)
-}
-
-// NewClient builds a client against the given agrirouter base URL.
-func NewClient(baseURL string, opts ...Option) (*Client, error) {
-	c := &Client{http: &http.Client{}}
-	for _, o := range opts {
-		o(c)
-	}
-
-	api, err := oapi.NewClientWithResponses(baseURL, oapi.WithHTTPClient(c.http))
-	if err != nil {
-		return nil, fmt.Errorf("agmasync: building client: %w", err)
-	}
-	c.api = api
-	return c, nil
-}
-
-// Endpoint is a handle on one of the application's endpoints.
-//
-// Every master-data operation except the application event stream names the
-// acting endpoint, because it decides entitlement and the tenant, and because
-// it becomes the sourceEndpointId of any revision the operation produces —
-// which is what origin suppression is then decided on.
-type Endpoint struct {
-	client *Client
-
-	// id is the agrirouter identifier of the endpoint, sent as
-	// x-agrirouter-endpoint-id on the entity operations.
-	id uuid.UUID
-
-	// externalID is the application's own identifier for the endpoint. The
-	// configuration and initial-load resources are addressed by it, as
-	// endpoint management is, while the entity operations name the endpoint by
-	// its agrirouter id in a header. The two identifier styles are not
-	// interchangeable, so both are held here.
-	externalID string
-
-	// tenantID is sent as x-agrirouter-tenant-id on every operation.
-	tenantID uuid.UUID
-}
-
-// For returns a handle on one of the application's endpoints.
-//
-// Declaring the endpoint's master data is not done here: PutEndpoint upserts
-// the whole endpoint, capabilities and subscriptions included, so the
-// declaration travels on the application's own PutEndpoint call (see
-// [Declaration]).
-func (c *Client) For(endpointID uuid.UUID, externalEndpointID string, tenantID uuid.UUID) *Endpoint {
-	return &Endpoint{
-		client:     c,
-		id:         endpointID,
-		externalID: externalEndpointID,
-		tenantID:   tenantID,
-	}
-}
-
-// ID returns the endpoint's agrirouter identifier.
-func (e *Endpoint) ID() uuid.UUID { return e.id }
-
-// TenantID returns the agrirouter tenant the endpoint belongs to. It scopes the
-// endpoint's local identifiers: the identifier mapping is keyed by application
-// and tenant.
-func (e *Endpoint) TenantID() uuid.UUID { return e.tenantID }
-
-// ExternalID returns the application's own identifier for the endpoint.
-func (e *Endpoint) ExternalID() string { return e.externalID }
-
-// writable renders an entity as the request body a write may carry.
-//
-// It goes out as the entity's own JSON rather than as the typed value, and the
-// entity is what it is given for that reason. The fields agrirouter assigns
-// travel with it untouched: a participant may send back what it was delivered,
-// agrirouter ignoring `revision`, `modified_at`, and `source_endpoint_id` and
-// checking that `type`, `tenant_id`, and `agrirouter_id` name the object
-// written.
-//
-// Marshalling the typed value instead loses on both sides of what the model
-// says. A required attribute the sender does not hold is invented: an absent
-// owner becomes `"owner":{}`, since the generated Farm carries an
-// EntityReference by value, and agrirouter rejects that reference as naming
-// neither an agrirouterId nor a localId — where the body as the sender built
-// it would have said plainly that the owner is missing. Either way the write
-// fails, owner being required: what differs is whether the participant is told
-// which owner is wrong or that it has none. It has none until it requests the
-// target, creates it locally, and binds it — see [Endpoint.Request] and
-// "References" in specification.md.
-//
-// And the body says exactly what the write changes. A write is a merge patch:
-// an attribute left out is kept, and null removes one. The entity's own JSON
-// carries that distinction as the caller made it, where a typed value only
-// carries it as far as the caller used the nullable fields correctly. See
-// "Writing an entity" in specification.md.
-func writable(v any) (io.Reader, error) {
-	body, err := json.Marshal(v)
-	if err != nil {
-		return nil, fmt.Errorf("agmasync: rendering the entity: %w", err)
-	}
-	return bytes.NewReader(body), nil
-}
-
-// applied reads the canonical object a write answered with, from the response
-// body rather than from the generated typed value the client decoded it into.
-//
-// The response is the whole canonical object, not an echo of the write: it
-// carries the attributes the write left out and, after a merge, content the
-// sender never sent. A participant applies it exactly as it applies a
-// delivery, so it has to arrive as agrirouter sent it — a generated struct has
-// nowhere to put an attribute the model does not name, and decoding into one
-// would drop it.
-//
-// This is what the event stream already does with a delivered object, and the
-// two paths carry the same canonical objects.
-func applied(t EntityType, body []byte) (oapi.Entity, error) {
-	var out oapi.Entity
-	if err := json.Unmarshal(body, &out); err != nil {
-		return oapi.Entity{}, convErr(t, err)
-	}
-	return out, nil
-}
-
-// Put sends an entity — a creation or an update.
+// PutParty sends a party. PutFarm, PutField, and PutFieldBoundary likewise
+// send an entity (a creation or an update).
 //
 // base is the revision the participant edited from, and travels in the
 // x-agrirouter-base-revision header. It is nil only for a create: on an update
 // a missing base is rejected with [ErrBaseRevisionRequired], because omitting
 // it would opt the participant out of concurrency control.
 //
-// ent is a merge patch: an attribute it leaves out is left as it is, and one
-// sent as null is removed. Build it as JSON, or with the generated models'
-// nullable fields, to say either. Required attributes are required on every
-// write. See "Writing an entity" in specification.md.
+// The entity is a merge patch: an attribute it leaves out is left as it is,
+// and one sent as null is removed — the models' nullable fields say which. It
+// must carry its local_id; its type is set from the model. Required attributes are
+// required on every write. See "Writing an entity" in specification.md.
 //
-// The returned entity is the resulting canonical object and MUST be applied
+// The returned model is the resulting canonical object and MUST be applied
 // exactly as an object delivered on the stream is. It is not an
 // acknowledgement: origin suppression keeps this revision off the sender's own
 // stream, so this response is the only place the sender learns the
 // agrirouterId assigned to a newly created object, or sees the merged result
 // where agrirouter reconciled the write against a concurrent change instead of
 // rejecting it. See "Applying what agrirouter returns" in specification.md.
-func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.Entity, error) {
-	env, err := EnvelopeOf(ent)
-	if err != nil {
-		return oapi.Entity{}, err
-	}
-	if env.LocalId == nil || *env.LocalId == "" {
-		return oapi.Entity{}, fmt.Errorf(
-			"agmasync: sending a %s: localId is required on send", env.Type)
-	}
-	localID := *env.LocalId
+func PutParty(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	endpointID, tenantID uuid.UUID,
+	v oapi.Party, base *int,
+) (oapi.Party, error) {
+	v.Type = string(TypeParty)
+	return put(TypeParty, v.LocalId, func(localID string) (*oapi.PutPartyResponse, error) {
+		return api.PutPartyWithResponse(ctx, localID, &oapi.PutPartyParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		}, v)
+	})
+}
 
-	var res writeResult
+// PutFarm sends a farm. See [PutParty].
+func PutFarm(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	endpointID, tenantID uuid.UUID,
+	v oapi.Farm, base *int,
+) (oapi.Farm, error) {
+	v.Type = string(TypeFarm)
+	return put(TypeFarm, v.LocalId, func(localID string) (*oapi.PutFarmResponse, error) {
+		return api.PutFarmWithResponse(ctx, localID, &oapi.PutFarmParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		}, v)
+	})
+}
 
-	switch env.Type {
-	case TypeParty:
-		if _, cErr := ent.AsParty(); cErr != nil {
-			return oapi.Entity{}, convErr(env.Type, cErr)
-		}
-		body, bErr := writable(ent)
-		if bErr != nil {
-			return oapi.Entity{}, bErr
-		}
-		r, hErr := e.client.api.PutPartyWithBodyWithResponse(ctx, localID,
-			&oapi.PutPartyParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			}, "application/json", body)
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
-		}
-		res = writeResult{
-			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
-			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
-		}
-	case TypeFarm:
-		if _, cErr := ent.AsFarm(); cErr != nil {
-			return oapi.Entity{}, convErr(env.Type, cErr)
-		}
-		body, bErr := writable(ent)
-		if bErr != nil {
-			return oapi.Entity{}, bErr
-		}
-		r, hErr := e.client.api.PutFarmWithBodyWithResponse(ctx, localID,
-			&oapi.PutFarmParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			}, "application/json", body)
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
-		}
-		res = writeResult{
-			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
-			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
-		}
-	case TypeField:
-		if _, cErr := ent.AsField(); cErr != nil {
-			return oapi.Entity{}, convErr(env.Type, cErr)
-		}
-		body, bErr := writable(ent)
-		if bErr != nil {
-			return oapi.Entity{}, bErr
-		}
-		r, hErr := e.client.api.PutFieldWithBodyWithResponse(ctx, localID,
-			&oapi.PutFieldParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			}, "application/json", body)
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
-		}
-		res = writeResult{
-			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
-			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
-		}
-	case TypeFieldBoundary:
-		if _, cErr := ent.AsFieldBoundary(); cErr != nil {
-			return oapi.Entity{}, convErr(env.Type, cErr)
-		}
-		body, bErr := writable(ent)
-		if bErr != nil {
-			return oapi.Entity{}, bErr
-		}
-		r, hErr := e.client.api.PutFieldBoundaryWithBodyWithResponse(ctx, localID,
-			&oapi.PutFieldBoundaryParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			}, "application/json", body)
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
-		}
-		res = writeResult{
-			statusCode: r.StatusCode(), validation: r.JSON400, forbidden: r.JSON403,
-			conflict: r.JSON409, precond: r.JSON412, required: r.JSON428, body: r.Body,
-		}
-	default:
-		return oapi.Entity{}, fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, env.Type)
-	}
+// PutField sends a field. See [PutParty].
+func PutField(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	endpointID, tenantID uuid.UUID,
+	v oapi.Field, base *int,
+) (oapi.Field, error) {
+	v.Type = string(TypeField)
+	return put(TypeField, v.LocalId, func(localID string) (*oapi.PutFieldResponse, error) {
+		return api.PutFieldWithResponse(ctx, localID, &oapi.PutFieldParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		}, v)
+	})
+}
 
-	if resErr := res.err(); resErr != nil {
-		return oapi.Entity{}, resErr
-	}
-	return applied(env.Type, res.body)
+// PutFieldBoundary sends a field boundary. See [PutParty].
+func PutFieldBoundary(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	endpointID, tenantID uuid.UUID,
+	v oapi.FieldBoundary, base *int,
+) (oapi.FieldBoundary, error) {
+	v.Type = string(TypeFieldBoundary)
+	return put(TypeFieldBoundary, v.LocalId, func(localID string) (*oapi.PutFieldBoundaryResponse, error) {
+		return api.PutFieldBoundaryWithResponse(ctx, localID, &oapi.PutFieldBoundaryParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		}, v)
+	})
 }
 
 // Deactivate signals that an entity was deactivated in its source system.
@@ -329,76 +100,119 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 // what makes it safe to retry a call whose outcome was never observed.
 //
 // Reactivation is an ordinary Put with active set to true.
-func (e *Endpoint) Deactivate(
-	ctx context.Context, t EntityType, localID string, base *int,
-) (oapi.Entity, error) {
+//
+// The result is the canonical object as it now stands, decoded as a delivery
+// of type t is.
+func Deactivate(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	endpointID, tenantID uuid.UUID,
+	t EntityType, localID string, base *int,
+) (Object, error) {
 	var res writeResult
-
 	switch t {
 	case TypeParty:
-		r, hErr := e.client.api.DeactivatePartyWithResponse(ctx, localID,
-			&oapi.DeactivatePartyParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			})
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
+		r, err := api.DeactivatePartyWithResponse(ctx, localID, &oapi.DeactivatePartyParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		})
+		if err != nil {
+			return Object{}, transportErr(err)
 		}
 		res = writeResult{
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeFarm:
-		r, hErr := e.client.api.DeactivateFarmWithResponse(ctx, localID,
-			&oapi.DeactivateFarmParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			})
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
+		r, err := api.DeactivateFarmWithResponse(ctx, localID, &oapi.DeactivateFarmParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		})
+		if err != nil {
+			return Object{}, transportErr(err)
 		}
 		res = writeResult{
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeField:
-		r, hErr := e.client.api.DeactivateFieldWithResponse(ctx, localID,
-			&oapi.DeactivateFieldParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			})
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
+		r, err := api.DeactivateFieldWithResponse(ctx, localID, &oapi.DeactivateFieldParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		})
+		if err != nil {
+			return Object{}, transportErr(err)
 		}
 		res = writeResult{
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeFieldBoundary:
-		r, hErr := e.client.api.DeactivateFieldBoundaryWithResponse(ctx, localID,
-			&oapi.DeactivateFieldBoundaryParams{
-				XAgrirouterEndpointId:   e.id,
-				XAgrirouterTenantId:     e.tenantID,
-				XAgrirouterBaseRevision: base,
-			})
-		if hErr != nil {
-			return oapi.Entity{}, transportErr(hErr)
+		r, err := api.DeactivateFieldBoundaryWithResponse(ctx, localID, &oapi.DeactivateFieldBoundaryParams{
+			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
+		})
+		if err != nil {
+			return Object{}, transportErr(err)
 		}
 		res = writeResult{
 			statusCode: r.StatusCode(), forbidden: r.JSON403, notFound: r.JSON404,
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	default:
-		return oapi.Entity{}, fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, t)
+		return Object{}, fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, t)
 	}
+	if err := res.err(); err != nil {
+		return Object{}, err
+	}
+	return objectAs(t, res.body)
+}
 
-	if resErr := res.err(); resErr != nil {
-		return oapi.Entity{}, resErr
+// putResponse is what the generated put operations answer with, whichever
+// entity type they write.
+type putResponse[M any] interface {
+	StatusCode() int
+	GetBody() []byte
+	GetJSON200() *M
+	GetJSON201() *M
+	GetJSON400() *oapi.Error
+	GetJSON403() *oapi.Error
+	GetJSON409() *oapi.MappingConflictError
+	GetJSON412() *oapi.RevisionConflictError
+	GetJSON428() *oapi.RevisionConflictError
+}
+
+// put sends an entity under its localID through send, the generated operation
+// for its type, and reads the canonical object it answers with.
+func put[M any, R putResponse[M]](t EntityType, localID *string, send func(localID string) (R, error)) (M, error) {
+	var zero M
+	if localID == nil || *localID == "" {
+		return zero, localIDRequired(t)
 	}
-	return applied(t, res.body)
+	r, err := send(*localID)
+	if err != nil {
+		return zero, transportErr(err)
+	}
+	return written(writeResult{
+		statusCode: r.StatusCode(), validation: r.GetJSON400(), forbidden: r.GetJSON403(),
+		conflict: r.GetJSON409(), precond: r.GetJSON412(), required: r.GetJSON428(), body: r.GetBody(),
+	}, r.GetJSON200(), r.GetJSON201())
+}
+
+// written turns a write's outcome into the canonical object it returned, as
+// the generated client decoded it: a 200 for an update, a 201 for a create.
+func written[M any](res writeResult, ok, created *M) (M, error) {
+	var zero M
+	if err := res.err(); err != nil {
+		return zero, err
+	}
+	switch {
+	case ok != nil:
+		return *ok, nil
+	case created != nil:
+		return *created, nil
+	default:
+		return zero, fmt.Errorf("%w: HTTP %d carried no %T", ErrEmptyResponse, res.statusCode, zero)
+	}
+}
+
+func localIDRequired(t EntityType) error {
+	return fmt.Errorf("%w: sending a %s", ErrLocalIDRequired, t)
 }
 
 // Request asks for a single entity by its canonical identifier.
@@ -419,14 +233,18 @@ func (e *Endpoint) Deactivate(
 // not hold — a farm delivered with an owner reference carrying no localId.
 // Neither identifier names that target on a send, so the object stays
 // unwritable until the target is requested, created locally, and bound with
-// [Endpoint.Bind]. See "References" in specification.md.
-func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.UUID) error {
+// [Bind]. See "References" in specification.md.
+func Request(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	endpointID, tenantID uuid.UUID,
+	t EntityType, agrirouterID uuid.UUID,
+) error {
 	body := oapi.EntityRequest{AgrirouterId: agrirouterID}
 
 	switch t {
 	case TypeParty:
-		r, err := e.client.api.RequestPartyWithResponse(ctx,
-			&oapi.RequestPartyParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
+		r, err := api.RequestPartyWithResponse(ctx,
+			&oapi.RequestPartyParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
@@ -436,8 +254,8 @@ func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.
 		}.err()
 
 	case TypeFarm:
-		r, err := e.client.api.RequestFarmWithResponse(ctx,
-			&oapi.RequestFarmParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
+		r, err := api.RequestFarmWithResponse(ctx,
+			&oapi.RequestFarmParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
@@ -447,8 +265,8 @@ func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.
 		}.err()
 
 	case TypeField:
-		r, err := e.client.api.RequestFieldWithResponse(ctx,
-			&oapi.RequestFieldParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
+		r, err := api.RequestFieldWithResponse(ctx,
+			&oapi.RequestFieldParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
@@ -458,8 +276,8 @@ func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.
 		}.err()
 
 	case TypeFieldBoundary:
-		r, err := e.client.api.RequestFieldBoundaryWithResponse(ctx,
-			&oapi.RequestFieldBoundaryParams{XAgrirouterEndpointId: e.id, XAgrirouterTenantId: e.tenantID}, body)
+		r, err := api.RequestFieldBoundaryWithResponse(ctx,
+			&oapi.RequestFieldBoundaryParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
@@ -471,10 +289,6 @@ func (e *Endpoint) Request(ctx context.Context, t EntityType, agrirouterID uuid.
 	default:
 		return fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, t)
 	}
-}
-
-func convErr(t EntityType, err error) error {
-	return fmt.Errorf("agmasync: converting %s entity: %w", t, err)
 }
 
 func transportErr(err error) error {

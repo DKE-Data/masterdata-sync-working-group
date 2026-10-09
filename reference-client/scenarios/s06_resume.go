@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 )
 
 func resumeAfterDowntime() Scenario {
@@ -124,7 +125,11 @@ func runResumeAfterDowntime(ctx context.Context, w *World) error {
 	// advances the position separately is left holding when it dies in between.
 	// This sample cannot do it by accident — both go in one transaction — so the
 	// scenario has to ask for it.
-	if _, err := beta.Applier.Apply(waiting[0].Entity, ""); err != nil {
+	edit, err := agrirouter.EntityOf(waiting[0].Object)
+	if err != nil {
+		return err
+	}
+	if _, err := beta.Applier.Apply(edit, ""); err != nil {
 		return err
 	}
 

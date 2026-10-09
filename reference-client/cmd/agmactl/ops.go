@@ -14,6 +14,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/google/uuid"
 )
 
@@ -123,7 +124,7 @@ func runLoad(ctx context.Context, e *env, args []string) error {
 		printFrame(ev)
 		if *auto && ev.HasEntity() && ev.Envelope.LocalId == nil && ev.Envelope.AgrirouterId != nil {
 			id := *ev.Envelope.AgrirouterId
-			bindings = append(bindings, agmasync.Binding(id.String(), id))
+			bindings = append(bindings, oapi.IdMappingBinding{LocalId: id.String(), AgrirouterId: id})
 		}
 	}
 	fmt.Println("stream ended")
@@ -163,7 +164,7 @@ func parseBindings(args []string) ([]oapi.IdMappingBinding, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%q is not a uuid: %w", rawID, err)
 		}
-		bindings = append(bindings, agmasync.Binding(localID, id))
+		bindings = append(bindings, oapi.IdMappingBinding{LocalId: localID, AgrirouterId: id})
 	}
 	return bindings, nil
 }
@@ -281,7 +282,7 @@ func runDeclare(ctx context.Context, e *env, args []string) error {
 	if err != nil {
 		return err
 	}
-	declaration := agmasync.Declaration(types...)
+	declaration := agmasync.DeclareCapabilities(types...)
 	r, err := api.PutEndpointWithResponse(ctx, e.externalID,
 		&oapi.PutEndpointParams{XAgrirouterTenantId: tenantID},
 		oapi.PutEndpointJSONRequestBody{
@@ -500,13 +501,13 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 	}
 	// Only needed for -auto: Bind names the acting endpoint in a header, while
 	// the stream itself is the application's and names none.
-	var endpoint *agmasync.Endpoint
+	var endpoint *agrirouter.Endpoint
 	if *auto {
 		if endpoint, err = e.endpoint(); err != nil {
 			return err
 		}
 	}
-	stream, err := client.Events(ctx, *from)
+	stream, err := agmasync.Events(ctx, client, *from)
 	if err != nil {
 		return err
 	}
@@ -540,7 +541,7 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 // refusal is printed rather than fatal: one object a person needs to resolve
 // (see [agmasync.NeedsUser]) must not end a `replay -follow` watching for
 // everything else.
-func autoBind(ctx context.Context, endpoint *agmasync.Endpoint, env agmasync.Envelope) {
+func autoBind(ctx context.Context, endpoint *agrirouter.Endpoint, env agmasync.Envelope) {
 	id := *env.AgrirouterId
 	if err := endpoint.Bind(ctx, env.Type, id.String(), id); err != nil {
 		var conflict *agmasync.MappingConflict
@@ -560,18 +561,18 @@ func printFrame(ev agmasync.Event) {
 	case ev.Type == agmasync.EventCaughtUp:
 		fmt.Printf("%-26s %s\n", ev.Type, ev.ID)
 
-	case ev.Selection != nil:
+	case ev.RouteChange != nil:
 		// The one frame that carries no entity and is not a position marker. It
 		// states the endpoint's whole selection, so there is nothing to read
 		// behind it and this can print the answer itself. An empty list is the
 		// statement that the endpoint exchanges nothing.
-		types := agmasync.SelectedTypes(*ev.Selection)
+		types := agmasync.SelectedTypes(*ev.RouteChange)
 		names := make([]string, 0, len(types))
 		for _, typ := range types {
 			names = append(names, string(typ))
 		}
 		fmt.Printf("%-26s %s=[%s]\n",
-			ev.Type, ev.Selection.ExternalId, strings.Join(names, " "))
+			ev.Type, ev.RouteChange.ExternalId, strings.Join(names, " "))
 
 	case ev.Reset != nil:
 		// Stands for an empty selection on every endpoint it lists, and for

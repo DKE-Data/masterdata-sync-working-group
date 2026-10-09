@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 )
 
 // A write is a JSON Merge Patch: a value replaces, null removes, and an
@@ -128,10 +130,12 @@ func TestNullOnARequiredAttributeIsRejected(t *testing.T) {
 	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	base := revisionOf(t, putFarm(t, p, richFarm, nil))
 
-	_, err := p.endpoint.Put(context.Background(),
-		entityOf(t, `{"type":"farm","local_id":"FRM-1","name":null}`), &base)
-	if !errors.Is(err, agmasync.ErrValidation) {
-		t.Errorf("error = %v, want ErrValidation", err)
+	// Sent as JSON: a typed farm cannot carry a null name.
+	_, err := p.endpoint.PutJSON(context.Background(),
+		[]byte(`{"type":"farm","local_id":"FRM-1","name":null}`), &base)
+	var status *agrirouter.StatusError
+	if !errors.As(err, &status) || status.StatusCode != http.StatusBadRequest {
+		t.Errorf("error = %v, want HTTP 400", err)
 	}
 }
 
@@ -182,7 +186,7 @@ func TestAStaleWriteNeitherConflictsWithNorRevertsWhatItLeavesOut(t *testing.T) 
 
 	created := putFarm(t, a, richFarm, nil)
 	base := revisionOf(t, created)
-	env, _ := agmasync.EnvelopeOf(created)
+	env, _ := agrirouter.EnvelopeOf(created)
 	if err := b.endpoint.Bind(
 		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterId,
 	); err != nil {

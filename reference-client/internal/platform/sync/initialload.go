@@ -11,6 +11,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	"github.com/google/uuid"
 )
@@ -55,7 +56,7 @@ type Reconciler interface {
 // again.
 type Attention struct {
 	mu       stdsync.Mutex
-	endpoint *agmasync.Endpoint
+	endpoint *agrirouter.Endpoint
 	raised   bool
 	err      error
 }
@@ -101,7 +102,7 @@ func (a *Attention) Raise(ctx context.Context) error {
 	return nil
 }
 
-func (a *Attention) begin(endpoint *agmasync.Endpoint) {
+func (a *Attention) begin(endpoint *agrirouter.Endpoint) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.endpoint, a.raised, a.err = endpoint, false, nil
@@ -148,7 +149,7 @@ type Recognition struct {
 //
 // Resolving it is done by identifier, not by content: the set is delivered
 // once, so an object left undecided comes back through
-// [agmasync.Endpoint.Request], which puts it on the live stream where the
+// [agrirouter.Endpoint.Request], which puts it on the live stream where the
 // receiver applies it like any other delivery, and AgrirouterID is what that
 // resolves through. Entity is carried alongside it only because the take saw
 // the object once and would otherwise throw the content away — a person
@@ -433,9 +434,14 @@ func (l *Loader) takeCanonicalSet(
 			continue
 		}
 
+		entity, err := agrirouter.EntityOf(ev.Object)
+		if err != nil {
+			return nil, err
+		}
+
 		// No position: an initial-load stream carries none, delivering a fixed
 		// set rather than a sequence of changes.
-		out, err := l.Applier.apply(ev.Entity, "", l.Reconciler, l.Types)
+		out, err := l.Applier.apply(entity, "", l.Reconciler, l.Types)
 		if err != nil {
 			return nil, err
 		}
@@ -449,7 +455,7 @@ func (l *Loader) takeCanonicalSet(
 		case out.Blocked:
 			res.Blocked = append(res.Blocked, BlockedObject{
 				Type: ev.Envelope.Type, AgrirouterID: *ev.Envelope.AgrirouterId,
-				Entity: ev.Entity,
+				Entity: entity,
 			})
 		case out.Created:
 			res.Created++
@@ -515,7 +521,7 @@ func (l *Loader) bindings(types []agmasync.EntityType) ([]oapi.IdMappingBinding,
 		if !wanted[row.EntityType] || row.AgrirouterID == nil {
 			continue
 		}
-		out = append(out, agmasync.Binding(row.LocalID, *row.AgrirouterID))
+		out = append(out, oapi.IdMappingBinding{LocalId: row.LocalID, AgrirouterId: *row.AgrirouterID})
 	}
 	return out, nil
 }

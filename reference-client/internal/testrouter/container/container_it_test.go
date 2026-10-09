@@ -12,6 +12,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/testrouter/container"
 	"github.com/google/uuid"
 )
@@ -39,17 +40,17 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 	tenant := createTenant(t, router.BaseURL)
 	senderID := createEndpoint(t, router.BaseURL, "fmis-a", tenant, "ep-a")
 	receiverID := createEndpoint(t, router.BaseURL, "fmis-b", tenant, "ep-b")
-	sender, err := agmasync.NewClient(router.BaseURL, agmasync.WithBearerToken("fmis-a"))
+	sender, err := agrirouter.NewClient(router.BaseURL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("sender client: %v", err)
 	}
-	receiver, err := agmasync.NewClient(router.BaseURL, agmasync.WithBearerToken("fmis-b"))
+	receiver, err := agrirouter.NewClient(router.BaseURL, agrirouter.WithBearerToken("fmis-b"))
 	if err != nil {
 		t.Fatalf("receiver client: %v", err)
 	}
 
-	senderEndpoint := sender.For(senderID, "ep-a", tenant)
-	receiverEndpoint := receiver.For(receiverID, "ep-b", tenant)
+	senderEndpoint := agrirouter.For(sender, senderID, "ep-a", tenant)
+	receiverEndpoint := agrirouter.For(receiver, receiverID, "ep-b", tenant)
 
 	// Declaring comes first and enables nothing: it is what the user's
 	// selection is then drawn from, and a selection naming an undeclared type
@@ -85,7 +86,7 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 	streamCtx, cancelStream := context.WithCancel(ctx)
 	defer cancelStream()
 
-	live, err := receiver.Events(streamCtx, "")
+	live, err := agmasync.Events(streamCtx, receiver, "")
 	if err != nil {
 		t.Fatalf("live stream: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 	}()
 
 	name := "Hof Nord"
-	entity, err := agmasync.FromFarm(oapi.Farm{LocalId: strptr("FRM-1"), Name: name})
+	entity, err := agrirouter.FromFarm(oapi.Farm{LocalId: strptr("FRM-1"), Name: name})
 	if err != nil {
 		t.Fatalf("building farm: %v", err)
 	}
@@ -165,7 +166,7 @@ func declare(
 	types ...agmasync.EntityType,
 ) {
 	t.Helper()
-	cfg := agmasync.Declaration(types...)
+	cfg := agmasync.DeclareCapabilities(types...)
 	raw, err := json.Marshal(oapi.PutEndpointRequest{
 		ApplicationId:     uuid.New(),
 		SoftwareVersionId: uuid.New(),

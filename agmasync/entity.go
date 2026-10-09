@@ -7,11 +7,11 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 )
 
-// EntityType is one of the four master-data entity types of the MVP scope.
+// EntityType is one of the master-data entity types.
 //
 // The values are the ones the `type` discriminator carries on the wire, and an
-// `entityType` toggle carries the same, so a declaration or a selection can be
-// compared against an entity's own type directly.
+// `entityType` toggle carries the same, so a capability declaration or a routing
+// selection can be compared against an entity's own type directly.
 //
 // The collection segments in the paths are spelled differently — plural and
 // kebab-cased, `field-boundaries` for `fieldBoundary` — but nothing here
@@ -27,8 +27,7 @@ const (
 	TypeFieldBoundary EntityType = "fieldBoundary"
 )
 
-// EntityTypes lists every supported type. Iterating it is how the sample
-// platform avoids hard-coding the set in more than one place.
+// EntityTypes lists every supported type.
 var EntityTypes = []EntityType{
 	TypeParty, TypeFarm, TypeField, TypeFieldBoundary,
 }
@@ -52,11 +51,6 @@ var DependencyOrder = []EntityType{
 }
 
 // Valid reports whether the type is one this version of the protocol defines.
-//
-// Unknown entity types are not the same case as unknown values of an
-// extensible enumeration, which must be tolerated and relayed unchanged. An
-// entity type names a resource and a local table; there is nothing useful a
-// participant can do with an entity whose type it has never heard of.
 func (t EntityType) Valid() bool {
 	switch t {
 	case TypeParty, TypeFarm, TypeField, TypeFieldBoundary:
@@ -74,24 +68,20 @@ func (t EntityType) Valid() bool {
 // an object a participant is about to send for the first time. LocalId is
 // absent for a second reason as well, and that absence is meaningful: on a
 // delivered object it states that agrirouter holds no mapping for the
-// receiving application, which is what makes the object recognisable as one
+// receiving application, which is what makes the object recognizable as one
 // the receiver must create locally and bind.
 type Envelope struct {
 	oapi.Envelope
 	Type EntityType `json:"type"`
 }
 
-// EnvelopeOf reads the common fields of an entity of any type.
+// EnvelopeOf reads the common fields of an entity of any type from its JSON.
 //
 // The event stream carries all four types over one connection, so a receiver
 // has to read `type`, `revision`, and `localId` before it knows which concrete
 // schema to decode into. That ordering is why this exists rather than a
 // four-way type switch at every call site.
-func EnvelopeOf(e oapi.Entity) (Envelope, error) {
-	raw, err := e.MarshalJSON()
-	if err != nil {
-		return Envelope{}, fmt.Errorf("agmasync: reading entity envelope: %w", err)
-	}
+func EnvelopeOf(raw []byte) (Envelope, error) {
 	var env Envelope
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return Envelope{}, fmt.Errorf("agmasync: reading entity envelope: %w", err)
@@ -102,31 +92,71 @@ func EnvelopeOf(e oapi.Entity) (Envelope, error) {
 	return env, nil
 }
 
-// Entity wrappers. The generated union has From* methods on a zero value; these
-// save every caller the same three lines.
+// Object is a canonical object of any entity type, decoded into its model.
+type Object struct {
+	// Envelope holds the object's common fields and its type, which says which
+	// of Party, Farm, Field, and FieldBoundary is set. A receiver needs the
+	// type and the revision before it can decide what to do with the object.
+	Envelope Envelope
 
-// FromParty wraps a party as an entity.
-func FromParty(v oapi.Party) (oapi.Entity, error) {
-	var e oapi.Entity
-	return e, e.FromParty(v)
+	// The object, decoded into its model. Exactly one is set, the one
+	// Envelope.Type names.
+	Party         *oapi.Party
+	Farm          *oapi.Farm
+	Field         *oapi.Field
+	FieldBoundary *oapi.FieldBoundary
 }
 
-// FromFarm wraps a farm as an entity.
-func FromFarm(v oapi.Farm) (oapi.Entity, error) {
-	var e oapi.Entity
-	return e, e.FromFarm(v)
+// ObjectOf decodes a canonical object of any entity type from its JSON.
+func ObjectOf(raw []byte) (Object, error) {
+	env, err := EnvelopeOf(raw)
+	if err != nil {
+		return Object{}, err
+	}
+	return decodeObject(env, raw)
 }
 
-// FromField wraps a field as an entity.
-func FromField(v oapi.Field) (oapi.Entity, error) {
-	var e oapi.Entity
-	return e, e.FromField(v)
+// objectAs decodes the answer to an operation that names its entity type, as
+// an object of type t. The type travels on the request, so the body need not
+// repeat it; when it does, it must agree.
+func objectAs(t EntityType, raw []byte) (Object, error) {
+	var env Envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return Object{}, fmt.Errorf("agmasync: reading entity envelope: %w", err)
+	}
+	switch env.Type {
+	case "":
+		env.Type = t
+	case t:
+	default:
+		return Object{}, fmt.Errorf("agmasync: %w: asked for a %s, answered with a %s",
+			ErrEntityTypeMismatch, t, env.Type)
+	}
+	return decodeObject(env, raw)
 }
 
-// FromFieldBoundary wraps a field boundary as an entity.
-func FromFieldBoundary(v oapi.FieldBoundary) (oapi.Entity, error) {
-	var e oapi.Entity
-	return e, e.FromFieldBoundary(v)
+// decodeObject decodes raw into the model env.Type names.
+func decodeObject(env Envelope, raw []byte) (Object, error) {
+	var err error
+	o := Object{Envelope: env}
+	switch env.Type {
+	case TypeParty:
+		o.Party = new(oapi.Party)
+		err = json.Unmarshal(raw, o.Party)
+	case TypeFarm:
+		o.Farm = new(oapi.Farm)
+		err = json.Unmarshal(raw, o.Farm)
+	case TypeField:
+		o.Field = new(oapi.Field)
+		err = json.Unmarshal(raw, o.Field)
+	case TypeFieldBoundary:
+		o.FieldBoundary = new(oapi.FieldBoundary)
+		err = json.Unmarshal(raw, o.FieldBoundary)
+	}
+	if err != nil {
+		return Object{}, fmt.Errorf("agmasync: decoding %s: %w", env.Type, err)
+	}
+	return o, nil
 }
 
 // LocalRef builds a reference to another entity from the referencing

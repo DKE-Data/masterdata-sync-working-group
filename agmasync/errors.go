@@ -1,12 +1,12 @@
 package agmasync
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
-	"github.com/google/uuid"
 )
 
 // Sentinel errors for conditions a participant branches on. Compare with
@@ -44,9 +44,25 @@ var (
 	// is not this — that succeeds. See "Initial load" in specification.md.
 	ErrInitialLoadConflict = errors.New("initial load transition out of order")
 
+	// ErrLocalIDRequired is raised locally: an entity is sent under its
+	// local_id, so a write without one cannot be addressed.
+	ErrLocalIDRequired = errors.New("local_id is required on send")
+
+	// ErrEmptyResponse is a success status that carried no body to read.
+	ErrEmptyResponse = errors.New("empty response")
+
 	// ErrUnknownEntityType is raised locally, not by agrirouter, when an
 	// entity carries a type this version does not define.
 	ErrUnknownEntityType = errors.New("unknown entity type")
+
+	// ErrEntityTypeMismatch is an answer carrying an entity of another type
+	// than the operation asked for.
+	ErrEntityTypeMismatch = errors.New("entity type mismatch")
+
+	// ErrNotEventStream is a stream answering 200 in a media type other than
+	// text/event-stream — a proxy or an error page answering in agrirouter's
+	// place.
+	ErrNotEventStream = errors.New("not an event stream")
 )
 
 // RevisionConflict reports a rejected write and the revision that stands.
@@ -69,7 +85,7 @@ func (e *RevisionConflict) Error() string {
 }
 
 // Is makes [errors.Is] match [ErrRevisionConflict].
-func (e *RevisionConflict) Is(target error) bool { return target == ErrRevisionConflict }
+func (e *RevisionConflict) Is(target error) bool { return errors.Is(target, ErrRevisionConflict) }
 
 // MappingConflict reports a binding that could not be recorded.
 //
@@ -90,7 +106,7 @@ func (e *MappingConflict) Error() string {
 }
 
 // Is makes [errors.Is] match [ErrMappingConflict].
-func (e *MappingConflict) Is(target error) bool { return target == ErrMappingConflict }
+func (e *MappingConflict) Is(target error) bool { return errors.Is(target, ErrMappingConflict) }
 
 // Rejection reasons. The set is an extensible enumeration, so a participant
 // MUST tolerate a value it does not know rather than treat it as a failure to
@@ -143,7 +159,7 @@ func (e *APIError) Error() string {
 
 // Is matches the sentinel for the status code, where there is one.
 func (e *APIError) Is(target error) bool {
-	return e.sentinel != nil && target == e.sentinel
+	return e.sentinel != nil && errors.Is(target, e.sentinel)
 }
 
 // writeResult is what every write operation reduces to before it is turned into
@@ -152,7 +168,6 @@ func (e *APIError) Is(target error) bool {
 // wrapper fills this in and shares the handling below.
 type writeResult struct {
 	statusCode int
-	entity     *oapi.Entity
 	validation *oapi.Error
 	forbidden  *oapi.Error
 	notFound   *oapi.Error
@@ -172,11 +187,11 @@ func (r writeResult) err() error {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted, http.StatusNoContent:
 		return nil
 	case http.StatusBadRequest:
-		return &APIError{r.statusCode, message(r.validation, "validation failed"), ErrValidation}
+		return &APIError{r.statusCode, r.message(r.validation, "validation failed"), ErrValidation}
 	case http.StatusForbidden:
-		return &APIError{r.statusCode, message(r.forbidden, "forbidden"), ErrForbidden}
+		return &APIError{r.statusCode, r.message(r.forbidden, "forbidden"), ErrForbidden}
 	case http.StatusNotFound:
-		return &APIError{r.statusCode, message(r.notFound, "not found"), ErrNotFound}
+		return &APIError{r.statusCode, r.message(r.notFound, "not found"), ErrNotFound}
 	case http.StatusConflict:
 		if r.conflict != nil {
 			return &MappingConflict{Rejection: r.conflict.Rejection, Message: r.conflict.Message}
@@ -201,7 +216,20 @@ func (r writeResult) err() error {
 	}
 }
 
-func message(e *oapi.Error, fallback string) string {
+// message is the error message agrirouter sent, or fallback where it sent none.
+//
+// e is the body as the generated client decoded it. It is nil where the
+// operation declares no body for the status — no operation but a put declares
+// a 400, though agrirouter answers one to any malformed request — and for the
+// streams, which are read without the generated decoding. The raw body is read
+// as the same error schema then.
+func (r writeResult) message(e *oapi.Error, fallback string) string {
+	if e == nil {
+		var raw oapi.Error
+		if json.Unmarshal(r.body, &raw) == nil {
+			e = &raw
+		}
+	}
 	if e == nil || e.Message == "" {
 		return fallback
 	}
@@ -212,9 +240,9 @@ func unexpected(body []byte) string {
 	if len(body) == 0 {
 		return "unexpected response"
 	}
-	const max = 200
-	if len(body) > max {
-		body = body[:max]
+	const maxLen = 200
+	if len(body) > maxLen {
+		body = body[:maxLen]
 	}
 	return "unexpected response: " + string(body)
 }
@@ -237,10 +265,4 @@ func (r mappingResult) err() error {
 		conflict:   r.conflict,
 		body:       r.body,
 	}.err()
-}
-
-// binding is a convenience for constructing the pairs carried in bulk on the
-// initial-load confirmation.
-func binding(localID string, agrirouterID uuid.UUID) oapi.IdMappingBinding {
-	return oapi.IdMappingBinding{LocalId: localID, AgrirouterId: agrirouterID}
 }

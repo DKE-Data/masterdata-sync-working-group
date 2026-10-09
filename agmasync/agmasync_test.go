@@ -1,6 +1,7 @@
 package agmasync_test
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
@@ -55,7 +56,7 @@ func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 	}
 }
 
-func TestDeclaredMatchesTypeNames(t *testing.T) {
+func TestDeclaresCapabilityMatchesTypeNames(t *testing.T) {
 	cfg := oapi.MasterdataConfig{Capabilities: []oapi.EntityTypeToggle{
 		{EntityType: "farm"},
 		{EntityType: "fieldBoundary"},
@@ -69,8 +70,8 @@ func TestDeclaredMatchesTypeNames(t *testing.T) {
 		{agmasync.TypeFieldBoundary, true},
 		{agmasync.TypeField, false},
 	} {
-		if got := agmasync.Declared(cfg, tc.in); got != tc.want {
-			t.Errorf("Declared(%v) = %v, want %v", tc.in, got, tc.want)
+		if got := agmasync.DeclaresCapability(cfg, tc.in); got != tc.want {
+			t.Errorf("DeclaresCapability(%v) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
 }
@@ -109,17 +110,18 @@ func TestEnvelopeOfReadsCommonFieldsWhicheverTypeItIs(t *testing.T) {
 	revision := 7
 	localID := "PFD-00042"
 
-	ent, err := agmasync.FromField(oapi.Field{
+	raw, err := json.Marshal(oapi.Field{
+		Type:         "field",
 		AgrirouterId: &arID,
 		LocalId:      &localID,
 		Revision:     &revision,
 		Name:         "North 40",
 	})
 	if err != nil {
-		t.Fatalf("FromField: %v", err)
+		t.Fatal(err)
 	}
 
-	env, err := agmasync.EnvelopeOf(ent)
+	env, err := agmasync.EnvelopeOf(raw)
 	if err != nil {
 		t.Fatalf("EnvelopeOf: %v", err)
 	}
@@ -137,50 +139,8 @@ func TestEnvelopeOfReadsCommonFieldsWhicheverTypeItIs(t *testing.T) {
 	}
 }
 
-func TestEnvelopeOfSetsTheDiscriminatorForEveryType(t *testing.T) {
-	// The union writes the discriminator; nothing else does. If a wrapper ever
-	// stopped setting it, objects would go out untyped and arrive unreadable.
-	cases := []struct {
-		want agmasync.EntityType
-		make func() (oapi.Entity, error)
-	}{
-		{agmasync.TypeParty, func() (oapi.Entity, error) {
-			return agmasync.FromParty(oapi.Party{Name: "Acme"})
-		}},
-		{agmasync.TypeFarm, func() (oapi.Entity, error) {
-			return agmasync.FromFarm(oapi.Farm{Name: "Hof Nord"})
-		}},
-		{agmasync.TypeField, func() (oapi.Entity, error) {
-			return agmasync.FromField(oapi.Field{Name: "North 40"})
-		}},
-		{agmasync.TypeFieldBoundary, func() (oapi.Entity, error) {
-			return agmasync.FromFieldBoundary(oapi.FieldBoundary{})
-		}},
-	}
-
-	for _, tc := range cases {
-		t.Run(string(tc.want), func(t *testing.T) {
-			ent, err := tc.make()
-			if err != nil {
-				t.Fatalf("building entity: %v", err)
-			}
-			env, err := agmasync.EnvelopeOf(ent)
-			if err != nil {
-				t.Fatalf("EnvelopeOf: %v", err)
-			}
-			if env.Type != tc.want {
-				t.Errorf("Type = %q, want %q", env.Type, tc.want)
-			}
-		})
-	}
-}
-
 func TestEnvelopeOfRejectsAnUnknownEntityType(t *testing.T) {
-	var ent oapi.Entity
-	if err := ent.UnmarshalJSON([]byte(`{"type":"guidanceLine","localId":"GL-1"}`)); err != nil {
-		t.Fatalf("UnmarshalJSON: %v", err)
-	}
-	if _, err := agmasync.EnvelopeOf(ent); !errors.Is(err, agmasync.ErrUnknownEntityType) {
+	if _, err := agmasync.EnvelopeOf([]byte(`{"type":"guidanceLine","localId":"GL-1"}`)); !errors.Is(err, agmasync.ErrUnknownEntityType) {
 		t.Errorf("EnvelopeOf error = %v, want ErrUnknownEntityType", err)
 	}
 }

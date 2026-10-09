@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 )
 
 func mappingRejections() Scenario {
@@ -131,7 +132,11 @@ func runMappingRejections(ctx context.Context, w *World) error {
 	if len(waiting) == 0 {
 		return errors.New("Gamma was sent nothing to create a record from")
 	}
-	outcome, err := gamma.Applier.Apply(waiting[0].Entity, "")
+	sent, err := agrirouter.EntityOf(waiting[0].Object)
+	if err != nil {
+		return err
+	}
+	outcome, err := gamma.Applier.Apply(sent, "")
 	if err != nil {
 		return err
 	}

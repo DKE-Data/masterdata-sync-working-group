@@ -9,6 +9,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 )
@@ -523,7 +524,7 @@ func TestRejectionIsResolvedAgainstTheWholePairNotTheLocalIdAlone(t *testing.T) 
 	if len(delivered) == 0 {
 		t.Fatal("the endpoint received nothing to create a record from")
 	}
-	outcome, err := b.Apply(delivered[0].Entity, delivered[0].ID)
+	outcome, err := b.Apply(entityOf(t, delivered[0]), delivered[0].ID)
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -586,7 +587,7 @@ func TestRejectedBindingIsDroppedLocallyAndNotSentAsNew(t *testing.T) {
 	if len(delivered) == 0 {
 		t.Fatal("the endpoint received nothing to create a record from")
 	}
-	outcome, err := b.Apply(delivered[0].Entity, delivered[0].ID)
+	outcome, err := b.Apply(entityOf(t, delivered[0]), delivered[0].ID)
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -636,7 +637,7 @@ func TestRejectedBindingIsDroppedLocallyAndNotSentAsNew(t *testing.T) {
 // returned Recognition cannot get right.
 type asksAPerson struct {
 	attention *psync.Attention
-	endpoint  *agmasync.Endpoint
+	endpoint  *agrirouter.Endpoint
 
 	asked  int
 	flagUp bool

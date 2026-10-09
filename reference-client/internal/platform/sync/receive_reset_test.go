@@ -7,6 +7,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/google/uuid"
@@ -29,7 +30,7 @@ func TestAResetDropsThePairsAndKeepsTheRecords(t *testing.T) {
 	}
 	before := syncRow(t, a, agmasync.TypeFarm, "FRM-1")
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
@@ -149,7 +150,7 @@ func TestAResetClearsThePairsOfATenantNoApplierClaims(t *testing.T) {
 		t.Fatalf("reset: %v", err)
 	}
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken("fmis-a"))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken("fmis-a"))
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}

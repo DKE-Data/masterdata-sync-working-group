@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/google/uuid"
 )
@@ -178,7 +179,11 @@ func activeFields(p *Platform) ([]string, error) {
 // mentions reports whether a delivered object names a canonical identifier
 // anywhere, which is what a lineage attribute would look like if there were one.
 func mentions(ev agmasync.Event, id uuid.UUID) (bool, error) {
-	raw, err := ev.Entity.MarshalJSON()
+	entity, err := agrirouter.EntityOf(ev.Object)
+	if err != nil {
+		return false, err
+	}
+	raw, err := entity.MarshalJSON()
 	if err != nil {
 		return false, err
 	}

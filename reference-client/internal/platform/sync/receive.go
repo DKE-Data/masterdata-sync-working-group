@@ -6,6 +6,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	"github.com/google/uuid"
 )
@@ -18,7 +19,7 @@ import (
 // tenant and routes each frame by the tenant its object belongs to. See
 // "Common envelope" in specification.md.
 type Receiver struct {
-	Client *agmasync.Client
+	Client *agrirouter.Client
 
 	// Store is where the delivery position lives. It is the application's
 	// position rather than one tenant's, one stream serving all of them.
@@ -162,7 +163,7 @@ func (r *Receiver) consume(
 
 	var err error
 
-	stream, err := r.Client.Events(ctx, from)
+	stream, err := agmasync.Events(ctx, r.Client, from)
 	if err != nil {
 		return res, err
 	}
@@ -199,13 +200,13 @@ func (r *Receiver) consume(
 			}
 			continue
 		}
-		if ev.Selection != nil {
+		if ev.RouteChange != nil {
 			// The one frame on this stream that is not an entity, and it states
 			// the whole selection rather than a delta, so handing it on is the
 			// whole of acting on it. Its position travels with what the platform
 			// persisted from it, which is the only way the receiver can claim to
 			// have applied it.
-			applied, err := r.applySelection(ev, *ev.Selection)
+			applied, err := r.applySelection(ev, *ev.RouteChange)
 			if err != nil {
 				return res, err
 			}
@@ -242,7 +243,11 @@ func (r *Receiver) consume(
 			return res, err
 		}
 
-		outcome, err := applier.Apply(ev.Entity, ev.ID)
+		entity, err := agrirouter.EntityOf(ev.Object)
+		if err != nil {
+			return res, err
+		}
+		outcome, err := applier.Apply(entity, ev.ID)
 		if err != nil {
 			return res, err
 		}

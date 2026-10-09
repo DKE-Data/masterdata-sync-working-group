@@ -9,6 +9,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/testrouter"
@@ -73,7 +74,7 @@ func (h *harness) joinAgrirouterTenant(
 		h.t.Fatalf("opt in: %v", err)
 	}
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken(appID))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken(appID))
 	if err != nil {
 		h.t.Fatalf("client: %v", err)
 	}
@@ -90,7 +91,7 @@ func (h *harness) joinAgrirouterTenant(
 	return &psync.Applier{
 		Store:    db,
 		Tenant:   tenant,
-		Endpoint: client.For(endpointID, externalID, agrirouterTenant),
+		Endpoint: agrirouter.For(client, endpointID, externalID, agrirouterTenant),
 		IDs:      &counterIDs{prefix: tenant},
 	}
 }
@@ -220,7 +221,7 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 
 	// Replay revision 1 over the top of what is held.
 	stale := 1
-	old, err := agmasync.FromFarm(oapi.Farm{
+	old, err := agrirouter.FromFarm(oapi.Farm{
 		AgrirouterId: row.AgrirouterID,
 		TenantId:     &h.tenant,
 		LocalId:      strptr("FRM-1"),
@@ -269,7 +270,7 @@ func TestDeliveryWithoutLocalIDIsCreatedAndBound(t *testing.T) {
 		t.Fatal("the other participant received nothing")
 	}
 
-	outcome, err := b.Apply(delivered[0].Entity, delivered[0].ID)
+	outcome, err := b.Apply(entityOf(t, delivered[0]), delivered[0].ID)
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -323,7 +324,7 @@ func TestPositionAdvancesOnlyWithTheObjectItCovers(t *testing.T) {
 	if len(delivered) == 0 {
 		t.Fatal("the other participant received nothing")
 	}
-	if _, err := b.Apply(delivered[0].Entity, delivered[0].ID); err != nil {
+	if _, err := b.Apply(entityOf(t, delivered[0]), delivered[0].ID); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
 
@@ -347,11 +348,7 @@ func canonicalOf(t *testing.T, a *psync.Applier, typ agmasync.EntityType, localI
 // bypassing the platform's own store, and applies nothing.
 func putRaw(t *testing.T, a *psync.Applier, body string, base *int) map[string]json.RawMessage {
 	t.Helper()
-	var ent oapi.Entity
-	if err := ent.UnmarshalJSON([]byte(body)); err != nil {
-		t.Fatal(err)
-	}
-	got, err := a.Endpoint.Put(context.Background(), ent, base)
+	got, err := a.Endpoint.PutJSON(context.Background(), []byte(body), base)
 	if err != nil {
 		t.Fatalf("put %s: %v", body, err)
 	}
@@ -389,11 +386,7 @@ func revisionAfter(t *testing.T, attributes map[string]json.RawMessage) int {
 // as it would apply the delivery of another participant's change.
 func applyRaw(t *testing.T, a *psync.Applier, body string, base int) {
 	t.Helper()
-	var ent oapi.Entity
-	if err := ent.UnmarshalJSON([]byte(body)); err != nil {
-		t.Fatal(err)
-	}
-	got, err := a.Endpoint.Put(context.Background(), ent, &base)
+	got, err := a.Endpoint.PutJSON(context.Background(), []byte(body), &base)
 	if err != nil {
 		t.Fatalf("put %s: %v", body, err)
 	}
@@ -488,7 +481,7 @@ func TestUnrecognisedInactiveObjectCreatesNothing(t *testing.T) {
 	inactive := false
 	revision := 4
 	id := uuid.New()
-	entity, err := agmasync.FromFarm(oapi.Farm{
+	entity, err := agrirouter.FromFarm(oapi.Farm{
 		AgrirouterId: &id,
 		TenantId:     &h.tenant,
 		Name:         "Hof Vergangen",
@@ -520,7 +513,7 @@ func TestObjectNamingNoTenantIsDiscarded(t *testing.T) {
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
 
 	id := uuid.New()
-	entity, err := agmasync.FromFarm(oapi.Farm{AgrirouterId: &id, Name: "Hof Ohne"})
+	entity, err := agrirouter.FromFarm(oapi.Farm{AgrirouterId: &id, Name: "Hof Ohne"})
 	if err != nil {
 		t.Fatalf("building entity: %v", err)
 	}
@@ -542,17 +535,27 @@ func TestObjectNamingNoTenantIsDiscarded(t *testing.T) {
 }
 
 // deliverTo drains what one participant's live stream is holding.
+// entityOf is the object a frame carries, as the platform applies it.
+func entityOf(t *testing.T, ev agmasync.Event) oapi.Entity {
+	t.Helper()
+	entity, err := agrirouter.EntityOf(ev.Object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entity
+}
+
 func deliverTo(t *testing.T, h *harness, appID string) []agmasync.Event {
 	t.Helper()
 
-	client, err := agmasync.NewClient(h.server.URL, agmasync.WithBearerToken(appID))
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken(appID))
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := client.Events(ctx, "")
+	stream, err := agmasync.Events(ctx, client, "")
 	if err != nil {
 		t.Fatalf("stream: %v", err)
 	}
@@ -657,7 +660,7 @@ func TestOneTenantsBindingSpeaksForTheWholePlatform(t *testing.T) {
 	}
 
 	// The first tenant creates the platform's record for the object and binds it.
-	outcome, err := first.Apply(delivered[0].Entity, delivered[0].ID)
+	outcome, err := first.Apply(entityOf(t, delivered[0]), delivered[0].ID)
 	if err != nil {
 		t.Fatalf("apply in the first tenant: %v", err)
 	}
@@ -681,7 +684,7 @@ func TestOneTenantsBindingSpeaksForTheWholePlatform(t *testing.T) {
 	// The same object reaching the second tenant finds the platform's own record
 	// through the mapping. Nothing is created, and there is nothing left to
 	// bind — agrirouter already holds this participant's identifier for it.
-	secondOutcome, err := second.Apply(delivered[0].Entity, delivered[0].ID)
+	secondOutcome, err := second.Apply(entityOf(t, delivered[0]), delivered[0].ID)
 	if err != nil {
 		t.Fatalf("apply in the second tenant: %v", err)
 	}

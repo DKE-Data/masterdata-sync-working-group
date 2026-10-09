@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -230,10 +231,10 @@ func (c config) httpClient(ctx context.Context) *http.Client {
 // The two ways are exclusive rather than layered: an OAuth client sets the
 // header itself on every request, and a static token added on top would
 // overwrite it with something a real agrirouter rejects.
-func (c config) options(ctx context.Context) []agmasync.Option {
-	opts := []agmasync.Option{agmasync.WithHTTPClient(c.httpClient(ctx))}
+func (c config) options(ctx context.Context) []agrirouter.Option {
+	opts := []agrirouter.Option{agrirouter.WithHTTPClient(c.httpClient(ctx))}
 	if c.token != "" {
-		opts = append(opts, agmasync.WithBearerToken(c.token))
+		opts = append(opts, agrirouter.WithBearerToken(c.token))
 	}
 	return opts
 }

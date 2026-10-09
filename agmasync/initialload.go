@@ -3,6 +3,7 @@ package agmasync
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ const (
 	StateCompleted = oapi.COMPLETED
 )
 
-// Declaration builds the masterdata configuration declaring the given entity
+// DeclareCapabilities builds the masterdata configuration declaring the given entity
 // types, closed over entity dependencies (see [DependencyClosure]).
 //
 // It is the `masterdata` field of the application's own PutEndpoint call. This
@@ -51,13 +52,13 @@ const (
 // Withdrawing a type narrows any selection naming it, which for that type has
 // the effect of the user deselecting it. That is the only way a declaration
 // changes what is delivered, and it can only ever remove.
-func Declaration(types ...EntityType) oapi.MasterdataConfig {
+func DeclareCapabilities(types ...EntityType) oapi.MasterdataConfig {
 	closure := DependencyClosure(types)
-	toggles := make([]oapi.EntityTypeToggle, 0, len(closure))
+	capabilities := make([]oapi.EntityTypeToggle, 0, len(closure))
 	for _, t := range closure {
-		toggles = append(toggles, oapi.EntityTypeToggle{EntityType: string(t)})
+		capabilities = append(capabilities, oapi.EntityTypeToggle{EntityType: string(t)})
 	}
-	return oapi.MasterdataConfig{Capabilities: toggles}
+	return oapi.MasterdataConfig{Capabilities: capabilities}
 }
 
 // DependencyClosure expands a set of entity types to the dependency-closed set
@@ -122,11 +123,11 @@ func SelectedTypes(s oapi.RouteChangedEventData) []EntityType {
 	return out
 }
 
-// Declared reports whether the endpoint declared it can exchange a type.
+// DeclaresCapability reports whether the endpoint declared it can exchange a type.
 //
 // It answers what the software is capable of, never what the user opted it into
 // — see [SelectedTypes] for that.
-func Declared(cfg oapi.MasterdataConfig, t EntityType) bool {
+func DeclaresCapability(cfg oapi.MasterdataConfig, t EntityType) bool {
 	for _, toggle := range cfg.Capabilities {
 		if toggle.EntityType == string(t) {
 			return true
@@ -135,7 +136,7 @@ func Declared(cfg oapi.MasterdataConfig, t EntityType) bool {
 	return false
 }
 
-// InitialLoadStatus reads the endpoint's initial-load state.
+// GetInitialLoadStatus reads the endpoint's initial-load state.
 //
 // This is what says whether the canonical set has been sent. A participant
 // MUST NOT read that from its initial-load stream ending, because a dropped
@@ -145,9 +146,12 @@ func Declared(cfg oapi.MasterdataConfig, t EntityType) bool {
 //
 // Returns [ErrNotFound] for an endpoint opted into no entity type, which has no
 // initial-load state at all.
-func (e *Endpoint) InitialLoadStatus(ctx context.Context) (oapi.InitialLoadStatus, error) {
-	r, err := e.client.api.GetInitialLoadStatusWithResponse(ctx, e.externalID,
-		&oapi.GetInitialLoadStatusParams{XAgrirouterTenantId: e.tenantID})
+func GetInitialLoadStatus(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	externalEndpointID string, tenantID uuid.UUID,
+) (oapi.InitialLoadStatus, error) {
+	r, err := api.GetInitialLoadStatusWithResponse(ctx, externalEndpointID,
+		&oapi.GetInitialLoadStatusParams{XAgrirouterTenantId: tenantID})
 	if err != nil {
 		return oapi.InitialLoadStatus{}, transportErr(err)
 	}
@@ -157,7 +161,7 @@ func (e *Endpoint) InitialLoadStatus(ctx context.Context) (oapi.InitialLoadStatu
 		return oapi.InitialLoadStatus{}, resErr
 	}
 	if r.JSON200 == nil {
-		return oapi.InitialLoadStatus{}, fmt.Errorf("agmasync: empty initial load status")
+		return oapi.InitialLoadStatus{}, fmt.Errorf("%w: no initial load status", ErrEmptyResponse)
 	}
 	return *r.JSON200, nil
 }
@@ -186,16 +190,18 @@ func IsRepeatLoad(s oapi.InitialLoadStatus) bool {
 //
 // [StateLoadingFromAgrirouter] is refused from every state, including from
 // itself. This operation moves the endpoint and does nothing else; reporting
-// that a user is needed is [Endpoint.ReportUserAttention].
-func (e *Endpoint) SetInitialLoadState(
-	ctx context.Context, upd oapi.InitialLoadStateUpdate,
+// that a user is needed is [ReportUserAttention].
+func SetInitialLoadState(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	externalEndpointID string, tenantID uuid.UUID,
+	upd oapi.InitialLoadStateUpdate,
 ) (oapi.InitialLoadStatus, error) {
-	r, err := e.client.api.SetInitialLoadStateWithResponse(ctx, e.externalID,
-		&oapi.SetInitialLoadStateParams{XAgrirouterTenantId: e.tenantID}, upd)
+	r, err := api.SetInitialLoadStateWithResponse(ctx, externalEndpointID,
+		&oapi.SetInitialLoadStateParams{XAgrirouterTenantId: tenantID}, upd)
 	if err != nil {
 		return oapi.InitialLoadStatus{}, transportErr(err)
 	}
-	if r.StatusCode() == 409 {
+	if r.StatusCode() == http.StatusConflict {
 		msg := "initial load transition out of order"
 		if r.JSON409 != nil && r.JSON409.Message != "" {
 			msg = r.JSON409.Message
@@ -209,7 +215,7 @@ func (e *Endpoint) SetInitialLoadState(
 		return oapi.InitialLoadStatus{}, resErr
 	}
 	if r.JSON200 == nil {
-		return oapi.InitialLoadStatus{}, fmt.Errorf("agmasync: empty initial load status")
+		return oapi.InitialLoadStatus{}, fmt.Errorf("%w: no initial load status", ErrEmptyResponse)
 	}
 	return *r.JSON200, nil
 }
@@ -227,65 +233,39 @@ func (e *Endpoint) SetInitialLoadState(
 // Bindings are applied independently: a pair that cannot be recorded comes back
 // in the status's RejectedIdMappings rather than failing the transition, since
 // one unresolvable pair should not block the load of a whole set. Each has to
-// be resolved on its own terms and rebound through [Endpoint.Bind]; use
+// be resolved on its own terms and rebound through [Bind]; use
 // [NeedsUser] to tell the ones that need a person from the ones that do not.
-func (e *Endpoint) ConfirmReconciled(
-	ctx context.Context, bindings []oapi.IdMappingBinding,
+func ConfirmReconciled(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	externalEndpointID string, tenantID uuid.UUID,
+	bindings []oapi.IdMappingBinding,
 ) (oapi.InitialLoadStatus, error) {
-	return e.SetInitialLoadState(ctx, oapi.InitialLoadStateUpdate{
+	return SetInitialLoadState(ctx, api, externalEndpointID, tenantID, oapi.InitialLoadStateUpdate{
 		State:      StateLoadingToAgrirouter,
 		IdMappings: &bindings,
 	})
 }
 
 // CompleteInitialLoad declares that the endpoint has sent everything it holds.
-func (e *Endpoint) CompleteInitialLoad(ctx context.Context) (oapi.InitialLoadStatus, error) {
-	return e.SetInitialLoadState(ctx, oapi.InitialLoadStateUpdate{State: StateCompleted})
+func CompleteInitialLoad(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	externalEndpointID string, tenantID uuid.UUID,
+) (oapi.InitialLoadStatus, error) {
+	return SetInitialLoadState(ctx, api, externalEndpointID, tenantID, oapi.InitialLoadStateUpdate{State: StateCompleted})
 }
-
-// The canonical set cannot be asked for through this API, and there is no
-// operation that re-enters [StateLoadingFromAgrirouter]. Opting an entity type
-// in restarts the load, and nothing else does.
-//
-// A participant that has fallen behind, or whose store was restored from a
-// backup, does not need one. A backup carries the delivery position along with
-// the data, positions do not expire, and catch-up serves the current value of
-// everything that changed since — so resuming [Client.Events] from the restored
-// position is the whole recovery. Objects the endpoint wrote itself are the
-// exception, being withheld by origin suppression; a stale copy of one resolves
-// on the next edit, since a stale base is answered with the current revision or
-// a merge and the object can then be fetched with [Endpoint.Request], requests
-// being exempt from suppression.
 
 // ReportUserAttention tells agrirouter that this endpoint's reconciliation is
 // waiting on a person.
-//
-// Resolution happens on a screen agrirouter cannot see, while the user who
-// connected the endpoint may well be looking at agrirouter — so agrirouter
-// shows "waiting for you in <app>" in place of its own "this application is
-// working through your data". It is one bit per endpoint: agrirouter learns
-// that a person is needed and never what for.
-//
-// It names no state, and that is the point of it being its own operation.
-// Conflicts surface object by object, so this has to be sendable from any state
-// before [StateCompleted] — including while the set is still arriving, when the
-// endpoint has no state of its own to name and agrirouter may advance it at any
-// moment. Naming nothing, the report cannot be out of order and cannot race a
-// transition.
-//
-// The endpoint raises and agrirouter clears, on the two endpoint-driven
-// transitions only; there is nothing here to lower it with. Repeating it while
-// it is already raised does nothing. A [StateCompleted] load waits on nobody, so
-// reporting one is [ErrInitialLoadConflict]. Nothing in the protocol branches on
-// the flag, so an endpoint that never calls this costs precision rather than
-// correctness.
-func (e *Endpoint) ReportUserAttention(ctx context.Context) (oapi.InitialLoadStatus, error) {
-	r, err := e.client.api.ReportUserAttentionWithResponse(ctx, e.externalID,
-		&oapi.ReportUserAttentionParams{XAgrirouterTenantId: e.tenantID})
+func ReportUserAttention(
+	ctx context.Context, api *oapi.ClientWithResponses,
+	externalEndpointID string, tenantID uuid.UUID,
+) (oapi.InitialLoadStatus, error) {
+	r, err := api.ReportUserAttentionWithResponse(ctx, externalEndpointID,
+		&oapi.ReportUserAttentionParams{XAgrirouterTenantId: tenantID})
 	if err != nil {
 		return oapi.InitialLoadStatus{}, transportErr(err)
 	}
-	if r.StatusCode() == 409 {
+	if r.StatusCode() == http.StatusConflict {
 		msg := "the initial load is completed and waits on nobody"
 		if r.JSON409 != nil && r.JSON409.Message != "" {
 			msg = r.JSON409.Message
@@ -298,13 +278,7 @@ func (e *Endpoint) ReportUserAttention(ctx context.Context) (oapi.InitialLoadSta
 		return oapi.InitialLoadStatus{}, resErr
 	}
 	if r.JSON200 == nil {
-		return oapi.InitialLoadStatus{}, fmt.Errorf("agmasync: empty initial load status")
+		return oapi.InitialLoadStatus{}, fmt.Errorf("%w: no initial load status", ErrEmptyResponse)
 	}
 	return *r.JSON200, nil
-}
-
-// Binding pairs one of this participant's local identifiers with the canonical
-// object it was matched to, for the bulk confirmation.
-func Binding(localID string, agrirouterID uuid.UUID) oapi.IdMappingBinding {
-	return binding(localID, agrirouterID)
 }
