@@ -266,3 +266,7 @@ func (r mappingResult) err() error {
 		body:       r.body,
 	}.err()
 }
+
+func transportErr(err error) error {
+	return fmt.Errorf("agmasync: request failed: %w", err)
+}
