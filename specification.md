@@ -627,6 +627,7 @@ Example event (non-normative):
 ~~~ json
 {
   "event_type": "ROUTE_CHANGED",
+  "tenant_id": "3c1b5a2e-7d4f-4e8a-9b6c-1f2e3d4c5b6a",
   "endpoint_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
   "external_id": "urn:my-app:endpoint:42",
   "entity_types": [

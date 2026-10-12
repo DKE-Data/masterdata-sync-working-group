@@ -403,7 +403,7 @@ The stream carries one event that is not an entity: `ROUTE_CHANGED`,
 which states which entity types the user has selected for one of the
 application's endpoints ([ADR 06](./06-initial-load.md)).
 
-- **It names one endpoint.** The user makes the selection on that endpoint's
+- **It names one endpoint**, with its tenant. The user makes the selection on that endpoint's
   masterdata route, so every way it changes (route created, a type selected on
   one already routed, a type deselected, the last one deselected) affects only
   one.

@@ -2398,12 +2398,16 @@ components:
         route removed.
 
         The event may arrive more than once for one move and MUST be handled idempotently.
-      required: [event_type, endpoint_id, external_id, entity_types, changed_at]
+      required: [event_type, tenant_id, endpoint_id, external_id, entity_types, changed_at]
       properties:
         event_type:
           type: string
           const: ROUTE_CHANGED
           description: Discriminator; matches the `event:` line.
+        tenant_id:
+          type: string
+          format: uuid
+          description: The tenant of the endpoint.
         endpoint_id:
           type: string
           format: uuid

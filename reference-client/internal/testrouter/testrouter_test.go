@@ -1070,6 +1070,9 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 	if frame.EndpointId == uuid.Nil {
 		t.Error("frame names no agrirouter endpoint id")
 	}
+	if frame.TenantId != f.tenant {
+		t.Errorf("tenantId = %v, want %v", frame.TenantId, f.tenant)
+	}
 
 	// The event type is repeated in the payload, as the other agrirouter event
 	// streams do it, so a frame handed on without its SSE framing still says

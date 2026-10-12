@@ -227,7 +227,7 @@ type Entity struct {
 	union json.RawMessage
 }
 
-// EntityReference A reference to another entity by canonical and/or local id. On send either identifier suffices: a local_id is resolved against the sender's own mapping, and is rejected if the target has not been sent yet. On delivery agrirouter populates agrirouter_id, since the sender's local_id does not resolve in the receiver's namespace.
+// EntityReference A reference to another entity by canonical and/or local id. On send either identifier suffices: a local_id is resolved against the sender's own mapping in the calling endpoint's tenant, and is rejected if the target has not been sent yet. On delivery agrirouter populates agrirouter_id, since the sender's local_id does not resolve in the receiver's namespace.
 type EntityReference struct {
 	AgrirouterId *openapi_types.UUID `json:"agrirouter_id,omitempty"`
 	LocalId      *string             `json:"local_id,omitempty"`
@@ -820,6 +820,9 @@ type RouteChangedEventData struct {
 
 	// ExternalId The application's own identifier for the same endpoint.
 	ExternalId string `json:"external_id"`
+
+	// TenantId The tenant of the endpoint.
+	TenantId openapi_types.UUID `json:"tenant_id"`
 }
 
 // RouteChangedEventDataEventType Discriminator; matches the `event:` line.

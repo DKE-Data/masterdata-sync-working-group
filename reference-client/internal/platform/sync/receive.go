@@ -360,6 +360,7 @@ func (r *Receiver) applyReset(ev agmasync.Event, reset oapi.MasterdataResetEvent
 			}
 			if err := r.OnSelection(tx, oapi.RouteChangedEventData{
 				EventType:   oapi.ROUTECHANGED,
+				TenantId:    reset.TenantId,
 				EndpointId:  ep.EndpointId,
 				ExternalId:  ep.ExternalId,
 				EntityTypes: []oapi.EntityTypeToggle{},
@@ -376,22 +377,9 @@ func (r *Receiver) applyReset(ev agmasync.Event, reset oapi.MasterdataResetEvent
 	})
 }
 
-// tenantOf names the tenancy a selection is about.
-//
-// A ROUTE_CHANGED names an endpoint rather than a tenant, so unlike a delivered
-// object it cannot be routed off the envelope. Each of the product's tenancies
-// is onboarded as its own endpoint, though, so the endpoint the frame names is
-// the one an applier holds — and running in that tenancy is what lets a handler
-// act on the withdrawal for the right set of holdings.
-//
-// An endpoint no applier claims leaves the empty tenancy, which is what the
-// position alone needs: it belongs to the application and not to any one of its
-// tenants.
 func (r *Receiver) tenantOf(sel oapi.RouteChangedEventData) string {
-	for _, applier := range r.Tenants {
-		if applier.Endpoint != nil && applier.Endpoint.ID() == sel.EndpointId {
-			return applier.Tenant
-		}
+	if applier, ok := r.Tenants[sel.TenantId]; ok {
+		return applier.Tenant
 	}
 	return ""
 }

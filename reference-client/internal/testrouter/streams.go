@@ -57,6 +57,7 @@ func routeChangedFrame(ep *endpoint, id string) frame {
 		// wire. The entity frames carry no such attribute: what they hold is a
 		// canonical object, discriminated by its own type.
 		"event_type":   eventRouteChanged,
+		"tenant_id":    ep.tenantID,
 		"endpoint_id":  ep.id,
 		"external_id":  ep.externalID,
 		"entity_types": selectedTogglesLocked(ep),
