@@ -176,8 +176,10 @@ Points worth noting about the calls themselves:
   is where one type ends and another begins, or that the order will stay the way
   it is: the specification reserves the right to change it, and the only promise
   is that references to selected types resolve. During a load the one source of a reference that does not resolve yet
-  is the live stream, which is independent of this one; the endpoint requests
-  such an object rather than waiting.
+  is the live stream, which is independent of this one. Its target is late, not
+  absent, so the endpoint holds the referencing object and requests only what is
+  still unresolved once the load reaches `RECONCILING`
+  ([specification](../specification.md#a-live-change-may-reference-what-the-set-has-not-delivered)).
 - **Declaring and selecting are two steps with two actors.** `PUT
   .../masterdata-config` is the partner's, and says what the endpoint *can*
   exchange. The user's selection, made in agrirouter on the masterdata route, 
