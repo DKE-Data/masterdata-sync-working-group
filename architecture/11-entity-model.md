@@ -694,8 +694,8 @@ The trade against C is the same as for E.
    The party itself carries no `partyTypeCode`, so the party type has one
    encoding, and a party without details is of unknown type.
 6. **No Season entity.** The harvest period stays inline as
-   `_agmasync_harvestPeriod` on field and boundary. A Season object serves to
-   link tasks and comes with the Task entity.
+   `_agmasync_harvestPeriod` on field and boundary. A standalone Season object is mostly useful
+   to link tasks, which we do not model.
 7. **The boundary references its field**, following ADAPT's direction: `_agmasync_fieldRef`
    ([ADR 12](12-boundary-references-field.md)).
 8. **Geometry is WKT** in one canonical form, and area is in `ha` only.

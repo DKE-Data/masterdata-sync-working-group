@@ -302,9 +302,10 @@ party type its sender does not record. Based on the ADAPT `Party`.
 Canonical attributes:
 
 - `name` (string, required): the name the party is known by — an organization's name, a person's full name.
+- `description` (string, optional): free text about the party.
 - `_agmasync_details` (object, optional): whether the party is a person or an organization, with the attributes specific to that party type (see [Party details](#party-details)).
 - `contactInfo` (object, optional): the ADAPT contact block.
-  - `addressContactMethods` (array): addresses, each with an `addressContactTypeCode` from the ADAPT AddressContactType list, plus `BILLING`, which this document adds. The party's address is the `PHYSICAL` entry, its billing address the `BILLING` entry. An address carries `addressLines` (street, PO box, one entry per line), `city`, `postalCode`, `countrySubdivision`, and `countryCode` (ISO 3166-1 alpha-2).
+  - `addressContactMethods` (array): addresses, each with an `addressContactTypeCode` from the ADAPT AddressContactType list, plus `BILLING`, which this document adds. The party's address is the `PHYSICAL` entry, its billing address the `BILLING` entry. An address carries `addressLines` (street, PO box, one entry per line), `city`, `postalCode`, `countrySubdivision`, `country`, and `countryCode` (ISO 3166-1 alpha-2).
   - `telecommunicationContactMethods` (array): `valueText` with a `telecommunicationContactTypeCode` from the ADAPT TelecommunicationContactType list: phone `FIXED_PHONE`, mobile `MOBILE_PHONE`, `FAX`, email `EMAIL`.
 
   Each list holds at most one entry per type code.
@@ -358,8 +359,9 @@ Based on the ADAPT `Farm`.
 Canonical attributes (subset):
 
 - `name` (string, required).
+- `description` (string, optional): free text about the farm.
 - `_agmasync_growerRef` (reference, optional): the party that holds the farm. It names a party, where ADAPT names a Grower (there is no dedicated Grower entity in AgmaSync). Absent where the farm's system does not record parties.
-- `_agmasync_address` (object, optional): an address as for a party, without a type code.
+- `_agmasync_address` (object, optional): an address as for a party, its `addressContactTypeCode` included, replaced whole on write.
 - `_agmasync_geoReference` (WKT `POINT`, optional): longitude and latitude of the farm.
 - `_agmasync_specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
 - `_agmasync_partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry is shaped like an ADAPT `PartyRole`:
@@ -382,8 +384,10 @@ Based on the ADAPT `Field`.
 Canonical attributes (subset):
 
 - `name` (string, required).
+- `description` (string, optional): free text about the field.
 - `arableArea` (object, optional): nominal area, `numericValue` with `unitOfMeasureCode` `ha`.
 - `_agmasync_farmRef` (reference, optional): the farm this field belongs to.
+- `timeZone` (string, optional): the field's time zone, an IANA identifier such as `Europe/Berlin`.
 - `_agmasync_growerRef` (reference, optional): the party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's grower. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `_agmasync_growerRef` without a `_agmasync_farmRef`.
 - `_agmasync_soil` (object, optional):
   - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`),
@@ -405,6 +409,7 @@ Canonical attributes:
 
 - `_agmasync_fieldRef` (reference, required): the [field](#field) this boundary describes.
 - `name` (string, optional): the name the boundary is known by.
+- `description` (string, optional): free text about the boundary.
 - `boundary` (object, required):
   - `geometry` (WKT, required): the field boundary as a `POLYGON` or `MULTIPOLYGON`.
   - `boundaryCreationMethodCode` (string, optional): from the [ADAPT BoundaryCreationMethod](https://adaptstandard.org/dtd.html) list. Enum value like:
@@ -416,7 +421,7 @@ Canonical attributes:
     - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
     - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
     - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
-- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary.geometry` is a WKT `POINT`, `LINESTRING`, or `POLYGON`, and which carries an obstacle kind in `_agmasync_kind` (string, required).
+- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary.geometry` is a WKT `POINT`, `LINESTRING`, or `POLYGON`, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
 - `_agmasync_boundaryType` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
@@ -1106,10 +1111,10 @@ as a JSON Merge Patch ({{?RFC7396}}):
 - **`null`:** the attribute is removed.
 - **Absent:** the attribute is left as it is.
 
-The same rules apply inside plain nested objects such as `_agmasync_address`,
-`contactInfo`, or `_agmasync_metadata`: `{"_agmasync_address": {"city": "Husum"}}`
-changes a farm's city and keeps its postal code.
-Arrays and [references](#references) are replaced whole instead; for references a partial object means nothing on its own. A party's `_agmasync_details` merges like a
+The same rules apply inside plain nested objects such as `_agmasync_soil`,
+`contactInfo`, or `_agmasync_metadata`: `{"_agmasync_soil": {"ratingPoints": 62}}`
+changes a field's soil rating points and keeps its soil type.
+Arrays, [references](#references), and a farm's `_agmasync_address` are replaced whole instead, as a party's addresses are; for references a partial object means nothing on its own. A party's `_agmasync_details` merges like a
 plain nested object while its `partyTypeCode` is unchanged, and every write that includes
 `_agmasync_details` carries its `partyTypeCode`. A write that changes the `partyTypeCode` replaces `_agmasync_details`
 whole, so no attribute of the other party type survives (see [Party details](#party-details)).

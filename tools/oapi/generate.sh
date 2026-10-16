@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Regenerates the Go bindings for openapi.yaml.
+# Regenerates the Go bindings for openapi.yaml, after its ADAPT-based schemas
+# (tools/adapt/generate.sh).
 #
 # Run from the repository root:
 #
@@ -13,13 +14,16 @@
 #
 # openapi.yaml is generated from as-is, with no preprocessing. That is worth
 # keeping true: a partner should be able to point their generator straight at
-# the published specification.
+# the published specification. The ADAPT-based schemas are written into it,
+# and committed, before this point.
 
 set -euo pipefail
 
 OAPI_CODEGEN="github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0"
 
 cd "$(dirname "$0")/../.."
+
+tools/adapt/generate.sh
 
 go run "$OAPI_CODEGEN" --config agmasync/oapi/oapi_codegen_models.yaml openapi.yaml
 go run "$OAPI_CODEGEN" --config agmasync/oapi/oapi_codegen_client.yaml openapi.yaml

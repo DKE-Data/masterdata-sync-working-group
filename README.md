@@ -18,12 +18,32 @@ Use [pull requests](https://github.com/DKE-Data/masterdata-sync-working-group/pu
 - [./openapi.yaml](./openapi.yaml) - **DRAFT** The OpenAPI specification for the Masterdata Sync API.
 - [./specification.md](./specification.md) - **DRAFT** The specification for the Masterdata Sync API, explaining the details and reasoning that are not covered by the OpenAPI specification.
 - [./examples](./examples) - One farm encoded both as AgmaSync and as an ADAPT 2 catalog.
+- [./adapt](./adapt) - The pinned ADAPT release, and [profile.yaml](./adapt/profile.yaml), the deviations from it that the ADAPT-based schemas of `openapi.yaml` are generated from.
 - [./architecture](./architecture) - non normative collection of architecture decision records illustrating masterdata sync concepts and flows and reasoning behind the specification.
 
 Other:
 
 - [./RFC.md](./RFC.md) - The RFC wrapper for the specification, used to generate the RFC page.
 - [tools/](./tools/) - Tooling to automate routine tasks.
+
+## ADAPT-based schemas
+
+The `content` schemas of `openapi.yaml` and the types they use are generated
+from ADAPT. Edit them in [adapt/profile.yaml](./adapt/profile.yaml), not in
+`openapi.yaml`, then run `tools/oapi/generate.sh`, which writes them before
+regenerating the Go bindings.
+
+To adopt a new ADAPT release:
+
+```bash
+tools/adapt/pull.sh <tag>   # fetch it into adapt/ and pin it in adapt/adapt.lock.yaml
+tools/adapt/generate.sh     # fails on changes the profile must resolve, notes the rest
+```
+
+Every ADAPT property not excluded in the profile is kept, so a property a new
+release adds joins `openapi.yaml`; the generator notes each one. Exclude those
+that are not wanted, resolve the errors in the profile, update "Relation to
+ADAPT" in `specification.md`, and review the resulting diff of `openapi.yaml`.
 
 ## Visualize openapi
 

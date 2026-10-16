@@ -215,6 +215,7 @@
         }
       ],
       "_agmasync_address": {
+        "addressContactTypeCode": "PHYSICAL",
         "addressLines": ["Dorfstraße 12"],
         "city": "Springe",
         "postalCode": "31832",
