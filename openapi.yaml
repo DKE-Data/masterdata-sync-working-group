@@ -82,20 +82,20 @@ paths:
         revision as it is) do not create a new revision and are not forwarded.
 
 
-        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
-        an attribute with a value replaces the current one, `null` removes it,
-        and an attribute left out is unchanged. Nested objects merge the same
-        way; arrays are replaced whole. Required attributes are required on
-        every write and are never `null`. The response is always the whole
-        resulting object.
+        `content` is applied as a JSON Merge Patch (RFC 7396): an attribute
+        with a value replaces the current one, `null` removes it, and an
+        attribute left out is unchanged. Nested objects merge the same way;
+        arrays and references are replaced whole. Required
+        attributes are required on every write and are never `null`. The
+        response is always the whole resulting object.
 
 
-        `details` carries its `party_type` on every write that includes it. It merges
-        like any nested object while that `party_type` is unchanged; a write that
-        changes it replaces `details` whole, so no attribute of the other party
-        type survives. A participant that does not record whether a party is a
-        person or an organization leaves `details` out, which keeps what another
-        participant stated.
+        `_agmasync_details` carries its `partyTypeCode` on every write that includes
+        it. It merges like any nested object while that `partyTypeCode` is
+        unchanged; a write that changes it replaces `_agmasync_details` whole,
+        so no attribute of the other party type survives. A participant that
+        does not record whether a party is a person or an organization leaves
+        `_agmasync_details` out, which keeps what another participant stated.
       operationId: putParty
       requestBody:
         required: true
@@ -176,7 +176,7 @@ paths:
         Unbinding removes no canonical object, touches no other endpoint's
         mapping, creates no revision, and reaches nobody. The object stays one
         this endpoint is entitled to, so its next change is delivered again,
-        carrying no `local_id`, and the endpoint MUST then treat it as new:
+        carrying no `referenceId`, and the endpoint MUST then treat it as new:
         opt-in is the only filter on what an endpoint receives, and unbinding is
         not an instruction to stop sending. An endpoint that wants the object
         back at once requests it by `agrirouter_id` rather than waiting for a
@@ -281,10 +281,10 @@ paths:
         revision as it is) do not create a new revision and are not forwarded.
 
 
-        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
-        an attribute with a value replaces the current one, `null` removes it,
-        and an attribute left out is unchanged. Nested objects merge the same
-        way; arrays, references, and geometries are replaced whole. Required
+        `content` is applied as a JSON Merge Patch (RFC 7396): an attribute
+        with a value replaces the current one, `null` removes it, and an
+        attribute left out is unchanged. Nested objects merge the same way;
+        arrays and references are replaced whole. Required
         attributes are required on every write and are never `null`. The
         response is always the whole resulting object.
       operationId: putFarm
@@ -367,7 +367,7 @@ paths:
         Unbinding removes no canonical object, touches no other endpoint's
         mapping, creates no revision, and reaches nobody. The object stays one
         this endpoint is entitled to, so its next change is delivered again,
-        carrying no `local_id`, and the endpoint MUST then treat it as new:
+        carrying no `referenceId`, and the endpoint MUST then treat it as new:
         opt-in is the only filter on what an endpoint receives, and unbinding is
         not an instruction to stop sending. An endpoint that wants the object
         back at once requests it by `agrirouter_id` rather than waiting for a
@@ -472,12 +472,12 @@ paths:
         revision as it is) do not create a new revision and are not forwarded.
 
 
-        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
-        an attribute with a value replaces the current one, `null` removes it,
-        and an attribute left out is unchanged. Nested objects merge the same
-        way; arrays and references are replaced whole. Required attributes are
-        required on every write and are never `null`. The response is always
-        the whole resulting object.
+        `content` is applied as a JSON Merge Patch (RFC 7396): an attribute
+        with a value replaces the current one, `null` removes it, and an
+        attribute left out is unchanged. Nested objects merge the same way;
+        arrays and references are replaced whole. Required
+        attributes are required on every write and are never `null`. The
+        response is always the whole resulting object.
       operationId: putField
       requestBody:
         required: true
@@ -558,7 +558,7 @@ paths:
         Unbinding removes no canonical object, touches no other endpoint's
         mapping, creates no revision, and reaches nobody. The object stays one
         this endpoint is entitled to, so its next change is delivered again,
-        carrying no `local_id`, and the endpoint MUST then treat it as new:
+        carrying no `referenceId`, and the endpoint MUST then treat it as new:
         opt-in is the only filter on what an endpoint receives, and unbinding is
         not an instruction to stop sending. An endpoint that wants the object
         back at once requests it by `agrirouter_id` rather than waiting for a
@@ -663,12 +663,12 @@ paths:
         revision as it is) do not create a new revision and are not forwarded.
 
 
-        The body is a JSON Merge Patch (RFC 7396) of the entity's attributes:
-        an attribute with a value replaces the current one, `null` removes it,
-        and an attribute left out is unchanged. Nested objects merge the same
-        way; arrays and geometries are replaced whole. Required attributes are
-        required on every write and are never `null`. The response is always
-        the whole resulting object.
+        `content` is applied as a JSON Merge Patch (RFC 7396): an attribute
+        with a value replaces the current one, `null` removes it, and an
+        attribute left out is unchanged. Nested objects merge the same way;
+        arrays and references are replaced whole. Required
+        attributes are required on every write and are never `null`. The
+        response is always the whole resulting object.
       operationId: putFieldBoundary
       requestBody:
         required: true
@@ -749,7 +749,7 @@ paths:
         Unbinding removes no canonical object, touches no other endpoint's
         mapping, creates no revision, and reaches nobody. The object stays one
         this endpoint is entitled to, so its next change is delivered again,
-        carrying no `local_id`, and the endpoint MUST then treat it as new:
+        carrying no `referenceId`, and the endpoint MUST then treat it as new:
         opt-in is the only filter on what an endpoint receives, and unbinding is
         not an instruction to stop sending. An endpoint that wants the object
         back at once requests it by `agrirouter_id` rather than waiting for a
@@ -843,8 +843,9 @@ paths:
         the application's other endpoints. Each event's
         `data` is an `Entity` — a `Party`, `Farm`, `Field`, or
         `FieldBoundary` discriminated by its `type` property. A delivered object
-        carries the receiving application's own identifier in `local_id` when
-        agrirouter holds one, and no `local_id` at all when it does not.
+        carries the receiving application's own identifier in
+        `content.id.referenceId` when agrirouter holds one, and no
+        `referenceId` at all when it does not.
 
         This stream carries steady-state synchronization only. Initial load is
         delivered separately, per endpoint, by
@@ -1010,7 +1011,7 @@ paths:
         revision the requesting application itself last wrote — origin
         suppression does not apply here, since withholding them would have a
         returning endpoint push them back as new and duplicate them. A delivered
-        object carries the application's own identifier in `local_id` where
+        object carries the application's own identifier in `content.id.referenceId` where
         agrirouter holds one.
 
         agrirouter moves the endpoint to `RECONCILING` once it has sent the
@@ -1580,25 +1581,6 @@ components:
           description: The canonical identifier of the wanted entity.
       required: [agrirouter_id]
 
-    EntityReference:
-      type: object
-      description: >
-        A reference to another entity by canonical and/or local id. On send
-        either identifier suffices: a local_id is resolved against the sender's
-        own mapping in the calling endpoint's tenant, and is rejected if the
-        target has not been sent yet. On
-        delivery agrirouter populates agrirouter_id, since the sender's local_id
-        does not resolve in the receiver's namespace.
-      properties:
-        agrirouter_id:
-          type: string
-          format: uuid
-        local_id:
-          type: string
-      anyOf:
-        - required: [agrirouter_id]
-        - required: [local_id]
-
     IdMappingBinding:
       type: object
       description: >
@@ -1617,50 +1599,123 @@ components:
           type: string
       required: [agrirouter_id, local_id]
 
+    Id:
+      type: object
+      additionalProperties: false
+      description: >
+        Identity of an object, based on the ADAPT `Id`. Used for the object's
+        own `id` and inside every `Ref`. Both identifiers it can carry are those
+        of the near end of the transfer: on send the sender's, on delivery the
+        receiving application's. It never carries another application's
+        identifier.
+
+
+        On delivery `uniqueIds` holds the agrirouter entry, the canonical
+        identifier, and a local entry, the receiving application's local
+        identifier, in that order, and `referenceId` is present exactly when
+        the local entry is and equals its `idText`. The local entry's
+        `idTypeCode` and `idSource` are the ones the application last sent
+        for that object: `idTypeCode` is `STRING` and `idSource` is absent
+        when it sent none.
+
+
+        On send the local identifier is `referenceId`, and the local entry is
+        the entry whose `idText` equals it. Of the rest, agrirouter reads only
+        an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every
+        other entry.
+
+
+        As an object's own `id`, on send `referenceId` must equal the
+        `{local_id}` in the path, and an agrirouter entry, if any, must be the
+        object that `local_id` is bound to. On delivery the local entry and
+        `referenceId` are absent when the receiving application has not bound
+        the object, or has unbound it. Their absence means "you do not hold
+        this object": create it locally and bind the identifier you issue.
+      properties:
+        referenceId:
+          type: string
+          description: >
+            The near end's local identifier. Absent when it has none, which
+            ADAPT does not allow.
+        uniqueIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/UniqueId'
+      required: [uniqueIds]
+
+    UniqueId:
+      type: object
+      additionalProperties: false
+      description: >
+        One identifier of an object, based on the ADAPT `UniqueId`.
+      properties:
+        idText:
+          type: string
+        idTypeCode:
+          type: string
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT IdType list.
+          examples: [UUID, STRING, LONGINT, URI, GLN]
+        idSource:
+          type: string
+          description: >
+            `https://agrirouter.com` for the canonical identifier, assigned by agrirouter.
+            For a local entry, whatever the application sent, relayed back to
+            that application only, or absent if it sent none. `https://agrirouter.com`
+            is reserved and is never a local entry's.
+          examples: ['https://agrirouter.com', 'https://fmis.example.com']
+      required: [idText, idTypeCode]
+
+    Ref:
+      type: object
+      additionalProperties: false
+      description: >
+        A reference to another entity, in place of ADAPT's `<name>Id` strings.
+        A property `_agmasync_<name>Ref`, or `<name>Ref` inside a prefixed
+        value.
+
+
+        On send either identifier suffices: without an agrirouter entry,
+        `referenceId` is resolved against the sender's own mapping in the
+        calling endpoint's tenant, and is rejected if the target has not been
+        sent yet. On delivery the
+        agrirouter entry is always present, and the local entry and
+        `referenceId` carry the receiving application's own identifier for the
+        target, with the `idTypeCode` and `idSource` it last sent for the
+        target, or are absent when it has none. A sent reference with neither
+        an agrirouter entry nor a `referenceId` is rejected with `400`. A reference is replaced whole
+        on write.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+      required: [id]
+
     Envelope:
       type: object
       description: >
-        Fields common to every master-data entity. The concrete entity type is
-        determined by the path; each entity schema pins the `type` discriminator
-        so that objects remain self-describing on the event stream.
+        Sync state common to every master-data entity. The master data itself,
+        identity included, is in `content`. The concrete entity type is
+        determined by the path; each entity schema pins the `type`
+        discriminator so that objects remain self-describing on the event
+        stream.
 
 
-        agrirouter assigns `agrirouter_id`, `revision`, `modified_at`,
-        `tenant_id`, `source_endpoint_id`, and `type`. An object may be sent
-        back as it was delivered, these included: `revision`, `modified_at`,
-        and `source_endpoint_id` are ignored on send; `agrirouter_id`,
-        `tenant_id`, and `type` must match the object written, or the write
-        is a 400.
+        agrirouter assigns `revision`, `modified_at`, `tenant_id`,
+        `source_endpoint_id`, and `type`. An object may be sent back as it was
+        delivered, these included: `revision`, `modified_at`, and
+        `source_endpoint_id` are ignored on send; `tenant_id` and `type` must
+        match the object written, or the write is a 400.
 
 
-        An optional attribute declared nullable accepts `null` on a write, where
-        it removes the attribute. agrirouter never delivers `null`: an attribute
-        absent from a delivered object is unset.
+        `content` is based on the corresponding ADAPT 2.0.2 type. Properties
+        ADAPT has no slot for are prefixed `_agmasync_`, and unknown
+        properties are rejected. See "Relation to ADAPT" in specification.md
+        for every deviation from ADAPT. An optional attribute declared
+        nullable accepts `null` on a write, where it removes the attribute.
+        agrirouter never delivers `null`: an attribute absent from a delivered
+        object is unset.
       properties:
-        agrirouter_id:
-          type: string
-          format: uuid
-          description: >
-            Canonical identifier, assigned by agrirouter. Absent on first send.
-            If sent, it must be the object `local_id` is bound to.
-        local_id:
-          type: string
-          description: >
-            Always the *calling* application's own identifier for the entity, in
-            both directions: on send the sender's, on delivery the receiving
-            application's. It never carries another application's identifier.
-            One store per application, so the identifier is the same whichever
-            of the application's endpoints in the tenant sends or receives it.
-            It resolves within the object's tenant: a record the application
-            holds in several tenants carries the same identifier in each, bound
-            to each tenant's own canonical object.
-
-
-            Required on send. On delivery it is present when agrirouter holds a
-            mapping for the receiving application, and absent when it does not —
-            an object the application has not bound, or has unbound. An absent
-            `local_id` means "you do not hold this object": create it locally and
-            bind the identifier you issue.
         active:
           type: boolean
           default: true
@@ -1695,53 +1750,108 @@ components:
             The agrirouter identifier of the endpoint whose change produced this
             revision. It always belongs to `tenant_id`. Ignored on send.
 
-
     Address:
       type: object
+      additionalProperties: false
+      description: >
+        A postal address, based on the ADAPT `AddressContactMethod` without
+        its type code.
       properties:
-        street:
-          type: [string, 'null']
-        po_box:
-          type: [string, 'null']
-        postal_code:
-          type: [string, 'null']
+        addressLines:
+          type: [array, 'null']
+          description: Street address, PO box, and similar, one entry per line.
+          items:
+            type: string
         city:
           type: [string, 'null']
-        state:
+        postalCode:
           type: [string, 'null']
-        country:
+        countrySubdivision:
+          type: [string, 'null']
+          description: State, province, or similar.
+        countryCode:
           type: [string, 'null']
           description: ISO 3166-1 alpha-2 country code.
           pattern: '^[A-Z]{2}$'
 
-    Contact:
+    AddressContactMethod:
       type: object
+      additionalProperties: false
+      description: An address of a party, based on the ADAPT `AddressContactMethod`.
       properties:
-        phone:
-          type: [string, 'null']
-        mobile:
-          type: [string, 'null']
-        email:
-          type: [string, 'null']
-          format: email
+        addressContactTypeCode:
+          type: string
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT AddressContactType list, plus `BILLING` for a
+            billing address.
+          examples: [PHYSICAL, POSTAL, LEGAL, BILLING]
+        addressLines:
+          type: array
+          items:
+            type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        countrySubdivision:
+          type: string
+        countryCode:
+          type: string
+          pattern: '^[A-Z]{2}$'
+      required: [addressContactTypeCode]
+
+    TelecommunicationContactMethod:
+      type: object
+      additionalProperties: false
+      description: >
+        A phone number or e-mail address of a party, based on the ADAPT
+        `TelecommunicationContactMethod`.
+      properties:
+        telecommunicationContactTypeCode:
+          type: string
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT TelecommunicationContactType list.
+          examples: [FIXED_PHONE, MOBILE_PHONE, FAX, EMAIL]
+        valueText:
+          type: string
+      required: [telecommunicationContactTypeCode, valueText]
+
+    ContactInfo:
+      type: object
+      additionalProperties: false
+      description: >
+        Contact data of a party, based on the ADAPT `ContactInfo`. Each list
+        holds at most one entry per type code, and is replaced whole on write.
+      properties:
+        addressContactMethods:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/AddressContactMethod'
+        telecommunicationContactMethods:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/TelecommunicationContactMethod'
 
     HarvestPeriod:
       type: object
+      additionalProperties: false
       description: >
         Canonical harvest period as an interval. A discrete year is mapped to an
         interval on send; `label` may round-trip the native presentation.
       properties:
-        valid_from:
+        validFrom:
           type: string
           format: date
-        valid_to:
+        validTo:
           type: [string, 'null']
           format: date
           description: Absent means open / current.
         label:
           type: [string, 'null']
           description: 'Human-facing designation, e.g. "2026" or "2025/2026".'
-      required: [valid_from]
+      required: [validFrom]
 
     Party:
       description: >
@@ -1758,70 +1868,75 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
-            name:
-              type: string
-              description: >
-                The name the party is known by: an organization's name, a
-                person's full name.
-            details:
-              oneOf:
-                - $ref: '#/components/schemas/PartyDetails'
-                - type: 'null'
-              description: >
-                Whether the party is a person or an organization, with the
-                attributes specific to that party type. Absent means the party
-                type is unknown. Whatever a write sends here is stated to every
-                participant.
-            address:
-              oneOf:
-                - $ref: '#/components/schemas/Address'
-                - type: 'null'
-            contact:
-              oneOf:
-                - $ref: '#/components/schemas/Contact'
-                - type: 'null'
-            billing_address:
-              oneOf:
-                - $ref: '#/components/schemas/Address'
-                - type: 'null'
-            tax_number:
-              type: [string, 'null']
-              description: Identifier assigned by tax authorities.
-            tax_id:
-              type: [string, 'null']
-              description: Numerical identifier assigned by tax authorities.
-            trade_id:
-              type: [string, 'null']
-              description: Numerical identifier assigned by public authorities.
-          required: [type, name]
+            content:
+              $ref: '#/components/schemas/PartyContent'
+          required: [type, content]
+
+    PartyContent:
+      type: object
+      description: >
+        Based on the ADAPT `Party`. The party type is the `partyTypeCode` of
+        `_agmasync_details`, not a `partyTypeCode` on the party itself.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          description: >
+            The name the party is known by: an organization's name, a
+            person's full name.
+        contactInfo:
+          oneOf:
+            - $ref: '#/components/schemas/ContactInfo'
+            - type: 'null'
+        _agmasync_details:
+          oneOf:
+            - $ref: '#/components/schemas/PartyDetails'
+            - type: 'null'
+          description: >
+            Whether the party is a person or an organization, with the
+            attributes specific to that party type. Absent means the party
+            type is unknown. Whatever a write sends here is stated to every
+            participant.
+        _agmasync_taxNumber:
+          type: [string, 'null']
+          description: Identifier assigned by tax authorities.
+        _agmasync_taxId:
+          type: [string, 'null']
+          description: Numerical identifier assigned by tax authorities.
+        _agmasync_tradeId:
+          type: [string, 'null']
+          description: Numerical identifier assigned by public authorities.
+      required: [id, name]
 
     PartyDetails:
       description: >
-        The type of a party. `party_type` is a closed set, since it selects the
+        The type of a party. `partyTypeCode` is a closed set, since it selects the
         schema of the remaining attributes, and each type admits only its own
         attributes.
       oneOf:
         - $ref: '#/components/schemas/PersonDetails'
         - $ref: '#/components/schemas/OrganizationDetails'
       discriminator:
-        propertyName: party_type
+        propertyName: partyTypeCode
         mapping:
           PERSON: '#/components/schemas/PersonDetails'
           ORGANIZATION: '#/components/schemas/OrganizationDetails'
 
     PersonDetails:
       type: object
+      additionalProperties: false
       description: >
         A natural person. A person may belong to one or more organizations
         through `memberships`.
       properties:
-        party_type:
+        partyTypeCode:
           const: PERSON
         title:
           type: [string, 'null']
-        first_name:
+        firstName:
           type: [string, 'null']
-        last_name:
+        lastName:
           type: [string, 'null']
         memberships:
           type: [array, 'null']
@@ -1830,48 +1945,51 @@ components:
             there. A person carrying at least one entry is a member.
           items:
             $ref: '#/components/schemas/Membership'
-      required: [party_type]
+      required: [partyTypeCode]
 
     OrganizationDetails:
       type: object
+      additionalProperties: false
       description: A legal entity to which persons may belong.
       properties:
-        party_type:
+        partyTypeCode:
           const: ORGANIZATION
-        commercial_registry_number:
+        commercialRegistryNumber:
           type: [string, 'null']
           description: Identifier from the commercial register.
-      required: [party_type]
+      required: [partyTypeCode]
 
     Membership:
       type: object
+      additionalProperties: false
       description: A role held by a person in one organization.
       properties:
-        organization_id:
-          $ref: '#/components/schemas/EntityReference'
+        organizationRef:
+          $ref: '#/components/schemas/Ref'
           description: >
-            The organization the person belongs to: a party whose `details` is
-            an organization. A write naming any other party is a `400`, and so
-            is a change or removal of party type on an organization that
-            persons still name.
-        member_role:
+            The organization the person belongs to: a party whose
+            `_agmasync_details` is an organization. A write naming any other
+            party is a `400`, and so is a change or removal of party type on an
+            organization that persons still name.
+        roleCode:
           $ref: '#/components/schemas/Role'
-      required: [organization_id, member_role]
+      required: [organizationRef, roleCode]
 
     Partner:
       type: object
+      additionalProperties: false
       description: >
         A party holding a role on a farm — the contractor that works it, the
-        advisor that reads it. Records a business relationship only. It does NOT
-        grant visibility of the farm: what an endpoint receives is decided by
-        opt-in and routing.
+        advisor that reads it. Shaped like the ADAPT `PartyRole`. Records a
+        business relationship only. It does NOT grant visibility of the farm:
+        what an endpoint receives is decided by opt-in and routing.
       properties:
-        partner_id:
-          $ref: '#/components/schemas/EntityReference'
+        partyRef:
+          $ref: '#/components/schemas/Ref'
           description: The party acting as partner.
-        partner_role:
+        roleCode:
           $ref: '#/components/schemas/Role'
-      required: [partner_id, partner_role]
+      required: [partyRef, roleCode]
 
     Role:
       type: string
@@ -1916,41 +2034,52 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
-            owner:
-              oneOf:
-                - $ref: '#/components/schemas/EntityReference'
-                - type: 'null'
-              description: >
-                The party that holds the farm. Absent where the farm's system
-                does not record parties.
-            name:
-              type: string
-            specialised_usage_type:
-              type: [string, 'null']
-              description: >
-                Production orientation of the farm (e.g. arable farming, dairy,
-                vineyard, orchard). Free-form, drawn from AGROVOC where a
-                matching concept exists.
-            partners:
-              type: [array, 'null']
-              description: >
-                Parties holding a role on this farm, such as the contractor that
-                works it or the advisor that reads it.
-              items:
-                $ref: '#/components/schemas/Partner'
-            address:
-              oneOf:
-                - $ref: '#/components/schemas/Address'
-                - type: 'null'
-            geo_reference:
-              oneOf:
-                - $ref: '#/components/schemas/Geometry'
-                - type: 'null'
-              description: A GeoJSON Point (longitude, latitude) locating the farm.
-          required: [type, name]
+            content:
+              $ref: '#/components/schemas/FarmContent'
+          required: [type, content]
+
+    FarmContent:
+      type: object
+      description: Based on the ADAPT `Farm`.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        _agmasync_growerRef:
+          oneOf:
+            - $ref: '#/components/schemas/Ref'
+            - type: 'null'
+          description: >
+            The party that holds the farm, in place of ADAPT's Grower. Absent
+            where the farm's system does not record parties.
+        _agmasync_specialisedUsageType:
+          type: [string, 'null']
+          description: >
+            Production orientation of the farm (e.g. arable farming, dairy,
+            vineyard, orchard). Free-form, drawn from AGROVOC where a
+            matching concept exists.
+        _agmasync_partners:
+          type: [array, 'null']
+          description: >
+            Parties holding a role on this farm, such as the contractor that
+            works it or the advisor that reads it.
+          items:
+            $ref: '#/components/schemas/Partner'
+        _agmasync_address:
+          oneOf:
+            - $ref: '#/components/schemas/Address'
+            - type: 'null'
+        _agmasync_geoReference:
+          oneOf:
+            - $ref: '#/components/schemas/WktPoint'
+            - type: 'null'
+          description: The point locating the farm.
+      required: [id, name]
 
     SoilInfo:
       type: object
+      additionalProperties: false
       description: Soil characteristics of a field.
       properties:
         type:
@@ -1965,13 +2094,26 @@ components:
             - SANDY_TO_SILTY_LOAM
             - CLAYEY_LOAM
             - CLAY
-        rating_points:
+        ratingPoints:
           type: [integer, 'null']
           minimum: 0
           maximum: 100
           description: >
             Soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined
             by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
+
+    Area:
+      type: object
+      additionalProperties: false
+      description: An area, based on the ADAPT measurement type. Always in hectares.
+      properties:
+        numericValue:
+          type: number
+          minimum: 0
+        unitOfMeasureCode:
+          type: string
+          enum: [ha]
+      required: [numericValue, unitOfMeasureCode]
 
     Field:
       description: >
@@ -1986,63 +2128,98 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
-            name:
-              type: string
-            area:
-              type: [number, 'null']
-              description: Nominal area in square metres.
-            farm:
-              oneOf:
-                - $ref: '#/components/schemas/EntityReference'
-                - type: 'null'
-              description: The farm this field belongs to.
-            owner:
-              oneOf:
-                - $ref: '#/components/schemas/EntityReference'
-                - type: 'null'
-              description: >
-                The party holding this field, for systems that
-                attribute fields to a party directly. When absent, the field is
-                held by its farm's owner. When present, it takes precedence for
-                this field, which is how a field held by one party but managed
-                under another's farm is expressed.
-            soil:
-              oneOf:
-                - $ref: '#/components/schemas/SoilInfo'
-                - type: 'null'
-            topography:
-              type: [number, 'null']
-              description: 'Slope / gradient, e.g. 7 (degrees).'
-            harvest_period:
-              oneOf:
-                - $ref: '#/components/schemas/HarvestPeriod'
-                - type: 'null'
-            metadata:
-              type: [object, 'null']
-              description: >
-                Additional key/value metadata. A participant leaves the keys it
-                does not understand out of its writes, which keeps them.
-              additionalProperties: true
-          required: [type, name]
+            content:
+              $ref: '#/components/schemas/FieldContent'
+          required: [type, content]
+
+    FieldContent:
+      type: object
+      description: Based on the ADAPT `Field`.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        arableArea:
+          oneOf:
+            - $ref: '#/components/schemas/Area'
+            - type: 'null'
+          description: Nominal area of the field.
+        _agmasync_farmRef:
+          oneOf:
+            - $ref: '#/components/schemas/Ref'
+            - type: 'null'
+          description: The farm this field belongs to.
+        _agmasync_growerRef:
+          oneOf:
+            - $ref: '#/components/schemas/Ref'
+            - type: 'null'
+          description: >
+            The party holding this field, for systems that
+            attribute fields to a party directly. When absent, the field is
+            held by its farm's grower. When present, it takes precedence for
+            this field, which is how a field held by one party but managed
+            under another's farm is expressed.
+        _agmasync_soil:
+          oneOf:
+            - $ref: '#/components/schemas/SoilInfo'
+            - type: 'null'
+        _agmasync_topography:
+          type: [number, 'null']
+          description: 'Slope / gradient, e.g. 7 (degrees).'
+        _agmasync_harvestPeriod:
+          oneOf:
+            - $ref: '#/components/schemas/HarvestPeriod'
+            - type: 'null'
+        _agmasync_metadata:
+          type: [object, 'null']
+          description: >
+            Additional key/value metadata. A participant leaves the keys it
+            does not understand out of its writes, which keeps them.
+          additionalProperties: true
+      required: [id, name]
+
+    Boundary:
+      type: object
+      description: The geometry of a field boundary, based on the ADAPT `Boundary`.
+      properties:
+        geometry:
+          $ref: '#/components/schemas/WktArea'
+        boundaryCreationMethodCode:
+          type: [string, 'null']
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            How the boundary was produced, from the ADAPT BoundaryCreationMethod list.
+          examples:
+            - UNKNOWN
+            - MANUAL
+            - DRIVEN
+            - SURVEYED
+            - AUTO_OPERATION
+            - AUTO_IMAGERY
+            - ADMINISTRATIVE
+      required: [geometry]
+
+    ObstacleBoundary:
+      type: object
+      additionalProperties: false
+      description: The geometry of an obstacle, based on the ADAPT `Boundary`.
+      properties:
+        geometry:
+          $ref: '#/components/schemas/WktObstacle'
+      required: [geometry]
 
     Obstacle:
       type: object
-      description: >
-        A GeoJSON Feature describing an in-field obstacle whose geometry is a
-        Point, LineString, or Polygon.
+      additionalProperties: false
+      description: An in-field obstacle, based on the ADAPT `Obstacle`.
       properties:
-        type:
-          const: Feature
-        geometry:
-          $ref: '#/components/schemas/Geometry'
-        properties:
-          type: object
-          properties:
-            kind:
-              type: string
-              description: 'Obstacle kind, e.g. "pole", "tree", "waterhole".'
-          required: [kind]
-      required: [type, geometry, properties]
+        boundary:
+          $ref: '#/components/schemas/ObstacleBoundary'
+        _agmasync_kind:
+          type: string
+          description: 'Obstacle kind, e.g. "pole", "tree", "waterhole".'
+      required: [boundary, _agmasync_kind]
 
     FieldBoundary:
       description: >
@@ -2058,64 +2235,60 @@ components:
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
                 If sent, it must match the path.
-            field:
-              $ref: '#/components/schemas/EntityReference'
-              description: >
-                The field this boundary describes. A field's boundaries are the
-                boundaries that name it.
-            name:
-              type: [string, 'null']
-              description: >
-                The name the boundary is known by, e.g. a field name and season.
-            boundary:
-              $ref: '#/components/schemas/Geometry'
-              description: A GeoJSON Polygon or MultiPolygon.
-            boundary_type:
-              type: [string, 'null']
-              description: >
-                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
-                The boundary classification.
-              examples:
-                - CONCEPTUAL
-                - OPERATIONAL
-                - ECONOMIC_DEFINED
-                - ADMINISTRATIVE_RECEIVED
-            creation_method:
-              type: [string, 'null']
-              description: >
-                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
-                How the boundary was produced.
-              examples:
-                - UNKNOWN
-                - MANUAL
-                - DRIVEN
-                - SURVEYED
-                - AUTO_OPERATION
-                - AUTO_IMAGERY
-                - ADMINISTRATIVE
-            harvest_period:
-              oneOf:
-                - $ref: '#/components/schemas/HarvestPeriod'
-                - type: 'null'
-            obstacles:
-              type: [array, 'null']
-              items:
-                $ref: '#/components/schemas/Obstacle'
-            regulatory_requirements:
-              type: [string, 'null']
-              description: >
-                [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
-                A regulatory constraint applying to the boundary.
-              examples:
-                - RED_ZONE_NITROGEN
-                - WATER_PROTECTION_AREA
-            metadata:
-              type: [object, 'null']
-              description: >
-                Additional key/value metadata. A participant leaves the keys it
-                does not understand out of its writes, which keeps them.
-              additionalProperties: true
-          required: [type, field, boundary]
+            content:
+              $ref: '#/components/schemas/FieldBoundaryContent'
+          required: [type, content]
+
+    FieldBoundaryContent:
+      type: object
+      description: Based on the ADAPT `FieldBoundary`.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        _agmasync_fieldRef:
+          $ref: '#/components/schemas/Ref'
+          description: >
+            The field this boundary describes. A field's boundaries are the
+            boundaries that name it.
+        name:
+          type: [string, 'null']
+          description: >
+            The name the boundary is known by, e.g. a field name and season.
+        boundary:
+          $ref: '#/components/schemas/Boundary'
+        obstacles:
+          type: [array, 'null']
+          items:
+            $ref: '#/components/schemas/Obstacle'
+        _agmasync_boundaryType:
+          type: [string, 'null']
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            The boundary classification.
+          examples:
+            - CONCEPTUAL
+            - OPERATIONAL
+            - ECONOMIC_DEFINED
+            - ADMINISTRATIVE_RECEIVED
+        _agmasync_harvestPeriod:
+          oneOf:
+            - $ref: '#/components/schemas/HarvestPeriod'
+            - type: 'null'
+        _agmasync_regulatoryRequirements:
+          type: [string, 'null']
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            A regulatory constraint applying to the boundary.
+          examples:
+            - RED_ZONE_NITROGEN
+            - WATER_PROTECTION_AREA
+        _agmasync_metadata:
+          type: [object, 'null']
+          description: >
+            Additional key/value metadata. A participant leaves the keys it
+            does not understand out of its writes, which keeps them.
+          additionalProperties: true
+      required: [id, _agmasync_fieldRef, boundary]
 
     Entity:
       description: >
@@ -2134,21 +2307,30 @@ components:
           farm: '#/components/schemas/Farm'
           field: '#/components/schemas/Field'
           fieldBoundary: '#/components/schemas/FieldBoundary'
-    Geometry:
-      type: object
+
+    WktPoint:
+      type: string
       description: >
-        A GeoJSON geometry (RFC 7946). Positions are [longitude, latitude] and,
-        optionally, altitude.
-      properties:
-        type:
-          type: string
-          description: >
-            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
-            The GeoJSON geometry type.
-          examples: [Point, LineString, Polygon, MultiPolygon]
-        coordinates:
-          description: Nesting depth depends on `type`.
-      required: [type, coordinates]
+        A point as Well-Known Text in WGS84, in the canonical form of
+        "Encoding" in specification.md.
+      pattern: '^POINT (\(-?(0|[1-9][0-9]*)(\.[0-9]*[1-9])? -?(0|[1-9][0-9]*)(\.[0-9]*[1-9])?\)|Z \(-?(0|[1-9][0-9]*)(\.[0-9]*[1-9])? -?(0|[1-9][0-9]*)(\.[0-9]*[1-9])? -?(0|[1-9][0-9]*)(\.[0-9]*[1-9])?\))$'
+      examples: ['POINT (9.5531 52.2089)']
+
+    WktArea:
+      type: string
+      description: >
+        A polygon or multipolygon as Well-Known Text in WGS84, in the canonical
+        form of "Encoding" in specification.md.
+      pattern: '^(POLYGON|MULTIPOLYGON) (Z )?\(.*\)$'
+      examples: ['POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))']
+
+    WktObstacle:
+      type: string
+      description: >
+        A point, line string, or polygon as Well-Known Text in WGS84, in the
+        canonical form of "Encoding" in specification.md.
+      pattern: '^(POINT|LINESTRING|POLYGON) (Z )?\(.*\)$'
+      examples: ['POINT (9.5621 52.2062)']
 
     EntityTypeToggle:
       type: object
@@ -2574,7 +2756,7 @@ components:
             entity type selected on it. Each of those is the user's act: an
             application cannot ask for the set again. The identifier mapping
             survived all of them, so the objects
-            arrive carrying the endpoint's own `local_id` and match rather than
+            arrive carrying the endpoint's own `referenceId` and match rather than
             reconcile. An endpoint MUST NOT take the arrival of a canonical set as
             evidence of a first connection: without this check it creates local
             duplicates of data it already holds.

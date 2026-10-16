@@ -29,7 +29,7 @@ Despite these examples the terminology and approaches used in ISOXML and EFDI ar
 ## Decision
 
 AgmaSync aims to support the same terminology and overall semantics as ISOXML and EFDI, however it is not a strict copy of either of them. 
-AgmaSync defines its own canonical data model that is used for the purpose of Masterdata Sync.
+AgmaSync defines its own canonical data model that is used for the purpose of Masterdata Sync. Its objects are based on the ADAPT types, with typed extensions and validation that ADAPT does not have ([ADR 11](11-entity-model.md)).
 
 AgmaSync also defines a set of validation rules and corresponding error responses that are used to enforce a canonical representation of all entities and their relationships.
 

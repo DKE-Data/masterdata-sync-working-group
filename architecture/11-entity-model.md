@@ -1,6 +1,6 @@
 # ADR 11 - Entity model: FarmSPT, AgmaSync and ADAPT
 
-- **Status:** WIP
+- **Status:** Decided
 - **Scope:** The master-data entities of the specification, derived from
   FarmSPT, compared with ADAPT 2. Whether AgmaSync should encode them in the
   ADAPT data model, and what to take from ADAPT otherwise
@@ -271,12 +271,11 @@ file.
   envelope with typed fields. It carries the unchanged ADAPT component in
   `adapt`, and the FarmSPT attributes ADAPT lacks as typed fields in
   `extensions`, not as context items.
-- **F. Like E, with the extensions inside `adapt`.** The FarmSPT attributes
-  ADAPT lacks are typed properties of the ADAPT object itself, named with a
-  vendor prefix: `_agmasync_partners`, a valid identifier in JavaScript and
-  most other languages, so generated code and dot access work. Once ADAPT adds
-  a slot, agrirouter writes the attribute natively or prefixed, depending on
-  the receiver's ADAPT version.
+- **F. Like E, with the extensions inside the ADAPT-based object.** The
+  envelope carries sync state, and `content` an object based on the ADAPT type.
+  The FarmSPT attributes ADAPT lacks are typed properties of that object, named
+  with a vendor prefix: `_agmasync_partners`, a valid identifier in JavaScript
+  and most other languages, so generated code and dot access work.
 
 ## Criteria
 
@@ -294,12 +293,11 @@ file.
 
 ### 1. Adoption cost by participant
 
-Participants fall into three groups. Their share is not known (see Open
-questions).
+Participants fall into three groups. Their share is not known.
 
 | Participant | A | B | C | D | E | F |
 | --- | --- | --- | --- | --- | --- | --- |
-| Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: send B's shape | low: `adapt` passes through unchanged, `extensions` are typed | low: `adapt` is a valid ADAPT object, `_agmasync_` properties are typed |
+| Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: send B's shape | low: `adapt` passes through unchanged, `extensions` are typed | low: `content` follows ADAPT, `_agmasync_` properties are typed |
 | Built on ISOXML / EFDI | low: FarmSPT maps its attributes to ISO 11783 Customer / Farm / Partfield | high: map to ADAPT, then to context items | low | low: send A's shape | medium to high: map to ADAPT, no context items | medium to high, as E |
 | Proprietary REST (client / farm / field) | medium | medium to high | medium | medium: send A's shape | medium to high | medium to high |
 
@@ -531,9 +529,9 @@ Write semantics keeps them.
 
 | | A | B | C | D | E | F |
 | --- | --- | --- | --- | --- | --- | --- |
-| Schema and validation | exists | rewrite, plus a validator driven by the definitions | exists | both | envelope and `extensions` typed; `adapt` by a tightened copy of the ADAPT schema | as E, with the `_agmasync_` properties declared in the tightened ADAPT schema, one schema per supported ADAPT version |
+| Schema and validation | exists | rewrite, plus a validator driven by the definitions | exists | both | envelope and `extensions` typed; `adapt` by a tightened copy of the ADAPT schema | as E, with the `_agmasync_` properties declared in the tightened ADAPT-based schema |
 | Registry of custom definitions | none | required | publish once | required | none | none |
-| Translation | none | none | none, done at the participant's edge | server-side in both directions | none | per ADAPT version, only for attributes that gained a native slot |
+| Translation | none | none | none, done at the participant's edge | server-side in both directions | none | none |
 | Conflict and merge semantics | exists | custom merge: keyed by `definitionCode`, plus rules for removal, repeated codes and ADAPT's own arrays | exists | across two representations | RFC 7396; only ADAPT's own arrays are replaced whole | as E |
 
 D is the most expensive. It also makes agrirouter responsible for lossy
@@ -580,10 +578,9 @@ the [criteria](#criteria) above:
 - **Identity and references.** The envelope carries identity, revision and
   tenant, as today. References in `extensions` are `EntityReference`.
   References inside `adapt` (`growerId`, `farmId`, `fieldId`,
-  `partyId`, `parentPartyId`, `seasonIds`) stay strings. They hold the near end's `local_id`,
-  with the target's `agrirouter_id` alongside on delivery, as set out under
-  [F](#option-f-in-detail). In E the canonical ids (`canonicalGrowerId`) go
-  into `extensions`.
+  `partyId`, `parentPartyId`, `seasonIds`) stay strings. They hold the near
+  end's `local_id`, with the target's `agrirouter_id` alongside on delivery in
+  `extensions` (`canonicalGrowerId`).
 - **Write semantics.** RFC 7396 works: envelope, `adapt` and `extensions` are
   objects, so a change to `partners` does not touch `name`. Only ADAPT's own
   arrays (`telecommunicationContactMethods`, `addressContactMethods`,
@@ -598,7 +595,7 @@ the [criteria](#criteria) above:
 - **Structure inherited from ADAPT.** The body brings Grower and Season as
   objects of their own, and the boundary references its field. The boundary
   reference is wanted. Grower adds an object FarmSPT does not have. Season is
-  an object FarmSPT wants as well (see Open questions).
+  an object FarmSPT wants as well, once tasks link to it.
 - **Versioning.** The envelope must name the ADAPT version of `adapt`, and
   AgmaSync decides when to move to a new one.
 
@@ -609,24 +606,32 @@ sync.
 
 ### Option F in detail
 
-The farm from the example under F:
+The farm from the example under F, as delivered to an endpoint that has not
+bound the contractor:
 
 ```json
 {
   "type": "farm",
-  "agrirouter_id": "0b6e…4a54",
   "revision": 12,
   …
-  "adapt": {
-    "id": { "referenceId": "FARM-3001" },
+  "content": {
+    "id": {
+      "referenceId": "FARM-3001",
+      "uniqueIds": [
+        { "idText": "0b6e…4a54", "idTypeCode": "UUID", "idSource": "AGRIROUTER" },
+        { "idText": "FARM-3001", "idTypeCode": "STRING", "idSource": "LOCAL" }
+      ]
+    },
     "name": "Hofgut Sonnenberg",
-    "growerId": "GRW-0001",
+    "_agmasync_growerRef": { "id": { "referenceId": "ORG-1001", "uniqueIds": [ … ] } },
     …
     "_agmasync_specialisedUsageType": "arable farming",
     "_agmasync_partners": [
       {
-        "partner_id": { "agrirouter_id": "0b6e…4a53" },
-        "partner_role": "CUSTOM_SERVICE_PROVIDER"
+        "partyRef": {
+          "id": { "uniqueIds": [ { "idText": "0b6e…4a53", "idTypeCode": "UUID", "idSource": "AGRIROUTER" } ] }
+        },
+        "roleCode": "CUSTOM_SERVICE_PROVIDER"
       }
     ],
     …
@@ -636,134 +641,74 @@ The farm from the example under F:
 
 A prefixed name is `_agmasync_` plus the AgmaSync attribute name in camelCase,
 following ADAPT (`_agmasync_specialisedUsageType`), and its value has the
-AgmaSync type, as in E's `extensions`. No ADAPT property starts with an
-underscore, so the prefix cannot collide with a later ADAPT slot.
+AgmaSync type. No ADAPT property starts with an underscore, so the prefix cannot
+collide with a later ADAPT slot.
 
 Compared with E:
 
-- **One object.** `adapt` is a valid ADAPT 2.0.2 object, since ADAPT ignores
-  unknown properties. Its `id.referenceId` replaces the envelope's `local_id`
-  and follows the same rule: the id of the participant at the near end of the
-  transfer, and on delivery `id` is left out where the receiver has none. On
-  send it matches the `{local_id}` in the request path.
-  Native references then resolve against `referenceId` as in an ADAPT file.
-  A participant can hand
-  `adapt` to ADAPT tooling as a whole. Tools that do not know the prefix drop
-  or ignore those properties.
-- **References.** Prefixed AgmaSync attributes hold `EntityReference`, as in
-  E. A native reference (`growerId`, `farmId`, `fieldId`, `partyId`,
-  `parentPartyId`, `seasonIds`) holds the `local_id` of the participant at the
-  near end of the transfer, as `id.referenceId` does. On delivery it comes
-  with the target's `agrirouter_id` in `_agmasync_canonical` plus the ADAPT
-  name: `_agmasync_canonicalGrowerId`. Together the two carry what an
-  `EntityReference` carries.
-  - **On send**, the native reference holds the sender's id. agrirouter
-    resolves it through the identifier mapping and rejects one that does not
-    resolve, as today. The sender always has one, since it must bind a target
-    before referencing it. The canonical id is ignored, so an endpoint can
-    send back an object as received.
-  - **On delivery**, the canonical id is always present. The native reference
-    holds the receiver's id, and is left out where the receiver has none,
-    which agrirouter knows from the mapping. That is the case whenever the
-    receiver has not bound the target yet: in the initial load, after an
-    unbind, or when a new target and the object referencing it arrive before
-    the receiver has bound the target.
-
-  Example: the farm, delivered to an endpoint that has not yet bound the
-  grower:
-
-  ```json
-  "adapt": {
-    "id": { "referenceId": "FARM-3001" },
-    "name": "Hofgut Sonnenberg",
-    "_agmasync_canonicalGrowerId": "0b6e…4a58",
-    …
-  }
-  ```
-
-  Once it binds the grower as `GRW-0001`, the endpoint sets
-  `"growerId": "GRW-0001"` in its own copy, and later deliveries carry it:
-
-  ```json
-  "adapt": {
-    "id": { "referenceId": "FARM-3001" },
-    "name": "Hofgut Sonnenberg",
-    "growerId": "GRW-0001",
-    "_agmasync_canonicalGrowerId": "0b6e…4a58",
-    …
-  }
-  ```
-
-  A reference is set or changed only in the native slot. Where that is
-  absent, merge patch keeps the current reference, and `null` removes it. For
-  a list, `_agmasync_canonicalSeasonIds` holds every target and `seasonIds`
-  the bound ones. A `seasonIds` sent replaces only the targets the sender has
-  bound, so an echoed list keeps the others.
-
-  An object the receiver has not bound arrives without `id`, and is valid
-  ADAPT only once bound, as with a missing `fieldId`. The receiver creates it
-  and binds its own id, as today.
-
-  [option-f-sample.json](../examples/option-f-sample.json)
-  shows the whole farm, with one unbound season.
-- **Contract strength.** Unchanged. The tightened ADAPT schema declares each
-  `_agmasync_` property with its type and still rejects unknown properties, so
-  `_agmasync_partner` (singular) is a `400`, as in AgmaSync.
+- **One object.** `content` follows the ADAPT type, so a participant can hand
+  it to ADAPT tooling as a whole. Tools that do not know the prefix drop or
+  ignore those properties.
+- **Identity.** The envelope carries sync state only. `content.id` is ADAPT's
+  `Id`: `uniqueIds` holds the `AGRIROUTER` id and the near end's `LOCAL` id, and
+  `referenceId` repeats the `LOCAL` id, or is absent where the near end has none.
+- **References.** Every reference is a prefixed `_agmasync_<name>Ref` holding
+  an `Id`, in place of ADAPT's `<name>Id` string, so it says which id it carries, which a bare `farmId` string cannot
+  (see [Fit with sync](#3-fit-with-sync)). It follows the rules of `id`: on send
+  either id, on delivery the `AGRIROUTER` id and the receiver's `LOCAL` id where
+  it has one. There is no companion property for the canonical id and no merge
+  rule beyond RFC 7396.
+- **Contract strength.** Unchanged. The schema declares each `_agmasync_`
+  property with its type and rejects unknown properties, so `_agmasync_partner`
+  (singular) is a `400`, as in AgmaSync.
 - **Write semantics and round trip.** Unchanged. Prefixed properties are
   object keys, so RFC 7396 merges them one by one. An ADAPT tool that sends
-  `adapt` back without them leaves them in place, since absent keys are kept.
-- **Moving into ADAPT.** This replaces E's breaking change. agrirouter stores
-  each attribute once and writes it according to the ADAPT version the
-  receiving endpoint declares. Suppose a later ADAPT version adds partner roles
-  to Farm (hypothetical, modelled on `Boundary.partyRoles`). A receiver on that
-  version gets the native slot:
+  `content` back without them leaves them in place, since absent keys are kept.
+- **Moving into ADAPT.** A FarmSPT attribute that a later ADAPT version gives a
+  slot stays prefixed until a breaking AgmaSync version moves it. There is no
+  ADAPT version on the wire and no rendering per version.
+- **Generated code.** Prefixed names are valid identifiers, but generators
+  spell them out: oapi-codegen produces `UnderscoreAgmasyncPartners`.
 
-  ```json
-  "adapt": {
-    "name": "Hofgut Sonnenberg",
-    "partyRoles": [ { "partyId": "ORG-1002", "roleCode": "CUSTOM_SERVICE_PROVIDER" } ],
-    "_agmasync_specialisedUsageType": "arable farming",
-    …
-  }
-  ```
+[option-f-sample.json](../examples/option-f-sample.json) shows the whole farm.
 
-  A receiver still on 2.0.2 keeps getting `_agmasync_partners`, unchanged.
-  On send, agrirouter accepts the shape of the sender's version only, so per
-  version each attribute has exactly one place: a sender on the newer version
-  that sends `_agmasync_partners` gets a `400`.
-- **Cost of the move.** agrirouter owns one mapping per attribute that gained
-  a slot, in both directions. Unlike D, it is between typed shapes that
-  agrirouter defines.
+F keeps E's strengths and makes the AgmaSync additions visible where they apply.
+The trade against C is the same as for E.
 
-F keeps E's strengths, makes the AgmaSync additions visible where they apply,
-and lets attributes move into ADAPT without breaking existing participants.
-The price is per-version rendering at agrirouter. The trade against C is the
-same as for E.
+## Decision
 
-## Recommendation
+**Option F.**
 
-**Option C.**
+1. Each object is an envelope of sync state (`type`, `active`, `revision`,
+   `modified_at`, `tenant_id`, `source_endpoint_id`) and `content`, based on
+   the ADAPT 2.0.2 type of the entity.
+2. FarmSPT attributes without an ADAPT slot are typed `_agmasync_` properties,
+   camelCase throughout `content`.
+3. Identity is `content.id` and references are `_agmasync_<name>Ref`, as
+   above. ADAPT's `growerId`, `farmId` and `fieldId` are not used.
+4. **No Grower entity.** `_agmasync_growerRef` names a party, on the farm and,
+   for a field held apart from its farm, on the field. ADAPT-based participants create a
+   Grower per party at their edge.
+5. **Party keeps its shape** ([ADR 08](08-party-model.md)): person or
+   organization in `_agmasync_details`, discriminated by `partyTypeCode`.
+   The party itself carries no `partyTypeCode`, so the party type has one
+   encoding, and a party without details is of unknown type.
+6. **No Season entity.** The harvest period stays inline as
+   `_agmasync_harvestPeriod` on field and boundary. A Season object serves to
+   link tasks and comes with the Task entity.
+7. **The boundary references its field**, following ADAPT's direction: `_agmasync_fieldRef`
+   ([ADR 12](12-boundary-references-field.md)).
+8. **Geometry is WKT** in one canonical form, and area is in `ha` only.
+9. Every other deviation from ADAPT is listed in
+   [Relation to ADAPT](../specification.md#relation-to-adapt).
 
-1. Keep the FarmSPT-derived AgmaSync model as the contract, under ADR 02.
-2. **Reverse the field–boundary reference**, following ADAPT: `fieldBoundary.field`
-   replaces `field.field_boundaries` ([ADR 12](12-boundary-references-field.md)).
-3. Keep reusing ADAPT code lists, as FarmSPT does. Wherever AgmaSync has an
-   extensible enumeration, draw its values from the ADAPT list if one exists
-   ([Extensible enumerations](../specification.md#extensible-enumerations)).
-4. Publish a normative AgmaSync–ADAPT mapping and the `AgmaSync-` definitions,
-   starting from the [example](../examples/). The definitions cover domain attributes only. The envelope beyond
-   identity is sync state and stays out of ADAPT. ADAPT-based participants
-   then convert at their edge, and there is one conversion instead of one per
-   participant.
-5. Keep the Grower concept out of the model, as FarmSPT does. For ADAPT →
-   AgmaSync, the mapping states that a Grower becomes its Party, and that a
-   Grower without a Party becomes a party without `details`.
-6. Add an optional `name` to FieldBoundary, which ADAPT requires. The mapping
-   falls back to the field name only where it is absent.
+## Consequences
 
-## Open questions
-
-- **Harvest period.** FarmSPT makes the season an optional object the farmer
-  creates, as ADAPT does with Season. AgmaSync inlines it. The season object
-  serves to link tasks, which come with the Task entity. Until then
-  only fields and boundaries would reference it.
+- **ISOXML and proprietary participants map to ADAPT-shaped objects**, at the
+  cost given for F under [Adoption cost](#1-adoption-cost-by-participant).
+- **Street and PO box become address lines**, following ADAPT's
+  `addressLines`.
+- **No context-item registry and no custom validator.** `contextItems` is not
+  used.
+- **Moving an attribute into ADAPT is a breaking change**, made only in a
+  breaking AgmaSync version.
