@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 )
 
 // The create form is this platform's own screen, not the protocol's.
 //
-// A farm management system asks its user for a name and an owner, not for a
+// A farm management system asks its user for a name and a grower, not for a
 // canonical entity, and the mapping from what was typed to what goes on the
 // wire is exactly the work a real integration has to do. Doing it here keeps
 // that work visible: the fields below are the platform's, and everything that
@@ -27,13 +28,14 @@ import (
 
 // formField is one input on the create form.
 type formField struct {
-	// Name is the input's name and the protocol attribute it fills. A dotted
-	// name is a path into a nested object, so "address.city" fills
-	// {"address": {"city": …}}.
+	// Name is the input's name and the content attribute it fills. A dotted
+	// name is a path into nested objects, so "boundary.geometry" fills
+	// {"boundary": {"geometry": …}}. A segment `list[CODE]` is the entry of
+	// an address list whose addressContactTypeCode is CODE.
 	Name  string
 	Label string
 
-	// Kind picks the control and how the value is parsed: text, number, enum,
+	// Kind picks the control and how the value is parsed: text, area, enum,
 	// ref or geometry.
 	Kind string
 
@@ -68,7 +70,7 @@ type refChoice struct {
 //
 // It mirrors the columns in internal/platform/store: a field here with no
 // column there would be typed in and silently dropped. An organization's and a
-// person's own attributes sit in the party's details; see
+// person's own attributes sit in the party's _agmasync_details; see
 // [attributesFromForm].
 func formFields(typ recordType) []formField {
 	switch typ {
@@ -76,65 +78,62 @@ func formFields(typ recordType) []formField {
 		return []formField{
 			{Name: "name", Label: "Name", Kind: "text",
 				Placeholder: "Hof Nord GmbH", Required: true},
-			{Name: "details.commercial_registry_number", Label: "Commercial registry number",
+			{Name: "_agmasync_details.commercialRegistryNumber", Label: "Commercial registry number",
 				Kind: "text", Placeholder: "HRA 12345"},
-			{Name: "address.city", Label: "City", Kind: "text", Placeholder: "Osnabrück"},
-			{Name: "address.country", Label: "Country", Kind: "text", Placeholder: "DE"},
+			{Name: physicalAddress + ".city", Label: "City", Kind: "text", Placeholder: "Osnabrück"},
+			{Name: physicalAddress + ".countryCode", Label: "Country code", Kind: "text", Placeholder: "DE"},
 		}
 	case recordPerson:
 		return []formField{
 			{Name: "name", Label: "Name", Kind: "text",
 				Placeholder: "Anke Meyer", Required: true},
-			{Name: "details.title", Label: "Title", Kind: "text", Placeholder: "Dr."},
-			{Name: "details.first_name", Label: "First name", Kind: "text", Placeholder: "Anke"},
-			{Name: "details.last_name", Label: "Last name", Kind: "text", Placeholder: "Meyer"},
+			{Name: "_agmasync_details.title", Label: "Title", Kind: "text", Placeholder: "Dr."},
+			{Name: "_agmasync_details.firstName", Label: "First name", Kind: "text", Placeholder: "Anke"},
+			{Name: "_agmasync_details.lastName", Label: "Last name", Kind: "text", Placeholder: "Meyer"},
 		}
 	case recordType(agmasync.TypeFarm):
 		return []formField{
 			{Name: "name", Label: "Name", Kind: "text",
 				Placeholder: "Hof Nord", Required: true},
-			// Required because the protocol requires it. A farm without an
-			// owner is not a farm this platform can send at all, so accepting
-			// one here would only hold a record back for a 400 later — and the
-			// order it imposes, a party before the farm it holds, is the
-			// protocol's own.
-			{Name: "owner", Label: "Owner", Kind: "ref",
-				RefType:  agmasync.TypeParty,
-				Hint:     "a party held here",
-				Required: true},
-			{Name: "address.city", Label: "City", Kind: "text", Placeholder: "Osnabrück"},
+			// Optional, as in the protocol: a system that records no parties
+			// has no grower to give (ADR 13). Where there is one, the party
+			// goes before the farm it holds.
+			{Name: "_agmasync_growerRef", Label: "Grower", Kind: "ref",
+				RefType: agmasync.TypeParty,
+				Hint:    "a party held here"},
+			{Name: "_agmasync_address.city", Label: "City", Kind: "text", Placeholder: "Osnabrück"},
 		}
 	case recordType(agmasync.TypeField):
 		return []formField{
 			{Name: "name", Label: "Name", Kind: "text",
 				Placeholder: "Nordacker", Required: true},
-			{Name: "area", Label: "Area (ha)", Kind: "number", Placeholder: "12.4"},
-			{Name: "farm", Label: "Farm", Kind: "ref",
+			{Name: "arableArea", Label: "Area (ha)", Kind: "area", Placeholder: "12.4"},
+			{Name: "_agmasync_farmRef", Label: "Farm", Kind: "ref",
 				RefType: agmasync.TypeFarm,
 				Hint:    "the farm it belongs to"},
 		}
 	case recordType(agmasync.TypeFieldBoundary):
 		return []formField{
-			// Required, like a farm's owner: the boundary names its field, so
+			// Required, as in the protocol: the boundary names its field, so
 			// the field goes first.
-			{Name: "field", Label: "Field", Kind: "ref",
+			{Name: "_agmasync_fieldRef", Label: "Field", Kind: "ref",
 				RefType:  agmasync.TypeField,
 				Hint:     "the field it describes",
 				Required: true},
 			{Name: "name", Label: "Name", Kind: "text", Placeholder: "Nordacker 2026"},
-			{Name: "boundary_type", Label: "Boundary type", Kind: "enum",
+			{Name: "_agmasync_boundaryType", Label: "Boundary type", Kind: "enum",
 				Examples: []string{"CONCEPTUAL", "OPERATIONAL",
 					"ECONOMIC_DEFINED", "ADMINISTRATIVE_RECEIVED"},
 				Hint: "extensible: another value is allowed"},
-			{Name: "creation_method", Label: "Creation method", Kind: "enum",
+			{Name: "boundary.boundaryCreationMethodCode", Label: "Creation method", Kind: "enum",
 				Examples: []string{"UNKNOWN", "MANUAL", "DRIVEN", "SURVEYED",
 					"AUTO_OPERATION", "AUTO_IMAGERY", "ADMINISTRATIVE"}},
-			// The one field left as JSON, because a polygon is not something a
+			// The one field left as text, because a polygon is not something a
 			// person types into boxes. A real platform draws it on a map; this
 			// one shows the geometry the map would have produced.
-			{Name: "boundary", Label: "Boundary (GeoJSON)", Kind: "geometry",
+			{Name: "boundary.geometry", Label: "Boundary (WKT)", Kind: "geometry",
 				Required: true,
-				Hint:     "Polygon or MultiPolygon"},
+				Hint:     "POLYGON or MULTIPOLYGON, in WGS84"},
 		}
 	default:
 		return nil
@@ -143,8 +142,11 @@ func formFields(typ recordType) []formField {
 
 // sampleGeometry prefills the one field a person cannot reasonably type, so the
 // form is usable without going and finding a polygon first.
-const sampleGeometry = `{"type":"Polygon","coordinates":` +
-	`[[[8.02,52.28],[8.04,52.28],[8.04,52.29],[8.02,52.29],[8.02,52.28]]]}`
+const sampleGeometry = `POLYGON ((8.02 52.28, 8.04 52.28, 8.04 52.29, 8.02 52.29, 8.02 52.28))`
+
+// physicalAddress is the form path of an organization's address: the PHYSICAL
+// entry of its contact info's address list, which is the party's address.
+const physicalAddress = "contactInfo.addressContactMethods[PHYSICAL]"
 
 // fillChoices lists what each reference field may point at.
 //
@@ -198,16 +200,16 @@ func nameOfRecord(record store.Record) string {
 		return name
 	}
 	// A boundary need not have a name; what it is called then is what it is for.
-	return text("boundary_type")
+	return text("_agmasync_boundaryType")
 }
 
 // attributesFromForm turns what was typed into the attributes of an entity.
 //
 // This is the mapping a real integration writes, in the direction the sample's
-// own screens exercise: the platform's fields in, the protocol's attributes
-// out. The reverse direction is [store.Record], which is where a delivered
-// object is taken apart. An organization or a person goes out as a party whose
-// details state which.
+// own screens exercise: the platform's fields in, the protocol's content
+// attributes out. The reverse direction is [store.Record], which is where a
+// delivered object is taken apart. An organization or a person goes out as a
+// party whose _agmasync_details state which.
 //
 // A field left empty is left out altogether rather than sent as null. The two
 // are different on the wire — absent means the sender says nothing about the
@@ -223,7 +225,7 @@ func attributesFromForm(typ recordType, form url.Values) ([]byte, error) {
 	var missing []string
 	var errs []error
 	if partyType := typ.partyType(); partyType != "" {
-		assign(out, "details.party_type", partyType)
+		assign(out, "_agmasync_details.partyTypeCode", partyType)
 	}
 	for _, field := range fields {
 		value := strings.TrimSpace(form.Get(field.Name))
@@ -242,6 +244,11 @@ func attributesFromForm(typ recordType, form url.Values) ([]byte, error) {
 		assign(out, field.Name, parsed)
 	}
 
+	// A farm's address is one address, of a type the form does not ask for.
+	if address, ok := out["_agmasync_address"].(map[string]any); ok {
+		address["addressContactTypeCode"] = "PHYSICAL"
+	}
+
 	if len(missing) > 0 {
 		errs = append(errs, fmt.Errorf("fill in %s", strings.Join(missing, ", ")))
 	}
@@ -253,12 +260,12 @@ func attributesFromForm(typ recordType, form url.Values) ([]byte, error) {
 
 func parseFormValue(field formField, value string) (any, error) {
 	switch field.Kind {
-	case "number":
-		parsed, err := strconv.ParseFloat(value, 64)
+	case "area":
+		parsed, err := strconv.ParseFloat(value, 32)
 		if err != nil {
 			return nil, fmt.Errorf("%s is not a number: %q", field.Label, value)
 		}
-		return parsed, nil
+		return oapi.Area{NumericValue: float32(parsed), UnitOfMeasureCode: oapi.Ha}, nil
 
 	case "ref":
 		// A reference goes out naming this platform's own identifier for the
@@ -266,32 +273,106 @@ func parseFormValue(field formField, value string) (any, error) {
 		// the platform does not hold cannot be named at all, which is why the
 		// control is a list of what it holds rather than a text box. The slot
 		// says which type it is.
-		return map[string]string{"local_id": value}, nil
+		return agmasync.LocalRef(value), nil
 
 	case "geometry":
-		var geometry any
-		if err := json.Unmarshal([]byte(value), &geometry); err != nil {
-			return nil, fmt.Errorf("%s is not JSON: %w", field.Label, err)
+		// Checked for its type only. Whether it is in the canonical form is
+		// agrirouter's to judge, and the 400 says so.
+		if !strings.HasPrefix(value, "POLYGON ") && !strings.HasPrefix(value, "MULTIPOLYGON ") {
+			return nil, fmt.Errorf("%s is not a POLYGON or MULTIPOLYGON in WKT", field.Label)
 		}
-		return geometry, nil
+		return value, nil
 
 	default:
 		return value, nil
 	}
 }
 
-// assign writes a value at a dotted path, creating the intermediate object a
-// nested attribute needs.
+// pathSegment is one step of a form path: an attribute, or with code set the
+// entry of the address list key whose addressContactTypeCode is code.
+type pathSegment struct {
+	key, code string
+}
+
+func segmentsOf(path string) []pathSegment {
+	var out []pathSegment
+	for _, part := range strings.Split(path, ".") {
+		key, code, selects := strings.Cut(part, "[")
+		if selects {
+			code = strings.TrimSuffix(code, "]")
+		}
+		out = append(out, pathSegment{key: key, code: code})
+	}
+	return out
+}
+
+// assign writes a value at a form path, creating the intermediate objects and
+// list entries a nested attribute needs.
 func assign(out map[string]any, path string, value any) {
-	parent, leaf, nested := strings.Cut(path, ".")
-	if !nested {
-		out[path] = value
-		return
+	segments := segmentsOf(path)
+	current := out
+	for i, segment := range segments {
+		if i == len(segments)-1 {
+			current[segment.key] = value
+			return
+		}
+		if segment.code == "" {
+			child, ok := current[segment.key].(map[string]any)
+			if !ok {
+				child = map[string]any{}
+				current[segment.key] = child
+			}
+			current = child
+			continue
+		}
+		list, _ := current[segment.key].([]any)
+		var entry map[string]any
+		for _, item := range list {
+			if candidate, ok := item.(map[string]any); ok && candidate["addressContactTypeCode"] == segment.code {
+				entry = candidate
+			}
+		}
+		if entry == nil {
+			entry = map[string]any{"addressContactTypeCode": segment.code}
+			current[segment.key] = append(list, entry)
+		}
+		current = entry
 	}
-	child, ok := out[parent].(map[string]any)
-	if !ok {
-		child = map[string]any{}
-		out[parent] = child
+}
+
+// valueAt reads an attribute by the same path the form writes it under.
+func valueAt(modelled map[string]json.RawMessage, path string) (json.RawMessage, bool) {
+	current := modelled
+	segments := segmentsOf(path)
+	for i, segment := range segments {
+		raw, ok := current[segment.key]
+		if !ok {
+			return nil, false
+		}
+		if segment.code != "" {
+			var list []map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &list); err != nil {
+				return nil, false
+			}
+			found := false
+			for _, entry := range list {
+				var code string
+				if json.Unmarshal(entry["addressContactTypeCode"], &code) == nil && code == segment.code {
+					current, found = entry, true
+				}
+			}
+			if !found {
+				return nil, false
+			}
+			continue
+		}
+		if i == len(segments)-1 {
+			return raw, true
+		}
+		current = nil
+		if err := json.Unmarshal(raw, &current); err != nil {
+			return nil, false
+		}
 	}
-	child[leaf] = value
+	return nil, false
 }

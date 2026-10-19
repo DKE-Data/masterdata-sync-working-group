@@ -152,7 +152,7 @@ func (r *Router) doPut(
 	if !ok {
 		return nil, false, errors.New("write body missing")
 	}
-	sent, err := decodeSentIdentity(raw)
+	sent, err := decodeSentIdentity(raw, localID)
 	if err != nil {
 		return nil, false, err
 	}

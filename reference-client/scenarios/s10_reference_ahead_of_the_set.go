@@ -9,7 +9,6 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/agrirouter"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
-	"github.com/google/uuid"
 )
 
 func referenceAheadOfTheSet() Scenario {
@@ -119,18 +118,18 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	_, resolvedOwner := record.Modelled["owner"]
-	if err := say.Check(!resolvedOwner,
-		"Beta holds the farm and cannot resolve its owner: it holds no such party"); err != nil {
+	_, resolvedGrower := record.Modelled["_agmasync_growerRef"]
+	if err := say.Check(!resolvedGrower,
+		"Beta holds the farm and cannot resolve its grower: it holds no such party"); err != nil {
 		return err
 	}
 	say.Detail("the reference is left unresolved.")
 
-	owner, err := referenceOn(delivered, "owner")
+	grower, err := referenceOn(delivered, "_agmasync_growerRef")
 	if err != nil {
 		return err
 	}
-	if err := say.Check(owner.AgrirouterID != nil,
+	if err := say.Check(grower.AgrirouterID != nil,
 		"the farm named the target entity, so Beta knows what it is waiting for"); err != nil {
 		return err
 	}
@@ -166,8 +165,8 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 		return fmt.Errorf("Beta holds %d people, want the one the set carried", len(betaPeople))
 	}
 	if err := say.Check(
-		containsLocalID(linked.Modelled["owner"], betaPeople[0]),
-		"and the farm now names Beta's own %q as its owner", betaPeople[0]); err != nil {
+		containsLocalID(linked.Modelled["_agmasync_growerRef"], betaPeople[0]),
+		"and the farm now names Beta's own %q as its grower", betaPeople[0]); err != nil {
 		return err
 	}
 	say.Detail("had the set ended without it, absence would be real — the set is")
@@ -176,39 +175,35 @@ func runReferenceAheadOfTheSet(ctx context.Context, w *World) error {
 	return nil
 }
 
-// reference is a reference as it arrives, which is the only place Beta can read
-// one this platform has no column for.
-type reference struct {
-	AgrirouterID *uuid.UUID `json:"agrirouter_id"`
-	LocalID      *string    `json:"local_id"`
-}
-
-// referenceOn reads one reference slot off a delivered entity.
-func referenceOn(entity oapi.Entity, slot string) (reference, error) {
+// referenceOn reads one reference slot off a delivered entity, which is the
+// only place Beta can read one this platform has no column for.
+func referenceOn(entity oapi.Entity, slot string) (agmasync.Identity, error) {
 	raw, err := entity.MarshalJSON()
 	if err != nil {
-		return reference{}, err
+		return agmasync.Identity{}, err
 	}
-	var fields map[string]json.RawMessage
+	var fields struct {
+		Content map[string]json.RawMessage `json:"content"`
+	}
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return reference{}, err
+		return agmasync.Identity{}, err
 	}
-	value, ok := fields[slot]
+	value, ok := fields.Content[slot]
 	if !ok {
-		return reference{}, fmt.Errorf("the delivered object carries no %q", slot)
+		return agmasync.Identity{}, fmt.Errorf("the delivered object carries no %q", slot)
 	}
-	var ref reference
+	var ref oapi.Ref
 	if err := json.Unmarshal(value, &ref); err != nil {
-		return reference{}, err
+		return agmasync.Identity{}, err
 	}
-	return ref, nil
+	return agmasync.IdentityOf(ref.Id)
 }
 
 // containsLocalID reports whether a reference names this local identifier.
 func containsLocalID(raw json.RawMessage, localID string) bool {
-	var ref reference
+	var ref oapi.Ref
 	if err := json.Unmarshal(raw, &ref); err != nil {
 		return false
 	}
-	return ref.LocalID != nil && *ref.LocalID == localID
+	return ref.Id.ReferenceId != nil && *ref.Id.ReferenceId == localID
 }

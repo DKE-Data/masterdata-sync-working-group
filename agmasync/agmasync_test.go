@@ -104,18 +104,23 @@ func TestSelectedTypesReadsTheSelectionInDependencyOrder(t *testing.T) {
 }
 
 func TestEnvelopeOfReadsCommonFieldsWhicheverTypeItIs(t *testing.T) {
-	// A receiver reads type, revision, and localId off a frame before it knows
-	// which concrete schema the object is. This is that step.
+	// A receiver reads type, revision, and identity off a frame before it
+	// knows which concrete schema the object is. This is that step.
 	arID := uuid.New()
 	revision := 7
 	localID := "PFD-00042"
 
+	source := agmasync.AgrirouterIDSource
 	raw, err := json.Marshal(oapi.Field{
-		Type:         "field",
-		AgrirouterId: &arID,
-		LocalId:      &localID,
-		Revision:     &revision,
-		Name:         "North 40",
+		Type:     "field",
+		Revision: &revision,
+		Content: oapi.FieldContent{
+			Id: oapi.Id{ReferenceId: &localID, UniqueIds: &[]oapi.UniqueId{
+				{IdText: arID.String(), IdTypeCode: agmasync.IDTypeUUID, IdSource: &source},
+				{IdText: localID, IdTypeCode: agmasync.IDTypeString},
+			}},
+			Name: "North 40",
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +145,7 @@ func TestEnvelopeOfReadsCommonFieldsWhicheverTypeItIs(t *testing.T) {
 }
 
 func TestEnvelopeOfRejectsAnUnknownEntityType(t *testing.T) {
-	if _, err := agmasync.EnvelopeOf([]byte(`{"type":"guidanceLine","localId":"GL-1"}`)); !errors.Is(err, agmasync.ErrUnknownEntityType) {
+	if _, err := agmasync.EnvelopeOf([]byte(`{"type":"guidanceLine","content":{"id":{"referenceId":"GL-1"}}}`)); !errors.Is(err, agmasync.ErrUnknownEntityType) {
 		t.Errorf("EnvelopeOf error = %v, want ErrUnknownEntityType", err)
 	}
 }
@@ -187,19 +192,22 @@ func TestIsRepeatLoad(t *testing.T) {
 func TestPartyTierOrdersPersonsAfterOrganizations(t *testing.T) {
 	// A membership names an organization from a person, so persons go one tier
 	// below every other party. The tier is read from the object, not its type.
+	party := func(name string, details nullable.Nullable[oapi.PartyDetails]) oapi.Party {
+		return oapi.Party{Content: oapi.PartyContent{Name: name, UnderscoreAgmasyncDetails: details}}
+	}
 	person := func() oapi.Party {
 		var d oapi.PartyDetails
-		if err := d.FromPersonDetails(oapi.PersonDetails{PartyType: agmasync.PartyTypePerson}); err != nil {
+		if err := d.FromPersonDetails(oapi.PersonDetails{PartyTypeCode: agmasync.PartyTypePerson}); err != nil {
 			t.Fatal(err)
 		}
-		return oapi.Party{Name: "Anna Schmidt", Details: nullable.NewNullableWithValue(d)}
+		return party("Anna Schmidt", nullable.NewNullableWithValue(d))
 	}
 	organization := func() oapi.Party {
 		var d oapi.PartyDetails
-		if err := d.FromOrganizationDetails(oapi.OrganizationDetails{PartyType: agmasync.PartyTypeOrganization}); err != nil {
+		if err := d.FromOrganizationDetails(oapi.OrganizationDetails{PartyTypeCode: agmasync.PartyTypeOrganization}); err != nil {
 			t.Fatal(err)
 		}
-		return oapi.Party{Name: "Acme", Details: nullable.NewNullableWithValue(d)}
+		return party("Acme", nullable.NewNullableWithValue(d))
 	}
 
 	for _, tc := range []struct {
@@ -208,8 +216,8 @@ func TestPartyTierOrdersPersonsAfterOrganizations(t *testing.T) {
 		partyType string
 		tier      int
 	}{
-		{"unknown party type", oapi.Party{Name: "Hof Nord"}, "", 0},
-		{"null details", oapi.Party{Name: "Hof Nord", Details: nullable.NewNullNullable[oapi.PartyDetails]()}, "", 0},
+		{"unknown party type", party("Hof Nord", nullable.Nullable[oapi.PartyDetails]{}), "", 0},
+		{"null details", party("Hof Nord", nullable.NewNullNullable[oapi.PartyDetails]()), "", 0},
 		{"organization", organization(), agmasync.PartyTypeOrganization, 0},
 		{"person", person(), agmasync.PartyTypePerson, 1},
 	} {

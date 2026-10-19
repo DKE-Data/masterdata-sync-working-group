@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 	psync "github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/sync"
 	"github.com/google/uuid"
@@ -527,83 +528,50 @@ func detailAttrs(tx *store.Tx, record store.Record) []detailAttr {
 				attr.Value = fmt.Sprintf("%s — %s", name, targetID)
 			}
 		case "geometry":
-			// Summarised, then shown. Indenting a polygon puts every coordinate
-			// on a line of its own, which is a lot of screen for the one thing
-			// nobody reads off a page — while the shape and the size of it are
-			// what a person actually wants to know at a glance.
+			// Summarised, then shown. A polygon is a long line of coordinates,
+			// which is a lot of screen for the one thing nobody reads off a
+			// page — while the shape and the size of it are what a person
+			// actually wants to know at a glance.
 			attr.Value = geometrySummary(raw)
-			attr.Pretty = string(raw)
+			var wkt string
+			if json.Unmarshal(raw, &wkt) == nil {
+				attr.Pretty = wkt
+			}
+		case "area":
+			var area oapi.Area
+			if json.Unmarshal(raw, &area) == nil {
+				attr.Value = fmt.Sprintf("%g %s", area.NumericValue, area.UnitOfMeasureCode)
+			}
 		}
 		out = append(out, attr)
 	}
 	return out
 }
 
-// valueAt reads an attribute by the same dotted path the form writes it under.
-func valueAt(modelled map[string]json.RawMessage, path string) (json.RawMessage, bool) {
-	parent, leaf, nested := strings.Cut(path, ".")
-	raw, ok := modelled[parent]
-	if !ok || !nested {
-		return raw, ok
-	}
-	var child map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &child); err != nil {
-		return nil, false
-	}
-	value, ok := child[leaf]
-	return value, ok
-}
-
-// geometrySummary says what shape a boundary is and how big the geometry is,
-// which is what can usefully be read off a screen. The coordinates themselves
-// are shown underneath, unaltered, because this is a sample and what went over
-// the wire is the point of it.
+// geometrySummary says what shape a boundary is and how many positions the
+// geometry has, which is what can usefully be read off a screen. The WKT
+// itself is shown underneath, unaltered, because this is a sample and what
+// went over the wire is the point of it.
 func geometrySummary(raw json.RawMessage) string {
-	var geometry struct {
-		Type        string `json:"type"`
-		Coordinates any    `json:"coordinates"`
-	}
-	if err := json.Unmarshal(raw, &geometry); err != nil {
+	var wkt string
+	if err := json.Unmarshal(raw, &wkt); err != nil {
 		return ""
 	}
-	name := geometry.Type
-	if name == "" {
-		name = "geometry"
-	}
-	points := countPoints(geometry.Coordinates)
-	if points == 0 {
+	name, coordinates, ok := strings.Cut(wkt, " (")
+	if !ok {
 		return name
 	}
-	return fmt.Sprintf("%s — %d points", name, points)
-}
-
-// countPoints walks a GeoJSON coordinate array, whose nesting depth is the
-// geometry's own: a position is a pair of numbers however deep it sits.
-func countPoints(coordinates any) int {
-	list, ok := coordinates.([]any)
-	if !ok {
-		return 0
-	}
-	if len(list) > 0 {
-		if _, isNumber := list[0].(float64); isNumber {
-			return 1
-		}
-	}
-	total := 0
-	for _, item := range list {
-		total += countPoints(item)
-	}
-	return total
+	// Positions are separated by commas, within a ring and between rings
+	// alike, so the count of positions is one more than the count of commas.
+	return fmt.Sprintf("%s — %d points", name, strings.Count(coordinates, ",")+1)
 }
 
 func refTarget(raw json.RawMessage) string {
-	var ref struct {
-		LocalID string `json:"local_id"`
-	}
-	if err := json.Unmarshal(raw, &ref); err != nil {
+	var ref oapi.Ref
+	if err := json.Unmarshal(raw, &ref); err != nil || ref.Id.ReferenceId == nil {
 		return ""
 	}
-	return ref.LocalID
+	return *ref.Id.ReferenceId
 }
 
 func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {

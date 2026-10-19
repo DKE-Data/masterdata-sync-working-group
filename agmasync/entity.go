@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/google/uuid"
 )
 
 // EntityType is one of the master-data entity types.
@@ -61,34 +62,63 @@ func (t EntityType) Valid() bool {
 }
 
 // Envelope is the set of fields every entity shares, plus the type
-// discriminator, read off an entity without regard to which type it is.
+// discriminator and the object's identity, read off an entity without regard
+// to which type it is.
 //
 // See "Common envelope" in specification.md. Every field but Type is a pointer
 // because every one of them is assigned by agrirouter and therefore absent on
-// an object a participant is about to send for the first time. LocalId is
-// absent for a second reason as well, and that absence is meaningful: on a
-// delivered object it states that agrirouter holds no mapping for the
-// receiving application, which is what makes the object recognizable as one
-// the receiver must create locally and bind.
+// an object a participant is about to send for the first time.
+//
+// AgrirouterId and LocalId are not envelope fields on the wire: they are the
+// two entries of `content.id` (see [IdentityOf]), lifted out because a
+// receiver needs them before it decodes the content. LocalId is absent for a
+// second reason as well, and that absence is meaningful: on a delivered object
+// it states that agrirouter holds no mapping for the receiving application,
+// which is what makes the object recognizable as one the receiver must create
+// locally and bind.
 type Envelope struct {
 	oapi.Envelope
 	Type EntityType `json:"type"`
+
+	AgrirouterId *uuid.UUID `json:"-"`
+	LocalId      *string    `json:"-"`
 }
 
 // EnvelopeOf reads the common fields of an entity of any type from its JSON.
 //
 // The event stream carries all four types over one connection, so a receiver
-// has to read `type`, `revision`, and `localId` before it knows which concrete
-// schema to decode into. That ordering is why this exists rather than a
-// four-way type switch at every call site.
+// has to read `type`, `revision`, and the identity before it knows which
+// concrete schema to decode into. That ordering is why this exists rather than
+// a four-way type switch at every call site.
 func EnvelopeOf(raw []byte) (Envelope, error) {
-	var env Envelope
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return Envelope{}, fmt.Errorf("agmasync: reading entity envelope: %w", err)
+	env, err := readEnvelope(raw)
+	if err != nil {
+		return env, err
 	}
 	if !env.Type.Valid() {
 		return env, fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, env.Type)
 	}
+	return env, nil
+}
+
+// readEnvelope reads the envelope and the identity in `content.id`, without
+// checking the type.
+func readEnvelope(raw []byte) (Envelope, error) {
+	var probe struct {
+		Envelope
+		Content struct {
+			Id oapi.Id `json:"id"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return Envelope{}, fmt.Errorf("agmasync: reading entity envelope: %w", err)
+	}
+	env := probe.Envelope
+	id, err := IdentityOf(probe.Content.Id)
+	if err != nil {
+		return Envelope{}, err
+	}
+	env.AgrirouterId, env.LocalId = id.AgrirouterID, id.LocalID
 	return env, nil
 }
 
@@ -120,9 +150,9 @@ func ObjectOf(raw []byte) (Object, error) {
 // an object of type t. The type travels on the request, so the body need not
 // repeat it; when it does, it must agree.
 func objectAs(t EntityType, raw []byte) (Object, error) {
-	var env Envelope
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return Object{}, fmt.Errorf("agmasync: reading entity envelope: %w", err)
+	env, err := readEnvelope(raw)
+	if err != nil {
+		return Object{}, err
 	}
 	switch env.Type {
 	case "":
@@ -159,34 +189,21 @@ func decodeObject(env Envelope, raw []byte) (Object, error) {
 	return o, nil
 }
 
-// LocalRef builds a reference to another entity from the referencing
-// endpoint's own identifier for the target.
-//
-// See "References" in specification.md. On send a participant may use either
-// identifier, and using its own is what keeps agrirouterId off the write path:
-// references can be built out of a participant's own keys, without first
-// capturing and correlating canonical ones. agrirouter resolves the localId
-// against the sending endpoint's mapping and rejects the write if that endpoint
-// has not sent the target yet, so the target must be sent before the first
-// reference to it — through the same endpoint.
-func LocalRef(localID string) oapi.EntityReference {
-	return oapi.EntityReference{LocalId: &localID}
-}
-
-// The party types `details` states. A party without `details` is of unknown
-// party type. See "Party details" in specification.md.
+// The party types `_agmasync_details` states. A party without them is of
+// unknown party type. See "Party details" in specification.md.
 const (
 	PartyTypePerson       = "PERSON"
 	PartyTypeOrganization = "ORGANIZATION"
 )
 
 // PartyTypeOf reads the party type a party states: [PartyTypePerson],
-// [PartyTypeOrganization], or "" where it carries no `details`.
+// [PartyTypeOrganization], or "" where it carries no `_agmasync_details`.
 func PartyTypeOf(p oapi.Party) (string, error) {
-	if !p.Details.IsSpecified() || p.Details.IsNull() {
+	details := p.Content.UnderscoreAgmasyncDetails
+	if !details.IsSpecified() || details.IsNull() {
 		return "", nil
 	}
-	d, err := p.Details.Get()
+	d, err := details.Get()
 	if err != nil {
 		return "", fmt.Errorf("agmasync: reading party details: %w", err)
 	}
@@ -198,7 +215,7 @@ func PartyTypeOf(p oapi.Party) (string, error) {
 }
 
 // PartyTier is the position of a party in send and delivery order: 1 for a
-// party with person `details`, which may name organizations through its
+// party with person `_agmasync_details`, which may name organizations through its
 // memberships, and 0 for any other, which references nothing.
 //
 // Sending tier 0 before tier 1 means every membership target is bound by the

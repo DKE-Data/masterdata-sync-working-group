@@ -194,10 +194,10 @@ with [`agmasync.DeclareCapabilities`](../agmasync/initialload.go) as its `master
 field.
 
 `put` reads a type and a file (or `-` for stdin); the JSON body itself must
-carry `type` and `local_id`, since those travel in the payload rather than as separate flags:
+carry `type` and the local identifier as `content.id.referenceId`, since those travel in the payload rather than as separate flags:
 
 ```
-echo '{"type":"party","local_id":"org-1","name":"gamma corp","details":{"party_type":"ORGANIZATION"}}' \
+echo '{"type":"party","content":{"id":{"referenceId":"org-1"},"name":"gamma corp","_agmasync_details":{"partyTypeCode":"ORGANIZATION"}}}' \
   | agmactl put party -
 ```
 
@@ -234,7 +234,7 @@ before `COMPLETED` — both surface an out-of-order transition as
 `ErrInitialLoadConflict` (HTTP 409) rather than silently doing nothing.
 
 `-auto` works the same way on the live stream: `agmactl replay -follow -auto`
-binds an object the moment it arrives with no `local_id`, same as `load -auto`
+binds an object the moment it arrives with no local identifier, same as `load -auto`
 does for the fixed set. Unlike `load`, it never stops for a rejection that
 needs a person — a `refused:` line is printed and the stream keeps running,
 since one object nobody has resolved yet must not end a `-follow` watching for

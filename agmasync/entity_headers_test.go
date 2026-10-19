@@ -46,8 +46,7 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 
 	api, seen := recordHeaders(t)
 
-	localID := "o-1"
-	party := oapi.Party{LocalId: &localID, Name: "Hof Nord"}
+	party := oapi.Party{Content: oapi.PartyContent{Id: agmasync.LocalId("o-1"), Name: "Hof Nord"}}
 
 	ctx := context.Background()
 	calls := map[string]func() error{

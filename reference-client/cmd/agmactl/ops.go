@@ -80,7 +80,7 @@ func printLoadStatus(status oapi.InitialLoadStatus) error {
 // From RECONCILING it confirms immediately, carrying whatever bindings were
 // given on the command line in place of a store to read them from — see
 // [runConfirm] for their syntax — plus, with -auto, one minted for every
-// object that arrived with no local_id at all: an object agmactl "does not
+// object that arrived with no local identifier at all: an object agmactl "does not
 // hold" in the sense the specification means (see [printFrame]), which a real
 // participant creates a local record for and binds. agmactl has no record to
 // create, so -auto stands in for that decision by binding the object under
@@ -316,7 +316,7 @@ func runDeclare(ctx context.Context, e *env, args []string) error {
 //
 // The payload is sent as given, which is the point of the command: it is how a
 // vendor tries their own JSON against the validation and the merge. It must
-// carry `type` and `localId`, and on an update it must carry the base revision
+// carry `type` and `content.id.referenceId`, and on an update it must carry the base revision
 // — passed here as a flag, since it travels in a header rather than in the
 // body.
 func runPut(ctx context.Context, e *env, args []string) error {

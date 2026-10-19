@@ -71,7 +71,7 @@ func (f *fixture) joinIn(
 }
 
 func farm(localID, name string) oapi.Entity {
-	ent, err := agrirouter.FromFarm(oapi.Farm{LocalId: &localID, Name: name})
+	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: agmasync.LocalId(localID), Name: name}})
 	if err != nil {
 		panic(err)
 	}
@@ -194,11 +194,15 @@ func TestAssignedFieldsNamingAnotherObjectAreRejected(t *testing.T) {
 	}
 
 	otherID := uuid.New()
-	unbound := "FRM-2"
+	agrirouterEntry := agmasync.AgrirouterRef(otherID).Id.UniqueIds
 	for name, edit := range map[string]func(*oapi.Farm){
-		"agrirouter_id":    func(fm *oapi.Farm) { fm.AgrirouterId = &otherID },
-		"tenant_id":        func(fm *oapi.Farm) { fm.TenantId = &otherID },
-		"unbound local_id": func(fm *oapi.Farm) { fm.LocalId = &unbound },
+		"agrirouter entry": func(fm *oapi.Farm) {
+			fm.Content.Id = oapi.Id{ReferenceId: strptr("FRM-1"), UniqueIds: agrirouterEntry}
+		},
+		"tenant_id": func(fm *oapi.Farm) { fm.TenantId = &otherID },
+		"unbound local_id": func(fm *oapi.Farm) {
+			fm.Content.Id = oapi.Id{ReferenceId: strptr("FRM-2"), UniqueIds: createdFarm.Content.Id.UniqueIds}
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			edited := createdFarm
@@ -238,17 +242,13 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	}
 
 	// A renames it, moving the canonical revision on.
-	renamed := oapi.Farm{LocalId: strptr("FRM-1"), Name: "Hof Süd"}
-	entity, _ := agrirouter.FromFarm(renamed)
+	entity := farm("FRM-1", "Hof Süd")
 	if _, err := a.endpoint.Put(context.Background(), entity, &base); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
 	// B, still on the old base, changes a different attribute.
-	address := oapi.Address{City: nullable.NewNullableWithValue("Rostock")}
-	withAddress, _ := agrirouter.FromFarm(oapi.Farm{
-		LocalId: strptr("B-FARM-9"), Name: "Hof Nord", Address: nullable.NewNullableWithValue(address),
-	})
+	withAddress := farmIn("B-FARM-9", "Hof Nord", "Rostock")
 	merged, err := b.endpoint.Put(context.Background(), withAddress, &base)
 	if err != nil {
 		t.Fatalf("non-overlapping write should merge, got: %v", err)
@@ -258,8 +258,8 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading merged farm: %v", err)
 	}
-	if mergedFarm.Name != "Hof Süd" {
-		t.Errorf("name = %q, want A's rename carried into the merged result", mergedFarm.Name)
+	if mergedFarm.Content.Name != "Hof Süd" {
+		t.Errorf("name = %q, want A's rename carried into the merged result", mergedFarm.Content.Name)
 	}
 	if city := cityOf(mergedFarm); city != "Rostock" {
 		t.Error("B's own change is missing from the merged result")
@@ -399,11 +399,11 @@ func TestUnresolvableReferenceIsRejected(t *testing.T) {
 	f := newFixture(t)
 	p := f.join("fmis-a", "ep-a", agmasync.TypeField)
 
-	field, err := agrirouter.FromField(oapi.Field{
-		LocalId: strptr("PFD-1"),
-		Name:    "North 40",
-		Farm:    nullable.NewNullableWithValue(oapi.EntityReference{LocalId: strptr("FRM-NOT-SENT-YET")}),
-	})
+	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
+		Id:                        agmasync.LocalId("PFD-1"),
+		Name:                      "North 40",
+		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.LocalRef("FRM-NOT-SENT-YET")),
+	}})
 	if err != nil {
 		t.Fatalf("building field: %v", err)
 	}
@@ -570,14 +570,27 @@ func TestAwaitingUserIsRefusedOnceTheLoadIsCompleted(t *testing.T) {
 
 func strptr(s string) *string { return &s }
 
+// farmIn is a farm with an address in a city.
+func farmIn(localID, name, city string) oapi.Entity {
+	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{
+		Id: agmasync.LocalId(localID), Name: name,
+		UnderscoreAgmasyncAddress: nullable.NewNullableWithValue(oapi.AddressContactMethod{
+			AddressContactTypeCode: "PHYSICAL", City: &city,
+		}),
+	}})
+	if err != nil {
+		panic(err)
+	}
+	return ent
+}
+
 // cityOf reads a farm's address city, empty when either is unset.
 func cityOf(farm oapi.Farm) string {
-	address, err := farm.Address.Get()
-	if err != nil {
+	address, err := farm.Content.UnderscoreAgmasyncAddress.Get()
+	if err != nil || address.City == nil {
 		return ""
 	}
-	city, _ := address.City.Get()
-	return city
+	return *address.City
 }
 
 func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
@@ -616,10 +629,7 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 
 	// B writes from the revision it saw at the very beginning, touching an
 	// attribute nobody else has.
-	address := oapi.Address{City: nullable.NewNullableWithValue("Rostock")}
-	entity, _ := agrirouter.FromFarm(oapi.Farm{
-		LocalId: strptr("B-1"), Name: "Hof 0", Address: nullable.NewNullableWithValue(address),
-	})
+	entity := farmIn("B-1", "Hof 0", "Rostock")
 	merged, err := b.endpoint.Put(context.Background(), entity, &longAgo)
 	if err != nil {
 		t.Fatalf("a base 50 revisions old must still merge, got: %v", err)
@@ -629,8 +639,8 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading merged farm: %v", err)
 	}
-	if mergedFarm.Name != "Hof 50" {
-		t.Errorf("name = %q, want the intervening renames preserved", mergedFarm.Name)
+	if mergedFarm.Content.Name != "Hof 50" {
+		t.Errorf("name = %q, want the intervening renames preserved", mergedFarm.Content.Name)
 	}
 	if cityOf(mergedFarm) == "" {
 		t.Error("B's own change is missing from the merged result")
@@ -841,11 +851,11 @@ func TestAReferenceToAnotherTenantsObjectIsRejected(t *testing.T) {
 	}
 	env, _ := agrirouter.EnvelopeOf(created)
 
-	field, err := agrirouter.FromField(oapi.Field{
-		LocalId: strptr("PFD-1"),
-		Name:    "North 40",
-		Farm:    nullable.NewNullableWithValue(oapi.EntityReference{AgrirouterId: env.AgrirouterId}),
-	})
+	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
+		Id:                        agmasync.LocalId("PFD-1"),
+		Name:                      "North 40",
+		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.AgrirouterRef(*env.AgrirouterId)),
+	}})
 	if err != nil {
 		t.Fatalf("building field: %v", err)
 	}

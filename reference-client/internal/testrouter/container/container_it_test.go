@@ -106,7 +106,7 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 	}()
 
 	name := "Hof Nord"
-	entity, err := agrirouter.FromFarm(oapi.Farm{LocalId: strptr("FRM-1"), Name: name})
+	entity, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: agmasync.LocalId("FRM-1"), Name: name}})
 	if err != nil {
 		t.Fatalf("building farm: %v", err)
 	}
@@ -246,4 +246,3 @@ func post(t *testing.T, url string, body any, out any) {
 	}
 }
 
-func strptr(s string) *string { return &s }

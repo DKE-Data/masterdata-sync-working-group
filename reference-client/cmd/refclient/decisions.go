@@ -369,17 +369,15 @@ func attributesOf(typ agmasync.EntityType, entity oapi.Entity) ([]attribute, err
 	if err != nil {
 		return nil, err
 	}
-	var all map[string]json.RawMessage
+	var all struct {
+		Content map[string]json.RawMessage `json:"content"`
+	}
 	if err := json.Unmarshal(raw, &all); err != nil {
 		return nil, err
 	}
-	for _, name := range []string{
-		"type", "agrirouter_id", "local_id", "active", "revision",
-		"modified_at", "tenant_id", "source_endpoint_id",
-	} {
-		delete(all, name)
-	}
-	return sortedAttributes(all), nil
+	// Like the envelope, the identity is bookkeeping rather than an attribute.
+	delete(all.Content, "id")
+	return sortedAttributes(all.Content), nil
 }
 
 func attributesOfRecord(r store.Record) []attribute {

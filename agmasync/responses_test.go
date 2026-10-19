@@ -38,7 +38,7 @@ func deactivate(api *oapi.ClientWithResponses, t agmasync.EntityType, localID st
 
 func TestDeactivateDecodesByTheRequestedType(t *testing.T) {
 	t.Run("body without type", func(t *testing.T) {
-		api := answer(t, http.StatusOK, "application/json", `{"name":"Acker","active":false}`)
+		api := answer(t, http.StatusOK, "application/json", `{"content":{"id":{"referenceId":"a-1"},"name":"Acker"},"active":false}`)
 		obj, err := deactivate(api, agmasync.TypeField, "field-1")
 		if err != nil {
 			t.Fatalf("Deactivate: %v", err)
@@ -46,13 +46,13 @@ func TestDeactivateDecodesByTheRequestedType(t *testing.T) {
 		if obj.Envelope.Type != agmasync.TypeField {
 			t.Errorf("Type = %q, want %q", obj.Envelope.Type, agmasync.TypeField)
 		}
-		if obj.Field == nil || obj.Field.Name != "Acker" {
+		if obj.Field == nil || obj.Field.Content.Name != "Acker" {
 			t.Errorf("Field = %+v, want name Acker", obj.Field)
 		}
 	})
 
 	t.Run("body of another type", func(t *testing.T) {
-		api := answer(t, http.StatusOK, "application/json", `{"type":"farm","name":"Hof","active":false}`)
+		api := answer(t, http.StatusOK, "application/json", `{"type":"farm","content":{"id":{"referenceId":"h-1"},"name":"Hof"},"active":false}`)
 		if _, err := deactivate(api, agmasync.TypeField, "field-1"); !errors.Is(err, agmasync.ErrEntityTypeMismatch) {
 			t.Errorf("Deactivate error = %v, want ErrEntityTypeMismatch", err)
 		}
@@ -96,8 +96,9 @@ func TestStreamRejectsAResponseThatIsNotAnEventStream(t *testing.T) {
 
 func frame(name string) string {
 	return "id: pos-1\nevent: MASTERDATA_CHANGED\n" +
-		`data: {"type":"farm","agrirouter_id":"33333333-3333-3333-3333-333333333333","name":"` +
-		name + `","revision":2}` + "\n\n"
+		`data: {"type":"farm","revision":2,"content":{"id":{"uniqueIds":[{"idText":` +
+		`"33333333-3333-3333-3333-333333333333","idTypeCode":"UUID","idSource":"https://agrirouter.com"}]},` +
+		`"name":"` + name + `"}}` + "\n\n"
 }
 
 func TestStreamReadsFramesLargerThan64KB(t *testing.T) {
@@ -120,8 +121,8 @@ func TestStreamReadsFramesLargerThan64KB(t *testing.T) {
 		if farm == nil {
 			t.Fatalf("frame carries no farm: %+v", ev.Envelope)
 		}
-		if len(farm.Name) != len(name) {
-			t.Errorf("name length = %d, want %d", len(farm.Name), len(name))
+		if len(farm.Content.Name) != len(name) {
+			t.Errorf("name length = %d, want %d", len(farm.Content.Name), len(name))
 		}
 		got++
 	}

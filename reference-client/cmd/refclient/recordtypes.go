@@ -14,7 +14,7 @@ import (
 //
 // It is not the protocol's entity type. Like most farm management systems this
 // platform keeps organizations and persons apart; the protocol has one party
-// entity and says which it is in `details`. The screens speak the platform's
+// entity and says which it is in `_agmasync_details`. The screens speak the platform's
 // language, and the mapping happens where a record is turned into an entity.
 type recordType string
 
@@ -59,19 +59,19 @@ func (t recordType) partyType() string {
 }
 
 // recordTypeOf reads which of the platform's types a record is. A party goes by
-// the party type its details state, and one stating none is an organization,
+// the party type its _agmasync_details state, and one stating none is an organization,
 // which is where the store files it.
 func recordTypeOf(r store.Record) recordType {
 	if r.EntityType != agmasync.TypeParty {
 		return recordType(r.EntityType)
 	}
 	var details struct {
-		PartyType string `json:"party_type"`
+		PartyTypeCode string `json:"partyTypeCode"`
 	}
-	if raw := r.Modelled["details"]; len(raw) > 0 {
+	if raw := r.Modelled["_agmasync_details"]; len(raw) > 0 {
 		_ = json.Unmarshal(raw, &details)
 	}
-	if details.PartyType == agmasync.PartyTypePerson {
+	if details.PartyTypeCode == agmasync.PartyTypePerson {
 		return recordPerson
 	}
 	return recordOrganization

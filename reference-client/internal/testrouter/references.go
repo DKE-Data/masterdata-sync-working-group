@@ -8,34 +8,39 @@ import (
 	"github.com/google/uuid"
 )
 
-// reference is a reference to another entity as it travels on the wire.
+// reference is a reference to another entity as it travels on the wire: an
+// `Id` naming the target. See "References" in specification.md.
 type reference struct {
-	AgrirouterID *uuid.UUID `json:"agrirouter_id,omitempty"`
-	LocalID      *string    `json:"local_id,omitempty"`
+	ID wireID `json:"id"`
 }
 
 // resolveRefs turns every reference in an incoming entity into a canonical one.
 //
-// On send a participant may use either identifier. A reference carrying only a
-// localId is resolved against the sending participant's own mapping, and if it does not
-// resolve — the target has not been sent yet — the write is rejected, which is
-// what forces a target to be sent before the first reference to it. This is what
-// keeps agrirouterId off the write path: a participant builds references out of
-// its own keys without first correlating canonical ones.
+// On send a participant may use either identifier. A reference without an
+// agrirouter entry is resolved by its referenceId against the sending
+// participant's own mapping, and if it does not resolve — the target has not
+// been sent yet — the write is rejected, which is what forces a target to be
+// sent before the first reference to it. This is what keeps the agrirouter
+// identifier off the write path: a participant builds references out of its
+// own keys without first correlating canonical ones.
 //
 // Every slot references one entity type, so the slot alone says where a
-// localId is looked up. A membership additionally has to name an
+// referenceId is looked up. A membership additionally has to name an
 // organization, which is a check on the target's content rather than its type.
 func (s *store) resolveRefs(
 	ep *endpoint, typ agmasync.EntityType, content map[string]json.RawMessage,
 ) error {
 	return s.walkRefs(typ, content, func(slot refSlot, ref *reference) error {
+		agrirouterID, _, err := ref.ID.read()
+		if err != nil {
+			return err
+		}
 		var target uuid.UUID
 		switch {
-		case ref.AgrirouterID != nil:
-			target = *ref.AgrirouterID
-		case ref.LocalID != nil:
-			id, ok := s.local[localKeyOf(ep, slot.target, *ref.LocalID)]
+		case agrirouterID != nil:
+			target = *agrirouterID
+		case ref.ID.ReferenceID != nil:
+			id, ok := s.local[localKeyOf(ep, slot.target, *ref.ID.ReferenceID)]
 			if !ok {
 				return errUnresolvedRef
 			}
@@ -44,40 +49,37 @@ func (s *store) resolveRefs(
 			return errUnresolvedRef
 		}
 		// A reference stays inside the tenant, whichever identifier names the
-		// target: a localId resolves there by construction, an agrirouterId
-		// has to be checked.
+		// target: a referenceId resolves there by construction, an agrirouter
+		// entry has to be checked.
 		obj, ok := s.objects[target]
 		if !ok || obj.typ != slot.target || obj.tenantID != ep.tenantID {
 			return errUnresolvedRef
 		}
-		if slot.partyType != "" && partyTypeOf(obj.content["details"]) != slot.partyType {
-			return fmt.Errorf("%s must name a party whose details are %s", slot.attribute, slot.partyType)
+		if slot.partyType != "" && partyTypeOf(obj.content[detailsKey]) != slot.partyType {
+			return fmt.Errorf("%s must name a party whose %s are %s", slot.attribute, detailsKey, slot.partyType)
 		}
-		ref.AgrirouterID = &target
-		ref.LocalID = nil
+		ref.ID = canonicalID(target)
 		return nil
 	})
 }
 
 // rewriteRefs prepares an outgoing entity's references for one recipient.
 //
-// agrirouter populates agrirouterId and replaces localId with the receiving
-// participant's own identifier for the target, omitting it where there is none.
-// It must not be left as the sender's: the receiver resolves through
-// agrirouterId, so the sender's key carries no meaning in the receiver's
-// namespace, and passing it through would disclose the sender's internal key
-// for the target. This is the same rule the envelope's own localId follows.
+// agrirouter keeps the agrirouter entry and adds the receiving participant's
+// own identifier for the target, omitting it where there is none. It must not
+// be the sender's: the receiver resolves through the agrirouter entry, so the
+// sender's key carries no meaning in the receiver's namespace, and passing it
+// through would disclose the sender's internal key for the target. This is the
+// same rule the object's own `id` follows.
 func (s *store) rewriteRefs(
 	appID string, typ agmasync.EntityType, content map[string]json.RawMessage,
 ) {
 	_ = s.walkRefs(typ, content, func(_ refSlot, ref *reference) error {
-		ref.LocalID = nil
-		if ref.AgrirouterID == nil {
+		target, _, err := ref.ID.read()
+		if err != nil || target == nil {
 			return nil
 		}
-		if localID, ok := s.canonical[canonicalKey{appID, *ref.AgrirouterID}]; ok {
-			ref.LocalID = &localID
-		}
+		ref.ID = s.renderID(appID, *target)
 		return nil
 	})
 }
@@ -90,7 +92,7 @@ func (s *store) namesAsMember(id uuid.UUID) bool {
 		}
 		named := false
 		_ = s.walkRefs(obj.typ, cloneContent(obj.content), func(_ refSlot, ref *reference) error {
-			if ref.AgrirouterID != nil && *ref.AgrirouterID == id {
+			if target, _, err := ref.ID.read(); err == nil && target != nil && *target == id {
 				named = true
 			}
 			return nil
@@ -203,12 +205,11 @@ func visitRef(raw json.RawMessage, visit func(*reference) error) (json.RawMessag
 		return raw, nil
 	}
 	// A slot that is present but names nothing is an empty slot, not a dangling
-	// reference. The generated types make every required reference a value
-	// rather than a pointer, so an unset one still marshals, and rejecting
-	// those would reject every entity that leaves an optional slot alone.
-	// Whether a required reference was supplied is schema validation, which
-	// this router does not attempt.
-	if ref.AgrirouterID == nil && ref.LocalID == nil {
+	// reference. The generated types make a required reference a value rather
+	// than a pointer, so an unset one still marshals as `{"id":{}}`. Whether a
+	// required reference was supplied is schema validation, which this router
+	// does not attempt.
+	if ref.ID.ReferenceID == nil && len(ref.ID.UniqueIDs) == 0 {
 		return raw, nil
 	}
 	if err := visit(&ref); err != nil {

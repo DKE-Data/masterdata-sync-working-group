@@ -23,7 +23,7 @@ import (
 // loading)" in specification.md.
 //
 // It is also the way out of holding an object whose reference target it does
-// not hold — a farm delivered with an owner reference carrying no localId.
+// not hold — a farm delivered with a grower reference carrying no referenceId.
 // Neither identifier names that target on a send, so the object stays
 // unwritable until the target is requested, created locally, and bound with
 // [Bind]. See "References" in specification.md.

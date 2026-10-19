@@ -385,7 +385,7 @@ func TestALoadOffersBackAFieldWithoutTheFarmItDoesNotExchange(t *testing.T) {
 	b := h.join("fmis-b", "ep-b", agmasync.TypeField)
 	createLocalFarm(t, b, "B-FRM-1", "Hof West")
 	upsertLocal(t, b, agmasync.TypeField, "B-FLD-1", map[string]any{
-		"name": "Westacker", "farm": map[string]string{"local_id": "B-FRM-1"},
+		"name": "Westacker", "_agmasync_farmRef": agmasync.LocalRef("B-FRM-1"),
 	})
 
 	res, err := loader(b, agmasync.TypeField).Run(context.Background())
@@ -407,8 +407,8 @@ func TestALoadOffersBackAFieldWithoutTheFarmItDoesNotExchange(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("reading the field: %v", err)
 	}
-	if got := string(record.Modelled["farm"]); got != `{"local_id":"B-FRM-1"}` {
-		t.Errorf("farm = %s, want the platform's own farm kept", got)
+	if got := string(record.Modelled["_agmasync_farmRef"]); got != `{"id":{"referenceId":"B-FRM-1"}}` {
+		t.Errorf("_agmasync_farmRef = %s, want the platform's own farm kept", got)
 	}
 }
 

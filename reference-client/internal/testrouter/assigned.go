@@ -2,6 +2,7 @@ package testrouter
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
@@ -9,22 +10,49 @@ import (
 )
 
 // sentIdentity is what a write says about the fields agrirouter assigns that
-// identify the object. A participant may send back the object it was delivered,
-// every field of it, so these are accepted when they agree with the write and
-// refused, as a real agrirouter refuses them, when they name another object.
-// The rest of what agrirouter assigns — revision, modified_at,
-// source_endpoint_id — goes stale with every write and is ignored.
+// identify the object, and about the writer's own identifier for it. A
+// participant may send back the object it was delivered, every field of it, so
+// the assigned ones are accepted when they agree with the write and refused, as
+// a real agrirouter refuses them, when they name another object. The rest of
+// what agrirouter assigns — revision, modified_at, source_endpoint_id — goes
+// stale with every write and is ignored.
 type sentIdentity struct {
-	Type         *string    `json:"type"`
-	TenantID     *uuid.UUID `json:"tenant_id"`
-	AgrirouterID *uuid.UUID `json:"agrirouter_id"`
+	Type     *string    `json:"type"`
+	TenantID *uuid.UUID `json:"tenant_id"`
+
+	// AgrirouterID is the agrirouter entry of `content.id`, and local the
+	// local entry, nil where the write sent none.
+	AgrirouterID *uuid.UUID
+	local        *localEntry
 }
 
-func decodeSentIdentity(raw []byte) (sentIdentity, error) {
+// decodeSentIdentity reads a write's identity. `content.id.referenceId` is the
+// local identifier, and must be the one the path writes under.
+func decodeSentIdentity(raw []byte, localID string) (sentIdentity, error) {
 	var sent sentIdentity
 	if err := json.Unmarshal(raw, &sent); err != nil {
-		return sentIdentity{}, fmt.Errorf("type, tenant_id, or agrirouter_id is malformed: %w", err)
+		return sentIdentity{}, fmt.Errorf("type or tenant_id is malformed: %w", err)
 	}
+	var body struct {
+		Content *struct {
+			ID *wireID `json:"id"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return sentIdentity{}, fmt.Errorf("content.id is malformed: %w", err)
+	}
+	if body.Content == nil || body.Content.ID == nil {
+		return sentIdentity{}, errors.New("content.id is required")
+	}
+	id := *body.Content.ID
+	if id.ReferenceID == nil || *id.ReferenceID != localID {
+		return sentIdentity{}, fmt.Errorf("content.id.referenceId must be the local_id %q the path writes", localID)
+	}
+	agrirouterID, local, err := id.read()
+	if err != nil {
+		return sentIdentity{}, err
+	}
+	sent.AgrirouterID, sent.local = agrirouterID, local
 	return sent, nil
 }
 
@@ -42,18 +70,18 @@ func (s sentIdentity) checkRequest(typ agmasync.EntityType, tenantID uuid.UUID) 
 	return nil
 }
 
-// checkBinding refuses an agrirouter_id other than the object localID is bound
-// to. On an unbound localID any agrirouter_id is refused: the write would create
-// a second object rather than update the one named, the duplicate binding
-// exists to prevent.
+// checkBinding refuses an agrirouter entry other than the object localID is
+// bound to. On an unbound localID any agrirouter entry is refused: the write
+// would create a second object rather than update the one named, the duplicate
+// binding exists to prevent.
 func (s sentIdentity) checkBinding(localID string, bound uuid.UUID, known bool) error {
 	switch {
 	case s.AgrirouterID == nil:
 		return nil
 	case !known:
-		return fmt.Errorf("agrirouter_id is not bound to local_id %q: bind it before writing under that local_id", localID)
+		return fmt.Errorf("the agrirouter entry is not bound to local_id %q: bind it before writing under that local_id", localID)
 	case *s.AgrirouterID != bound:
-		return fmt.Errorf("agrirouter_id does not match the object local_id %q is bound to", localID)
+		return fmt.Errorf("the agrirouter entry does not match the object local_id %q is bound to", localID)
 	}
 	return nil
 }

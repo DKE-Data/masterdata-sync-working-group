@@ -84,11 +84,13 @@ func nameOf(typ agmasync.EntityType, entity oapi.Entity) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	var fields map[string]json.RawMessage
+	var fields struct {
+		Content map[string]json.RawMessage `json:"content"`
+	}
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return "", false, err
 	}
-	return nameFrom(typ, fields)
+	return nameFrom(typ, fields.Content)
 }
 
 func recordName(record store.Record) (string, bool) {

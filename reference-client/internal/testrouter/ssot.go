@@ -76,6 +76,11 @@ type store struct {
 	// what does this participant call this object?
 	canonical map[canonicalKey]string
 
+	// localEntries holds, per binding, what the participant's latest write of
+	// the object said about its local entry, relayed back to it alone. A
+	// binding without one renders as `STRING` with no source.
+	localEntries map[canonicalKey]localEntry
+
 	endpoints  map[uuid.UUID]*endpoint
 	byExternal map[string]*endpoint
 	tenants    map[uuid.UUID]bool
@@ -113,16 +118,17 @@ type canonicalKey struct {
 
 func newStore(hub *hub, obs *observer) *store {
 	return &store{
-		objects:    map[uuid.UUID]*object{},
-		local:      map[localKey]uuid.UUID{},
-		canonical:  map[canonicalKey]string{},
-		endpoints:  map[uuid.UUID]*endpoint{},
-		byExternal: map[string]*endpoint{},
-		tenants:    map[uuid.UUID]bool{},
-		resets:     map[uuid.UUID]tenantReset{},
-		hub:        hub,
-		observer:   obs,
-		now:        time.Now,
+		objects:      map[uuid.UUID]*object{},
+		local:        map[localKey]uuid.UUID{},
+		canonical:    map[canonicalKey]string{},
+		localEntries: map[canonicalKey]localEntry{},
+		endpoints:    map[uuid.UUID]*endpoint{},
+		byExternal:   map[string]*endpoint{},
+		tenants:      map[uuid.UUID]bool{},
+		resets:       map[uuid.UUID]tenantReset{},
+		hub:          hub,
+		observer:     obs,
+		now:          time.Now,
 	}
 }
 
@@ -142,7 +148,7 @@ func (s *store) put(
 	if err != nil {
 		return nil, false, err
 	}
-	if err := rejectNull(typ, body); err != nil {
+	if err := rejectNull(typ, body, incoming); err != nil {
 		return nil, false, err
 	}
 	if err := checkDetails(typ, incoming); err != nil {
@@ -174,11 +180,15 @@ func (s *store) put(
 			}
 		}
 		obj := s.create(ep, typ, localID, content, active == nil || *active)
+		s.recordLocalEntry(ep.appID, obj.id, sent.local)
 		s.deliver(obj, ep.id, false)
 		return obj, true, nil
 	}
 
 	obj := s.objects[objID]
+	// What the write says about its local entry is kept whatever else it
+	// changes: it is not content, and no other participant sees it.
+	s.recordLocalEntry(ep.appID, obj.id, sent.local)
 
 	// Only what the write carries can change. An attribute it leaves out is
 	// neither a change of its own nor in the way of anyone else's.
@@ -370,6 +380,7 @@ func (s *store) bindLocked(
 
 	s.local[localKeyOf(ep, typ, localID)] = objID
 	s.canonical[canonicalKey{ep.appID, objID}] = localID
+	delete(s.localEntries, canonicalKey{ep.appID, objID})
 	return nil
 }
 
@@ -391,6 +402,7 @@ func (s *store) unbind(
 	if current, ok := s.local[localKeyOf(ep, typ, localID)]; ok && current == objID {
 		delete(s.local, localKeyOf(ep, typ, localID))
 		delete(s.canonical, canonicalKey{ep.appID, objID})
+		delete(s.localEntries, canonicalKey{ep.appID, objID})
 	}
 	return nil
 }
@@ -466,18 +478,22 @@ func (s *store) deliverTo(ep *endpoint, obj *object) {
 	})
 }
 
-// render produces the object as one participant sees it. Every localId in the
-// result — the envelope's own and one per reference — is resolved in the
-// participant's namespace, which is keyed by application and tenant: two
-// endpoints of one application in the object's tenant render identically, and
-// the frame names no endpoint at all.
+// render produces the object as one participant sees it. Every local
+// identifier in the result — the object's own and one per reference — is
+// resolved in the participant's namespace, which is keyed by application and
+// tenant: two endpoints of one application in the object's tenant render
+// identically, and the frame names no endpoint at all.
 func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
-	out := map[string]json.RawMessage{}
+	content := map[string]json.RawMessage{}
 	for k, v := range obj.content {
-		out[k] = v
+		content[k] = v
 	}
-	s.rewriteRefs(ep.appID, obj.typ, out)
+	s.rewriteRefs(ep.appID, obj.typ, content)
+	if id, err := json.Marshal(s.renderID(ep.appID, obj.id)); err == nil {
+		content["id"] = id
+	}
 
+	out := map[string]json.RawMessage{}
 	put := func(k string, v any) {
 		raw, err := json.Marshal(v)
 		if err == nil {
@@ -485,19 +501,12 @@ func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 		}
 	}
 	put("type", string(obj.typ))
-	put("agrirouter_id", obj.id)
 	put("active", obj.active)
 	put("revision", obj.revision)
 	put("modified_at", obj.modifiedAt)
 	put("tenant_id", obj.tenantID)
 	put("source_endpoint_id", obj.sourceEndpointID)
-
-	// An absent local_id is meaningful: it states that agrirouter does not
-	// believe this participant holds the object, which is what makes an unbound
-	// object recognisable as one to create locally and bind.
-	if localID, ok := s.canonical[canonicalKey{ep.appID, obj.id}]; ok {
-		put("local_id", localID)
-	}
+	put("content", content)
 
 	raw, err := json.Marshal(out)
 	if err != nil {
@@ -506,19 +515,20 @@ func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 	return raw
 }
 
+// contentOf reads a write's `content`, less its `id`: the attributes the write
+// patches. The identity is read by [decodeSentIdentity].
 func contentOf(body []byte) (map[string]json.RawMessage, error) {
-	var all map[string]json.RawMessage
+	var all struct {
+		Content map[string]json.RawMessage `json:"content"`
+	}
 	if err := json.Unmarshal(body, &all); err != nil {
 		return nil, fmt.Errorf("malformed entity: %w", err)
 	}
-	content := map[string]json.RawMessage{}
-	for k, v := range all {
-		if envelopeAttributes[k] {
-			continue
-		}
-		content[k] = v
+	if all.Content == nil {
+		return nil, errors.New("content is required")
 	}
-	return content, nil
+	delete(all.Content, "id")
+	return all.Content, nil
 }
 
 // activeOf reads `active` from a write, nil when the write leaves it out:
@@ -535,14 +545,14 @@ func activeOf(body []byte) *bool {
 
 // rejectNull refuses null where removing is not an option: an attribute the
 // entity type requires, which would leave an object no participant can be sure
-// to support, and an envelope field, which agrirouter owns.
-func rejectNull(typ agmasync.EntityType, body []byte) error {
+// to support, `content.id`, and an envelope field, which agrirouter owns.
+func rejectNull(typ agmasync.EntityType, body []byte, content map[string]json.RawMessage) error {
 	var all map[string]json.RawMessage
 	if err := json.Unmarshal(body, &all); err != nil {
 		return fmt.Errorf("malformed entity: %w", err)
 	}
 	for _, key := range requiredAttributes[typ] {
-		if v, ok := all[key]; ok && isNull(v) {
+		if v, ok := content[key]; ok && isNull(v) {
 			return fmt.Errorf("%s is required and cannot be null", key)
 		}
 	}
@@ -554,10 +564,10 @@ func rejectNull(typ agmasync.EntityType, body []byte) error {
 	return nil
 }
 
-// checkDetails refuses a party's details without a party_type: what the rest of
-// them mean, and whether they merge or replace, depends on it.
+// checkDetails refuses a party's _agmasync_details without a partyTypeCode:
+// what the rest of them mean, and whether they merge or replace, depends on it.
 func checkDetails(typ agmasync.EntityType, incoming map[string]json.RawMessage) error {
-	details, ok := incoming["details"]
+	details, ok := incoming[detailsKey]
 	if typ != agmasync.TypeParty || !ok || isNull(details) {
 		return nil
 	}
@@ -565,7 +575,7 @@ func checkDetails(typ agmasync.EntityType, incoming map[string]json.RawMessage) 
 	case agmasync.PartyTypePerson, agmasync.PartyTypeOrganization:
 		return nil
 	default:
-		return fmt.Errorf("details must carry a party_type of %s or %s",
+		return fmt.Errorf("%s must carry a partyTypeCode of %s or %s", detailsKey,
 			agmasync.PartyTypePerson, agmasync.PartyTypeOrganization)
 	}
 }
@@ -573,9 +583,9 @@ func checkDetails(typ agmasync.EntityType, incoming map[string]json.RawMessage) 
 // checkKindChange refuses a write that would leave persons naming, as their
 // organization, a party that is no longer one.
 func (s *store) checkKindChange(obj *object, patched map[string]json.RawMessage) error {
-	details, ok := patched["details"]
+	details, ok := patched[detailsKey]
 	if obj.typ != agmasync.TypeParty || !ok ||
-		partyTypeOf(obj.content["details"]) != agmasync.PartyTypeOrganization ||
+		partyTypeOf(obj.content[detailsKey]) != agmasync.PartyTypeOrganization ||
 		partyTypeOf(details) == agmasync.PartyTypeOrganization {
 		return nil
 	}
