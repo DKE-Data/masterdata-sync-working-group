@@ -2197,7 +2197,6 @@ components:
           description: >
             [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
             From the ADAPT BoundaryCreationMethod list.
-            How the boundary was produced.
           examples:
             - UNKNOWN
             - MANUAL
@@ -2206,6 +2205,22 @@ components:
             - AUTO_OPERATION
             - AUTO_IMAGERY
             - ADMINISTRATIVE
+        gNSSBaseStationTypeCode:
+          type: [string, 'null']
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT GNSSBaseStationType list.
+          examples: [PHYSICAL, VIRTUAL]
+        gNSSBaseSurveyTypeCode:
+          type: [string, 'null']
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT GNSSBaseSurveyType list.
+          examples: [MOBILE_BASE, PROFESSIONAL, VIRTUAL]
+        gNSSCorrectionNetworkName:
+          type: [string, 'null']
+        gNSSCorrectionNetworkBrand:
+          type: [string, 'null']
       required: [geometry]
 
     ObstacleBoundary:
@@ -2216,6 +2231,35 @@ components:
       properties:
         geometry:
           $ref: '#/components/schemas/WktObstacle'
+        boundaryCreationMethodCode:
+          type: string
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT BoundaryCreationMethod list.
+          examples:
+            - UNKNOWN
+            - MANUAL
+            - DRIVEN
+            - SURVEYED
+            - AUTO_OPERATION
+            - AUTO_IMAGERY
+            - ADMINISTRATIVE
+        gNSSBaseStationTypeCode:
+          type: string
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT GNSSBaseStationType list.
+          examples: [PHYSICAL, VIRTUAL]
+        gNSSBaseSurveyTypeCode:
+          type: string
+          description: >
+            [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+            From the ADAPT GNSSBaseSurveyType list.
+          examples: [MOBILE_BASE, PROFESSIONAL, VIRTUAL]
+        gNSSCorrectionNetworkName:
+          type: string
+        gNSSCorrectionNetworkBrand:
+          type: string
       required: [geometry]
 
     Obstacle:
@@ -2263,8 +2307,6 @@ components:
           $ref: '#/components/schemas/Id'
         name:
           type: [string, 'null']
-          description: >
-            The name the boundary is known by, e.g. a field name and season.
         description:
           type: [string, 'null']
         boundary:
@@ -2335,16 +2377,18 @@ components:
     WktArea:
       type: string
       description: >
-        A polygon or multipolygon as Well-Known Text in WGS84, in the canonical
-        form of "Encoding" in specification.md.
+        A polygon or multipolygon as Well-Known Text in WGS84. It MUST be in
+        the canonical form of "Encoding" in specification.md, which the pattern
+        does not check: it checks the geometry type only.
       pattern: '^(POLYGON|MULTIPOLYGON) (Z )?\(.*\)$'
       examples: ['POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))']
 
     WktObstacle:
       type: string
       description: >
-        A point, line string, or polygon as Well-Known Text in WGS84, in the
-        canonical form of "Encoding" in specification.md.
+        A point, line string, or polygon as Well-Known Text in WGS84. It MUST
+        be in the canonical form of "Encoding" in specification.md, which the
+        pattern does not check: it checks the geometry type only.
       pattern: '^(POINT|LINESTRING|POLYGON) (Z )?\(.*\)$'
       examples: ['POINT (9.5621 52.2062)']
 

@@ -217,10 +217,10 @@ type and the acting endpoint's tenant — or the write is rejected with `400`.
 ### Identity
 
 `content.id` identifies the object. On delivery it carries up to two identifiers in
-`uniqueIds`, at most one of each and in this order:
+`uniqueIds`, at most one of each:
 
 - the agrirouter entry (`idTypeCode` `UUID`, `idSource` `https://agrirouter.com`): the [agrirouter identifier](#terminology). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
-- the local entry: **always the local identifier of the participant at the near end of the transfer, never of any other.** On send the sender's own identifier for the entity is its `referenceId`, which is required (see below). On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
+- the local entry: **always the local identifier of the participant at the near end of the transfer.** On send the sender's own identifier for the entity is its `referenceId`, which is required (see below). On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
 
 `referenceId` repeats the local identifier, and is absent exactly when that is.
 `idSourceTypeCode` is not used.
@@ -421,7 +421,9 @@ Canonical attributes:
     - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
     - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
     - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
-- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary.geometry` is a WKT `POINT`, `LINESTRING`, or `POLYGON`, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
+  - `gNSSBaseStationTypeCode`, `gNSSBaseSurveyTypeCode` (string, optional): from the ADAPT GNSSBaseStationType and GNSSBaseSurveyType lists.
+  - `gNSSCorrectionNetworkName`, `gNSSCorrectionNetworkBrand` (string, optional): the GNSS correction network the geometry was recorded with, and its provider.
+- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary` has the attributes above except that its `geometry` is a WKT `POINT`, `LINESTRING`, or `POLYGON`, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
 - `_agmasync_boundaryType` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.

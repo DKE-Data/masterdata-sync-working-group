@@ -244,10 +244,6 @@ schemas:
     description: The geometry of a field boundary, based on the ADAPT `Boundary`.
     exclude:
       - highDefinitionSourceLayerId
-      - gNSSBaseStationTypeCode
-      - gNSSBaseSurveyTypeCode
-      - gNSSCorrectionNetworkName
-      - gNSSCorrectionNetworkBrand
       - gNSSReceiverMetadata
       - gNSSMobileBaseStationMetadata
       - gNSSDataQualityMetrics
@@ -255,20 +251,13 @@ schemas:
     properties:
       geometry:
         ref: WktArea
-      boundaryCreationMethodCode:
-        description: How the boundary was produced.
 
   ObstacleBoundary:
     adapt: boundary
     replacedWhole: true
     description: The geometry of an obstacle, based on the ADAPT `Boundary`.
     exclude:
-      - boundaryCreationMethodCode
       - highDefinitionSourceLayerId
-      - gNSSBaseStationTypeCode
-      - gNSSBaseSurveyTypeCode
-      - gNSSCorrectionNetworkName
-      - gNSSCorrectionNetworkBrand
       - gNSSReceiverMetadata
       - gNSSMobileBaseStationMetadata
       - gNSSDataQualityMetrics
@@ -302,9 +291,6 @@ schemas:
         description: >
           The field this boundary describes. A field's boundaries are the
           boundaries that name it.
-      name:
-        description: >
-          The name the boundary is known by, e.g. a field name and season.
       boundary:
         ref: Boundary
       obstacles:
