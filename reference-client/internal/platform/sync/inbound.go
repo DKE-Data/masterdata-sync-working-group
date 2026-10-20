@@ -137,7 +137,7 @@ func (a *Applier) apply(
 	if err != nil {
 		return Outcome{}, err
 	}
-	if envelope.AgrirouterId == nil {
+	if envelope.AgrirouterID == nil {
 		return Outcome{}, fmt.Errorf("sync: a delivered object carries no agrirouterId")
 	}
 	// The bookkeeping is keyed by the object's tenant. An object naming none
@@ -164,8 +164,8 @@ func (a *Applier) apply(
 // once a later frame's is.
 func logDiscarded(envelope agmasync.Envelope) {
 	agrirouterID := ""
-	if envelope.AgrirouterId != nil {
-		agrirouterID = envelope.AgrirouterId.String()
+	if envelope.AgrirouterID != nil {
+		agrirouterID = envelope.AgrirouterID.String()
 	}
 	slog.Error("sync: discarded an object naming no tenant",
 		"type", envelope.Type, "agrirouterId", agrirouterID)
@@ -183,13 +183,13 @@ func (a *Applier) applyIn(
 	// where it does not — and that absence is meaningful: it says agrirouter
 	// does not believe this platform holds the object.
 	localID := ""
-	if envelope.LocalId != nil {
-		localID = *envelope.LocalId
+	if envelope.LocalID != nil {
+		localID = *envelope.LocalID
 	}
 
 	// Trust the mapping over the delivered identifier where both exist: the
 	// platform's own table is what it has to stay consistent with.
-	if row, err := tx.SyncRowByAgrirouterID(typ, *envelope.AgrirouterId); err == nil {
+	if row, err := tx.SyncRowByAgrirouterID(typ, *envelope.AgrirouterID); err == nil {
 		localID = row.LocalID
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return Outcome{}, err
@@ -269,7 +269,7 @@ func (a *Applier) applyUnheldObject(
 		if err := tx.PutSyncRow(store.SyncRow{
 			EntityType:   env.Type,
 			LocalID:      known.LocalID,
-			AgrirouterID: env.AgrirouterId,
+			AgrirouterID: env.AgrirouterID,
 			Revision:     env.Revision,
 			TenantID:     *env.TenantId,
 		}); err != nil {
@@ -332,7 +332,7 @@ func (a *Applier) write(
 	return tx.PutSyncRow(store.SyncRow{
 		EntityType:   typ,
 		LocalID:      localID,
-		AgrirouterID: envelope.AgrirouterId,
+		AgrirouterID: envelope.AgrirouterID,
 		Revision:     envelope.Revision,
 		TenantID:     *envelope.TenantId,
 	})

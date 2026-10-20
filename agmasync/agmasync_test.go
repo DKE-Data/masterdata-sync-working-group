@@ -136,11 +136,11 @@ func TestEnvelopeOfReadsCommonFieldsWhicheverTypeItIs(t *testing.T) {
 	if env.Revision == nil || *env.Revision != revision {
 		t.Errorf("Revision = %v, want %d", env.Revision, revision)
 	}
-	if env.LocalId == nil || *env.LocalId != localID {
-		t.Errorf("LocalId = %v, want %q", env.LocalId, localID)
+	if env.LocalID == nil || *env.LocalID != localID {
+		t.Errorf("LocalID = %v, want %q", env.LocalID, localID)
 	}
-	if env.AgrirouterId == nil || *env.AgrirouterId != arID {
-		t.Errorf("AgrirouterId = %v, want %s", env.AgrirouterId, arID)
+	if env.AgrirouterID == nil || *env.AgrirouterID != arID {
+		t.Errorf("AgrirouterID = %v, want %s", env.AgrirouterID, arID)
 	}
 }
 

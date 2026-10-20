@@ -221,7 +221,7 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 
 	// Replay revision 1 over the top of what is held.
 	stale := 1
-	id := agmasync.AgrirouterRef(*row.AgrirouterID).Id
+	id := agmasync.CanonicalRef(*row.AgrirouterID).Id
 	id.ReferenceId = strptr("FRM-1")
 	old, err := agrirouter.FromFarm(oapi.Farm{
 		TenantId: &h.tenant,
@@ -517,7 +517,7 @@ func TestUnrecognisedInactiveObjectCreatesNothing(t *testing.T) {
 	id := uuid.New()
 	entity, err := agrirouter.FromFarm(oapi.Farm{
 		TenantId: &h.tenant,
-		Content:  oapi.FarmContent{Id: agmasync.AgrirouterRef(id).Id, Name: "Hof Vergangen"},
+		Content:  oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Vergangen"},
 		Active:   &inactive,
 		Revision: &revision,
 	})
@@ -547,7 +547,7 @@ func TestObjectNamingNoTenantIsDiscarded(t *testing.T) {
 
 	id := uuid.New()
 	entity, err := agrirouter.FromFarm(oapi.Farm{
-		Content: oapi.FarmContent{Id: agmasync.AgrirouterRef(id).Id, Name: "Hof Ohne"},
+		Content: oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Ohne"},
 	})
 	if err != nil {
 		t.Fatalf("building entity: %v", err)

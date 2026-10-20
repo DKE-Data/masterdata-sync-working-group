@@ -237,7 +237,7 @@ func TestRecordsTheSetDidNotContainAreOfferedBack(t *testing.T) {
 	found := false
 	for _, ev := range delivered {
 		env := ev.Envelope
-		if env.AgrirouterId != nil && *env.AgrirouterId == *row.AgrirouterID {
+		if env.AgrirouterID != nil && *env.AgrirouterID == *row.AgrirouterID {
 			found = true
 		}
 	}

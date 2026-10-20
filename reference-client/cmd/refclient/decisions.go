@@ -143,7 +143,7 @@ func (i *inbox) Recognise(
 	d := &decision{
 		ID:           uuid.NewString(),
 		Type:         env.Type,
-		AgrirouterID: *env.AgrirouterId,
+		AgrirouterID: *env.AgrirouterID,
 		Attributes:   attrs,
 		Candidates:   candidates,
 		Asked:        time.Now(),

@@ -83,7 +83,7 @@ func runRepeatLoad(ctx context.Context, w *World) error {
 		return err
 	}
 	for _, ev := range waiting {
-		if ev.Envelope.AgrirouterId != nil && *ev.Envelope.AgrirouterId == *own.AgrirouterID {
+		if ev.Envelope.AgrirouterID != nil && *ev.Envelope.AgrirouterID == *own.AgrirouterID {
 			return errors.New("origin suppression should keep Beta's own write off its stream")
 		}
 	}

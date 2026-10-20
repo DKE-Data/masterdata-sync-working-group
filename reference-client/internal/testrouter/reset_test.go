@@ -120,7 +120,7 @@ func TestAResetDiscardsTheTenantsDataAndIsAnnounced(t *testing.T) {
 		t.Fatalf("create after reset: %v", err)
 	}
 	after, _ := agrirouter.EnvelopeOf(again)
-	if *after.AgrirouterId == *before.AgrirouterId {
+	if *after.AgrirouterID == *before.AgrirouterID {
 		t.Error("an agrirouterId was reissued after a reset")
 	}
 }
@@ -216,7 +216,7 @@ func TestAResetReachesAnApplicationWhoseEndpointWasRemoved(t *testing.T) {
 	}
 	env, _ := agrirouter.EnvelopeOf(created)
 	if err := receiver.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}

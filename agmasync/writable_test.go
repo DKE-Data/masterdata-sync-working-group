@@ -117,7 +117,7 @@ func TestPutSendsTheEntityAsTheParticipantBuiltIt(t *testing.T) {
 	farm := oapi.Farm{
 		Active: &active,
 		Content: oapi.FarmContent{
-			Id: agmasync.LocalId("f-1"), Name: "Hof Nord",
+			Id: agmasync.LocalID("f-1"), Name: "Hof Nord",
 			UnderscoreAgmasyncSpecialisedUsageType: nullable.NewNullNullable[string](),
 		},
 	}
@@ -162,7 +162,7 @@ func TestPutSetsTheTypeFromTheModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, id, endpointID, tenantID := context.Background(), agmasync.LocalId("x-1"), uuid.New(), uuid.New()
+	ctx, id, endpointID, tenantID := context.Background(), agmasync.LocalID("x-1"), uuid.New(), uuid.New()
 	calls := map[agmasync.EntityType]func() error{
 		agmasync.TypeParty: func() error {
 			_, err := agmasync.PutParty(ctx, api, endpointID, tenantID, oapi.Party{Content: oapi.PartyContent{Id: id}}, nil)

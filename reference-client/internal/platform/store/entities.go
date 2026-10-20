@@ -188,7 +188,7 @@ func (r Record) ToEntity(localID string) (oapi.Entity, error) {
 		}
 	}
 
-	id, err := json.Marshal(agmasync.LocalId(localID))
+	id, err := json.Marshal(agmasync.LocalID(localID))
 	if err != nil {
 		return oapi.Entity{}, err
 	}

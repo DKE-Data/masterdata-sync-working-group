@@ -83,7 +83,7 @@ func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	env, _ := agrirouter.EnvelopeOf(created)
-	farmID := *env.AgrirouterId
+	farmID := *env.AgrirouterID
 
 	relayed := `{"referenceId":"4711","uniqueIds":[` + agrirouterEntry(farmID) + `,` +
 		`{"idSource":"https://fmis-a.example.com","idText":"4711","idTypeCode":"LONGINT"}]}`
@@ -92,7 +92,7 @@ func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 	}
 
 	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
-		Id: agmasync.LocalId("PFD-1"), Name: "North 40",
+		Id: agmasync.LocalID("PFD-1"), Name: "North 40",
 		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.LocalRef("4711")),
 	}})
 	if err != nil {

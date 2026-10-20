@@ -122,8 +122,8 @@ func runLoad(ctx context.Context, e *env, args []string) error {
 			return err
 		}
 		printFrame(ev)
-		if *auto && ev.HasEntity() && ev.Envelope.LocalId == nil && ev.Envelope.AgrirouterId != nil {
-			id := *ev.Envelope.AgrirouterId
+		if *auto && ev.HasEntity() && ev.Envelope.LocalID == nil && ev.Envelope.AgrirouterID != nil {
+			id := *ev.Envelope.AgrirouterID
 			bindings = append(bindings, oapi.IdMappingBinding{LocalId: id.String(), AgrirouterId: id})
 		}
 	}
@@ -523,7 +523,7 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 			return err
 		}
 		printFrame(ev)
-		if *auto && ev.HasEntity() && ev.Envelope.LocalId == nil && ev.Envelope.AgrirouterId != nil {
+		if *auto && ev.HasEntity() && ev.Envelope.LocalID == nil && ev.Envelope.AgrirouterID != nil {
 			autoBind(ctx, endpoint, ev.Envelope)
 		}
 		if ev.Type == agmasync.EventCaughtUp && !*follow {
@@ -542,7 +542,7 @@ func runReplay(ctx context.Context, e *env, args []string) error {
 // (see [agmasync.NeedsUser]) must not end a `replay -follow` watching for
 // everything else.
 func autoBind(ctx context.Context, endpoint *agrirouter.Endpoint, env agmasync.Envelope) {
-	id := *env.AgrirouterId
+	id := *env.AgrirouterID
 	if err := endpoint.Bind(ctx, env.Type, id.String(), id); err != nil {
 		var conflict *agmasync.MappingConflict
 		if errors.As(err, &conflict) {
@@ -591,9 +591,9 @@ func printFrame(ev agmasync.Event) {
 		// on this rather than on the connection.
 		env := ev.Envelope
 		fmt.Printf("%-26s %s revision=%s agrirouterId=%s localId=%s tenant=%s endpoint=%s\n",
-			ev.Type, env.Type, intOr(env.Revision, "?"), uuidOr(env.AgrirouterId),
-			stringOr(env.LocalId, "-"), uuidOr(env.TenantId), uuidOr(env.SourceEndpointId))
-		if env.LocalId == nil {
+			ev.Type, env.Type, intOr(env.Revision, "?"), uuidOr(env.AgrirouterID),
+			stringOr(env.LocalID, "-"), uuidOr(env.TenantId), uuidOr(env.SourceEndpointId))
+		if env.LocalID == nil {
 			fmt.Println("                           " +
 				"no localId: agrirouter does not believe you hold this object")
 		}

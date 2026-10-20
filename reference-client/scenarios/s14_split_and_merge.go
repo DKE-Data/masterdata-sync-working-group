@@ -200,7 +200,7 @@ func mentionsAny(ev agmasync.Event, p *Platform, localIDs ...string) (bool, erro
 		if row.AgrirouterID == nil {
 			continue
 		}
-		if *row.AgrirouterID == *ev.Envelope.AgrirouterId {
+		if *row.AgrirouterID == *ev.Envelope.AgrirouterID {
 			continue
 		}
 		found, err := mentions(ev, *row.AgrirouterID)

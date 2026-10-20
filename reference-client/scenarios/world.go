@@ -664,7 +664,7 @@ func (p *Platform) Fetch(
 		if previous != nil {
 			previous(ev, out)
 		}
-		if ev.Envelope.AgrirouterId != nil && *ev.Envelope.AgrirouterId == agrirouterID {
+		if ev.Envelope.AgrirouterID != nil && *ev.Envelope.AgrirouterID == agrirouterID {
 			select {
 			case <-applied:
 			default:

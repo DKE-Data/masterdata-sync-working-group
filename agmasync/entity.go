@@ -69,9 +69,9 @@ func (t EntityType) Valid() bool {
 // because every one of them is assigned by agrirouter and therefore absent on
 // an object a participant is about to send for the first time.
 //
-// AgrirouterId and LocalId are not envelope fields on the wire: they are the
+// AgrirouterID and LocalID are not envelope fields on the wire: they are the
 // two entries of `content.id` (see [IdentityOf]), lifted out because a
-// receiver needs them before it decodes the content. LocalId is absent for a
+// receiver needs them before it decodes the content. LocalID is absent for a
 // second reason as well, and that absence is meaningful: on a delivered object
 // it states that agrirouter holds no mapping for the receiving application,
 // which is what makes the object recognizable as one the receiver must create
@@ -80,8 +80,8 @@ type Envelope struct {
 	oapi.Envelope
 	Type EntityType `json:"type"`
 
-	AgrirouterId *uuid.UUID `json:"-"`
-	LocalId      *string    `json:"-"`
+	AgrirouterID *uuid.UUID `json:"-"`
+	LocalID      *string    `json:"-"`
 }
 
 // EnvelopeOf reads the common fields of an entity of any type from its JSON.
@@ -118,7 +118,7 @@ func readEnvelope(raw []byte) (Envelope, error) {
 	if err != nil {
 		return Envelope{}, err
 	}
-	env.AgrirouterId, env.LocalId = id.AgrirouterID, id.LocalID
+	env.AgrirouterID, env.LocalID = id.AgrirouterID, id.LocalID
 	return env, nil
 }
 

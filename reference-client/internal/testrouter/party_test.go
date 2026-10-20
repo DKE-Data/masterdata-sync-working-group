@@ -33,10 +33,10 @@ func putErr(t *testing.T, p *participant, body string, base *int) error {
 func agrirouterIDIn(t *testing.T, ent oapi.Entity) uuid.UUID {
 	t.Helper()
 	env, err := agrirouter.EnvelopeOf(ent)
-	if err != nil || env.AgrirouterId == nil {
+	if err != nil || env.AgrirouterID == nil {
 		t.Fatalf("reading the agrirouter entry: %v", err)
 	}
-	return *env.AgrirouterId
+	return *env.AgrirouterID
 }
 
 func detailsOf(t *testing.T, ent oapi.Entity) string {

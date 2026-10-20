@@ -18,7 +18,7 @@ import (
 //
 // The entity is a merge patch: an attribute it leaves out is left as it is,
 // and one sent as null is removed — the models' nullable fields say which. It
-// must carry its local_id as `content.id.referenceId` ([LocalId] builds one);
+// must carry its local_id as `content.id.referenceId` ([LocalID] builds one);
 // its type is set from the model. Required attributes are
 // required on every write. See "Writing an entity" in specification.md.
 //

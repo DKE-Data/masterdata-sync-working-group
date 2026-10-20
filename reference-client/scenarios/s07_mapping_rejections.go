@@ -140,7 +140,7 @@ func runMappingRejections(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	stray := *waiting[0].Envelope.AgrirouterId
+	stray := *waiting[0].Envelope.AgrirouterID
 	if err := gamma.Bind(ctx, agmasync.TypeFarm, "gamma-farm-alt", stray); err != nil {
 		return err
 	}

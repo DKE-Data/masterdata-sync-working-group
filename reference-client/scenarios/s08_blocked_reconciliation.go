@@ -228,7 +228,7 @@ func runBlockedReconciliation(ctx context.Context, w *World) error {
 		"exactly one object is delivered, not two"); err != nil {
 		return err
 	}
-	delivered := waiting[0].Envelope.AgrirouterId
+	delivered := waiting[0].Envelope.AgrirouterID
 	if delivered == nil {
 		return errors.New("the delivered farm carries no canonical identifier")
 	}

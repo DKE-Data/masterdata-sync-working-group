@@ -699,7 +699,7 @@ func recordFrom(typ agmasync.EntityType, localID string, attributes []byte) (sto
 	if content == nil {
 		content = map[string]json.RawMessage{}
 	}
-	content["id"], _ = json.Marshal(agmasync.LocalId(localID))
+	content["id"], _ = json.Marshal(agmasync.LocalID(localID))
 
 	raw, err := json.Marshal(map[string]any{"type": typ, "content": content})
 	if err != nil {

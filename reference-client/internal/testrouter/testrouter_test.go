@@ -71,7 +71,7 @@ func (f *fixture) joinIn(
 }
 
 func farm(localID, name string) oapi.Entity {
-	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: agmasync.LocalId(localID), Name: name}})
+	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: agmasync.LocalID(localID), Name: name}})
 	if err != nil {
 		panic(err)
 	}
@@ -103,14 +103,14 @@ func TestCreateAssignsAgrirouterIDAndFirstRevision(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading envelope: %v", err)
 	}
-	if env.AgrirouterId == nil {
+	if env.AgrirouterID == nil {
 		t.Error("a created object must come back carrying its assigned agrirouterId")
 	}
 	if env.Revision == nil || *env.Revision != 1 {
 		t.Errorf("revision = %v, want 1", env.Revision)
 	}
-	if env.LocalId == nil || *env.LocalId != "FRM-1" {
-		t.Errorf("localId = %v, want the sender's own", env.LocalId)
+	if env.LocalID == nil || *env.LocalID != "FRM-1" {
+		t.Errorf("localId = %v, want the sender's own", env.LocalID)
 	}
 	if env.TenantId == nil || *env.TenantId != f.tenant {
 		t.Errorf("tenantId = %v, want %s", env.TenantId, f.tenant)
@@ -194,7 +194,7 @@ func TestAssignedFieldsNamingAnotherObjectAreRejected(t *testing.T) {
 	}
 
 	otherID := uuid.New()
-	agrirouterEntry := agmasync.AgrirouterRef(otherID).Id.UniqueIds
+	agrirouterEntry := agmasync.CanonicalRef(otherID).Id.UniqueIds
 	for name, edit := range map[string]func(*oapi.Farm){
 		"agrirouter entry": func(fm *oapi.Farm) {
 			fm.Content.Id = oapi.Id{ReferenceId: strptr("FRM-1"), UniqueIds: agrirouterEntry}
@@ -236,7 +236,7 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 
 	// B recognises the object as one it holds and binds its own identifier.
 	if err := b.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestStaleBaseIsRejectedWhereChangesOverlap(t *testing.T) {
 	base := *env.Revision
 
 	if err := b.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
@@ -323,14 +323,14 @@ func TestBindingTheSameLocalIDTwiceIsRejectedWithItsCause(t *testing.T) {
 	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
 	if err := b.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-1", *firstEnv.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-1", *firstEnv.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 
 	// Claiming a second canonical object under an identifier that already
 	// denotes one: a genuine granularity disagreement, which needs a user.
-	err = b.endpoint.Bind(context.Background(), agmasync.TypeFarm, "B-1", *secondEnv.AgrirouterId)
+	err = b.endpoint.Bind(context.Background(), agmasync.TypeFarm, "B-1", *secondEnv.AgrirouterID)
 	var conflict *agmasync.MappingConflict
 	if !errors.As(err, &conflict) {
 		t.Fatalf("error = %v, want a MappingConflict", err)
@@ -348,7 +348,7 @@ func TestBindingTheSameLocalIDTwiceIsRejectedWithItsCause(t *testing.T) {
 
 	// The mirror image: claiming an object the participant already knows under
 	// another identifier. Resolvable without troubling anybody.
-	err = b.endpoint.Bind(context.Background(), agmasync.TypeFarm, "B-2", *firstEnv.AgrirouterId)
+	err = b.endpoint.Bind(context.Background(), agmasync.TypeFarm, "B-2", *firstEnv.AgrirouterID)
 	if !errors.As(err, &conflict) {
 		t.Fatalf("error = %v, want a MappingConflict", err)
 	}
@@ -400,7 +400,7 @@ func TestUnresolvableReferenceIsRejected(t *testing.T) {
 	p := f.join("fmis-a", "ep-a", agmasync.TypeField)
 
 	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
-		Id:                        agmasync.LocalId("PFD-1"),
+		Id:                        agmasync.LocalID("PFD-1"),
 		Name:                      "North 40",
 		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.LocalRef("FRM-NOT-SENT-YET")),
 	}})
@@ -573,7 +573,7 @@ func strptr(s string) *string { return &s }
 // farmIn is a farm with an address in a city.
 func farmIn(localID, name, city string) oapi.Entity {
 	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{
-		Id: agmasync.LocalId(localID), Name: name,
+		Id: agmasync.LocalID(localID), Name: name,
 		UnderscoreAgmasyncAddress: nullable.NewNullableWithValue(oapi.AddressContactMethod{
 			AddressContactTypeCode: "PHYSICAL", City: &city,
 		}),
@@ -610,7 +610,7 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	longAgo := *env.Revision
 
 	if err := b.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
@@ -680,7 +680,7 @@ func TestTwoEndpointsOfOneApplicationShareOneNamespace(t *testing.T) {
 	}
 	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
-	if *firstEnv.AgrirouterId != *secondEnv.AgrirouterId {
+	if *firstEnv.AgrirouterID != *secondEnv.AgrirouterID {
 		t.Error("the same localId sent by two endpoints of one application is one object")
 	}
 	if *secondEnv.Revision != base+1 {
@@ -708,14 +708,14 @@ func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
 
 	// The receiving participant binds once, through one of its endpoints.
 	if err := org1.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 	// Repeating it through the sibling is the same claim about the same store,
 	// and is recorded idempotently rather than rejected as a second binding.
 	if err := org2.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("re-declaring the participant's own binding must be idempotent: %v", err)
 	}
@@ -727,7 +727,7 @@ func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
 		t.Fatalf("re-emitting a bound object: %v", err)
 	}
 	echoedEnv, _ := agrirouter.EnvelopeOf(echoed)
-	if *echoedEnv.AgrirouterId != *env.AgrirouterId {
+	if *echoedEnv.AgrirouterID != *env.AgrirouterID {
 		t.Error("a sibling's send must resolve through the application's binding")
 	}
 	if *echoedEnv.Revision != base {
@@ -757,7 +757,7 @@ func TestTheSameLocalIdInTwoTenantsNamesTwoObjects(t *testing.T) {
 	firstEnv, _ := agrirouter.EnvelopeOf(first)
 	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
-	if *firstEnv.AgrirouterId == *secondEnv.AgrirouterId {
+	if *firstEnv.AgrirouterID == *secondEnv.AgrirouterID {
 		t.Fatal("one localId in two tenants must name two canonical objects")
 	}
 	if *firstEnv.TenantId != f.tenant || *secondEnv.TenantId != other {
@@ -772,7 +772,7 @@ func TestTheSameLocalIdInTwoTenantsNamesTwoObjects(t *testing.T) {
 		t.Fatalf("update in the second tenant: %v", err)
 	}
 	updatedEnv, _ := agrirouter.EnvelopeOf(updated)
-	if *updatedEnv.AgrirouterId != *secondEnv.AgrirouterId {
+	if *updatedEnv.AgrirouterID != *secondEnv.AgrirouterID {
 		t.Error("the second tenant's update must resolve to its own object")
 	}
 }
@@ -797,7 +797,7 @@ func TestABindingInOneTenantDoesNotConflictWithAnother(t *testing.T) {
 		}
 		env, _ := agrirouter.EnvelopeOf(created)
 		if err := c.receiver.endpoint.Bind(
-			context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterId,
+			context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterID,
 		); err != nil {
 			t.Fatalf("binding SHARED-1 in tenant %s: %v", *env.TenantId, err)
 		}
@@ -831,7 +831,7 @@ func TestAResetDiscardsOnlyThatTenantsBindings(t *testing.T) {
 		t.Fatalf("update in the tenant that was not reset: %v", err)
 	}
 	updatedEnv, _ := agrirouter.EnvelopeOf(updated)
-	if *updatedEnv.AgrirouterId != *keptEnv.AgrirouterId {
+	if *updatedEnv.AgrirouterID != *keptEnv.AgrirouterID {
 		t.Error("the other tenant's binding must survive the reset")
 	}
 }
@@ -852,9 +852,9 @@ func TestAReferenceToAnotherTenantsObjectIsRejected(t *testing.T) {
 	env, _ := agrirouter.EnvelopeOf(created)
 
 	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
-		Id:                        agmasync.LocalId("PFD-1"),
+		Id:                        agmasync.LocalID("PFD-1"),
 		Name:                      "North 40",
-		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.AgrirouterRef(*env.AgrirouterId)),
+		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.CanonicalRef(*env.AgrirouterID)),
 	}})
 	if err != nil {
 		t.Fatalf("building field: %v", err)
@@ -886,7 +886,7 @@ func TestASiblingsSendResolvesRatherThanDuplicating(t *testing.T) {
 		t.Fatalf("the sibling's send: %v", err)
 	}
 	echoedEnv, _ := agrirouter.EnvelopeOf(echoed)
-	if *echoedEnv.AgrirouterId != *env.AgrirouterId {
+	if *echoedEnv.AgrirouterID != *env.AgrirouterID {
 		t.Fatal("a sibling's send must not mint a second canonical object")
 	}
 	if *echoedEnv.Revision != *env.Revision {
@@ -970,7 +970,7 @@ func TestRemovingAnEndpointLeavesTheMappingStanding(t *testing.T) {
 	env, _ := agrirouter.EnvelopeOf(created)
 
 	if err := receiver.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
@@ -988,7 +988,7 @@ func TestRemovingAnEndpointLeavesTheMappingStanding(t *testing.T) {
 		t.Fatalf("send after re-onboarding: %v", err)
 	}
 	sentEnv, _ := agrirouter.EnvelopeOf(sent)
-	if *sentEnv.AgrirouterId != *env.AgrirouterId {
+	if *sentEnv.AgrirouterID != *env.AgrirouterID {
 		t.Error("a removed endpoint's binding belongs to the participant and must survive")
 	}
 }

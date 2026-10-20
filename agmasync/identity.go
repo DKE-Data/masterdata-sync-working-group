@@ -56,10 +56,10 @@ func IdentityOf(id oapi.Id) (Identity, error) {
 	return out, nil
 }
 
-// LocalId builds an `Id` from the near end's own identifier alone, which is
+// LocalID builds an `Id` from the near end's own identifier alone, which is
 // all a send needs: agrirouter takes the local identifier from `referenceId`.
 // It is what a participant puts in `content.id` of an object it writes.
-func LocalId(localID string) oapi.Id {
+func LocalID(localID string) oapi.Id {
 	return oapi.Id{ReferenceId: &localID}
 }
 
@@ -74,13 +74,13 @@ func LocalId(localID string) oapi.Id {
 // write if the target has not been sent yet, so the target must be sent before
 // the first reference to it.
 func LocalRef(localID string) oapi.Ref {
-	return oapi.Ref{Id: LocalId(localID)}
+	return oapi.Ref{Id: LocalID(localID)}
 }
 
-// AgrirouterRef builds a reference to another entity from its canonical
+// CanonicalRef builds a reference to another entity from its canonical
 // identifier, for a target the referencing participant holds no local
 // identifier for.
-func AgrirouterRef(agrirouterID uuid.UUID) oapi.Ref {
+func CanonicalRef(agrirouterID uuid.UUID) oapi.Ref {
 	source := AgrirouterIDSource
 	return oapi.Ref{Id: oapi.Id{UniqueIds: &[]oapi.UniqueId{{
 		IdText: agrirouterID.String(), IdTypeCode: IDTypeUUID, IdSource: &source,

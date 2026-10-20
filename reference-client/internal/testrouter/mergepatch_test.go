@@ -227,7 +227,7 @@ func TestAStaleWriteNeitherConflictsWithNorRevertsWhatItLeavesOut(t *testing.T) 
 	base := revisionOf(t, created)
 	env, _ := agrirouter.EnvelopeOf(created)
 	if err := b.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, "B-FARM-9", *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
