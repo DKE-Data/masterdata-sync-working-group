@@ -14,9 +14,11 @@ import (
 // A participant MUST bind before sending the object; an unbound send creates a
 // duplicate canonical object.
 //
-// The mapping is keyed by application and tenant, so the binding covers every
-// endpoint of the application in this tenant. A localID denotes one canonical
-// object per tenant; binding it to a second is [ErrMappingConflict]. Bindings
+// The mapping is keyed by the endpoint, so the binding covers this endpoint
+// only: a participant with one store behind several endpoints binds once per
+// endpoint, often under the same localID. A localID denotes one canonical
+// object per endpoint; binding it to a second is [ErrMappingConflict], and a
+// sibling endpoint's bindings never are. Bindings
 // from a whole initial load go in bulk via [ConfirmReconciled] instead. See
 // "Identifier mapping" in specification.md.
 func Bind(

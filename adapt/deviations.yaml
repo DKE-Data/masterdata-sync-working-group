@@ -37,16 +37,16 @@ schemas:
     description: >
       Identity of an object, based on the ADAPT `Id`. Used for the object's
       own `id` and inside every `Ref`. Both identifiers it can carry are those
-      of the near end of the transfer: on send the sender's, on delivery the
-      receiving application's. It never carries another application's
-      identifier.
+      of the near end of the transfer: on send the sending endpoint's, on
+      delivery the receiving endpoint's. It never carries another endpoint's
+      identifier, a sibling endpoint's of the same application included.
 
 
       On delivery `uniqueIds` holds the agrirouter entry, the canonical
-      identifier, and a local entry, the receiving application's local
+      identifier, and a local entry, the receiving endpoint's local
       identifier, in that order, and `referenceId` is present exactly when
       the local entry is and equals its `idText`. The local entry's
-      `idTypeCode` and `idSource` are the ones the application last sent
+      `idTypeCode` and `idSource` are the ones the endpoint last sent
       for that object: `idTypeCode` is `STRING` and `idSource` is absent
       when it sent none.
 
@@ -60,7 +60,7 @@ schemas:
       As an object's own `id`, on send `referenceId` must equal the
       `{local_id}` in the path, and an agrirouter entry, if any, must be the
       object that `local_id` is bound to. On delivery the local entry and
-      `referenceId` are absent when the receiving application has not bound
+      `referenceId` are absent when the receiving endpoint has not bound
       the object, or has unbound it. Their absence means "you do not hold
       this object": create it locally and bind the identifier you issue.
     optional: [referenceId]
@@ -84,8 +84,8 @@ schemas:
       idSource:
         description: >
           `https://agrirouter.com` for the canonical identifier, assigned by agrirouter.
-          For a local entry, whatever the application sent, relayed back to
-          that application only, or absent if it sent none. `https://agrirouter.com`
+          For a local entry, whatever the endpoint sent, relayed back to
+          that endpoint only, or absent if it sent none. `https://agrirouter.com`
           is reserved and is never a local entry's.
         examples: ['https://agrirouter.com', 'https://fmis.example.com']
 

@@ -37,10 +37,11 @@ var EntityTypes = []EntityType{
 // that reference it. See "Entity dependencies" in specification.md.
 //
 // It is the order a participant sends in, and the property agrirouter's own
-// delivery order guarantees. A reference is carried as the sender's own
-// identifier and resolved against the mapping, so a field sent before the farm
-// it names has nothing to resolve to; sending in this order means every
-// reference's target is already bound by the time it is used.
+// delivery order guarantees. A reference is carried as the sending endpoint's
+// own identifier and resolved against that endpoint's mapping, so a field sent
+// before the farm it names has nothing to resolve to; sending in this order,
+// through one endpoint, means every reference's target is already bound by the
+// time it is used.
 //
 // It is not [EntityTypes], which is the set rather than an order.
 //
@@ -73,7 +74,8 @@ func (t EntityType) Valid() bool {
 // two entries of `content.id` (see [IdentityOf]), lifted out because a
 // receiver needs them before it decodes the content. LocalID is absent for a
 // second reason as well, and that absence is meaningful: on a delivered object
-// it states that agrirouter holds no mapping for the receiving application,
+// it states that agrirouter holds no mapping for the receiving endpoint, the
+// one RecipientEndpointId names,
 // which is what makes the object recognizable as one the receiver must create
 // locally and bind.
 type Envelope struct {

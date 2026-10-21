@@ -11,7 +11,7 @@ import (
 // Request asks for a single entity by its canonical identifier.
 //
 // It answers 202 and nothing else: the object itself arrives asynchronously on
-// the application's event stream. It is delivered even when this endpoint was
+// the application's event stream, as a frame addressed to this endpoint. It is delivered even when this endpoint was
 // the object's last writer — origin suppression exists to avoid handing an
 // endpoint a revision it already holds, and a request states the opposite.
 //

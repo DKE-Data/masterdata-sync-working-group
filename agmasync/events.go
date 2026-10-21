@@ -57,8 +57,10 @@ type Event struct {
 	// nothing may be read into that beyond the position being unchanged.
 	//
 	// Whatever ID a frame carries is safe to resume from once that frame and
-	// every frame before it have been durably applied. The initial-load stream
-	// carries no position at all, so this is empty there.
+	// every frame before it have been durably applied. The frames one object
+	// fans out into, one per recipient endpoint, carry the same ID, so a resume
+	// between them delivers all of them again. The initial-load stream carries no
+	// position at all, so this is empty there.
 	ID string
 
 	// Object is the canonical object the frame carries. It is the zero value
@@ -72,8 +74,10 @@ type Event struct {
 	RouteChange *oapi.RouteChangedEventData
 
 	// Reset is set on an [EventMasterdataReset] frame and nil on every other.
-	// A participant receiving it discards every binding it holds in the tenant
-	// and keeps its local records, and durably stores this frame's position
+	// A participant receiving it discards every binding it holds in the tenant,
+	// and every correspondence table it kept for a removed endpoint there — the
+	// event reaches an application with no endpoint left in the tenant for that
+	// reason — and keeps its local records, and durably stores this frame's position
 	// before taking part in that tenant's initial load again: a resume from
 	// before it would deliver the reset once more, after the new bindings exist.
 	Reset *oapi.MasterdataResetEventData
@@ -192,6 +196,13 @@ func errIsStreamEnd(err error) bool {
 // for several tenants partitions on each object's tenantId rather than on the
 // connection. agrirouter never echoes a change back to the endpoint it came
 // from, though it does deliver it to the application's other endpoints.
+//
+// The identifier mapping is scoped to the endpoint, so a frame is rendered for
+// one endpoint, named by the object's RecipientEndpointId, and every localId in
+// it is that endpoint's. An object entitled to several of the application's
+// endpoints arrives once for each; a receiver applies each frame to the store
+// behind its recipient. A sibling endpoint's frame without a localId is a cue to
+// [Bind], not to send: an unbound send creates a duplicate.
 //
 // lastEventID resumes from a previous position and MUST be the id of a frame
 // the participant has durably applied — not whatever its stream client last

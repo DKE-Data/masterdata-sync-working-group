@@ -6,10 +6,10 @@
 
 ## Context
 
-The mapping is keyed `(application, tenant, local_id)` - a `local_id` denotes the
-same record whichever of the application's endpoints in that tenant sends it, and
-the tenant is the acting endpoint's ([ADR 14](./14-tenant-scope-of-objects.md)) -
-and a send that does not resolve creates a canonical object
+The mapping is keyed by the endpoint - a `local_id` names a record only in the
+namespace of the endpoint that sent it
+([ADR 15](./15-endpoint-scope-of-mappings.md)) - and a send that does not resolve
+creates a canonical object
 ([Identifier mapping](../specification.md#identifier-mapping)). That covers the
 endpoint introducing an entity to the network. It does not cover the opposite
 and more frequent direction: an endpoint receives a canonical object, recognises
@@ -39,7 +39,7 @@ x-agrirouter-endpoint-id: <the endpoint binding>
 ```
 
 - **`204`** - the mapping is recorded. Idempotent: re-binding the same pair changes nothing.
-- **`409`** - `(application, tenant, local_id)` is already bound to a different canonical object, or this application already has a different `local_id` bound to that `agrirouter_id`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
+- **`409`** - `(endpoint, local_id)` is already bound to a different canonical object, or this endpoint already has a different `local_id` bound to that `agrirouter_id`. Both are the n:1 case of [Asymmetric and non-unique mappings](../specification.md#asymmetric-and-non-unique-mappings) and are resolved in the endpoint. The body says which, and names the mapping in the way (see [A rejection names the reason](#a-rejection-names-the-reason)).
 - **`404`** - no such canonical object, or the endpoint is not entitled to it.
 
 The mapping is an association, and both of its ends are in the path, so the
@@ -120,6 +120,12 @@ own `local_id` wherever agrirouter holds one. The correspondence comes back atta
 design puts it anyway - it is the same delivery that makes a repeat load *match*
 rather than reconcile.
 
+The re-load has to be of the same endpoint. Removing the endpoint and onboarding
+it again is not an exit: agrirouter discards the mapping with the endpoint
+([ADR 15](./15-endpoint-scope-of-mappings.md)), so the new endpoint's set arrives
+carrying no `local_id`s, and only a correspondence table the participant kept
+itself can match it.
+
 That costs the endpoint's whole canonical set in bandwidth to recover two
 identifiers per object, and it is the deliberate trade: agrirouter does not hand a participant its
 correspondence table on demand, so there is one path back rather than two, and the
@@ -189,7 +195,8 @@ The state machine needs no new state for this. Binding is what "reconciled"
 Identity is declared by the endpoint, never derived by agrirouter from the
 content of an object. Two fields with the same name on the same farm are
 ordinary, boundaries differ between systems by simplification and projection,
-and a wrong bind is tenant-wide, with an inverse that recovers the identity but
+and a wrong bind, while scoped to the binding endpoint, sends every revision
+written through it to the whole tenant, with an inverse that recovers the identity but
 not the revisions written through it. The endpoint is also the only
 side that knows: it is the one that reconciled, with its user where its own rules
 could not settle it.
@@ -217,17 +224,20 @@ could not settle it.
   and the ISOXML LinkList correspondence the specification requires could not be
   expressed.
 - **References by `local_id` keep working for received objects.**
-  [References](../specification.md#references) resolve through the sender's own
-  mapping, so an unbound endpoint could not refer to a farm it received but never
+  [References](../specification.md#references) resolve through the acting
+  endpoint's own mapping, so an unbound endpoint could not refer to a farm it received but never
   edited, and would fall back to `agrirouter_id` - the write path the design
   deliberately keeps clear.
 - **`409` at bind time is the earliest the n:1 conflict can surface**, while the
   endpoint is reconciling and has a user in front of it, rather than later on an
   edit with the duplicate already created.
-- **A record held in several tenants is bound once per tenant**, under the same
-  `local_id`, because each tenant has its own canonical object for it. Keyed by
-  application alone, the second tenant's bind would be a `409` and its sends
-  would resolve to the first tenant's object.
+- **Every endpoint binds for itself.** A participant with one store behind
+  several endpoints holds one binding per (endpoint, object), often against the
+  same `local_id` string, and a record held in several tenants is bound once per
+  tenant's endpoint, each tenant having its own canonical object for it. A sibling
+  that skips the bind does not echo, it duplicates, and that is the one loop the
+  safeguards in agrirouter cannot close
+  ([ADR 15](./15-endpoint-scope-of-mappings.md)).
 - **An endpoint's mapping tracks its own store in both directions.** What it
   holds it binds, what it loses it unbinds, and neither is a change to the
   entity. A stale pair - mapped to an object the endpoint no longer has - is
@@ -235,7 +245,7 @@ could not settle it.
 - **Losing the local table has an exit, and it is a delivery.** Every operation
   keyed by an identifier the endpoint might have lost - unbind, request, and the
   ordinary send - is reachable again once the set has been re-delivered with the
-  endpoint's own `local_id` on it.
+  endpoint's own `local_id` on it, as long as the endpoint itself was kept.
 - **The correspondence stays something a participant keeps.** agrirouter holds
   the mapping and uses it on delivery, but never serves it. A participant that
   wants to know what agrirouter calls its records has to have kept the answer, or

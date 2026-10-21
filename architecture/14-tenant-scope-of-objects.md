@@ -1,6 +1,7 @@
 # ADR 14 - Tenant scope of a canonical object
 
-- **Status:** WIP
+- **Status:** WIP; the mapping key is amended by
+  [ADR 15](./15-endpoint-scope-of-mappings.md)
 - **Scope:** Whether a canonical object belongs to exactly one tenant, or can be
   shared by several tenants, and what each answer means for participants and for
   agrirouter
@@ -334,3 +335,8 @@ Option 3. Every canonical object belongs to one tenant, and the identifier
 mapping is keyed `(application, tenant, local_id)`, with the tenant taken from the
 acting endpoint. An application uses its own `local_id` in every tenant it works
 in, and holds one binding per tenant on its side.
+
+[ADR 15](./15-endpoint-scope-of-mappings.md) narrows the key from the tenant to
+the endpoint. Everything decided here stands: an object still belongs to one
+tenant, an endpoint belongs to one tenant, and a `local_id` reused in another
+tenant is still another object.

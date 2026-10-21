@@ -70,9 +70,10 @@ func LocalID(localID string) oapi.Id {
 // identifier, and using its own is what keeps the agrirouter identifier off the
 // write path: references can be built out of a participant's own keys, without
 // first capturing and correlating canonical ones. agrirouter resolves the
-// `referenceId` against the sending application's mapping and rejects the
-// write if the target has not been sent yet, so the target must be sent before
-// the first reference to it.
+// `referenceId` against the sending endpoint's own mapping and rejects the
+// write if that endpoint has not sent or bound the target yet, so the target
+// must be sent or bound through the same endpoint before the first reference to
+// it.
 func LocalRef(localID string) oapi.Ref {
 	return oapi.Ref{Id: LocalID(localID)}
 }
