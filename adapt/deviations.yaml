@@ -1,0 +1,324 @@
+# The ADAPT-based schemas of openapi.yaml, as deviations from ADAPT.
+#
+# tools/adapt/generate.sh writes each schema below over the schema of the same
+# name in openapi.yaml, from the ADAPT definition named in `adapt` (pinned in
+# adapt.lock.yaml; the files beside it are never edited).
+#
+# - Every ADAPT property is kept, with ADAPT's type and constraints, unless
+#   listed in `exclude`. Kept properties come in ADAPT's order, additions after.
+# - `properties` holds only what differs from ADAPT: entries for kept
+#   properties, and the additions. A property ADAPT lacks is an addition, named
+#   `_agmasync_` plus its AgmaSync name, or listed in `unprefixed` in a schema
+#   used only inside a prefixed value.
+# - Optional properties accept null, which removes them on a write, except in
+#   a schema marked `replacedWhole` (array entries, identities).
+# - `required` follows ADAPT. `optional` lists each ADAPT requirement dropped,
+#   and `required: true` adds one.
+# - Every object rejects unknown properties.
+#
+# Property keys:
+#   ref          the schema the value, or an array's items, refers to. Needed
+#                for an ADAPT object unless one schema here is based on it.
+#   nullable     overrides the null rule above.
+#   enumeration  ADAPT list whose VALID codes are the examples. A code
+#                <name>Code takes the list <Name> without it, and becomes an
+#                extensible enumeration. `examples` adds codes ADAPT lacks.
+#   type, items, additionalProperties
+#                additions only.
+#   description, format, pattern, enum, minimum, maximum, minItems, maxItems
+#                as in OpenAPI, overriding ADAPT's. minItems 0 drops ADAPT's.
+#
+# "Relation to ADAPT" in specification.md explains these deviations.
+
+schemas:
+  Id:
+    adapt: id
+    replacedWhole: true
+    description: >
+      Identity of an object, based on the ADAPT `Id`. Used for the object's
+      own `id` and inside every `Ref`. Both identifiers it can carry are those
+      of the near end of the transfer: on send the sender's, on delivery the
+      receiving application's. It never carries another application's
+      identifier.
+
+
+      On delivery `uniqueIds` holds the agrirouter entry, the canonical
+      identifier, and a local entry, the receiving application's local
+      identifier, in that order, and `referenceId` is present exactly when
+      the local entry is and equals its `idText`. The local entry's
+      `idTypeCode` and `idSource` are the ones the application last sent
+      for that object: `idTypeCode` is `STRING` and `idSource` is absent
+      when it sent none.
+
+
+      On send the local identifier is `referenceId`, and the local entry is
+      the entry whose `idText` equals it. `uniqueIds` holds at most the local
+      entry and the agrirouter entry, the one with `idSource`
+      `https://agrirouter.com`, one of each: any other entry is a `400`.
+
+
+      As an object's own `id`, on send `referenceId` must equal the
+      `{local_id}` in the path, and an agrirouter entry, if any, must be the
+      object that `local_id` is bound to. On delivery the local entry and
+      `referenceId` are absent when the receiving application has not bound
+      the object, or has unbound it. Their absence means "you do not hold
+      this object": create it locally and bind the identifier you issue.
+    optional: [referenceId]
+    properties:
+      referenceId:
+        description: >
+          The near end's local identifier. Absent when it has none, which
+          ADAPT does not allow.
+      uniqueIds:
+        description: >
+          Always present on delivery. May be absent on send, where
+          `referenceId` alone identifies the object.
+
+  UniqueId:
+    adapt: uniqueId
+    replacedWhole: true
+    description: >
+      One identifier of an object, based on the ADAPT `UniqueId`.
+    exclude: [idSourceTypeCode]
+    properties:
+      idSource:
+        description: >
+          `https://agrirouter.com` for the canonical identifier, assigned by agrirouter.
+          For a local entry, whatever the application sent, relayed back to
+          that application only, or absent if it sent none. `https://agrirouter.com`
+          is reserved and is never a local entry's.
+        examples: ['https://agrirouter.com', 'https://fmis.example.com']
+
+  AddressContactMethod:
+    adapt: addressContactMethod
+    replacedWhole: true
+    description: >
+      An address of a party or a farm, based on the ADAPT
+      `AddressContactMethod`. Replaced whole on write.
+    properties:
+      addressContactTypeCode:
+        description: Plus `BILLING` for a billing address.
+        examples: [BILLING]
+      countryCode:
+        pattern: '^[A-Z]{2}$'
+
+  TelecommunicationContactMethod:
+    adapt: telecommunicationContactMethod
+    replacedWhole: true
+    description: >
+      A phone number or e-mail address of a party, based on the ADAPT
+      `TelecommunicationContactMethod`.
+
+  ContactInfo:
+    adapt: contactInfo
+    description: >
+      Contact data of a party, based on the ADAPT `ContactInfo`. Each list
+      holds at most one entry per type code, and is replaced whole on write.
+    exclude: [contextItems]
+    properties:
+      addressContactMethods:
+        ref: AddressContactMethod
+
+  PartyContent:
+    adapt: party
+    description: >
+      Based on the ADAPT `Party`. The party type is the `partyTypeCode` of
+      `_agmasync_details`, not a `partyTypeCode` on the party itself.
+    exclude: [contextItems, partyTypeCode, parentPartyId]
+    optional: [partyTypeCode]
+    properties:
+      name:
+        description: >
+          The name the party is known by: an organization's name, a
+          person's full name.
+      _agmasync_details:
+        ref: PartyDetails
+        description: >
+          Whether the party is a person or an organization, with the
+          attributes specific to that party type. Absent means the party
+          type is unknown. Whatever a write sends here is stated to every
+          participant.
+      _agmasync_taxNumber:
+        type: string
+        description: Identifier assigned by tax authorities.
+      _agmasync_taxId:
+        type: string
+        description: Numerical identifier assigned by tax authorities.
+      _agmasync_tradeId:
+        type: string
+        description: Numerical identifier assigned by public authorities.
+
+  Partner:
+    adapt: partyRole
+    replacedWhole: true
+    description: >
+      A party holding a role on a farm — the contractor that works it, the
+      advisor that reads it. Shaped like the ADAPT `PartyRole`. Records a
+      business relationship only. It does NOT grant visibility of the farm:
+      what an endpoint receives is decided by opt-in and routing.
+    exclude: [contextItems, timeScopes, partyId]
+    optional: [partyId]
+    unprefixed: [partyRef]
+    properties:
+      partyRef:
+        ref: Ref
+        required: true
+        description: The party acting as partner.
+
+  Role:
+    adapt: roleCode
+
+  FarmContent:
+    adapt: farm
+    description: Based on the ADAPT `Farm`.
+    exclude: [contextItems, growerId, partyId]
+    properties:
+      _agmasync_growerRef:
+        ref: Ref
+        description: >
+          The party that holds the farm, in place of ADAPT's Grower. Absent
+          where the farm's system does not record parties.
+      _agmasync_specialisedUsageType:
+        type: string
+        description: >
+          Production orientation of the farm (e.g. arable farming, dairy,
+          vineyard, orchard). Free-form, drawn from AGROVOC where a
+          matching concept exists.
+      _agmasync_partners:
+        type: array
+        ref: Partner
+        description: >
+          Parties holding a role on this farm, such as the contractor that
+          works it or the advisor that reads it.
+      _agmasync_address:
+        ref: AddressContactMethod
+      _agmasync_geoReference:
+        ref: WktPoint
+        description: The point locating the farm.
+
+  Area:
+    adapt: arableArea
+    description: An area, based on the ADAPT measurement type. Always in hectares.
+    properties:
+      numericValue:
+        minimum: 0
+      unitOfMeasureCode:
+        enum: [ha]
+
+  FieldContent:
+    adapt: field
+    description: Based on the ADAPT `Field`.
+    exclude: [contextItems, farmId, activeBoundaryId, guidanceGroupIds]
+    properties:
+      timeZone:
+        description: IANA time zone of the field, e.g. Europe/Berlin.
+      arableArea:
+        description: Nominal area of the field.
+      _agmasync_farmRef:
+        ref: Ref
+        description: The farm this field belongs to.
+      _agmasync_growerRef:
+        ref: Ref
+        description: >
+          The party holding this field, for systems that
+          attribute fields to a party directly. When absent, the field is
+          held by its farm's grower. When present, it takes precedence for
+          this field, which is how a field held by one party but managed
+          under another's farm is expressed.
+      _agmasync_soil:
+        ref: SoilInfo
+      _agmasync_topography:
+        type: number
+        description: 'Slope / gradient, e.g. 7 (degrees).'
+      _agmasync_harvestPeriod:
+        ref: HarvestPeriod
+      _agmasync_metadata:
+        type: object
+        description: >
+          Additional key/value metadata. A participant leaves the keys it
+          does not understand out of its writes, which keeps them.
+        additionalProperties: true
+
+  Boundary:
+    adapt: boundary
+    description: The geometry of a field boundary, based on the ADAPT `Boundary`.
+    exclude:
+      - highDefinitionSourceLayerId
+      - gNSSReceiverMetadata
+      - gNSSMobileBaseStationMetadata
+      - gNSSDataQualityMetrics
+      - partyRoles
+    properties:
+      geometry:
+        ref: WktArea
+
+  ObstacleBoundary:
+    adapt: boundary
+    replacedWhole: true
+    description: The geometry of an obstacle, based on the ADAPT `Boundary`.
+    exclude:
+      - highDefinitionSourceLayerId
+      - gNSSReceiverMetadata
+      - gNSSMobileBaseStationMetadata
+      - gNSSDataQualityMetrics
+      - partyRoles
+    properties:
+      geometry:
+        ref: WktObstacle
+
+  Obstacle:
+    adapt: obstacle
+    replacedWhole: true
+    description: An in-field obstacle, based on the ADAPT `Obstacle`.
+    exclude: [contextItems]
+    properties:
+      boundary:
+        ref: ObstacleBoundary
+      _agmasync_kind:
+        type: string
+        required: true
+        description: 'Obstacle kind, e.g. "pole", "tree", "waterhole".'
+
+  FieldBoundaryContent:
+    adapt: fieldBoundary
+    description: Based on the ADAPT `FieldBoundary`.
+    exclude: [contextItems, fieldId, seasonIds, headlands]
+    optional: [name, fieldId]
+    properties:
+      _agmasync_fieldRef:
+        ref: Ref
+        required: true
+        description: >
+          The field this boundary describes. A field's boundaries are the
+          boundaries that name it.
+      boundary:
+        ref: Boundary
+      obstacles:
+        # ADAPT requires at least one obstacle. Kept open: `[]` is accepted.
+        minItems: 0
+      _agmasync_boundaryType:
+        type: string
+        description: >
+          [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+          The boundary classification.
+        examples:
+          - CONCEPTUAL
+          - OPERATIONAL
+          - ECONOMIC_DEFINED
+          - ADMINISTRATIVE_RECEIVED
+      _agmasync_harvestPeriod:
+        ref: HarvestPeriod
+      _agmasync_regulatoryRequirements:
+        type: string
+        description: >
+          [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations).
+          A regulatory constraint applying to the boundary.
+        examples:
+          - RED_ZONE_NITROGEN
+          - WATER_PROTECTION_AREA
+      _agmasync_metadata:
+        type: object
+        description: >
+          Additional key/value metadata. A participant leaves the keys it
+          does not understand out of its writes, which keeps them.
+        additionalProperties: true

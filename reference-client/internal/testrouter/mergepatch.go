@@ -7,39 +7,41 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 )
 
-// A write is a JSON Merge Patch (RFC 7396) of an entity's attributes: a value
-// replaces, null removes, and an attribute left out is left alone. The rule
-// recurses into plain nested objects, so a participant that models a city but
-// not a street changes one without erasing the other.
+// A write's `content` is a JSON Merge Patch (RFC 7396) of an entity's
+// attributes: a value replaces, null removes, and an attribute left out is left
+// alone. The rule recurses into plain nested objects, so a participant that
+// models a boundary's geometry but not its GNSS correction network changes one
+// without erasing the other.
 //
-// Three kinds of value are replaced whole instead, because a part of one means
-// nothing on its own: arrays (which RFC 7396 already replaces), references,
-// and geometries. See "Writing an entity" in specification.md.
+// Some values are replaced whole instead, because a part of one means nothing
+// on its own: arrays (which RFC 7396 already replaces), references, and a
+// farm's address. See "Writing an entity" in specification.md.
 //
-// A party's details merge like any nested object while their party_type stays
-// the same, and are replaced whole by a write that changes it, so no attribute
-// of the other party type survives.
+// A party's _agmasync_details merge like any nested object while their
+// partyTypeCode stays the same, and are replaced whole by a write that changes
+// it, so no attribute of the other party type survives.
 
-// requiredAttributes are the attributes openapi.yaml requires on each entity
-// type, less the `type` discriminator, which is envelope. They are required on
-// every write, so null — removing one — is never a valid value for them.
+// requiredAttributes are the attributes openapi.yaml requires in the `content`
+// of each entity type, less `id`, which is the object's identity. They are
+// required on every write, so null — removing one — is never a valid value
+// for them.
 var requiredAttributes = map[agmasync.EntityType][]string{
 	agmasync.TypeParty:         {"name"},
 	agmasync.TypeFarm:          {"name"},
 	agmasync.TypeField:         {"name"},
-	agmasync.TypeFieldBoundary: {"field", "boundary"},
+	agmasync.TypeFieldBoundary: {"_agmasync_fieldRef", "boundary"},
 }
 
-// geometryAttributes are the attributes holding a GeoJSON geometry.
-var geometryAttributes = map[agmasync.EntityType][]string{
-	agmasync.TypeFarm:          {"geo_reference"},
-	agmasync.TypeFieldBoundary: {"boundary"},
+// wholeObjectAttributes are the object-valued attributes, other than
+// references, that a patch replaces rather than merges into.
+var wholeObjectAttributes = map[agmasync.EntityType][]string{
+	agmasync.TypeFarm: {"_agmasync_address"},
 }
 
 // wholeAttributes reports the attributes of an entity type a patch replaces
-// rather than merges into: its top-level reference slots and its geometries.
-// Arrays need no listing, being replaced by the merge rule itself, and neither
-// do the slots nested inside one of them.
+// rather than merges into: its top-level reference slots and the objects
+// replaced whole. Arrays need no listing, being replaced by the merge rule
+// itself, and neither do the slots nested inside one of them.
 func wholeAttributes(typ agmasync.EntityType) map[string]bool {
 	out := map[string]bool{}
 	for _, slot := range refSlots[typ] {
@@ -47,7 +49,7 @@ func wholeAttributes(typ agmasync.EntityType) map[string]bool {
 			out[slot.key] = true
 		}
 	}
-	for _, key := range geometryAttributes[typ] {
+	for _, key := range wholeObjectAttributes[typ] {
 		out[key] = true
 	}
 	return out
@@ -68,7 +70,7 @@ func patchAttribute(
 	}
 	// A changed party type replaces details whole: the patch applied to
 	// nothing, so a null in it removes rather than being stored.
-	if typ == agmasync.TypeParty && key == "details" &&
+	if typ == agmasync.TypeParty && key == detailsKey &&
 		partyTypeOf(current) != partyTypeOf(patch) {
 		return canonicalJSON(mergePatch(nil, patch))
 	}

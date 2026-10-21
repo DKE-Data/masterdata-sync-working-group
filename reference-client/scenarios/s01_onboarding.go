@@ -149,7 +149,7 @@ func runOnboarding(ctx context.Context, w *World) error {
 			betaFarm = id
 		}
 	}
-	if err := say.Check(strings.Contains(string(betaField.Modelled["farm"]), betaFarm),
+	if err := say.Check(strings.Contains(string(betaField.Modelled["_agmasync_farmRef"]), betaFarm),
 		"its field %q points at its own farm %q", fields[0], betaFarm); err != nil {
 		return err
 	}

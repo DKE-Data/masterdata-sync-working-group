@@ -21,20 +21,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// envelopeAttributes are the attributes agrirouter owns on every entity. They
-// are held on the canonical object as typed state rather than as content, so a
-// participant sending one has it ignored rather than applied — `revision` and
-// `tenantId` in particular are compared or discarded, never assigned.
+// envelopeAttributes are the attributes agrirouter owns on every entity, the
+// ones beside `content`. They are held on the canonical object as typed state
+// rather than as content, so a participant sending one has it ignored rather
+// than applied — `revision` and `tenant_id` in particular are compared or
+// discarded, never assigned.
 var envelopeAttributes = map[string]bool{
 	"type":               true,
-	"agrirouter_id":      true,
-	"local_id":           true,
 	"active":             true,
 	"revision":           true,
 	"modified_at":        true,
 	"tenant_id":          true,
 	"source_endpoint_id": true,
 }
+
+// detailsKey is the party attribute stating the party type.
+const detailsKey = "_agmasync_details"
 
 // tierOf is an object's place in the order objects are delivered in, on the
 // initial-load stream and during catch-up. It places a referenced object before
@@ -48,7 +50,7 @@ var envelopeAttributes = map[string]bool{
 func tierOf(obj *object) int {
 	switch obj.typ {
 	case agmasync.TypeParty:
-		if partyTypeOf(obj.content["details"]) == agmasync.PartyTypePerson {
+		if partyTypeOf(obj.content[detailsKey]) == agmasync.PartyTypePerson {
 			return 1
 		}
 		return 0
@@ -61,16 +63,16 @@ func tierOf(obj *object) int {
 	}
 }
 
-// partyTypeOf reads the party_type off a party's details, "" where there are
-// none or they state none.
+// partyTypeOf reads the partyTypeCode off a party's _agmasync_details, ""
+// where there are none or they state none.
 func partyTypeOf(details json.RawMessage) string {
 	var probe struct {
-		PartyType string `json:"party_type"`
+		PartyTypeCode string `json:"partyTypeCode"`
 	}
 	if len(details) == 0 || json.Unmarshal(details, &probe) != nil {
 		return ""
 	}
-	return probe.PartyType
+	return probe.PartyTypeCode
 }
 
 // refSlot names a place in an entity where a reference to another entity sits.
@@ -80,7 +82,7 @@ func partyTypeOf(details json.RawMessage) string {
 // is nested in, `each` marks a slot that holds an array, and `attribute` the
 // key within each element; a slot with no `attribute` is the reference itself.
 // `target` is the entity type the slot references: every slot has exactly one.
-// `partyType`, where set, is the party_type its target must state.
+// `partyType`, where set, is the partyTypeCode its target must state.
 type refSlot struct {
 	in        string
 	key       string
@@ -95,20 +97,20 @@ type refSlot struct {
 var refSlots = map[agmasync.EntityType][]refSlot{
 	agmasync.TypeParty: {
 		{
-			in: "details", key: "memberships", each: true, attribute: "organization_id",
+			in: detailsKey, key: "memberships", each: true, attribute: "organizationRef",
 			target: agmasync.TypeParty, partyType: agmasync.PartyTypeOrganization,
 		},
 	},
 	agmasync.TypeFarm: {
-		{key: "owner", target: agmasync.TypeParty},
-		{key: "partners", each: true, attribute: "partner_id", target: agmasync.TypeParty},
+		{key: "_agmasync_growerRef", target: agmasync.TypeParty},
+		{key: "_agmasync_partners", each: true, attribute: "partyRef", target: agmasync.TypeParty},
 	},
 	agmasync.TypeField: {
-		{key: "farm", target: agmasync.TypeFarm},
-		{key: "owner", target: agmasync.TypeParty},
+		{key: "_agmasync_farmRef", target: agmasync.TypeFarm},
+		{key: "_agmasync_growerRef", target: agmasync.TypeParty},
 	},
 	agmasync.TypeFieldBoundary: {
-		{key: "field", target: agmasync.TypeField},
+		{key: "_agmasync_fieldRef", target: agmasync.TypeField},
 	},
 }
 
@@ -131,7 +133,8 @@ type object struct {
 	// with a seq above the participant's own.
 	seq uint64
 
-	// content is the entity minus the envelope, references already resolved to
+	// content is the entity's `content` minus its `id`, which is the object's
+	// own and rendered per recipient, with references already resolved to
 	// canonical identifiers.
 	content map[string]json.RawMessage
 

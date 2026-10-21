@@ -1,14 +1,39 @@
-# German farm: AgmaSync and ADAPT
+# Sample farm
 
-Hofgut Sonnenberg near Springe, Lower Saxony, as delivered by AgmaSync
-([agmasync-sample.json](agmasync-sample.json)) and as an ADAPT 2.0.2 catalog ([adapt-sample.json](adapt-sample.json)).
+Hofgut Sonnenberg near Springe, Lower Saxony.
 
 - A GmbH owns the farm. Two partners hold roles on it: a contracting firm and
   an independent crop advisor (person). The firm comes from a system that does
   not record whether a party is a person or an organization, so it has no
-  `details`.
+  `_agmasync_details`.
 - The farm manager, Dr. Katharina Brandt, privately owns the one field.
 - The field has a single administrative boundary with two obstacles.
+
+## The wire format
+
+[option-f-sample.json](option-f-sample.json) is the farm as delivered to one
+endpoint, in the encoding of [ADR 11](../architecture/11-entity-model.md)
+option F.
+
+- Each object is an envelope of sync state with its master data in `content`,
+  based on ADAPT 2.0.2.
+- `content.id` carries the agrirouter id (`idSource` `https://agrirouter.com`) and
+  the receiving endpoint's local id, repeated in `referenceId`. References are `_agmasync_<name>Ref` objects
+  with the same `id`, in place of ADAPT's `<name>Id` strings.
+- Where ADAPT has no slot, the value is a property `_agmasync_` plus the
+  AgmaSync attribute name in camelCase, with the AgmaSync type. Prefixed
+  properties also appear on nested ADAPT objects (obstacle `_agmasync_kind`).
+- `_agmasync_growerRef` on the farm and on the field names a party. There is
+  no Grower object.
+- Another endpoint has just created the boundary, and the receiver has not
+  bound it yet: its `id` carries only the agrirouter entry, with no
+  `referenceId`.
+
+## ADR 11 comparison
+
+The same farm as AgmaSync's FarmSPT-derived model
+([agmasync-sample.json](agmasync-sample.json)) and as an ADAPT 2.0.2 catalog
+([adapt-sample.json](adapt-sample.json)), the inputs to ADR 11's analysis.
 
 Every AgmaSync domain attribute is mapped. Of the envelope, only identity
 is carried, the rest being sync state. Where ADAPT has no slot, the value
@@ -18,42 +43,9 @@ Group items such as `AgmaSync-Partner` carry their value in nested context items
 Definitions that hold a reference say so in `keywords` (`reference:party`,
 `reference:organization`, `reference:season`).
 
-## Choices in this example
-
 - **Field area**: nominal area has no exact ADAPT equivalent. `arableArea` was
   chosen over the standard `ReportedArea` context item.
 - **Standard definitions** cover only the enumerations used here (`PartyType`,
   `TelecommunicationContactType`, `AddressContactType`, `BoundaryCreationMethod`,
   `IdType`). None of the standard context items fit an AgmaSync
   attribute. `GS1-GLN` (farm, field) would, if AgmaSync carried one.
-
-## Option F
-
-[option-f-sample.json](option-f-sample.json) is the same farm under
-[ADR 11](../architecture/11-entity-model.md#option-f-in-detail) option F, as
-delivered to one endpoint, in ADAPT 2.0.2.
-
-- Each object is an AgmaSync envelope with an ADAPT component in `adapt`.
-  The receiving endpoint's own id is `adapt.id.referenceId`, in place of the
-  envelope's `local_id`. `uniqueIds` is not used.
-- Where ADAPT has no slot, the value is a property `_agmasync_` plus the
-  AgmaSync attribute name in camelCase, with the AgmaSync type. The attributes of a party's
-  `details` are named directly, since `partyTypeCode` carries `party_type`.
-  Prefixed properties also appear on nested ADAPT objects (obstacle `_agmasync_kind`).
-- Owner becomes a Grower object of its own, for the farm (`GRW-0001`) and for
-  the field (`GRW-0002`). The field has no native slot, so it references its
-  grower as `_agmasync_growerId`, like a native reference with its canonical id.
-- Farm address and geo reference are prefixed, not modelled as an extra Party
-  as in the ADAPT sample.
-  The farm address reuses ADAPT's type, as `_agmasync_addressContactMethods`.
-- Native references (`growerId`, `partyId`, `farmId`, `fieldId`) hold the
-  receiving endpoint's `local_id`, each with the target's `agrirouter_id` in
-  `_agmasync_canonical` plus the ADAPT name. Prefixed AgmaSync attributes keep
-  `EntityReference`.
-- Another endpoint has just created the 2025/2026 season and assigned the
-  boundary to it. The receiver has not bound the season yet: the season
-  arrives without `id`, and the boundary carries the season's
-  `agrirouter_id` in `_agmasync_canonicalSeasonIds`, with no `seasonIds`.
-- The boundary's harvest period becomes that Season, since ADAPT has
-  `seasonIds` on boundaries. The field's stays inline in
-  `_agmasync_harvestPeriod`, since an ADAPT Field has no Season slot.

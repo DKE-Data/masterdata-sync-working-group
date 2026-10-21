@@ -49,11 +49,13 @@ Example - two writes are done at approximately same time:
 
 ```json
 {
-    "harvest_period": {
-        "valid_from": "2024-01-01",
-        "valid_to": "2024-12-31"
-    },
-    ///... all other fields are same as in the current revision
+    "content": {
+        "_agmasync_harvestPeriod": {
+            "validFrom": "2024-01-01",
+            "validTo": "2024-12-31"
+        },
+        ///... all other fields are same as in the current revision
+    }
 }
 ```
 
@@ -61,19 +63,12 @@ Example - two writes are done at approximately same time:
 
 ```json
 {
-    "boundary": {
-        "type": "Polygon",
-        "coordinates": [
-            [
-                [10.0, 50.0],
-                [10.0, 51.0],
-                [11.0, 51.0],
-                [11.0, 50.0],
-                [10.0, 50.0]
-            ]
-        ]
-    },
-    ///... all other fields are same as in the current revision
+    "content": {
+        "boundary": {
+            "geometry": "POLYGON ((10 50, 10 51, 11 51, 11 50, 10 50))"
+        },
+        ///... all other fields are same as in the current revision
+    }
 }
 ```
 

@@ -106,7 +106,7 @@ func runUnresolvedReference(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	farm, err := referenceOn(fieldEntity, "farm")
+	farm, err := referenceOn(fieldEntity, "_agmasync_farmRef")
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func runUnresolvedReference(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(containsLocalID(applied.Modelled["farm"], alphaFarms[0]),
+	if err := say.Check(containsLocalID(applied.Modelled["_agmasync_farmRef"], alphaFarms[0]),
 		"its field points at its own farm %q", alphaFarms[0]); err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func runUnresolvedReference(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	renamed, err := referenceOn(renamedEntity, "farm")
+	renamed, err := referenceOn(renamedEntity, "_agmasync_farmRef")
 	if err != nil {
 		return err
 	}

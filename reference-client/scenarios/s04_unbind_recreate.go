@@ -105,7 +105,7 @@ func runUnbindAndRecreate(ctx context.Context, w *World) error {
 	if len(waiting) != 1 {
 		return fmt.Errorf("Beta was sent %d objects, want the renamed farm", len(waiting))
 	}
-	if err := say.Check(waiting[0].Envelope.LocalId == nil,
+	if err := say.Check(waiting[0].Envelope.LocalID == nil,
 		"it reaches Beta carrying no localId at all"); err != nil {
 		return err
 	}

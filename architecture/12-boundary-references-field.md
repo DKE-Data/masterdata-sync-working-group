@@ -20,14 +20,14 @@ ADAPT has the reference the other way, `fieldBoundary.fieldId`.
 
 ## Decision
 
-**A field boundary references its field.** `field` (reference, required)
+**A field boundary references its field.** `_agmasync_fieldRef` (reference, required)
 replaces `field.field_boundaries`. A field's boundaries are the boundaries that
 name it.
 
 - Adding, changing or removing a boundary revises the boundary only.
-- Moving a boundary to another field is a change of its `field`.
-- A boundary's `harvest_period` must still fall within that of the field its
-  `field` names.
+- Moving a boundary to another field is a change of its `_agmasync_fieldRef`.
+- A boundary's `_agmasync_harvestPeriod` must still fall within that of the
+  field its `_agmasync_fieldRef` names.
 
 ## Consequences
 

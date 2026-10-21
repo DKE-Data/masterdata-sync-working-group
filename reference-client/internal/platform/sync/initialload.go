@@ -454,7 +454,7 @@ func (l *Loader) takeCanonicalSet(
 		switch {
 		case out.Blocked:
 			res.Blocked = append(res.Blocked, BlockedObject{
-				Type: ev.Envelope.Type, AgrirouterID: *ev.Envelope.AgrirouterId,
+				Type: ev.Envelope.Type, AgrirouterID: *ev.Envelope.AgrirouterID,
 				Entity: entity,
 			})
 		case out.Created:

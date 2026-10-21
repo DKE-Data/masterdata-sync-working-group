@@ -272,7 +272,7 @@ func (r *Receiver) consume(
 		// which the next attempt fixes.
 		if outcome.NeedsBinding {
 			if err := applier.Bind(
-				ctx, ev.Envelope.Type, outcome.LocalID, *ev.Envelope.AgrirouterId,
+				ctx, ev.Envelope.Type, outcome.LocalID, *ev.Envelope.AgrirouterID,
 			); err != nil {
 				return res, err
 			}

@@ -228,7 +228,7 @@ func runBlockedReconciliation(ctx context.Context, w *World) error {
 		"exactly one object is delivered, not two"); err != nil {
 		return err
 	}
-	delivered := waiting[0].Envelope.AgrirouterId
+	delivered := waiting[0].Envelope.AgrirouterID
 	if delivered == nil {
 		return errors.New("the delivered farm carries no canonical identifier")
 	}
@@ -286,7 +286,7 @@ func farmLabel(p *Platform, localID string) string {
 	var address struct {
 		City string `json:"city"`
 	}
-	_ = json.Unmarshal(record.Modelled["address"], &address)
+	_ = json.Unmarshal(record.Modelled["_agmasync_address"], &address)
 
 	return fmt.Sprintf("%s (%s, %s)", localID, name, address.City)
 }
@@ -301,8 +301,8 @@ func canonicalFarmLabel(entity oapi.Entity) string {
 		return "unknown"
 	}
 	city := ""
-	if address, err := farm.Address.Get(); err == nil {
-		city, _ = address.City.Get()
+	if address, err := farm.Content.UnderscoreAgmasyncAddress.Get(); err == nil && address.City != nil {
+		city = *address.City
 	}
-	return fmt.Sprintf("%q in %s", farm.Name, city)
+	return fmt.Sprintf("%q in %s", farm.Content.Name, city)
 }

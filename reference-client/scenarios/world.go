@@ -399,7 +399,8 @@ func (p *Platform) OptOut(ctx context.Context) error {
 }
 
 // Edit is a change made by a user in the platform's own software, with no
-// involvement from the exchange. Keys are the protocol's attribute names.
+// involvement from the exchange. Keys are the protocol's content attribute
+// names.
 //
 // An identifier the platform does not hold creates the record, which is how the
 // scenarios give a participant data of its own.
@@ -435,7 +436,8 @@ func (p *Platform) Edit(
 // sent with them added, and what comes back is applied like any write
 // response, which keeps the columns and drops the rest.
 //
-// It answers with the resulting canonical object, attribute by attribute.
+// It answers with the resulting canonical object's content, attribute by
+// attribute.
 func (p *Platform) Supplement(
 	ctx context.Context, typ agmasync.EntityType, localID string, attributes map[string]any,
 ) (map[string]json.RawMessage, error) {
@@ -465,10 +467,17 @@ func (p *Platform) Supplement(
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return nil, err
 	}
+	var content map[string]json.RawMessage
+	if err := json.Unmarshal(fields["content"], &content); err != nil {
+		return nil, err
+	}
 	for key, value := range attributes {
-		if fields[key], err = json.Marshal(value); err != nil {
+		if content[key], err = json.Marshal(value); err != nil {
 			return nil, err
 		}
+	}
+	if fields["content"], err = json.Marshal(content); err != nil {
+		return nil, err
 	}
 	if raw, err = json.Marshal(fields); err != nil {
 		return nil, err
@@ -487,8 +496,10 @@ func (p *Platform) Supplement(
 	if raw, err = result.MarshalJSON(); err != nil {
 		return nil, err
 	}
-	var out map[string]json.RawMessage
-	return out, json.Unmarshal(raw, &out)
+	var out struct {
+		Content map[string]json.RawMessage `json:"content"`
+	}
+	return out.Content, json.Unmarshal(raw, &out)
 }
 
 // Canonical reads an object as agrirouter holds it, by sending the platform's
@@ -504,8 +515,8 @@ func (p *Platform) Canonical(
 func (p *Platform) AddFarm(localID, name, city string) error {
 	p.ids.reserve(localID)
 	return p.Edit(agmasync.TypeFarm, localID, map[string]any{
-		"name":    name,
-		"address": map[string]string{"city": city},
+		"name":              name,
+		"_agmasync_address": map[string]string{"addressContactTypeCode": "PHYSICAL", "city": city},
 	})
 }
 
@@ -513,9 +524,11 @@ func (p *Platform) AddFarm(localID, name, city string) error {
 func (p *Platform) AddOrganization(localID, name, city string) error {
 	p.ids.reserve(localID)
 	return p.Edit(agmasync.TypeParty, localID, map[string]any{
-		"name":    name,
-		"details": map[string]string{"party_type": agmasync.PartyTypeOrganization},
-		"address": map[string]string{"city": city},
+		"name":              name,
+		"_agmasync_details": map[string]string{"partyTypeCode": agmasync.PartyTypeOrganization},
+		"contactInfo": map[string]any{"addressContactMethods": []map[string]string{
+			{"addressContactTypeCode": "PHYSICAL", "city": city},
+		}},
 	})
 }
 
@@ -524,10 +537,10 @@ func (p *Platform) AddPerson(localID, lastName, firstName string) error {
 	p.ids.reserve(localID)
 	return p.Edit(agmasync.TypeParty, localID, map[string]any{
 		"name": firstName + " " + lastName,
-		"details": map[string]string{
-			"party_type": agmasync.PartyTypePerson,
-			"last_name":  lastName,
-			"first_name": firstName,
+		"_agmasync_details": map[string]string{
+			"partyTypeCode": agmasync.PartyTypePerson,
+			"lastName":      lastName,
+			"firstName":     firstName,
 		},
 	})
 }
@@ -540,24 +553,24 @@ func (p *Platform) AddPerson(localID, lastName, firstName string) error {
 func (p *Platform) AddBoundary(localID, fieldLocalID, boundaryType, creationMethod string) error {
 	p.ids.reserve(localID)
 	return p.Edit(agmasync.TypeFieldBoundary, localID, map[string]any{
-		"field":           map[string]string{"local_id": fieldLocalID},
-		"boundary_type":   boundaryType,
-		"creation_method": creationMethod,
+		"_agmasync_fieldRef":     agmasync.LocalRef(fieldLocalID),
+		"_agmasync_boundaryType": boundaryType,
 		"boundary": map[string]any{
-			"type":        "Polygon",
-			"coordinates": [][][]float64{{{10.1, 54.3}, {10.2, 54.3}, {10.2, 54.4}, {10.1, 54.3}}},
+			"geometry":                   "POLYGON ((10.1 54.3, 10.2 54.3, 10.2 54.4, 10.1 54.3))",
+			"boundaryCreationMethodCode": creationMethod,
 		},
 	})
 }
 
-// Owned records in the platform's own tables that a farm belongs to a party.
+// Owned records in the platform's own tables that a farm is held by a party,
+// its grower.
 //
 // The reference is built out of the platform's own identifier for the party,
 // which is all a sender needs: agrirouter resolves it against the sender's
 // mapping, so a canonical identifier never has to be held to build one.
 func (p *Platform) Owned(farmLocalID, partyLocalID string) error {
 	return p.Edit(agmasync.TypeFarm, farmLocalID, map[string]any{
-		"owner": map[string]string{"local_id": partyLocalID},
+		"_agmasync_growerRef": agmasync.LocalRef(partyLocalID),
 	})
 }
 
@@ -571,9 +584,12 @@ func (p *Platform) Owned(farmLocalID, partyLocalID string) error {
 // scenario 12.
 func (p *Platform) AddField(localID, name string, area float64, farmLocalID string) error {
 	p.ids.reserve(localID)
-	attributes := map[string]any{"name": name, "area": area}
+	attributes := map[string]any{
+		"name":       name,
+		"arableArea": oapi.Area{NumericValue: float32(area), UnitOfMeasureCode: oapi.Ha},
+	}
 	if farmLocalID != "" {
-		attributes["farm"] = map[string]string{"local_id": farmLocalID}
+		attributes["_agmasync_farmRef"] = agmasync.LocalRef(farmLocalID)
 	}
 	return p.Edit(agmasync.TypeField, localID, attributes)
 }
@@ -648,7 +664,7 @@ func (p *Platform) Fetch(
 		if previous != nil {
 			previous(ev, out)
 		}
-		if ev.Envelope.AgrirouterId != nil && *ev.Envelope.AgrirouterId == agrirouterID {
+		if ev.Envelope.AgrirouterID != nil && *ev.Envelope.AgrirouterID == agrirouterID {
 			select {
 			case <-applied:
 			default:

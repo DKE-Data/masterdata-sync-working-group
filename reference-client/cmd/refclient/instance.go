@@ -690,19 +690,18 @@ func (in *instance) request(
 // relays is decided — and getting an attribute this platform has no column for
 // is the ordinary case, not an error.
 func recordFrom(typ agmasync.EntityType, localID string, attributes []byte) (store.Record, error) {
-	var fields map[string]json.RawMessage
+	var content map[string]json.RawMessage
 	if len(attributes) > 0 {
-		if err := json.Unmarshal(attributes, &fields); err != nil {
+		if err := json.Unmarshal(attributes, &content); err != nil {
 			return store.Record{}, fmt.Errorf("the attributes are not a JSON object: %w", err)
 		}
 	}
-	if fields == nil {
-		fields = map[string]json.RawMessage{}
+	if content == nil {
+		content = map[string]json.RawMessage{}
 	}
-	fields["type"], _ = json.Marshal(typ)
-	fields["local_id"], _ = json.Marshal(localID)
+	content["id"], _ = json.Marshal(agmasync.LocalID(localID))
 
-	raw, err := json.Marshal(fields)
+	raw, err := json.Marshal(map[string]any{"type": typ, "content": content})
 	if err != nil {
 		return store.Record{}, err
 	}

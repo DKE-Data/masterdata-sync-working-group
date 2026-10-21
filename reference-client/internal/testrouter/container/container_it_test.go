@@ -106,7 +106,7 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 	}()
 
 	name := "Hof Nord"
-	entity, err := agrirouter.FromFarm(oapi.Farm{LocalId: strptr("FRM-1"), Name: name})
+	entity, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: agmasync.LocalID("FRM-1"), Name: name}})
 	if err != nil {
 		t.Fatalf("building farm: %v", err)
 	}
@@ -122,9 +122,9 @@ func TestClientAgainstContainerisedRouter(t *testing.T) {
 		// The receiver has never bound an identifier for this object, so the
 		// delivered copy must carry none: an absent localId is what says
 		// "create it locally and bind".
-		if ev.Envelope.LocalId != nil {
+		if ev.Envelope.LocalID != nil {
 			t.Errorf("localId = %q, want absent for an object the receiver has not bound",
-				*ev.Envelope.LocalId)
+				*ev.Envelope.LocalID)
 		}
 		if ev.ID == "" {
 			t.Error("a live frame must carry a position to resume from")
@@ -246,4 +246,3 @@ func post(t *testing.T, url string, body any, out any) {
 	}
 }
 
-func strptr(s string) *string { return &s }

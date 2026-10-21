@@ -9,18 +9,23 @@ import (
 
 func TestOrganizationsAndPersonsGoOutAsParties(t *testing.T) {
 	// The screens offer the platform's own two kinds of record; the protocol
-	// has one party entity stating its party type in details.
+	// has one party entity stating its party type in _agmasync_details.
 	for _, tc := range []struct {
 		typ  recordType
 		form url.Values
 		want string
 	}{
 		{recordOrganization,
-			url.Values{"name": {"Agrar GmbH"}, "details.commercial_registry_number": {"HRB 1"}},
-			`{"details":{"commercial_registry_number":"HRB 1","party_type":"ORGANIZATION"},"name":"Agrar GmbH"}`},
+			url.Values{
+				"name": {"Agrar GmbH"}, "_agmasync_details.commercialRegistryNumber": {"HRB 1"},
+				physicalAddress + ".city": {"Husum"}, physicalAddress + ".countryCode": {"DE"},
+			},
+			`{"_agmasync_details":{"commercialRegistryNumber":"HRB 1","partyTypeCode":"ORGANIZATION"},` +
+				`"contactInfo":{"addressContactMethods":[{"addressContactTypeCode":"PHYSICAL","city":"Husum","countryCode":"DE"}]},` +
+				`"name":"Agrar GmbH"}`},
 		{recordPerson,
-			url.Values{"name": {"Anke Meyer"}, "details.last_name": {"Meyer"}},
-			`{"details":{"last_name":"Meyer","party_type":"PERSON"},"name":"Anke Meyer"}`},
+			url.Values{"name": {"Anke Meyer"}, "_agmasync_details.lastName": {"Meyer"}},
+			`{"_agmasync_details":{"lastName":"Meyer","partyTypeCode":"PERSON"},"name":"Anke Meyer"}`},
 	} {
 		if got := tc.typ.entityType(); got != agmasync.TypeParty {
 			t.Errorf("%s travels as %s, want party", tc.typ, got)

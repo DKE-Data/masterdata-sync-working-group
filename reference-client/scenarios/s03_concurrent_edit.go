@@ -52,7 +52,7 @@ func runConcurrentEdit(ctx context.Context, w *World) error {
 
 	say.Step("Alpha corrects the address while Beta renames the farm.")
 	if err := alpha.Edit(agmasync.TypeFarm, "alpha-farm-1", map[string]any{
-		"address": map[string]string{"city": "Lübeck"},
+		"_agmasync_address": map[string]string{"addressContactTypeCode": "PHYSICAL", "city": "Lübeck"},
 	}); err != nil {
 		return err
 	}
@@ -94,8 +94,9 @@ func runConcurrentEdit(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(string(record.Modelled["address"]) == `{"city":"Lübeck"}`,
-		"and Alpha's, which Beta had never seen: %s", record.Modelled["address"]); err != nil {
+	if err := say.Check(
+		string(record.Modelled["_agmasync_address"]) == `{"addressContactTypeCode":"PHYSICAL","city":"Lübeck"}`,
+		"and Alpha's, which Beta had never seen: %s", record.Modelled["_agmasync_address"]); err != nil {
 		return err
 	}
 	say.Detail("which is why a write response is applied rather than acknowledged. Origin")

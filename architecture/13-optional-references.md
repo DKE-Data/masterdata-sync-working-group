@@ -7,12 +7,12 @@
 
 Some platforms model parties and fields but no farms. Others model farms and
 fields but no parties. Opt-in required `fields → farms → parties`, and a farm
-required an `owner`, so neither could declare fields, and a platform without
+required a `_agmasync_growerRef`, so neither could declare fields, and a platform without
 parties could not write a farm.
 
 ## Decision
 
-**Only a boundary's `field` is a required reference.** Farm `owner` becomes
+**Only a boundary's `_agmasync_fieldRef` is a required reference.** Farm `_agmasync_growerRef` becomes
 optional. Declaration and selection are closed over `field boundaries → fields`
 alone, and any other combination of entity types is valid.
 
@@ -30,7 +30,7 @@ handles it ([Differing required/optional attributes](../specification.md#differi
 
 | Alternative | Why not |
 |---|---|
-| Per-declaration profiles enforced by agrirouter (full: farm `owner` required; farm+field: field `farm` required; party+field: field `owner` required) | Each platform's model already enforces this on its own writes. It adds profile checks, error codes and profile changes for a guarantee readers still cannot rely on, since data from other profiles arrives incomplete anyway. |
+| Per-declaration profiles enforced by agrirouter (full: farm `_agmasync_growerRef` required; farm+field: field `_agmasync_farmRef` required; party+field: field `_agmasync_growerRef` required) | Each platform's model already enforces this on its own writes. It adds profile checks, error codes and profile changes for a guarantee readers still cannot rely on, since data from other profiles arrives incomplete anyway. |
 | A placeholder owner party for farms without one | A guess that becomes permanent and never matches. |
 
 ## Consequences

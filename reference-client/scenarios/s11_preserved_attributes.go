@@ -54,18 +54,18 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	// Written straight to agrirouter, the sample having no feature that
 	// produces them: a real Alpha fills them from its own screens.
 	original, err := alpha.Supplement(ctx, agmasync.TypeField, "alpha-field-1", map[string]any{
-		"metadata": map[string]string{
+		"_agmasync_metadata": map[string]string{
 			"contract": "PACHT-2029-114", "steward": "Jens Petersen",
 		},
-		"harvest_period": map[string]any{
-			"valid_from": "2029-07-01", "valid_to": "2029-09-30", "label": "2029",
+		"_agmasync_harvestPeriod": map[string]any{
+			"validFrom": "2029-07-01", "validTo": "2029-09-30", "label": "2029",
 		},
 	})
 	if err != nil {
 		return err
 	}
-	metadata := string(original["metadata"])
-	period := string(original["harvest_period"])
+	metadata := string(original["_agmasync_metadata"])
+	period := string(original["_agmasync_harvestPeriod"])
 
 	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta", agmasync.TypeFarm, agmasync.TypeField)
 	if err != nil {
@@ -86,8 +86,8 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	_, heldMetadata := received.Modelled["metadata"]
-	_, heldPeriod := received.Modelled["harvest_period"]
+	_, heldMetadata := received.Modelled["_agmasync_metadata"]
+	_, heldPeriod := received.Modelled["_agmasync_harvestPeriod"]
 	if err := say.Check(!heldMetadata && !heldPeriod,
 		"Beta keeps what it has columns for, and nothing else"); err != nil {
 		return err
@@ -124,11 +124,11 @@ func runPreservedAttributes(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(string(canonical["metadata"]) == metadata,
-		"and what Beta never held is untouched: %s", canonical["metadata"]); err != nil {
+	if err := say.Check(string(canonical["_agmasync_metadata"]) == metadata,
+		"and what Beta never held is untouched: %s", canonical["_agmasync_metadata"]); err != nil {
 		return err
 	}
-	if err := say.Check(string(canonical["harvest_period"]) == period,
+	if err := say.Check(string(canonical["_agmasync_harvestPeriod"]) == period,
 		"as is the harvest period"); err != nil {
 		return err
 	}

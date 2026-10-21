@@ -45,7 +45,8 @@ var (
 	ErrInitialLoadConflict = errors.New("initial load transition out of order")
 
 	// ErrLocalIDRequired is raised locally: an entity is sent under its
-	// local_id, so a write without one cannot be addressed.
+	// local_id, its `content.id.referenceId`, so a write without one cannot be
+	// addressed.
 	ErrLocalIDRequired = errors.New("local_id is required on send")
 
 	// ErrEmptyResponse is a success status that carried no body to read.

@@ -52,8 +52,10 @@ of synchronization capability.
 Data structures in this document are illustrated using JSON {{?RFC8259}} for
 readability. Unless a section states otherwise, these illustrations are
 **non-normative examples**. The normative on-the-wire encoding is defined in
-[Encoding](#encoding). Field geometries are expressed using GeoJSON {{?RFC7946}}, and
-timestamps use the date and time formats of {{?RFC3339}}.
+[Encoding](#encoding). Geometries are expressed as Well-Known Text, and
+timestamps use the date and time formats of {{?RFC3339}}. Names inside `content`
+follow [ADAPT](#relation-to-adapt) and are camelCase; all other names are
+snake_case.
 
 # Terminology
 
@@ -165,97 +167,131 @@ selected entity type is exchanged in both directions (see
 # Data model
 
 This section defines the canonical object model for the MVP entities, fully aligned and reconciled with the outcomes of the FarmSPT project.
-The model is deliberately close to the ISOXML / EFDI representation of the same concepts
-(ISO 11783-10) so that existing task-data tooling can map to and from it, while
-being expressed here in an encoding-independent way.
+FarmSPT defines the content. Each object encodes it in a type based on the
+corresponding [ADAPT](https://adaptstandard.org/) 2.0.2 type, so ADAPT tooling can
+read it, and adds what ADAPT has no slot for
+([ADR 11](./architecture/11-entity-model.md), see [Relation to ADAPT](#relation-to-adapt)).
 
 ## Common envelope
 
-Every entity shares a common envelope. Example
-(non-normative):
+Every entity is an envelope carrying sync state, with the master data in
+`content`. Example (non-normative):
 
 ~~~ json
 {
   "type": "field",
-  "agrirouter_id": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
-  "local_id": "PFD-00042",
   "active": true,
   "revision": 7,
   "modified_at": "2026-07-14T09:20:00Z",
   "tenant_id": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
-  "source_endpoint_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210"
+  "source_endpoint_id": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+  "content": {
+    "id": {
+      "referenceId": "PFD-00042",
+      "uniqueIds": [
+        { "idText": "1f2e3d4c-5b6a-7089-90ab-cdef01234567", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
+        { "idText": "PFD-00042", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
+      ]
+    },
+    "name": "North 40"
+  }
 }
 ~~~
 
 Envelope fields:
 
 - `type` (string, required): the entity type; one of `party`, `farm`, `field`, `fieldBoundary`.
-- `agrirouter_id` (string): the agrirouter-assigned canonical identifier ({{?RFC4122}}). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
-- `local_id` (string): **always the identifier of the participant at the near end of the transfer, never of any other.** On send it is the sender's own identifier for the entity, and is required. On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
 - `active` (boolean): whether the entity is currently active. Deactivation is expressed through the deactivation operation (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)). It is never taken from a sent object: the revision a participant edited from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded (see [Concurrency control](#concurrency-control)).
 - `modified_at` (string): the {{?RFC3339}} timestamp of the last accepted change.
 - `tenant_id` (string): the tenant the object belongs to ({{?RFC4122}}). It is set by agrirouter; on send the tenant follows from the acting endpoint, and a value a sender supplies MUST be that tenant. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
 - `source_endpoint_id` (string): the endpoint whose change produced the current canonical revision. It always belongs to `tenant_id`. It is the key [origin suppression](#loop-prevention) is decided on.
+- `content` (object, required): the entity's master data, its identity included.
 
-`type`, `agrirouter_id`, `revision`, `modified_at`, `tenant_id`, and
-`source_endpoint_id` are assigned by agrirouter, and a participant MAY send an
-object back exactly as it was delivered. `revision`, `modified_at`, and
-`source_endpoint_id` are ignored on send. `type`, `agrirouter_id`, and `tenant_id`
-MUST match the object written — the path's entity type, the object the
-`local_id` is bound to, and the acting endpoint's tenant — or the write is
-rejected with `400`.
+`type`, `revision`, `modified_at`, `tenant_id`, and `source_endpoint_id` are
+assigned by agrirouter, and a participant MAY send an object back exactly as it
+was delivered. `revision`, `modified_at`, and `source_endpoint_id` are ignored on
+send. `type` and `tenant_id` MUST match the object written — the path's entity
+type and the acting endpoint's tenant — or the write is rejected with `400`.
+
+### Identity
+
+`content.id` identifies the object. On delivery it carries up to two identifiers in
+`uniqueIds`, at most one of each:
+
+- the agrirouter entry (`idTypeCode` `UUID`, `idSource` `https://agrirouter.com`): the [agrirouter identifier](#terminology). It is assigned by agrirouter on first receipt and is absent when a source system creates a not-yet-known entity. It MUST NOT be chosen or changed by a participant.
+- the local entry: **always the local identifier of the participant at the near end of the transfer.** On send the sender's own identifier for the entity is its `referenceId`, which is required (see below). On delivery agrirouter replaces it with the *receiving* endpoint's own identifier, and omits it when there is none — see [Identifier mapping](#identifier-mapping). A delivered object therefore never names another participant's identifier for anything.
+
+`referenceId` repeats the local identifier, and is absent exactly when that is.
+`idSourceTypeCode` is not used.
+
+On send, agrirouter takes the local identifier from `referenceId`, and the local
+entry is the entry of `uniqueIds` whose `idText` equals it. Its `idTypeCode` and
+`idSource` are the participant's own: agrirouter keeps them with the binding and
+delivers them back to that participant unchanged, in the object's `id` and in
+references to it, as its latest write of the object sent them. When that write sent
+no local entry, `idTypeCode` is `STRING` and `idSource` is absent. They are never
+shown to another participant.
+
+On send `uniqueIds` holds at most the local entry and the agrirouter entry, the
+one with `idSource` `https://agrirouter.com`, at most one of each, in any order.
+A write is rejected with `400` if `uniqueIds` holds any other entry. A participant holding further
+identifiers for an object MUST NOT send them.
+
+On send, `referenceId` MUST equal the `{local_id}` in the path, and an agrirouter
+entry, if sent, MUST be the object that `local_id` is bound to, or the write is
+rejected with `400`. This document writes `local_id` and `agrirouter_id` for the
+two identifiers, as the paths and the binding operations name them.
 
 ### References
 
 A **reference** to another entity (for example a field referring to its farm) is
-expressed as an object carrying the target's `agrirouter_id`, the referencing
-participant's `local_id` for the target, or both:
+a property `_agmasync_<name>Ref`, or `<name>Ref` inside a prefixed value
+(`partyRef` in `_agmasync_partners`). Its `id` identifies the target as
+`content.id` does: by the target's agrirouter identifier, the referencing
+participant's local identifier for the target, or both:
 
 ~~~ json
-{ "agrirouter_id": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "local_id": "FRM-7" }
-~~~
-
-On the field of the envelope example above:
-
-~~~ json
-{
-  "type": "field",
-  "agrirouter_id": "1f2e3d4c-5b6a-7089-90ab-cdef01234567",
-  "local_id": "PFD-00042",
-  "name": "North 40",
-  "farm": {
-    "agrirouter_id": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "local_id": "FRM-7" }
+"_agmasync_farmRef": {
+  "id": {
+    "referenceId": "FRM-7",
+    "uniqueIds": [
+      { "idText": "7c1d2e3f-4a5b-6c7d-8e9f-001122338899", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
+      { "idText": "FRM-7", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
+    ]
+  }
 }
 ~~~
 
-The `local_id` in a reference is the *referencing* participant's identifier for the
-target, not the target's canonical one. The two identifiers are therefore not
-interchangeable in both directions:
+The local identifier in a reference is the *referencing* participant's identifier
+for the target, not the target's canonical one. The two identifiers are therefore
+not interchangeable in both directions:
 
-- **On send**, a participant MAY use either. A reference carrying only a `local_id`
-  is resolved by agrirouter against the sender's own
+- **On send**, a participant MAY use either. A reference without an agrirouter entry
+  is resolved by its `referenceId` against the sender's own
   [identifier mapping](#identifier-mapping) in the acting endpoint's tenant. If it
   does not resolve — the target has not been sent yet — the request MUST be
   rejected, and the participant MUST send the target before the object referencing
-  it. A target is always in the referencing object's tenant: an `agrirouter_id`
-  naming an object of another tenant does not resolve either.
+  it. A target is always in the referencing object's tenant: an agrirouter identifier
+  naming an object of another tenant does not resolve either. A reference with
+  neither an agrirouter entry nor a `referenceId` names no target, and the request
+  MUST be rejected with `400`.
   A participant may also hold an object whose target it does not hold, the
-  reference having been delivered without a `local_id` (see
+  reference having been delivered without a local identifier (see
   [Identifier mapping](#identifier-mapping)). It cannot name that target in either
-  identifier, and where the slot is a required attribute — a boundary's `field` — it has
+  identifier, and where the slot is a required attribute — a boundary's `_agmasync_fieldRef` — it has
   no valid write at all. It MUST
   [request](#requesting-objects-lazy-loading) the target, create it locally, and
   bind the identifier it issues, before writing the object that references it.
-- **On delivery**, agrirouter MUST populate `agrirouter_id`, and MUST replace the
-  `local_id` with the receiving endpoint's own identifier for the target, omitting it
-  when there is none. It MUST NOT be left as the sender's: a receiving endpoint
-  resolves the target through `agrirouter_id`, so the sender's `local_id` carries no
+- **On delivery**, agrirouter MUST include the agrirouter entry, and MUST replace the
+  local identifier with the receiving endpoint's own identifier for the target, omitting
+  `referenceId` and the local entry when there is none. It MUST NOT be left as the sender's: a receiving endpoint
+  resolves the target through its agrirouter identifier, so the sender's local identifier carries no
   meaning in the receiver's namespace, and passing it through would disclose the
-  sender's internal key for the target. This is the same rule the envelope's own
-  `local_id` follows (see [Common envelope](#common-envelope)).
+  sender's internal key for the target. This is the same rule the object's own
+  `id` follows (see [Identity](#identity)).
 
-This keeps `agrirouter_id` off the write path: a participant builds references from
+This keeps the agrirouter identifier off the write path: a participant builds references from
 its own identifiers, and does not have to capture and correlate canonical ids before
 it can send the objects that reference them. Ordering still applies — a target must
 be sent before the first reference to it.
@@ -263,95 +299,105 @@ be sent before the first reference to it.
 ## Party
 
 A **party** is a legal or natural actor: a *person*, an *organization*, or one whose
-party type its sender does not record.
+party type its sender does not record. Based on the ADAPT `Party`.
 
 Canonical attributes:
 
 - `name` (string, required): the name the party is known by — an organization's name, a person's full name.
-- `details` (object, optional): whether the party is a person or an organization, with the attributes specific to that party type (see [Party details](#party-details)).
-- `address` (object, optional): `street`, `po_box`, `postal_code`, `city`, `state`, `country` (ISO 3166-1 alpha-2).
-- `contact` (object, optional): `phone`, `mobile`, `email`.
-- `billing_address` (object, optional): as for `address`.
-- `tax_number` (string, optional): identifier assigned by tax authorities.
-- `tax_id` (string, optional): numerical identifier assigned by tax authorities.
-- `trade_id` (string, optional): numerical identifier assigned by public authorities.
+- `description` (string, optional): free text about the party.
+- `_agmasync_details` (object, optional): whether the party is a person or an organization, with the attributes specific to that party type (see [Party details](#party-details)).
+- `contactInfo` (object, optional): the ADAPT contact block.
+  - `addressContactMethods` (array): addresses, each with an `addressContactTypeCode` from the ADAPT AddressContactType list, plus `BILLING`, which this document adds. The party's address is the `PHYSICAL` entry, its billing address the `BILLING` entry. An address carries `addressLines` (street, PO box, one entry per line), `city`, `postalCode`, `countrySubdivision`, `country`, and `countryCode` (ISO 3166-1 alpha-2).
+  - `telecommunicationContactMethods` (array): `valueText` with a `telecommunicationContactTypeCode` from the ADAPT TelecommunicationContactType list: phone `FIXED_PHONE`, mobile `MOBILE_PHONE`, `FAX`, email `EMAIL`.
+
+  Each list holds at most one entry per type code.
+- `_agmasync_taxNumber` (string, optional): identifier assigned by tax authorities.
+- `_agmasync_taxId` (string, optional): numerical identifier assigned by tax authorities.
+- `_agmasync_tradeId` (string, optional): numerical identifier assigned by public authorities.
 
 No attribute records that a party *is* a contractor or *is* a customer. Those are
-relations, and are read from the graph: a party that appears as a `partner` on
+relations, and are read from the graph: a party that appears as a partner on
 another party's farm is acting as a contractor or advisor there, and a party
 whose farm names such a partner is that partner's client. The same party may do
 both at once, in different relations.
 
 ### Party details
 
-`details` is discriminated by its `party_type`, a closed set:
+`_agmasync_details` is discriminated by its `partyTypeCode`, a closed set. The
+party itself carries no `partyTypeCode`, as it would in ADAPT.
 
 - `PERSON`: a natural person.
   - `title` (string, optional).
-  - `first_name` (string, optional).
-  - `last_name` (string, optional).
+  - `firstName` (string, optional).
+  - `lastName` (string, optional).
   - `memberships` (array, optional): the organizations this person belongs to. Each entry carries:
-    - `organization_id` (reference, required): a party whose `details` is an `ORGANIZATION`.
-    - `member_role` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
+    - `organizationRef` (reference, required): a party whose `_agmasync_details` is an `ORGANIZATION`.
+    - `roleCode` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
 - `ORGANIZATION`: a legal entity to which persons may belong.
-  - `commercial_registry_number` (string, optional): unique identifier out of the commercial register.
+  - `commercialRegistryNumber` (string, optional): unique identifier out of the commercial register.
 
-A party without `details` is of unknown party type. Many systems keep a customer
+A party without `_agmasync_details` is of unknown party type. Many systems keep a customer
 or grower without recording whether it is a person or a business.
 
 A participant whose data model has no place for a party of unknown party type may
 file it under a party type of its own choosing, or let its user decide. Whatever
-`details` it then writes is stated to every participant: the canonical party takes
+`_agmasync_details` it then writes is stated to every participant: the canonical party takes
 that party type, and the others receive it like any other change. A participant
-that leaves `details` out of its writes keeps what is canonical (see
+that leaves `_agmasync_details` out of its writes keeps what is canonical (see
 [Writing an entity](#writing-an-entity)).
 
 A person holding at least one membership is a **member** of the organizations it
 names. Membership is state on the person, so one advisor serving several
 organizations is a single canonical person rather than a copy per organization.
-agrirouter MUST reject with `400` a membership naming a party whose `details` is
+agrirouter MUST reject with `400` a membership naming a party whose `_agmasync_details` is
 not an `ORGANIZATION`, and a change or removal of party type on an organization
 that persons still name.
 
 ## Farm
 
 A grouping of fields that the farmer considers part of the same management group.
+Based on the ADAPT `Farm`.
 
 Canonical attributes (subset):
 
-- `owner` (reference, optional): the party that holds the farm. Absent where the farm's system does not record parties.
 - `name` (string, required).
-- `address` (object, optional): as for a party.
-- `geo_reference` (`Point`, optional): longitude and latitude of the farm.
-- `specialised_usage_type` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
-- `partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry carries:
+- `description` (string, optional): free text about the farm.
+- `_agmasync_growerRef` (reference, optional): the party that holds the farm. It names a party, where ADAPT names a Grower (there is no dedicated Grower entity in AgmaSync). Absent where the farm's system does not record parties.
+- `_agmasync_address` (object, optional): an address as for a party, its `addressContactTypeCode` included, replaced whole on write.
+- `_agmasync_geoReference` (WKT `POINT`, optional): longitude and latitude of the farm.
+- `_agmasync_specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
+- `_agmasync_partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry is shaped like an ADAPT `PartyRole`:
 
-  - `partner_id` (reference, required): the party.
-  - `partner_role` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as `member_role`.
+  - `partyRef` (reference, required): the party.
+  - `roleCode` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as a membership's.
 
-`partners` records a business relationship only. It MUST NOT be interpreted as
+`_agmasync_partners` records a business relationship only. It MUST NOT be interpreted as
 granting access to the farm or to anything below it: what an endpoint receives is
 determined by opt-in and routing (see [Routing and opt-in](#routing-and-opt-in)),
 never by an attribute inside a synchronized object. A participant receiving a
-farm MUST NOT translate its `partners` entries into access grants in its own
+farm MUST NOT translate its partners into access grants in its own
 system without a separate decision by its user.
 
 ## Field
 
 A named physical space where production agriculture takes place, used to partition and identify data.
+Based on the ADAPT `Field`.
+
 Canonical attributes (subset):
 
 - `name` (string, required).
-- `area` (number, optional): nominal area in square metres.
-- `farm` (reference, optional): the farm this field belongs to.
-- `owner` (reference, optional): the party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's owner. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `owner` without a `farm`.
-- `soil`(object, optional): 
-  - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`), 
-  - `rating_points` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
-- `topography`(number, optional): slope, gradient like 7°
+- `description` (string, optional): free text about the field.
+- `arableArea` (object, optional): nominal area, `numericValue` with `unitOfMeasureCode` `ha`.
+- `_agmasync_farmRef` (reference, optional): the farm this field belongs to.
+- `timeZone` (string, optional): the field's time zone, an IANA identifier such as `Europe/Berlin`.
+- `_agmasync_growerRef` (reference, optional): the party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's grower. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `_agmasync_growerRef` without a `_agmasync_farmRef`.
+- `_agmasync_soil` (object, optional):
+  - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`),
+  - `ratingPoints` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
+- `_agmasync_topography` (number, optional): slope, gradient like 7°
   - 👷‍♂️ _to be refined_
-- `harvest_period` (object, optional): see [Harvest period](#harvest-period).
-- `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
+- `_agmasync_harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
+- `_agmasync_metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
 ## FieldBoundary
 
@@ -359,46 +405,52 @@ A geometry that identifies the geo-spatial coordinates of a field.
 The boundary can be used to define the area for a particular operation, a particular crop or crops, or for legal purposes.
 A field can have different boundaries that may vary in geometry based on their specific use.
 A field boundary include the outer boundary of the editable area and obstacles within the field (such as poles, biotopes or wet patches) that are left out.
+Based on the ADAPT `FieldBoundary`.
+
 Canonical attributes:
 
-- `field` (reference, required): the [field](#field) this boundary describes.
+- `_agmasync_fieldRef` (reference, required): the [field](#field) this boundary describes.
 - `name` (string, optional): the name the boundary is known by.
-- `boundary` (GeoJSON): the field boundary as a GeoJSON `Polygon` or `MultiPolygon` {{?RFC7946}}.
-- `boundary_type` (string): the boundary classification. Enum value like:
+- `description` (string, optional): free text about the boundary.
+- `boundary` (object, required):
+  - `geometry` (WKT, required): the field boundary as a `POLYGON` or `MULTIPOLYGON`.
+  - `boundaryCreationMethodCode` (string, optional): from the [ADAPT BoundaryCreationMethod](https://adaptstandard.org/dtd.html) list. Enum value like:
+
+    - `UNKNOWN`:	Creation method is unknown
+    - `MANUAL`: Hand drawn in a computer system (FMIS) based on imagery or other information.
+    - `DRIVEN`: Record a series of points that define the boundary by driving a machine (e.g. tractor) equipped with a GNSS receiver around the perimeter of the field.
+    - `SURVEYED`: Defined by a professional surveyor
+    - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
+    - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
+    - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
+  - `gNSSBaseStationTypeCode`, `gNSSBaseSurveyTypeCode` (string, optional): from the ADAPT GNSSBaseStationType and GNSSBaseSurveyType lists.
+  - `gNSSCorrectionNetworkName`, `gNSSCorrectionNetworkBrand` (string, optional): the GNSS correction network the geometry was recorded with, and its provider.
+- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary` has the attributes above except that its `geometry` is a WKT `POINT`, `LINESTRING`, or `POLYGON`, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
+- `_agmasync_boundaryType` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
   - `OPERATIONAL`: Used to define management areas for specific fieldwork.
   - `ECONOMIC_DEFINED`: Used for planning and analysis for economic purposes, e.g. for sustainability programmes or invoicing.
   - `ADMINISTRATIVE_RECEIVED`: Used for data organisation see [AgGateway](https://aggateway.org/Portals/1010/WebSite/About%20Us/FIELD%20BOUNDARY%20FLYER%20122123.pdf?ver=2024-01-03-212959-590)
-- `creation_method` (string): Enum value like:
-
-  - `UNKNOWN`:	Creation method is unknown
-  - `MANUAL`: Hand drawn in a computer system (FMIS) based on imagery or other information.
-  - `DRIVEN`: Record a series of points that define the boundary by driving a machine (e.g. tractor) equipped with a GNSS receiver around the perimeter of the field.
-  - `SURVEYED`: Defined by a professional surveyor	VALID
-  - `AUTO_OPERATION`: Automatically generated in a software tool based on an as-applied/coverage map from a field operation
-  - `AUTO_IMAGERY`: Automatically generated in a software tool based imagery
-  - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown (Based on [ADAPT Data Type: BoundaryCreationMethod](https://adaptstandard.org/dtd.html)
-- `harvest_period` (object): see [Harvest period](#harvest-period). If the boundary's `field` also defines a `harvest_period`, the boundary's period MUST fall within it: `valid_from` no earlier than the field's `valid_from`, and `valid_to` no later than the field's `valid_to` (an absent field `valid_to` imposes no upper bound).
-- `obstacles` (array, optional): obstacles within the field, each a GeoJSON `Feature` whose geometry is a `Point`, `LineString`, or `Polygon` and whose properties carry an obstacle `kind`.
-- `regulatory_requirements` (string, optional): Enum value like:
+- `_agmasync_harvestPeriod` (object): see [Harvest period](#harvest-period). If the boundary's field also defines a harvest period, the boundary's period MUST fall within it: `validFrom` no earlier than the field's `validFrom`, and `validTo` no later than the field's `validTo` (an absent field `validTo` imposes no upper bound).
+- `_agmasync_regulatoryRequirements` (string, optional): Enum value like:
 
   - `RED_ZONE_NITROGEN`: Red zone identification (N,P overfertilization)
   - `WATER_PROTECTION_AREA`: Including a water protection area
-- `metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
+- `_agmasync_metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
 ### Entity dependencies
 
 A field boundary references the field it describes; a field MAY reference a farm
-and MAY reference a party as its owner; a farm MAY reference the party that owns it
-and further parties as partners; and a person MAY reference the
+and MAY reference a party as its grower; a farm MAY reference the party that is its
+grower and further parties as partners; and a person MAY reference the
 organizations it belongs to.
 
 Memberships reference parties from a party, so dependency order is per object
 rather than per entity type: a person with memberships follows the organizations
 it names, on send and on delivery.
 
-Only a boundary's `field` is a **required** reference, and only it constrains
+Only a boundary's `_agmasync_fieldRef` is a **required** reference, and only it constrains
 what an endpoint declares and selects (see [Routing and opt-in](#routing-and-opt-in)).
 The others are **optional**, so a system may model parties and fields without
 farms, or farms and fields without parties. An endpoint may therefore receive a
@@ -417,32 +469,50 @@ a `valid-from` / `valid-to` interval. Complicating matters, a "harvest year" is 
 always a calendar year — depending on region, crop, and climate it may span a few
 months or several calendar years.
 
-To keep the canonical form unambiguous, `harvest_period` is defined as an interval:
+To keep the canonical form unambiguous, `_agmasync_harvestPeriod` is defined as an interval:
 
-- `valid_from` (string, required): the start date ({{?RFC3339}} full-date).
-- `valid_to` (string, optional): the end date; absent means "open / current".
+- `validFrom` (string, required): the start date ({{?RFC3339}} full-date).
+- `validTo` (string, optional): the end date; absent means "open / current".
 - `label` (string, optional): a human-facing designation such as `"2026"` or `"2025/2026"` for systems that present a discrete year.
 
 A participant that natively uses a discrete year MUST map it to an interval on send
 and MAY use `label` to round-trip its own presentation.
 
-## ADAPT
+## Relation to ADAPT
 
-The entities are encoded in this protocol's own schema, not in the
-[ADAPT](https://adaptstandard.org/) data model
-([ADR 11](./architecture/11-entity-model.md)). A participant built on ADAPT
-converts at its edge. [examples](./examples/) shows one farm in both encodings.
+`content` follows the ADAPT 2.0.2 type it is based on, with these deviations:
+
+| Deviation | Why |
+| --- | --- |
+| A property ADAPT has no slot for is named `_agmasync_` plus the AgmaSync name in camelCase, and has the AgmaSync type. No ADAPT property starts with `_`. | FarmSPT content ADAPT lacks stays typed and validated, rather than becoming context items. |
+| ADAPT's reference strings (`growerId`, `farmId`, `fieldId`) are not used. References are `_agmasync_<name>Ref` objects carrying an `Id`, and `_agmasync_growerRef` names a party. | A reference says which identifier it holds, and Grower is not an entity. |
+| `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter and local entries. A sent one holds no others. | An object or target the receiver has not bound has no local identifier for it. [Hard validation](#hard-validation): an entry agrirouter would not keep is rejected, not dropped. |
+| The party carries no `partyTypeCode`. `_agmasync_details.partyTypeCode` carries the party type, as `PERSON` or `ORGANIZATION`. | A party of unknown type is one without details, and absence keeps another participant's statement under merge patch. |
+| FieldBoundary `name` is optional. | Not every system names boundaries. |
+| An obstacle's geometry may be a `POINT` or `LINESTRING`. | Poles and fences. |
+| WKT has one canonical form, and `arableArea` is in `ha` only (see [Encoding](#encoding)). | [Hard validation](#hard-validation). |
+
+A FarmSPT attribute that a later ADAPT version gives a slot keeps its prefixed
+name until a breaking version of this document moves it.
+[examples](./examples/) shows one farm in this encoding.
 
 # Encoding and canonicity
 
 ## Encoding
 
-The normative wire encoding for master-data payloads is a constrained subset of
-the EFDI / ISOXML (ISO 11783-10) representation of the corresponding entities
-(partfield, farm, customer). The exact subset and its Protobuf/EFDI form are being
-finalized together with the FarmSPT alignment, the JSON shown
-in this document is an illustrative projection of that model and is not itself the
-binding format.
+The normative wire encoding is JSON as defined by the schemas of `openapi.yaml`,
+whose `content` types are based on ADAPT 2.0.2 (see
+[Relation to ADAPT](#relation-to-adapt)).
+
+Geometries are Well-Known Text in WGS84 (EPSG:4326), as in ADAPT, in one canonical
+form:
+
+- The geometry type in upper case (`POINT`, `LINESTRING`, `POLYGON`, `MULTIPOLYGON`), one space, and, for positions with altitude, `Z` and one space. Every position of a geometry has the same dimension.
+- A position is `longitude latitude` or `longitude latitude altitude`, separated by one space. Positions are separated by a comma and one space, and parentheses carry no whitespace inside them: `POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.56 52.205))`.
+- A number is decimal: an optional `-`, no leading zeros, no exponent, no trailing zeros after the decimal point, no decimal point without digits after it, and `0` rather than `-0`.
+- Rings are closed. `EMPTY` is not used.
+
+Areas are in hectares: `unitOfMeasureCode` is `ha`.
 
 ## Hard validation
 
@@ -474,7 +544,7 @@ not an exhaustive set. Normatively:
 - A value outside the listed set MUST NOT be a validation failure (see [Hard validation](#hard-validation)) and MUST NOT cause the entity to be rejected, dropped, or altered.
 - Receivers MUST tolerate unknown values: never rewrite one, and where the value drives behaviour, fall back to the handling they apply to an unknown value. A receiver that cannot store an unknown value leaves the attribute out of its writes, which keeps it (see [Writing an entity](#writing-an-entity)).
 - Values are `UPPER_SNAKE_CASE`.
-- Where an [ADAPT](https://adaptstandard.org/dtd.html) enumeration covers the same concept, the values are that enumeration's codes, unchanged, and a value ADAPT adds is a value of the attribute. Today these are `member_role` and `partner_role` (ADAPT `Role`) and `creation_method` (ADAPT `BoundaryCreationMethod`).
+- Where an [ADAPT](https://adaptstandard.org/dtd.html) enumeration covers the same concept, the values are that enumeration's codes, unchanged, and a value ADAPT adds is a value of the attribute. Today these are `roleCode` (ADAPT `Role`), `boundaryCreationMethodCode`, `addressContactTypeCode` (ADAPT `AddressContactType` plus `BILLING`), `telecommunicationContactTypeCode` and `idTypeCode`.
 - Adding a value is a compatible change and MAY happen in a minor revision of this document. Removing or renaming a value is breaking and MUST NOT.
 
 ## Identifier mapping
@@ -498,7 +568,7 @@ participant's decision about its own data.
 
   - if the mapping already resolves (P, T, X) to a canonical object, that object is updated;
   - otherwise a new canonical object is created in T, `agrirouter_id` is assigned, and (P, T, X) is recorded in its mapping.
-- When agrirouter delivers a canonical object to an endpoint of participant P, it MUST set `local_id` to P's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit `local_id` when it holds none. An absent `local_id` is meaningful: it states that agrirouter does not believe P holds this object, which is what makes an unbound or unbound-again object recognisable as one P must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
+- When agrirouter delivers a canonical object to an endpoint of participant P, it MUST set the local identifier in `content.id` to P's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit it when it holds none (see [Identity](#identity)). An absent local identifier is meaningful: it states that agrirouter does not believe P holds this object, which is what makes an unbound or unbound-again object recognisable as one P must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
 - **The mapping is delivered one participant at a time, and only to that participant.** A canonical object holds every participant's `local_id`, but a delivered copy carries at most the recipient's own. agrirouter MUST NOT disclose one participant's local identifiers to another: nothing in synchronization consumes them — a receiver resolves through `agrirouter_id` — and they are a participant's internal keys for a user's data. See [Security considerations](#security-considerations).
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to task-data-based tooling.
 
@@ -1037,25 +1107,25 @@ again after new bindings exist, and discard them.
 
 ## Writing an entity
 
-A write must state what changes, not necessarily the whole object. The body of
-`PUT /masterdata/<types>/{local_id}` is applied to the canonical object as a JSON
-Merge Patch ({{?RFC7396}}) of its non-envelope attributes:
+A write must state what changes, not necessarily the whole object. The `content` of
+the body of `PUT /masterdata/<types>/{local_id}` is applied to the canonical object
+as a JSON Merge Patch ({{?RFC7396}}):
 
 - **Present:** an attribute carrying a value replaces the current one.
 - **`null`:** the attribute is removed.
 - **Absent:** the attribute is left as it is.
 
-The same rules apply inside plain nested objects such as `address`, `contact`, or
-`metadata`: `{"address": {"city": "Husum"}}` changes the city and keeps the street.
-Arrays, [references](#references), and geometries are replaced whole instead,
-because a part of one means nothing on its own. A party's `details` merges like a
-plain nested object while its `party_type` is unchanged, and every write that includes
-`details` carries its `party_type`. A write that changes the `party_type` replaces `details`
+The same rules apply inside plain nested objects such as `_agmasync_soil`,
+`contactInfo`, or `_agmasync_metadata`: `{"_agmasync_soil": {"ratingPoints": 62}}`
+changes a field's soil rating points and keeps its soil type.
+Arrays, [references](#references), and a farm's `_agmasync_address` are replaced whole instead, as a party's addresses are; for references a partial object means nothing on its own. A party's `_agmasync_details` merges like a
+plain nested object while its `partyTypeCode` is unchanged, and every write that includes
+`_agmasync_details` carries its `partyTypeCode`. A write that changes the `partyTypeCode` replaces `_agmasync_details`
 whole, so no attribute of the other party type survives (see [Party details](#party-details)).
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every participant supports, so a participant always holds them.
-- `null` for a required attribute or an envelope field is rejected with `400`. An absent `active` leaves the object's state unchanged.
+- `null` for a required attribute, an envelope field, or `content.id` is rejected with `400`. An absent `active` leaves the object's state unchanged.
 - Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
 
 This is what relaying amounts to. A participant does not store, and does not send,
@@ -1152,7 +1222,7 @@ write response is not merely an acknowledgement. It is the only channel on which
 the writing endpoint learns anything about the revision it just produced, since
 [origin suppression](#loop-prevention) keeps that revision off its own stream,
 and it carries state the participant did not send: the attributes the write left
-out, the `agrirouter_id` assigned to a newly created object, and the resulting object where agrirouter reconciled the
+out, the agrirouter identifier assigned to a newly created object, and the resulting object where agrirouter reconciled the
 write against a concurrent change rather than rejecting it (see
 [Concurrency control](#concurrency-control)).
 
@@ -1282,8 +1352,8 @@ endpoints, and lets one participant correlate another's records across the
 tenant. It buys synchronization nothing, since receivers resolve through
 `agrirouter_id`. Hence the rule in
 [Identifier mapping](#identifier-mapping): **a delivered object carries the
-receiving participant's own local identifiers and no other participant's**, in the
-envelope and in every reference within it.
+receiving participant's own local identifiers and no other participant's**, in its
+own `id` and in every reference within it.
 
 Field boundaries and party contact details are personal and commercially
 sensitive data. Participants SHOULD expose only the data necessary for

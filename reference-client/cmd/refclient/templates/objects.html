@@ -46,7 +46,7 @@
       {{else if eq .Kind "geometry"}}
       <textarea name="{{.Name}}" id="{{.Name}}" rows="4">{{$.SampleGeo}}</textarea>
 
-      {{else if eq .Kind "number"}}
+      {{else if eq .Kind "area"}}
       <input type="number" step="any" name="{{.Name}}" id="{{.Name}}"
              placeholder="{{.Placeholder}}">
 

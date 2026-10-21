@@ -112,8 +112,8 @@ sequenceDiagram
     P->>AR: GET /endpoints/{eid}/masterdata-initial-load/events (SSE)
     AR-->>P: 200 text/event-stream
     loop every canonical object the endpoint is entitled to - parties, then farms
-        AR-->>P: event: MASTERDATA_CHANGED (no id:) data: { type: "farm", agrirouter_id: 1f2e…4567, revision: 3, owner: { agrirouter_id: 9ab0…1234, … }, local_id: P's own or absent }
-        Note over P: apply as it arrives - the owner was delivered earlier in the same stream. reconcile against own store (id mapping, user decides on conflicts)
+        AR-->>P: event: MASTERDATA_CHANGED (no id:) data: { type: "farm", revision: 3, content: { id: { AGRIROUTER 1f2e…4567, LOCAL P's own or absent }, _agmasync_growerRef: { id: { AGRIROUTER 9ab0…1234, … } } } }
+        Note over P: apply as it arrives - the grower was delivered earlier in the same stream. reconcile against own store (id mapping, user decides on conflicts)
     end
     Note over AR: endpoint → RECONCILING (agrirouter drives this - it knows it has sent everything)
     AR-->>P: close SSE HTTP response
@@ -131,11 +131,11 @@ sequenceDiagram
     AR-->>P: 200 InitialLoadStatus { state: "LOADING_TO_AGRIROUTER", rejected_id_mappings: [] }
 
     loop every local object that is new or was changed while resolving a conflict, parties before farms, members after their organizations
-        P->>AR: PUT /masterdata/farms/{local_id} { type: "farm", owner: {...}, name: "Hof Nord" }
+        P->>AR: PUT /masterdata/farms/{local_id} { type: "farm", content: { id: {...}, _agmasync_growerRef: {...}, name: "Hof Nord" } }
         alt matched during reconciliation, bound above
-            AR-->>P: 200 Farm { agrirouter_id: 1f2e…4567, revision: 8 }
+            AR-->>P: 200 Farm { revision: 8, content: { id: { AGRIROUTER 1f2e…4567, … } } }
         else genuinely new to the network
-            AR-->>P: 201 Farm { agrirouter_id: 7c1d…8899, revision: 1 }
+            AR-->>P: 201 Farm { revision: 1, content: { id: { AGRIROUTER 7c1d…8899, … } } }
         else local_id already mapped to a different canonical object
             AR-->>P: 409 Error (mapping conflict - resolved in the partner)
             P->>AR: PUT /endpoints/{eid}/masterdata-initial-load/user-attention

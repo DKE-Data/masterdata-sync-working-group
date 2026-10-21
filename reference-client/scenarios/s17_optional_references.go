@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 )
 
 func optionalReferences() Scenario {
@@ -84,7 +85,7 @@ func runOptionalReferences(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(len(farms) == 0 && refLocalID(beta, agmasync.TypeField, betaField, "farm") == "",
+	if err := say.Check(len(farms) == 0 && refLocalID(beta, agmasync.TypeField, betaField, "_agmasync_farmRef") == "",
 		"Beta holds the field and ignores the farm it names, which it was never sent"); err != nil {
 		return err
 	}
@@ -94,8 +95,8 @@ func runOptionalReferences(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := beta.Edit(agmasync.TypeField, betaField, map[string]any{
-		"name": "Nordacker West",
-		"farm": map[string]string{"local_id": "beta-farm-1"},
+		"name":              "Nordacker West",
+		"_agmasync_farmRef": agmasync.LocalRef("beta-farm-1"),
 	}); err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func runOptionalReferences(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(
-		refLocalID(alpha, agmasync.TypeField, "alpha-field-1", "farm") == "alpha-farm-1",
+		refLocalID(alpha, agmasync.TypeField, "alpha-field-1", "_agmasync_farmRef") == "alpha-farm-1",
 		"and the field is still on Alpha's farm: what Beta left out, it kept"); err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func runOptionalReferences(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(
-		refLocalID(beta, agmasync.TypeField, betaField, "farm") == "beta-farm-1",
+		refLocalID(beta, agmasync.TypeField, betaField, "_agmasync_farmRef") == "beta-farm-1",
 		"and Beta's own farm is kept: the delivered farm reference is ignored"); err != nil {
 		return err
 	}
@@ -152,11 +153,12 @@ func refLocalID(p *Platform, typ agmasync.EntityType, localID, key string) strin
 	if err != nil {
 		return ""
 	}
-	var ref struct {
-		LocalID string `json:"local_id"`
-	}
+	var ref oapi.Ref
 	if raw, ok := record.Modelled[key]; ok {
 		_ = json.Unmarshal(raw, &ref)
 	}
-	return ref.LocalID
+	if ref.Id.ReferenceId == nil {
+		return ""
+	}
+	return *ref.Id.ReferenceId
 }

@@ -126,7 +126,7 @@ func runStricterRecipient(ctx context.Context, w *World) error {
 	}
 	chosen, err := say.Ask(
 		fmt.Sprintf("Beta needs a farm for %q. Which of its own should it file it under?",
-			canonical.Name),
+			canonical.Content.Name),
 		choices...)
 	if err != nil {
 		return err
@@ -139,7 +139,7 @@ func runStricterRecipient(ctx context.Context, w *World) error {
 	}
 
 	say.Step("Beta files the field under %s and binds it.", answer)
-	if err := beta.AddField("beta-field-1", canonical.Name, areaOf(canonical), answer); err != nil {
+	if err := beta.AddField("beta-field-1", canonical.Content.Name, areaOf(canonical), answer); err != nil {
 		return err
 	}
 	if err := beta.Adopt(ctx, agmasync.TypeField, "beta-field-1", blocked.AgrirouterID); err != nil {
@@ -186,7 +186,7 @@ func runStricterRecipient(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if _, hasFarm := current.Modelled["farm"]; hasFarm {
+	if _, hasFarm := current.Modelled["_agmasync_farmRef"]; hasFarm {
 		return errors.New("Alpha's field acquired a farm it never had")
 	}
 	if err := say.Check(*fieldRow.Revision == 1,
@@ -219,7 +219,7 @@ func runStricterRecipient(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	_, invented := arrived.Modelled["farm"]
+	_, invented := arrived.Modelled["_agmasync_farmRef"]
 	if err := say.Check(!invented,
 		"and holds a field its own software says cannot exist, on no farm at all"); err != nil {
 		return err
@@ -253,8 +253,12 @@ func (r requiresFarm) Recognise(
 		if err != nil {
 			return psync.Recognition{}, err
 		}
-		farm, err := field.Farm.Get()
-		if err != nil || (farm.AgrirouterId == nil && farm.LocalId == nil) {
+		farm, err := field.Content.UnderscoreAgmasyncFarmRef.Get()
+		if err != nil {
+			return psync.Recognition{Blocked: true, AwaitingUser: true}, nil
+		}
+		names, err := agmasync.IdentityOf(farm.Id)
+		if err != nil || (names.AgrirouterID == nil && names.LocalID == nil) {
 			return psync.Recognition{Blocked: true, AwaitingUser: true}, nil
 		}
 	}
@@ -264,11 +268,11 @@ func (r requiresFarm) Recognise(
 // areaOf reads a canonical field's area, which Beta copies into its own record
 // along with everything else it can store.
 func areaOf(field oapi.Field) float64 {
-	area, err := field.Area.Get()
+	area, err := field.Content.ArableArea.Get()
 	if err != nil {
 		return 0
 	}
-	return float64(area)
+	return float64(area.NumericValue)
 }
 
 // caughtFieldOf names the field Beta has just been delivered: the one it holds

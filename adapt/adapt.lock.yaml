@@ -1,0 +1,7 @@
+# Written by tools/adapt/pull.sh. Do not edit.
+repo: AgGateway-ADAPT/Standard
+tag: 2.0.2
+commit: 7790bb4611df627b37a443caa623f9b3331f55a2
+files:
+  adapt-root-schema.json: a2d45134724e1d8d41f1f25ee3f5b50f3704d0ac4e2f790bbbdfab2f471de1a3
+  adapt-data-type-definitions.json: b3727bb239431d1029787eb66b203846ce721908073a1059f7a34a1a627d3f24

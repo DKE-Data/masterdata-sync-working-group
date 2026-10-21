@@ -93,24 +93,24 @@ func TestARequestedObjectIsDeliveredEvenToItsOwnWriter(t *testing.T) {
 	}
 
 	if err := p.endpoint.Request(
-		context.Background(), agmasync.TypeFarm, *env.AgrirouterId,
+		context.Background(), agmasync.TypeFarm, *env.AgrirouterID,
 	); err != nil {
 		t.Fatalf("requesting an object this endpoint wrote: %v", err)
 	}
 
 	select {
 	case ev := <-live:
-		if ev.Envelope.AgrirouterId == nil || *ev.Envelope.AgrirouterId != *env.AgrirouterId {
+		if ev.Envelope.AgrirouterID == nil || *ev.Envelope.AgrirouterID != *env.AgrirouterID {
 			t.Errorf("delivered %v, want the requested object %s",
-				ev.Envelope.AgrirouterId, *env.AgrirouterId)
+				ev.Envelope.AgrirouterID, *env.AgrirouterID)
 		}
 		if ev.Type != agmasync.EventMasterdataChanged {
 			t.Errorf("frame type = %q, want an ordinary change frame", ev.Type)
 		}
 		// Delivered as the participant's own, so it lands on the record it
 		// already has rather than arriving as something new to bind.
-		if ev.Envelope.LocalId == nil || *ev.Envelope.LocalId != "FRM-1" {
-			t.Errorf("localId = %v, want the requester's own", ev.Envelope.LocalId)
+		if ev.Envelope.LocalID == nil || *ev.Envelope.LocalID != "FRM-1" {
+			t.Errorf("localId = %v, want the requester's own", ev.Envelope.LocalID)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out: the requested object was never delivered")
@@ -138,7 +138,7 @@ func TestARequestForAnObjectTheEndpointIsNotEntitledToIsRefused(t *testing.T) {
 	// missing.
 	outsider := f.join("fmis-b", "ep-b")
 
-	err = outsider.endpoint.Request(context.Background(), agmasync.TypeFarm, *env.AgrirouterId)
+	err = outsider.endpoint.Request(context.Background(), agmasync.TypeFarm, *env.AgrirouterID)
 	if !errors.Is(err, agmasync.ErrForbidden) {
 		t.Errorf("request = %v, want it refused as forbidden", err)
 	}
@@ -165,7 +165,7 @@ func TestARequestIsAnsweredOnTheNamedTypeAlone(t *testing.T) {
 	// Opting into farms pulls in the parties farms reference, so this endpoint is
 	// entitled to parties too. What refuses the request is the type of the
 	// object behind the identifier, not the endpoint's selection.
-	err = p.endpoint.Request(context.Background(), agmasync.TypeParty, *env.AgrirouterId)
+	err = p.endpoint.Request(context.Background(), agmasync.TypeParty, *env.AgrirouterID)
 	if !errors.Is(err, agmasync.ErrNotFound) {
 		t.Errorf("request on the wrong type = %v, want not found", err)
 	}

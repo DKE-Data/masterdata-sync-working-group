@@ -103,8 +103,8 @@ fixed depth in it - its **tier**:
 
 | tier | class | references |
 | --- | --- | --- |
-| 0 | `party` without person `details` | none |
-| 1 | `party` with person `details` | organizations, through memberships |
+| 0 | `party` without person `_agmasync_details` | none |
+| 1 | `party` with person `_agmasync_details` | organizations, through memberships |
 | 2 | `farm` | its owning party, its partner parties |
 | 3 | `field` | its farm, its owning party |
 | 4 | `fieldBoundary` | its field ([ADR 12](12-boundary-references-field.md)) |
@@ -486,7 +486,7 @@ version would trade the ordering away to save.
   classes has no tier assignment at all, and is the case that would force
   per-object dependency ordering.
 - **A party's tier depends on its content.** The tier of a party is read from its
-  `details`, not from its type alone, so both sweep and tail derive it from the
+  `_agmasync_details`, not from its type alone, so both sweep and tail derive it from the
   revision they deliver, and membership targets are checked on write.
 - **A same-tier reference has no order to rely on.** Objects inside a tier arrive in
   change order, which says nothing about which of them references the other. No

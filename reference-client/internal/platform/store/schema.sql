@@ -54,15 +54,18 @@ CREATE TABLE IF NOT EXISTS tenant (
 );
 
 -- organization and person are the platform's own two kinds of party. The
--- protocol has one party entity and states the party type in its `details`; the
+-- protocol has one party entity and states the party type in its
+-- `_agmasync_details`; the
 -- codec maps between the two shapes, and a local_id is unique across both
 -- tables, the mapping knowing only the one type.
 CREATE TABLE IF NOT EXISTS organization (
     local_id                    TEXT PRIMARY KEY,
     name                        TEXT NOT NULL,
     commercial_registry_number  TEXT,
-    city                        TEXT,
-    country                     TEXT,
+    -- The party's addresses, as the JSON list the protocol carries them in. A
+    -- list is replaced whole on write, so a platform that kept only a city
+    -- would erase everything else in every address it sent.
+    addresses                   TEXT,
     -- archived is the platform's own word for what the protocol calls inactive.
     -- The two are mapped at the edge rather than conflated: deactivation is a
     -- lifecycle transition of the canonical object, and how a product expresses
@@ -85,11 +88,12 @@ CREATE TABLE IF NOT EXISTS person (
 CREATE TABLE IF NOT EXISTS farm (
     local_id        TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
-    -- The owner is stored as this platform's own identifier for the party. That
+    -- The grower is stored as this platform's own identifier for the party. That
     -- is how a reference is held locally: the canonical identifier is sync
     -- bookkeeping and lives in agmasync_object.
     owner_local_id  TEXT,
-    city            TEXT,
+    -- The farm's address as JSON, held whole because it is replaced whole.
+    address         TEXT,
     archived        INTEGER NOT NULL DEFAULT 0
 );
 
@@ -107,7 +111,8 @@ CREATE TABLE IF NOT EXISTS field_boundary (
     name             TEXT,
     boundary_type    TEXT,
     creation_method  TEXT,
-    boundary         TEXT,
+    -- WKT, in the canonical form the protocol requires.
+    geometry         TEXT,
     archived         INTEGER NOT NULL DEFAULT 0
 );
 

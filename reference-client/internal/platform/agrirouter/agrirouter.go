@@ -148,10 +148,10 @@ func (e *Endpoint) PutJSON(ctx context.Context, body []byte, base *int) (oapi.En
 	if err != nil {
 		return oapi.Entity{}, err
 	}
-	if env.LocalId == nil || *env.LocalId == "" {
+	if env.LocalID == nil || *env.LocalID == "" {
 		return oapi.Entity{}, fmt.Errorf("agrirouter: %w: sending a %s", agmasync.ErrLocalIDRequired, env.Type)
 	}
-	localID := *env.LocalId
+	localID := *env.LocalID
 	const contentType = "application/json"
 
 	var status int
