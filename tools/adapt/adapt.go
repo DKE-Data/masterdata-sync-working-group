@@ -51,7 +51,7 @@ func readLock(dir string) (*lockFile, error) {
 		sum := sha256.Sum256(data)
 		if hex.EncodeToString(sum[:]) != want {
 			return nil, fmt.Errorf("adapt/%s does not match adapt/adapt.lock.yaml. The files in adapt/ are "+
-				"not edited: deviations go in adapt/profile.yaml. Run tools/adapt/pull.sh %s to restore it", name, l.Tag)
+				"not edited: deviations go in adapt/deviations.yaml. Run tools/adapt/pull.sh %s to restore it", name, l.Tag)
 		}
 	}
 	return &l, nil

@@ -231,10 +231,12 @@ entry is the entry of `uniqueIds` whose `idText` equals it. Its `idTypeCode` and
 delivers them back to that participant unchanged, in the object's `id` and in
 references to it, as its latest write of the object sent them. When that write sent
 no local entry, `idTypeCode` is `STRING` and `idSource` is absent. They are never
-shown to another participant. A local entry with `idSource` `https://agrirouter.com` is rejected with
-`400`. Of the other entries agrirouter reads only one whose `idSource` is
-`https://agrirouter.com`, at most one, and ignores the rest, so a participant MAY send its
-ADAPT identifiers as it holds them.
+shown to another participant.
+
+On send `uniqueIds` holds at most the local entry and the agrirouter entry, the
+one with `idSource` `https://agrirouter.com`, at most one of each, in any order.
+A write is rejected with `400` if `uniqueIds` holds any other entry. A participant holding further
+identifiers for an object MUST NOT send them.
 
 On send, `referenceId` MUST equal the `{local_id}` in the path, and an agrirouter
 entry, if sent, MUST be the object that `local_id` is bound to, or the write is
@@ -484,7 +486,7 @@ and MAY use `label` to round-trip its own presentation.
 | --- | --- |
 | A property ADAPT has no slot for is named `_agmasync_` plus the AgmaSync name in camelCase, and has the AgmaSync type. No ADAPT property starts with `_`. | FarmSPT content ADAPT lacks stays typed and validated, rather than becoming context items. |
 | ADAPT's reference strings (`growerId`, `farmId`, `fieldId`) are not used. References are `_agmasync_<name>Ref` objects carrying an `Id`, and `_agmasync_growerRef` names a party. | A reference says which identifier it holds, and Grower is not an entity. |
-| `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter and local entries. On send, entries other than these are ignored. | An object or target the receiver has not bound has no local identifier for it. Senders need not rewrite their ADAPT identifiers. |
+| `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter and local entries. A sent one holds no others. | An object or target the receiver has not bound has no local identifier for it. [Hard validation](#hard-validation): an entry agrirouter would not keep is rejected, not dropped. |
 | The party carries no `partyTypeCode`. `_agmasync_details.partyTypeCode` carries the party type, as `PERSON` or `ORGANIZATION`. | A party of unknown type is one without details, and absence keeps another participant's statement under merge patch. |
 | FieldBoundary `name` is optional. | Not every system names boundaries. |
 | An obstacle's geometry may be a `POINT` or `LINESTRING`. | Poles and fences. |

@@ -31,8 +31,8 @@ type Identity struct {
 //
 // The local identifier is `referenceId`, which on delivery is present exactly
 // when the local entry is. The canonical one is the `uniqueIds` entry whose
-// `idSource` is [AgrirouterIDSource]; every other entry is ignored, as
-// agrirouter ignores them on send.
+// `idSource` is [AgrirouterIDSource]. A delivered `Id` holds no other entry
+// besides the local one.
 func IdentityOf(id oapi.Id) (Identity, error) {
 	var out Identity
 	if id.ReferenceId != nil {

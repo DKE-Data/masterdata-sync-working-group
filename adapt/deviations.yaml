@@ -52,9 +52,9 @@ schemas:
 
 
       On send the local identifier is `referenceId`, and the local entry is
-      the entry whose `idText` equals it. Of the rest, agrirouter reads only
-      an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every
-      other entry.
+      the entry whose `idText` equals it. `uniqueIds` holds at most the local
+      entry and the agrirouter entry, the one with `idSource`
+      `https://agrirouter.com`, one of each: any other entry is a `400`.
 
 
       As an object's own `id`, on send `referenceId` must equal the

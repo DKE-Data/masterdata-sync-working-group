@@ -43,7 +43,7 @@ func testStd() *adaptStd {
 
 func generateTest(t *testing.T, profile string) ([]genSchema, []string) {
 	t.Helper()
-	prof, err := parseProfile([]byte(profile), "profile.yaml")
+	prof, err := parseProfile([]byte(profile), "deviations.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

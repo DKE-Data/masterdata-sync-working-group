@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// schemaSpec is one schema of adapt/profile.yaml.
+// schemaSpec is one schema of adapt/deviations.yaml.
 type schemaSpec struct {
 	name        string
 	adapt       string

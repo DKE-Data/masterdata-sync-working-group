@@ -9,11 +9,11 @@
 #
 # Files are fetched by the commit the tag points to, not by the tag, so a
 # moved tag cannot change them unnoticed. They are committed unmodified: every
-# deviation from ADAPT lives in adapt/profile.yaml, and tools/adapt/generate.sh
+# deviation from ADAPT lives in adapt/deviations.yaml, and tools/adapt/generate.sh
 # refuses to run when a file no longer matches its checksum in the lock.
 #
 # After a pull, run tools/oapi/generate.sh. It fails on every ADAPT change the
-# profile does not account for yet.
+# deviations do not account for yet.
 
 set -euo pipefail
 

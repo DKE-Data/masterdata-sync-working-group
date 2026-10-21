@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -61,6 +62,42 @@ func TestAWriteIsAddressedByItsReferenceId(t *testing.T) {
 	}
 }
 
+func TestASentIdHoldsOnlyTheLocalAndTheAgrirouterEntry(t *testing.T) {
+	f := newFixture(t)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm, agmasync.TypeField)
+
+	local := `{"idText":"FRM-1","idTypeCode":"STRING"}`
+	legacy := `{"idText":"LEGACY-9","idTypeCode":"STRING","idSource":"https://legacy.example.com"}`
+	for name, uniqueIDs := range map[string]string{
+		"another entry":          local + "," + legacy,
+		"another entry alone":    legacy,
+		"two local entries":      local + "," + local,
+		"two agrirouter entries": agrirouterEntry(uuid.New()) + "," + agrirouterEntry(uuid.New()),
+		"a non-UUID agrirouter entry": `{"idText":"FRM-9","idTypeCode":"UUID",` +
+			`"idSource":"https://agrirouter.com"}`,
+	} {
+		write := `{"type":"farm","content":{"id":{"referenceId":"FRM-1","uniqueIds":[` + uniqueIDs + `]},` +
+			`"name":"Hof Nord"}}`
+		if status := putRaw(t, f, "fmis-a", p, "FRM-1", write); status != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want 400", name, status)
+		}
+	}
+	write := `{"type":"farm","content":{"id":{"referenceId":"FRM-1","uniqueIds":[` + local + `]},` +
+		`"name":"Hof Nord"}}`
+	if status := putRaw(t, f, "fmis-a", p, "FRM-1", write); status != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", status)
+	}
+
+	// A reference's id follows the same rule.
+	_, err := p.endpoint.PutJSON(context.Background(), []byte(body("field", "PFD-1",
+		`"name":"North 40","_agmasync_farmRef":{"id":{"referenceId":"FRM-1","uniqueIds":[`+
+			local+","+legacy+`]}}`)), nil)
+	var status *agrirouter.StatusError
+	if !errors.As(err, &status) || status.StatusCode != http.StatusBadRequest {
+		t.Errorf("reference with another entry: error = %v, want HTTP 400", err)
+	}
+}
+
 func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 	// A participant's own idTypeCode and idSource come back to it as its latest
 	// write of the object sent them, in the object's id and in references to
@@ -71,7 +108,6 @@ func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 
 	source := "https://fmis-a.example.com"
 	ownID := oapi.Id{ReferenceId: strptr("4711"), UniqueIds: &[]oapi.UniqueId{
-		{IdText: "LEGACY-9", IdTypeCode: agmasync.IDTypeString, IdSource: strptr("https://legacy.example.com")},
 		{IdText: "4711", IdTypeCode: "LONGINT", IdSource: &source},
 	}}
 	written, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: ownID, Name: "Hof Nord"}})

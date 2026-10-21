@@ -371,7 +371,7 @@ type FarmContent struct {
 	//
 	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving application's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the application last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
 	//
-	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. Of the rest, agrirouter reads only an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every other entry.
+	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
 	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving application has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id   Id     `json:"id"`
@@ -457,7 +457,7 @@ type FieldBoundaryContent struct {
 	//
 	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving application's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the application last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
 	//
-	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. Of the rest, agrirouter reads only an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every other entry.
+	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
 	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving application has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id        Id                            `json:"id"`
@@ -489,7 +489,7 @@ type FieldContent struct {
 	//
 	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving application's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the application last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
 	//
-	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. Of the rest, agrirouter reads only an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every other entry.
+	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
 	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving application has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id   Id     `json:"id"`
@@ -513,7 +513,7 @@ type HarvestPeriod struct {
 //
 // On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving application's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the application last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
 //
-// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. Of the rest, agrirouter reads only an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every other entry.
+// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 //
 // As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving application has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
 type Id struct {
@@ -792,7 +792,7 @@ type PartyContent struct {
 	//
 	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving application's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the application last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
 	//
-	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. Of the rest, agrirouter reads only an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every other entry.
+	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
 	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving application has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id Id `json:"id"`
@@ -877,7 +877,7 @@ type Ref struct {
 	//
 	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving application's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the application last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
 	//
-	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. Of the rest, agrirouter reads only an entry with `idSource` `https://agrirouter.com`, at most one, and ignores every other entry.
+	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
 	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving application has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id Id `json:"id"`

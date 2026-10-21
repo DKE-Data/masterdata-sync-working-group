@@ -36,20 +36,24 @@ type localEntry struct {
 }
 
 // read is what agrirouter takes from an `Id` on send: the agrirouter entry, at
-// most one, the `referenceId`, and the local entry whose `idText` equals it.
-// Every other entry is the sender's own business and is ignored.
+// most one, the `referenceId`, and the local entry whose `idText` equals it, at
+// most one. Any other entry is rejected.
 func (id wireID) read() (agrirouterID *uuid.UUID, local *localEntry, err error) {
 	for _, entry := range id.UniqueIDs {
-		if id.ReferenceID != nil && entry.IDText == *id.ReferenceID && local == nil {
+		if id.ReferenceID != nil && entry.IDText == *id.ReferenceID {
 			if entry.isAgrirouter() {
 				return nil, nil, fmt.Errorf("the local entry %q cannot have idSource %s, which is reserved",
 					entry.IDText, agmasync.AgrirouterIDSource)
+			}
+			if local != nil {
+				return nil, nil, errors.New("an id carries at most one local entry")
 			}
 			local = &localEntry{typeCode: entry.IDTypeCode, source: entry.IDSource}
 			continue
 		}
 		if !entry.isAgrirouter() {
-			continue
+			return nil, nil, fmt.Errorf("the entry %q is neither the local entry nor the agrirouter entry",
+				entry.IDText)
 		}
 		if agrirouterID != nil {
 			return nil, nil, errors.New("an id carries at most one agrirouter entry")
