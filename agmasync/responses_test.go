@@ -151,3 +151,22 @@ func TestStreamMaxEventSizeBoundsFrames(t *testing.T) {
 		t.Error("iteration ended without an error")
 	}
 }
+
+// TestBaseRevisionRequiredCarriesTheCurrentRevision pins that a 428 hands back
+// the revision the body names, so a participant whose create landed but whose
+// response was lost can rebase its resend without a round trip.
+func TestBaseRevisionRequiredCarriesTheCurrentRevision(t *testing.T) {
+	api := answer(t, http.StatusPreconditionRequired, "application/json",
+		`{"message":"base revision required","current_revision":4}`)
+	_, err := deactivate(api, agmasync.TypeFarm, "farm-1")
+	var conflict *agmasync.RevisionConflict
+	if !errors.As(err, &conflict) || !errors.Is(err, agmasync.ErrBaseRevisionRequired) {
+		t.Fatalf("error = %v, want a RevisionConflict matching ErrBaseRevisionRequired", err)
+	}
+	if conflict.CurrentRevision != 4 {
+		t.Errorf("CurrentRevision = %d, want 4", conflict.CurrentRevision)
+	}
+	if errors.Is(err, agmasync.ErrRevisionConflict) {
+		t.Errorf("a 428 matches ErrRevisionConflict")
+	}
+}

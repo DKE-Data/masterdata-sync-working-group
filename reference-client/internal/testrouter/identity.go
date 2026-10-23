@@ -28,8 +28,8 @@ func (u wireUniqueID) isAgrirouter() bool {
 // localEntry is what a participant's latest write of an object said about its
 // own identifier besides the identifier itself. agrirouter keeps it with the
 // binding and relays it back to that participant only, in the object's `id`
-// and in every reference to it. The zero value is what a write that sent no
-// local entry leaves: `STRING`, and no source.
+// and in every reference to it. A write that sent no local entry leaves none,
+// and none is relayed.
 type localEntry struct {
 	typeCode string
 	source   *string
@@ -77,24 +77,24 @@ func canonicalID(objID uuid.UUID) wireID {
 }
 
 // renderID is an object's `Id` as one application sees it: the agrirouter
-// entry, then the application's own local entry and `referenceId` where it has
-// bound the object, and neither where it has not. An absent local entry states
-// that agrirouter does not believe this application holds the object, which is
-// what makes an unbound object recognisable as one to create locally and bind.
+// entry, then the application's own `referenceId` where it has bound the
+// object, and none where it has not. An absent `referenceId` states that
+// agrirouter does not believe this application holds the object, which is what
+// makes an unbound object recognisable as one to create locally and bind. The
+// local entry is added only where the application's latest write of the object
+// sent one.
 func (s *store) renderID(appID string, objID uuid.UUID) wireID {
 	out := canonicalID(objID)
 	localID, ok := s.canonical[canonicalKey{appID, objID}]
 	if !ok {
 		return out
 	}
-	entry := s.localEntries[canonicalKey{appID, objID}]
-	if entry.typeCode == "" {
-		entry.typeCode = agmasync.IDTypeString
-	}
 	out.ReferenceID = &localID
-	out.UniqueIDs = append(out.UniqueIDs, wireUniqueID{
-		IDText: localID, IDTypeCode: entry.typeCode, IDSource: entry.source,
-	})
+	if entry, sent := s.localEntries[canonicalKey{appID, objID}]; sent {
+		out.UniqueIDs = append(out.UniqueIDs, wireUniqueID{
+			IDText: localID, IDTypeCode: entry.typeCode, IDSource: entry.source,
+		})
+	}
 	return out
 }
 

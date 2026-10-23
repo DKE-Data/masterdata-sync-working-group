@@ -147,10 +147,7 @@ paths:
 
 
         Within its own endpoint a local identifier denotes exactly one canonical
-        object, so this is a singleton: binding a second one is the `409`. A
-        sibling endpoint's bindings do not enter into it — an application with
-        one store behind several endpoints binds once per endpoint, often against
-        the same `local_id`. The request has no body,
+        object, so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindPartyMapping
       responses:
@@ -342,10 +339,7 @@ paths:
 
 
         Within its own endpoint a local identifier denotes exactly one canonical
-        object, so this is a singleton: binding a second one is the `409`. A
-        sibling endpoint's bindings do not enter into it — an application with
-        one store behind several endpoints binds once per endpoint, often against
-        the same `local_id`. The request has no body,
+        object, so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFarmMapping
       responses:
@@ -537,10 +531,7 @@ paths:
 
 
         Within its own endpoint a local identifier denotes exactly one canonical
-        object, so this is a singleton: binding a second one is the `409`. A
-        sibling endpoint's bindings do not enter into it — an application with
-        one store behind several endpoints binds once per endpoint, often against
-        the same `local_id`. The request has no body,
+        object, so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFieldMapping
       responses:
@@ -732,10 +723,7 @@ paths:
 
 
         Within its own endpoint a local identifier denotes exactly one canonical
-        object, so this is a singleton: binding a second one is the `409`. A
-        sibling endpoint's bindings do not enter into it — an application with
-        one store behind several endpoints binds once per endpoint, often against
-        the same `local_id`. The request has no body,
+        object, so this is a singleton: binding a second one is the `409`. The request has no body,
         both ends of the mapping being in the path, and is idempotent.
       operationId: bindFieldBoundaryMapping
       responses:
@@ -1635,13 +1623,13 @@ components:
         identifier, a sibling endpoint's of the same application included.
 
 
-        On delivery `uniqueIds` holds the agrirouter entry, the canonical
-        identifier, and a local entry, the receiving endpoint's local
-        identifier, in that order, and `referenceId` is present exactly when
-        the local entry is and equals its `idText`. The local entry's
-        `idTypeCode` and `idSource` are the ones the endpoint last sent
-        for that object: `idTypeCode` is `STRING` and `idSource` is absent
-        when it sent none.
+        On delivery `referenceId` is the receiving endpoint's local identifier,
+        present exactly when it has bound the object. `uniqueIds` holds the
+        agrirouter entry, the canonical identifier, and then, only when the
+        endpoint's latest write of the object sent one, the local entry it
+        sent: `idText` equal to `referenceId`, with that write's `idTypeCode`
+        and `idSource`. An endpoint that never sends a local entry receives
+        none.
 
 
         On send the local identifier is `referenceId`, and the local entry is
@@ -1652,10 +1640,10 @@ components:
 
         As an object's own `id`, on send `referenceId` must equal the
         `{local_id}` in the path, and an agrirouter entry, if any, must be the
-        object that `local_id` is bound to. On delivery the local entry and
-        `referenceId` are absent when the receiving endpoint has not bound
-        the object, or has unbound it. Their absence means "you do not hold
-        this object": create it locally and bind the identifier you issue.
+        object that `local_id` is bound to. On delivery `referenceId` and the
+        local entry are absent when the receiving endpoint has not bound the
+        object, or has unbound it. An absent `referenceId` means "you do not
+        hold this object": create it locally and bind the identifier you issue.
       properties:
         referenceId:
           type: string
@@ -1708,10 +1696,10 @@ components:
         `referenceId` is resolved against the calling endpoint's own mapping,
         and is rejected if the target has not been sent or bound through that
         endpoint yet. On delivery the
-        agrirouter entry is always present, and the local entry and
-        `referenceId` carry the receiving endpoint's own identifier for the
-        target, with the `idTypeCode` and `idSource` it last sent for the
-        target, or are absent when it has none. A sent reference with neither
+        agrirouter entry is always present, `referenceId` carries the
+        receiving endpoint's own identifier for the target, or is absent when
+        it has none, and the local entry is there only as in the target's own
+        `id`: as the endpoint's latest write of the target sent it. A sent reference with neither
         an agrirouter entry nor a `referenceId` is rejected with `400`. A reference is replaced whole
         on write.
       properties:
@@ -1889,10 +1877,10 @@ components:
               const: party
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
-                If sent, it must match the path.
+                If sent, it must match the path. Always present on delivery.
             content:
               $ref: '#/components/schemas/PartyContent'
-          required: [type, content]
+          required: [content]
 
     PartyContent:
       # Generated by tools/adapt from adapt/deviations.yaml. Do not edit.
@@ -2061,10 +2049,10 @@ components:
               const: farm
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
-                If sent, it must match the path.
+                If sent, it must match the path. Always present on delivery.
             content:
               $ref: '#/components/schemas/FarmContent'
-          required: [type, content]
+          required: [content]
 
     FarmContent:
       # Generated by tools/adapt from adapt/deviations.yaml. Do not edit.
@@ -2160,10 +2148,10 @@ components:
               const: field
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
-                If sent, it must match the path.
+                If sent, it must match the path. Always present on delivery.
             content:
               $ref: '#/components/schemas/FieldContent'
-          required: [type, content]
+          required: [content]
 
     FieldContent:
       # Generated by tools/adapt from adapt/deviations.yaml. Do not edit.
@@ -2327,10 +2315,10 @@ components:
               const: fieldBoundary
               description: >
                 Discriminator, set by agrirouter. Implied by the path on send.
-                If sent, it must match the path.
+                If sent, it must match the path. Always present on delivery.
             content:
               $ref: '#/components/schemas/FieldBoundaryContent'
-          required: [type, content]
+          required: [content]
 
     FieldBoundaryContent:
       # Generated by tools/adapt from adapt/deviations.yaml. Do not edit.

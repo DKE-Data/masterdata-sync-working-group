@@ -252,7 +252,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 	BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -317,7 +317,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -382,7 +382,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -451,7 +451,7 @@ type ClientInterface interface {
 	//
 	// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 	BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -759,7 +759,7 @@ func (c *Client) UnbindFarmMapping(ctx context.Context, localId LocalId, agrirou
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -894,7 +894,7 @@ func (c *Client) UnbindFieldBoundaryMapping(ctx context.Context, localId LocalId
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1029,7 +1029,7 @@ func (c *Client) UnbindFieldMapping(ctx context.Context, localId LocalId, agriro
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1168,7 +1168,7 @@ func (c *Client) UnbindPartyMapping(ctx context.Context, localId LocalId, agriro
 //
 // Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 func (c *Client) BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -3044,7 +3044,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3115,7 +3115,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3186,7 +3186,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3261,7 +3261,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 	//
-	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+	// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -5083,7 +5083,7 @@ func (c *ClientWithResponses) UnbindFarmMappingWithResponse(ctx context.Context,
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5196,7 +5196,7 @@ func (c *ClientWithResponses) UnbindFieldBoundaryMappingWithResponse(ctx context
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5309,7 +5309,7 @@ func (c *ClientWithResponses) UnbindFieldMappingWithResponse(ctx context.Context
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5426,7 +5426,7 @@ func (c *ClientWithResponses) UnbindPartyMappingWithResponse(ctx context.Context
 //
 // Declares that the canonical party in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. A sibling endpoint's bindings do not enter into it — an application with one store behind several endpoints binds once per endpoint, often against the same `local_id`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
 // Returns a wrapper object for the known response body format(s).
 //

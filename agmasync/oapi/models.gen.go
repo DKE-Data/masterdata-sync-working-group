@@ -352,8 +352,8 @@ type Farm struct {
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
-	Type interface{} `json:"type"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path. Always present on delivery.
+	Type interface{} `json:"type,omitempty"`
 }
 
 // FarmContent Based on the ADAPT `Farm`.
@@ -375,11 +375,11 @@ type FarmContent struct {
 
 	// Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
 	//
-	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving endpoint's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the endpoint last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
+	// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
 	//
 	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
-	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving endpoint has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
+	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id   Id     `json:"id"`
 	Name string `json:"name"`
 }
@@ -408,8 +408,8 @@ type Field struct {
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
-	Type interface{} `json:"type"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path. Always present on delivery.
+	Type interface{} `json:"type,omitempty"`
 }
 
 // FieldBoundary A geometry identifying the geo-spatial coordinates of a field, including its outer boundary and any obstacles left out. A field may have several boundaries that differ in geometry by intended use.
@@ -436,8 +436,8 @@ type FieldBoundary struct {
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
-	Type interface{} `json:"type"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path. Always present on delivery.
+	Type interface{} `json:"type,omitempty"`
 }
 
 // FieldBoundaryContent Based on the ADAPT `FieldBoundary`.
@@ -467,11 +467,11 @@ type FieldBoundaryContent struct {
 
 	// Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
 	//
-	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving endpoint's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the endpoint last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
+	// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
 	//
 	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
-	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving endpoint has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
+	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id        Id                            `json:"id"`
 	Name      nullable.Nullable[string]     `json:"name,omitempty"`
 	Obstacles nullable.Nullable[[]Obstacle] `json:"obstacles,omitempty"`
@@ -499,11 +499,11 @@ type FieldContent struct {
 
 	// Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
 	//
-	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving endpoint's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the endpoint last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
+	// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
 	//
 	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
-	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving endpoint has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
+	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id   Id     `json:"id"`
 	Name string `json:"name"`
 
@@ -523,11 +523,11 @@ type HarvestPeriod struct {
 
 // Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
 //
-// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving endpoint's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the endpoint last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
+// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
 //
 // On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 //
-// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving endpoint has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
+// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
 type Id struct {
 	// ReferenceId The near end's local identifier. Absent when it has none, which ADAPT does not allow.
 	ReferenceId *string `json:"referenceId,omitempty"`
@@ -783,8 +783,8 @@ type Party struct {
 	// One application stream carries every tenant the application is routed to, so on delivery this is the field that says which of them an object belongs to. A receiver holding data for several tenants partitions on it rather than on the connection.
 	TenantId *openapi_types.UUID `json:"tenant_id,omitempty"`
 
-	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path.
-	Type interface{} `json:"type"`
+	// Type Discriminator, set by agrirouter. Implied by the path on send. If sent, it must match the path. Always present on delivery.
+	Type interface{} `json:"type,omitempty"`
 }
 
 // PartyContent Based on the ADAPT `Party`. The party type is the `partyTypeCode` of `_agmasync_details`, not a `partyTypeCode` on the party itself.
@@ -805,11 +805,11 @@ type PartyContent struct {
 
 	// Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
 	//
-	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving endpoint's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the endpoint last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
+	// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
 	//
 	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
-	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving endpoint has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
+	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id Id `json:"id"`
 
 	// Name The name the party is known by: an organization's name, a person's full name.
@@ -886,15 +886,15 @@ type PutEndpointRequest struct {
 
 // Ref A reference to another entity, in place of ADAPT's `<name>Id` strings. A property `_agmasync_<name>Ref`, or `<name>Ref` inside a prefixed value.
 //
-// On send either identifier suffices: without an agrirouter entry, `referenceId` is resolved against the calling endpoint's own mapping, and is rejected if the target has not been sent or bound through that endpoint yet. On delivery the agrirouter entry is always present, and the local entry and `referenceId` carry the receiving endpoint's own identifier for the target, with the `idTypeCode` and `idSource` it last sent for the target, or are absent when it has none. A sent reference with neither an agrirouter entry nor a `referenceId` is rejected with `400`. A reference is replaced whole on write.
+// On send either identifier suffices: without an agrirouter entry, `referenceId` is resolved against the calling endpoint's own mapping, and is rejected if the target has not been sent or bound through that endpoint yet. On delivery the agrirouter entry is always present, `referenceId` carries the receiving endpoint's own identifier for the target, or is absent when it has none, and the local entry is there only as in the target's own `id`: as the endpoint's latest write of the target sent it. A sent reference with neither an agrirouter entry nor a `referenceId` is rejected with `400`. A reference is replaced whole on write.
 type Ref struct {
 	// Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
 	//
-	// On delivery `uniqueIds` holds the agrirouter entry, the canonical identifier, and a local entry, the receiving endpoint's local identifier, in that order, and `referenceId` is present exactly when the local entry is and equals its `idText`. The local entry's `idTypeCode` and `idSource` are the ones the endpoint last sent for that object: `idTypeCode` is `STRING` and `idSource` is absent when it sent none.
+	// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
 	//
 	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
 	//
-	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery the local entry and `referenceId` are absent when the receiving endpoint has not bound the object, or has unbound it. Their absence means "you do not hold this object": create it locally and bind the identifier you issue.
+	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
 	Id Id `json:"id"`
 }
 

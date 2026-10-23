@@ -153,20 +153,19 @@ func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("no-op write: %v", err)
 	}
-	want := `{"referenceId":"B-1","uniqueIds":[` + agrirouterEntry(farmID) + `,` +
-		`{"idText":"B-1","idTypeCode":"STRING"}]}`
+	// B sent no local entry, so it gets none: referenceId alone.
+	want := `{"referenceId":"B-1","uniqueIds":[` + agrirouterEntry(farmID) + `]}`
 	if got := idOf(t, attributesOf(t, seen)["id"]); got != want {
 		t.Errorf("B's id = %s, want %s", got, want)
 	}
 
-	// A write without a local entry resets it.
+	// A write without a local entry removes it.
 	base := revisionOf(t, created)
 	renamed, err := a.endpoint.Put(context.Background(), farm("4711", "Hof Süd"), &base)
 	if err != nil {
 		t.Fatalf("rename: %v", err)
 	}
-	want = `{"referenceId":"4711","uniqueIds":[` + agrirouterEntry(farmID) + `,` +
-		`{"idText":"4711","idTypeCode":"STRING"}]}`
+	want = `{"referenceId":"4711","uniqueIds":[` + agrirouterEntry(farmID) + `]}`
 	if got := idOf(t, attributesOf(t, renamed)["id"]); got != want {
 		t.Errorf("id after a write without a local entry = %s, want %s", got, want)
 	}

@@ -78,15 +78,29 @@ type RevisionConflict struct {
 	// may have written more than once since.
 	CurrentRevision int
 	Message         string
+	// Required marks a 428: the write carried no base revision at all, and
+	// the object exists. It matches [ErrBaseRevisionRequired] instead of
+	// [ErrRevisionConflict], and recovers the same way.
+	Required bool
 }
 
 func (e *RevisionConflict) Error() string {
+	if e.Required {
+		return fmt.Sprintf("agmasync: base revision required, current revision is %d: %s",
+			e.CurrentRevision, e.Message)
+	}
 	return fmt.Sprintf("agmasync: revision conflict, current revision is %d: %s",
 		e.CurrentRevision, e.Message)
 }
 
-// Is makes [errors.Is] match [ErrRevisionConflict].
-func (e *RevisionConflict) Is(target error) bool { return errors.Is(target, ErrRevisionConflict) }
+// Is makes [errors.Is] match [ErrRevisionConflict], or [ErrBaseRevisionRequired]
+// where Required.
+func (e *RevisionConflict) Is(target error) bool {
+	if e.Required {
+		return errors.Is(target, ErrBaseRevisionRequired)
+	}
+	return errors.Is(target, ErrRevisionConflict)
+}
 
 // MappingConflict reports a binding that could not be recorded.
 //
@@ -207,11 +221,14 @@ func (r writeResult) err() error {
 		}
 		return &APIError{r.statusCode, "precondition failed", ErrRevisionConflict}
 	case http.StatusPreconditionRequired:
-		msg := "base revision required"
-		if r.required != nil && r.required.Message != "" {
-			msg = r.required.Message
+		if r.required != nil {
+			return &RevisionConflict{
+				CurrentRevision: r.required.CurrentRevision,
+				Message:         r.required.Message,
+				Required:        true,
+			}
 		}
-		return &APIError{r.statusCode, msg, ErrBaseRevisionRequired}
+		return &APIError{r.statusCode, "base revision required", ErrBaseRevisionRequired}
 	default:
 		return &APIError{r.statusCode, unexpected(r.body), nil}
 	}

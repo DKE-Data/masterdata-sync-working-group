@@ -15,8 +15,8 @@ const (
 	IDTypeUUID         = "UUID"
 )
 
-// IDTypeString is the `idTypeCode` agrirouter delivers on a local entry when
-// the application sent none.
+// IDTypeString is the ADAPT IdType of an identifier that is an opaque string,
+// for a participant that sends a local entry for one.
 const IDTypeString = "STRING"
 
 // Identity is what an `Id` says, as the two identifiers this protocol reads
@@ -30,9 +30,9 @@ type Identity struct {
 // IdentityOf reads an `Id`, an object's own or a reference's.
 //
 // The local identifier is `referenceId`, which on delivery is present exactly
-// when the local entry is. The canonical one is the `uniqueIds` entry whose
-// `idSource` is [AgrirouterIDSource]. A delivered `Id` holds no other entry
-// besides the local one.
+// when the endpoint has bound the object; the local entry, delivered only where
+// the endpoint sent one, is not read. The canonical one is the `uniqueIds` entry
+// whose `idSource` is [AgrirouterIDSource].
 func IdentityOf(id oapi.Id) (Identity, error) {
 	var out Identity
 	if id.ReferenceId != nil {
