@@ -121,7 +121,7 @@ from them, and they SHOULD be used to resolve questions this document leaves ope
 
 - **n:m exchange.** Any reasonable number of connected systems can exchange the same master data with each other.
 - **agrirouter is the SSOT.** A canonical version of every entity plus a mapping to each endpoint's own identifier reduces drift and prevents update loops.
-- **Hard validation and canonicity.** The exchange format MUST be unambiguous: every logical value has exactly one valid encoding, and non-conforming payloads are rejected rather than repaired (see [Encoding and canonicity](#encoding-and-canonicity)).
+- **Hard validation and canonicity.** The exchange format MUST be unambiguous: every logical value has exactly one valid encoding, and non-conforming payloads are rejected rather than repaired, geometries aside, which agrirouter normalizes (see [Encoding and canonicity](#encoding-and-canonicity)).
 - **Facilitation, not a product.** The canonical store exists only to enable synchronization; it is not exposed or marketed as a standalone data product.
 
 ## Operations
@@ -433,7 +433,7 @@ Canonical attributes:
     - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
   - `gNSSBaseStationTypeCode`, `gNSSBaseSurveyTypeCode` (string, optional): from the ADAPT GNSSBaseStationType and GNSSBaseSurveyType lists.
   - `gNSSCorrectionNetworkName`, `gNSSCorrectionNetworkBrand` (string, optional): the GNSS correction network the geometry was recorded with, and its provider.
-- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary` has the attributes above except that its `geometry` is a WKT `POINT`, `LINESTRING`, or `POLYGON`, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
+- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary` has the attributes above, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
 - `_agmasync_boundaryType` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
@@ -497,8 +497,7 @@ and MAY use `label` to round-trip its own presentation.
 | `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter entry and, where the receiver sent one, its local entry. A sent one holds no others. | An object or target the receiver has not bound has no local identifier for it. [Hard validation](#hard-validation): an entry agrirouter would not keep is rejected, not dropped. |
 | The party carries no `partyTypeCode`. `_agmasync_details.partyTypeCode` carries the party type, as `PERSON` or `ORGANIZATION`. | A party of unknown type is one without details, and absence keeps another participant's statement under merge patch. |
 | FieldBoundary `name` is optional. | Not every system names boundaries. |
-| An obstacle's geometry may be a `POINT` or `LINESTRING`. | Poles and fences. |
-| WKT has one canonical form, and `arableArea` is in `ha` only (see [Encoding](#encoding)). | [Hard validation](#hard-validation). |
+| agrirouter delivers WKT in one canonical form, and `arableArea` is in `ha` only (see [Encoding](#encoding)). | [Hard validation](#hard-validation). |
 
 A FarmSPT attribute that a later ADAPT version gives a slot keeps its prefixed
 name until a breaking version of this document moves it.
@@ -512,13 +511,28 @@ The normative wire encoding is JSON as defined by the schemas of `openapi.yaml`,
 whose `content` types are based on ADAPT 2.0.2 (see
 [Relation to ADAPT](#relation-to-adapt)).
 
-Geometries are Well-Known Text in WGS84 (EPSG:4326), as in ADAPT, in one canonical
-form:
+Geometries are Well-Known Text in WGS84 (EPSG:4326), as in ADAPT. Positions are
+`longitude latitude` or `longitude latitude altitude`.
 
-- The geometry type in upper case (`POINT`, `LINESTRING`, `POLYGON`, `MULTIPOLYGON`), one space, and, for positions with altitude, `Z` and one space. Every position of a geometry has the same dimension.
-- A position is `longitude latitude` or `longitude latitude altitude`, separated by one space. Positions are separated by a comma and one space, and parentheses carry no whitespace inside them: `POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.56 52.205))`.
-- A number is decimal: an optional `-`, no leading zeros, no exponent, no trailing zeros after the decimal point, no decimal point without digits after it, and `0` rather than `-0`.
-- Rings are closed. `EMPTY` is not used.
+agrirouter accepts any valid WKT within these limits, and rejects the rest:
+
+- Only `POINT`, `POLYGON`, and `MULTIPOLYGON`, each where its attribute allows it.
+- No `EMPTY`, no `M` coordinates, and one dimension for every position.
+- A number has no leading `+`.
+- Rings are closed and have at least four positions.
+
+agrirouter stores and delivers every geometry in one canonical form, so two
+encodings of one geometry are one value:
+
+- The geometry type in upper case, one space, and, for positions with altitude, `Z` and one space.
+- Coordinates are separated by one space, positions by a comma and one space, and parentheses carry no whitespace inside them.
+- A number is the IEEE 754 double the input denotes, in the shortest decimal that reads back as it: no exponent, no leading or trailing zeros, and `0` rather than `-0`.
+- A `MULTIPOLYGON` of one polygon is that `POLYGON`.
+- A polygon's first ring runs counter-clockwise and every further ring clockwise, as in {{?RFC7946}}. A ring without area keeps its direction.
+- Every ring starts at its northmost position, then eastmost.
+
+`POLYGON((9.56 52.205,9.566 52.205,9.5665 52.208,9.56 52.205))` is delivered as
+`POLYGON ((9.5665 52.208, 9.56 52.205, 9.566 52.205, 9.5665 52.208))`.
 
 Areas are in hectares: `unitOfMeasureCode` is `ha`.
 
@@ -526,9 +540,9 @@ Areas are in hectares: `unitOfMeasureCode` is `ha`.
 
 Regardless of the finalized encoding, the following rules are normative:
 
-- The format MUST be **canonical**: every logical value has exactly one valid encoding. Producers MUST emit the canonical form; there is no "tolerant" reading of equivalent-but-different encodings.
+- The format MUST be **canonical**: every logical value has exactly one valid encoding. Producers MUST emit the canonical form; there is no "tolerant" reading of equivalent-but-different encodings. Geometries are the exception: agrirouter reads any valid WKT and normalizes it (see [Encoding](#encoding)), because WKT tools do not share one spelling and ADAPT and ISOXML give ring direction no meaning.
 - `null` is not a value. In a write it is the instruction to remove an attribute (see [Writing an entity](#writing-an-entity)); a canonical object never contains it.
-- agrirouter MUST validate every incoming master-data payload against the defined subset. If validation fails, the request MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Payloads are not silently repaired.
+- agrirouter MUST validate every incoming master-data payload against the defined subset. If validation fails, the request MUST be **rejected with an error** and MUST NOT be applied to the SSOT or forwarded. Payloads are not silently repaired, beyond normalizing geometries.
 - Validation and rejection apply only to the operations defined here; they do not change the handling of other, pre-existing agrirouter traffic.
 
 ## Extensible enumerations

@@ -2253,7 +2253,7 @@ components:
       description: The geometry of an obstacle, based on the ADAPT `Boundary`.
       properties:
         geometry:
-          $ref: '#/components/schemas/WktObstacle'
+          $ref: '#/components/schemas/WktArea'
         boundaryCreationMethodCode:
           type: string
           description: >
@@ -2392,28 +2392,17 @@ components:
     WktPoint:
       type: string
       description: >
-        A point as Well-Known Text in WGS84, in the canonical form of
-        "Encoding" in specification.md.
-      pattern: '^POINT (\(-?(0|[1-9][0-9]*)(\.[0-9]*[1-9])? -?(0|[1-9][0-9]*)(\.[0-9]*[1-9])?\)|Z \(-?(0|[1-9][0-9]*)(\.[0-9]*[1-9])? -?(0|[1-9][0-9]*)(\.[0-9]*[1-9])? -?(0|[1-9][0-9]*)(\.[0-9]*[1-9])?\))$'
+        A POINT as Well-Known Text in WGS84. Any valid WKT is accepted and
+        delivered in the canonical form of "Encoding" in specification.md.
       examples: ['POINT (9.5531 52.2089)']
 
     WktArea:
       type: string
       description: >
-        A polygon or multipolygon as Well-Known Text in WGS84. It MUST be in
-        the canonical form of "Encoding" in specification.md, which the pattern
-        does not check: it checks the geometry type only.
-      pattern: '^(POLYGON|MULTIPOLYGON) (Z )?\(.*\)$'
+        A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. Any valid WKT is
+        accepted and delivered in the canonical form of "Encoding" in
+        specification.md.
       examples: ['POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))']
-
-    WktObstacle:
-      type: string
-      description: >
-        A point, line string, or polygon as Well-Known Text in WGS84. It MUST
-        be in the canonical form of "Encoding" in specification.md, which the
-        pattern does not check: it checks the geometry type only.
-      pattern: '^(POINT|LINESTRING|POLYGON) (Z )?\(.*\)$'
-      examples: ['POINT (9.5621 52.2062)']
 
     EntityTypeToggle:
       type: object

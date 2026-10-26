@@ -264,7 +264,7 @@ schemas:
       - partyRoles
     properties:
       geometry:
-        ref: WktObstacle
+        ref: WktArea
 
   Obstacle:
     adapt: obstacle

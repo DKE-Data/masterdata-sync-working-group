@@ -194,7 +194,7 @@ type Boundary struct {
 	GNSSCorrectionNetworkBrand nullable.Nullable[string] `json:"gNSSCorrectionNetworkBrand,omitempty"`
 	GNSSCorrectionNetworkName  nullable.Nullable[string] `json:"gNSSCorrectionNetworkName,omitempty"`
 
-	// Geometry A polygon or multipolygon as Well-Known Text in WGS84. It MUST be in the canonical form of "Encoding" in specification.md, which the pattern does not check: it checks the geometry type only.
+	// Geometry A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
 	//
 	//
 	// Examples: POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))
@@ -733,11 +733,11 @@ type ObstacleBoundary struct {
 	GNSSCorrectionNetworkBrand *string `json:"gNSSCorrectionNetworkBrand,omitempty"`
 	GNSSCorrectionNetworkName  *string `json:"gNSSCorrectionNetworkName,omitempty"`
 
-	// Geometry A point, line string, or polygon as Well-Known Text in WGS84. It MUST be in the canonical form of "Encoding" in specification.md, which the pattern does not check: it checks the geometry type only.
+	// Geometry A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
 	//
 	//
-	// Examples: POINT (9.5621 52.2062)
-	Geometry WktObstacle `json:"geometry"`
+	// Examples: POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))
+	Geometry WktArea `json:"geometry"`
 }
 
 // OrganizationDetails A legal entity to which persons may belong.
@@ -981,17 +981,12 @@ type UniqueId struct {
 	IdTypeCode string `json:"idTypeCode"`
 }
 
-// WktArea A polygon or multipolygon as Well-Known Text in WGS84. It MUST be in the canonical form of "Encoding" in specification.md, which the pattern does not check: it checks the geometry type only.
+// WktArea A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
 //
 // Examples: POLYGON ((9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085, 9.56 52.205))
 type WktArea = string
 
-// WktObstacle A point, line string, or polygon as Well-Known Text in WGS84. It MUST be in the canonical form of "Encoding" in specification.md, which the pattern does not check: it checks the geometry type only.
-//
-// Examples: POINT (9.5621 52.2062)
-type WktObstacle = string
-
-// WktPoint A point as Well-Known Text in WGS84, in the canonical form of "Encoding" in specification.md.
+// WktPoint A POINT as Well-Known Text in WGS84. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
 //
 // Examples: POINT (9.5531 52.2089)
 type WktPoint = string
