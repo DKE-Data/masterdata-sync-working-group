@@ -372,9 +372,6 @@ type FarmContent struct {
 	// UnderscoreAgmasyncGrowerRef The party that holds the farm, in place of ADAPT's Grower. Absent where the farm's system does not record parties.
 	UnderscoreAgmasyncGrowerRef nullable.Nullable[Ref] `json:"_agmasync_growerRef,omitempty"`
 
-	// UnderscoreAgmasyncPartners Parties holding a role on this farm, such as the contractor that works it or the advisor that reads it.
-	UnderscoreAgmasyncPartners nullable.Nullable[[]Partner] `json:"_agmasync_partners,omitempty"`
-
 	// UnderscoreAgmasyncSpecialisedUsageType Production orientation of the farm (e.g. arable farming, dairy, vineyard, orchard). Free-form, drawn from AGROVOC where a matching concept exists.
 	UnderscoreAgmasyncSpecialisedUsageType nullable.Nullable[string] `json:"_agmasync_specialisedUsageType,omitempty"`
 	Description                            nullable.Nullable[string] `json:"description,omitempty"`
@@ -694,18 +691,6 @@ type MasterdataResetEventData struct {
 // MasterdataResetEventDataEventType Discriminator; matches the `event:` line.
 type MasterdataResetEventDataEventType string
 
-// Membership A role held by a person in one organization.
-type Membership struct {
-	// OrganizationRef The organization the person belongs to: a party whose `_agmasync_details` is an organization. A write naming any other party is a `400`, and so is a change or removal of party type on an organization that persons still name.
-	OrganizationRef Ref `json:"organizationRef"`
-
-	// RoleCode [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). From the ADAPT Role list.
-	//
-	//
-	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER, COLLECTOR
-	RoleCode Role `json:"roleCode"`
-}
-
 // Obstacle An in-field obstacle, based on the ADAPT `Obstacle`.
 type Obstacle struct {
 	// UnderscoreAgmasyncKind Obstacle kind, e.g. "pole", "tree", "waterhole".
@@ -751,18 +736,6 @@ type OrganizationDetails struct {
 	// CommercialRegistryNumber Identifier from the commercial register.
 	CommercialRegistryNumber nullable.Nullable[string] `json:"commercialRegistryNumber,omitempty"`
 	PartyTypeCode            interface{}               `json:"partyTypeCode"`
-}
-
-// Partner A party holding a role on a farm — the contractor that works it, the advisor that reads it. Shaped like the ADAPT `PartyRole`. Records a business relationship only. It does NOT grant visibility of the farm: what an endpoint receives is decided by opt-in and routing.
-type Partner struct {
-	// PartyRef The party acting as partner.
-	PartyRef Ref `json:"partyRef"`
-
-	// RoleCode [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). From the ADAPT Role list.
-	//
-	//
-	// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER, COLLECTOR
-	RoleCode Role `json:"roleCode"`
 }
 
 // Party A legal or natural actor: a person, an organization, or a party whose party type its sender does not record. It plays no fixed role: whether it acts as a contractor or as a client follows from the relations it stands in, not from an attribute.
@@ -827,15 +800,15 @@ type PartyDetails struct {
 	union json.RawMessage
 }
 
-// PersonDetails A natural person. A person may belong to one or more organizations through `memberships`.
+// PersonDetails A natural person. A person may belong to an organization, such as its employer, through `parentOrganizationRef`.
 type PersonDetails struct {
 	FirstName nullable.Nullable[string] `json:"firstName,omitempty"`
 	LastName  nullable.Nullable[string] `json:"lastName,omitempty"`
 
-	// Memberships The organizations this person belongs to, each with the role held there. A person carrying at least one entry is a member.
-	Memberships   nullable.Nullable[[]Membership] `json:"memberships,omitempty"`
-	PartyTypeCode interface{}                     `json:"partyTypeCode"`
-	Title         nullable.Nullable[string]       `json:"title,omitempty"`
+	// ParentOrganizationRef The organization this person belongs to, such as its employer: a party whose `_agmasync_details` is an organization. A write naming any other party is a `400`, and so is a change or removal of party type on an organization that persons still name.
+	ParentOrganizationRef nullable.Nullable[Ref]    `json:"parentOrganizationRef,omitempty"`
+	PartyTypeCode         interface{}               `json:"partyTypeCode"`
+	Title                 nullable.Nullable[string] `json:"title,omitempty"`
 }
 
 // PutEndpointRequest defines model for PutEndpointRequest.
@@ -910,11 +883,6 @@ type RevisionConflictError struct {
 	CurrentRevision int    `json:"current_revision"`
 	Message         string `json:"message"`
 }
-
-// Role [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). From the ADAPT Role list.
-//
-// Examples: UNKNOWN, AUTHORIZER, CROP_ADVISOR, CUSTOMER, CUSTOM_SERVICE_PROVIDER, DATA_SERVICES_PROVIDER, END_USER, FARM_MANAGER, FINANCIER, STATIONARY_ASSET_SUPPLIER, GOVERNMENT_AGENCY, GROWER, INPUT_SUPPLIER, INSURANCE_AGENT, IRRIGATION_MANAGER, LABORER, MARKET_ADVISOR, MARKET_PROVIDER, MOBILE_ASSET_SUPPLIER, OPERATOR, OWNER, TRANSPORTER, COLLECTOR
-type Role = string
 
 // RouteChangedEventData Data structure for `ROUTE_CHANGED` events on `/masterdata/events`. It states which entity types the user has selected for one of the application's endpoints.
 // One event covers every way the selection changes: the endpoint given a masterdata route for the first time, a further entity type selected on one already routed, a type deselected, and the last one deselected or the route removed.

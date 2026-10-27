@@ -148,26 +148,6 @@ schemas:
         type: string
         description: Numerical identifier assigned by public authorities.
 
-  Partner:
-    adapt: partyRole
-    replacedWhole: true
-    description: >
-      A party holding a role on a farm — the contractor that works it, the
-      advisor that reads it. Shaped like the ADAPT `PartyRole`. Records a
-      business relationship only. It does NOT grant visibility of the farm:
-      what an endpoint receives is decided by opt-in and routing.
-    exclude: [contextItems, timeScopes, partyId]
-    optional: [partyId]
-    unprefixed: [partyRef]
-    properties:
-      partyRef:
-        ref: Ref
-        required: true
-        description: The party acting as partner.
-
-  Role:
-    adapt: roleCode
-
   FarmContent:
     adapt: farm
     description: Based on the ADAPT `Farm`.
@@ -184,12 +164,6 @@ schemas:
           Production orientation of the farm (e.g. arable farming, dairy,
           vineyard, orchard). Free-form, drawn from AGROVOC where a
           matching concept exists.
-      _agmasync_partners:
-        type: array
-        ref: Partner
-        description: >
-          Parties holding a role on this farm, such as the contractor that
-          works it or the advisor that reads it.
       _agmasync_address:
         ref: AddressContactMethod
       _agmasync_geoReference:

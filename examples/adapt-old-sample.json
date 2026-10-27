@@ -1,7 +1,7 @@
 {
   "rootSchemaVersion": "2.0.2",
   "catalog": {
-    "description": "Hofgut Sonnenberg, Springe (Lower Saxony). ADAPT rendering of examples/agmasync-sample.json.",
+    "description": "Hofgut Sonnenberg, Springe (Lower Saxony). ADAPT rendering of examples/agmasync-old-sample.json.",
     "customDataTypeDefinitions": [
       {
         "definitionCode": "AgmaSync-CommercialRegistryNumber",

@@ -125,7 +125,7 @@ func (r Record) partsOf(attribute string) []string {
 }
 
 // modelledDetails names the attributes of each party type the platform has
-// columns for. A person's memberships are not among them, and so are kept.
+// columns for. A person's parentOrganizationRef is not among them, and so is kept.
 var modelledDetails = map[string][]string{
 	agmasync.PartyTypePerson:       {"title", "firstName", "lastName"},
 	agmasync.PartyTypeOrganization: {"commercialRegistryNumber"},

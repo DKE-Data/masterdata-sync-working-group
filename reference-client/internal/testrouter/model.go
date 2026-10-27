@@ -44,7 +44,7 @@ const detailsKey = "_agmasync_details"
 // specification promises and the only one a participant may rely on.
 //
 // It is per object rather than per type because parties split by party type: a
-// person names organizations through its memberships, so it goes one tier below
+// person names an organization through its parentOrganizationRef, so it goes one tier below
 // every other party. The tier is read from the content being delivered, and a
 // party that changed party type moves with it. See ADR 07.
 func tierOf(obj *object) int {
@@ -79,15 +79,12 @@ func partyTypeOf(details json.RawMessage) string {
 //
 // The protocol resolves references on the way in and rewrites them on the way
 // out, so the router has to know where they are. `in` names the object a slot
-// is nested in, `each` marks a slot that holds an array, and `attribute` the
-// key within each element; a slot with no `attribute` is the reference itself.
-// `target` is the entity type the slot references: every slot has exactly one.
-// `partyType`, where set, is the partyTypeCode its target must state.
+// is nested in. `target` is the entity type the slot references: every slot
+// has exactly one. `partyType`, where set, is the partyTypeCode its target must
+// state.
 type refSlot struct {
 	in        string
 	key       string
-	each      bool
-	attribute string
 	target    agmasync.EntityType
 	partyType string
 }
@@ -97,13 +94,12 @@ type refSlot struct {
 var refSlots = map[agmasync.EntityType][]refSlot{
 	agmasync.TypeParty: {
 		{
-			in: detailsKey, key: "memberships", each: true, attribute: "organizationRef",
+			in: detailsKey, key: "parentOrganizationRef",
 			target: agmasync.TypeParty, partyType: agmasync.PartyTypeOrganization,
 		},
 	},
 	agmasync.TypeFarm: {
 		{key: "_agmasync_growerRef", target: agmasync.TypeParty},
-		{key: "_agmasync_partners", each: true, attribute: "partyRef", target: agmasync.TypeParty},
 	},
 	agmasync.TypeField: {
 		{key: "_agmasync_farmRef", target: agmasync.TypeFarm},

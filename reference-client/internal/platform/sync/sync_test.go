@@ -818,7 +818,7 @@ func TestAPartyOfUnknownTypeIsFiledAndSentAsAnOrganization(t *testing.T) {
 
 func TestAPartyTypeChangeMovesTheRecordAndKeepsWhatItDoesNotModel(t *testing.T) {
 	// A delivery stating PERSON moves the record to the person table. Its writes
-	// then carry the person's modelled parts and leave memberships, which this
+	// then carry the person's modelled parts and leave parentOrganizationRef, which this
 	// platform does not model, to whoever does.
 	h := newHarness(t)
 	a := h.join("fmis-a", "ep-a", agmasync.TypeParty)
@@ -834,7 +834,7 @@ func TestAPartyTypeChangeMovesTheRecordAndKeepsWhatItDoesNotModel(t *testing.T) 
 
 	applyRaw(t, a,
 		body("party", "PTY-1", `"name":"PTY-1","_agmasync_details":{"partyTypeCode":"PERSON","lastName":"Meyer",`+
-			`"memberships":[{"organizationRef":{"id":{"referenceId":"ORG-1"}},"roleCode":"OWNER"}]}`),
+			`"parentOrganizationRef":{"id":{"referenceId":"ORG-1"}}}`),
 		revisionAfter(t, canonicalOf(t, a, agmasync.TypeParty, "PTY-1")))
 
 	// Read back from the person table. The organization table is read first, so
@@ -854,16 +854,16 @@ func TestAPartyTypeChangeMovesTheRecordAndKeepsWhatItDoesNotModel(t *testing.T) 
 	}
 
 	var details struct {
-		PartyTypeCode string            `json:"partyTypeCode"`
-		LastName      string            `json:"lastName"`
-		Memberships   []json.RawMessage `json:"memberships"`
+		PartyTypeCode         string          `json:"partyTypeCode"`
+		LastName              string          `json:"lastName"`
+		ParentOrganizationRef json.RawMessage `json:"parentOrganizationRef"`
 	}
 	got := contentOf(t, canonicalOf(t, a, agmasync.TypeParty, "PTY-1"))
 	if err := json.Unmarshal(got["_agmasync_details"], &details); err != nil {
 		t.Fatal(err)
 	}
-	if details.PartyTypeCode != "PERSON" || details.LastName != "Meyer" || len(details.Memberships) != 1 {
-		t.Errorf("_agmasync_details = %s, want the person kept with its membership", got["_agmasync_details"])
+	if details.PartyTypeCode != "PERSON" || details.LastName != "Meyer" || len(details.ParentOrganizationRef) == 0 {
+		t.Errorf("_agmasync_details = %s, want the person kept with its parentOrganizationRef", got["_agmasync_details"])
 	}
 }
 

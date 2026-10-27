@@ -611,8 +611,8 @@ func (l *Loader) dropRejected(rejected []oapi.IdMappingRejection) (map[ref]bool,
 // reference travels as this platform's own identifier for its target and
 // resolves against the mapping — a field sent before its farm names a farm
 // agrirouter cannot resolve. Within parties the order is per object, persons
-// after the organizations their memberships name, but this platform does not
-// model memberships and so sends parties that name nothing.
+// after the organization their parentOrganizationRef names, but this platform does not
+// model parentOrganizationRef and so sends parties that name nothing.
 //
 // A real product also re-sends here what its user changed while resolving
 // conflicts. That is an ordinary [Applier.Send] against a bound record, and this

@@ -2,16 +2,14 @@
 
 Hofgut Sonnenberg near Springe, Lower Saxony.
 
-- A GmbH owns the farm. Two partners hold roles on it: a contracting firm and
-  an independent crop advisor (person). The firm comes from a system that does
-  not record whether a party is a person or an organization, so it has no
-  `_agmasync_details`.
-- The farm manager, Dr. Katharina Brandt, privately owns the one field.
+- A GmbH owns the farm.
+- Its employee, Dr. Katharina Brandt, privately owns the one field. Her
+  `parentOrganizationRef` names the GmbH.
 - The field has a single administrative boundary with two obstacles.
 
 ## The wire format
 
-[option-f-sample.json](option-f-sample.json) is the farm as delivered to one
+[agmasync-current-sample.json](agmasync-current-sample.json) is the farm as delivered to one
 endpoint, in the encoding of [ADR 11](../architecture/11-entity-model.md)
 option F.
 
@@ -31,9 +29,13 @@ option F.
 
 ## ADR 11 comparison
 
+These two files predate [ADR 16](../architecture/16-person-organization.md)'s change
+from memberships and farm partners to `parentOrganizationRef`, and keep the model ADR 11
+compared.
+
 The same farm as AgmaSync's FarmSPT-derived model
-([agmasync-sample.json](agmasync-sample.json)) and as an ADAPT 2.0.2 catalog
-([adapt-sample.json](adapt-sample.json)), the inputs to ADR 11's analysis.
+([agmasync-old-sample.json](agmasync-old-sample.json)) and as an ADAPT 2.0.2 catalog
+([adapt-old-sample.json](adapt-old-sample.json)), the inputs to ADR 11's analysis.
 
 Every AgmaSync domain attribute is mapped. Of the envelope, only identity
 is carried, the rest being sync state. Where ADAPT has no slot, the value

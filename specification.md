@@ -253,7 +253,7 @@ two identifiers, as the paths and the binding operations name them.
 
 A **reference** to another entity (for example a field referring to its farm) is
 a property `_agmasync_<name>Ref`, or `<name>Ref` inside a prefixed value
-(`partyRef` in `_agmasync_partners`). Its `id` identifies the target as
+(`parentOrganizationRef` in `_agmasync_details`). Its `id` identifies the target as
 `content.id` does: by the target's agrirouter identifier, the referencing
 endpoint's local identifier for the target, or both:
 
@@ -323,12 +323,6 @@ Canonical attributes:
 - `_agmasync_taxId` (string, optional): numerical identifier assigned by tax authorities.
 - `_agmasync_tradeId` (string, optional): numerical identifier assigned by public authorities.
 
-No attribute records that a party *is* a contractor or *is* a customer. Those are
-relations, and are read from the graph: a party that appears as a partner on
-another party's farm is acting as a contractor or advisor there, and a party
-whose farm names such a partner is that partner's client. The same party may do
-both at once, in different relations.
-
 ### Party details
 
 `_agmasync_details` is discriminated by its `partyTypeCode`, a closed set. The
@@ -338,9 +332,7 @@ party itself carries no `partyTypeCode`, as it would in ADAPT.
   - `title` (string, optional).
   - `firstName` (string, optional).
   - `lastName` (string, optional).
-  - `memberships` (array, optional): the organizations this person belongs to. Each entry carries:
-    - `organizationRef` (reference, required): a party whose `_agmasync_details` is an `ORGANIZATION`.
-    - `roleCode` (string, required): the role held there, from the [ADAPT Role](https://adaptstandard.org/dtd.html) list.
+  - `parentOrganizationRef` (reference, optional): the organization this person belongs to, such as its employer: a party whose `_agmasync_details` is an `ORGANIZATION`.
 - `ORGANIZATION`: a legal entity to which persons may belong.
   - `commercialRegistryNumber` (string, optional): unique identifier out of the commercial register.
 
@@ -354,12 +346,12 @@ that party type, and the others receive it like any other change. A participant
 that leaves `_agmasync_details` out of its writes keeps what is canonical (see
 [Writing an entity](#writing-an-entity)).
 
-A person holding at least one membership is a **member** of the organizations it
-names. Membership is state on the person, so one advisor serving several
-organizations is a single canonical person rather than a copy per organization.
-agrirouter MUST reject with `400` a membership naming a party whose `_agmasync_details` is
-not an `ORGANIZATION`, and a change or removal of party type on an organization
-that persons still name.
+A person's `parentOrganizationRef` is state on the person. Only a person carries one,
+and it names an organization, which carries none, so the party graph is at most
+two levels deep and has no cycles. agrirouter MUST reject with `400` a
+`parentOrganizationRef` naming a party whose `_agmasync_details` is not an
+`ORGANIZATION`, and a change or removal of party type on an organization that
+persons still name.
 
 ## Farm
 
@@ -374,17 +366,6 @@ Canonical attributes (subset):
 - `_agmasync_address` (object, optional): an address as for a party, its `addressContactTypeCode` included, replaced whole on write.
 - `_agmasync_geoReference` (WKT `POINT`, optional): longitude and latitude of the farm.
 - `_agmasync_specialisedUsageType` (string, optional): production orientation of the farm, such as arable farming, dairy, vineyard, or orchard. Free-form. Participants SHOULD draw values from [AGROVOC](https://agrovoc.fao.org/) where a matching concept exists.
-- `_agmasync_partners` (array, optional): parties holding a role on this farm — the contractor that works it, the advisor that reads it. Each entry is shaped like an ADAPT `PartyRole`:
-
-  - `partyRef` (reference, required): the party.
-  - `roleCode` (string, required): the role, from the same [ADAPT Role](https://adaptstandard.org/dtd.html) list as a membership's.
-
-`_agmasync_partners` records a business relationship only. It MUST NOT be interpreted as
-granting access to the farm or to anything below it: what an endpoint receives is
-determined by opt-in and routing (see [Routing and opt-in](#routing-and-opt-in)),
-never by an attribute inside a synchronized object. A participant receiving a
-farm MUST NOT translate its partners into access grants in its own
-system without a separate decision by its user.
 
 ## Field
 
@@ -451,12 +432,11 @@ Canonical attributes:
 
 A field boundary references the field it describes; a field MAY reference a farm
 and MAY reference a party as its grower; a farm MAY reference the party that is its
-grower and further parties as partners; and a person MAY reference the
-organizations it belongs to.
+grower; and a person MAY reference the organization it belongs to.
 
-Memberships reference parties from a party, so dependency order is per object
-rather than per entity type: a person with memberships follows the organizations
-it names, on send and on delivery.
+A person's `parentOrganizationRef` references a party from a party, so dependency order is
+per object rather than per entity type: a person with a `parentOrganizationRef` follows the
+organization it names, on send and on delivery.
 
 Only a boundary's `_agmasync_fieldRef` is a **required** reference, and only it constrains
 what an endpoint declares and selects (see [Routing and opt-in](#routing-and-opt-in)).
@@ -497,6 +477,7 @@ and MAY use `label` to round-trip its own presentation.
 | `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter entry and, where the receiver sent one, its local entry. A sent one holds no others. | An object or target the receiver has not bound has no local identifier for it. [Hard validation](#hard-validation): an entry agrirouter would not keep is rejected, not dropped. |
 | The party carries no `partyTypeCode`. `_agmasync_details.partyTypeCode` carries the party type, as `PERSON` or `ORGANIZATION`. | A party of unknown type is one without details, and absence keeps another participant's statement under merge patch. |
 | FieldBoundary `name` is optional. | Not every system names boundaries. |
+| A person's parent is `_agmasync_details.parentOrganizationRef`, which names an organization. ADAPT's `parentPartyId` sits on any party. | The party graph stays two levels deep and free of cycles: a person belongs to an organization. |
 | agrirouter delivers WKT in one canonical form, and `arableArea` is in `ha` only (see [Encoding](#encoding)). | [Hard validation](#hard-validation). |
 
 A FarmSPT attribute that a later ADAPT version gives a slot keeps its prefixed
@@ -566,7 +547,7 @@ not an exhaustive set. Normatively:
 - A value outside the listed set MUST NOT be a validation failure (see [Hard validation](#hard-validation)) and MUST NOT cause the entity to be rejected, dropped, or altered.
 - Receivers MUST tolerate unknown values: never rewrite one, and where the value drives behaviour, fall back to the handling they apply to an unknown value. A receiver that cannot store an unknown value leaves the attribute out of its writes, which keeps it (see [Writing an entity](#writing-an-entity)).
 - Values are `UPPER_SNAKE_CASE`.
-- Where an [ADAPT](https://adaptstandard.org/dtd.html) enumeration covers the same concept, the values are that enumeration's codes, unchanged, and a value ADAPT adds is a value of the attribute. Today these are `roleCode` (ADAPT `Role`), `boundaryCreationMethodCode`, `addressContactTypeCode` (ADAPT `AddressContactType` plus `BILLING`), `telecommunicationContactTypeCode` and `idTypeCode`.
+- Where an [ADAPT](https://adaptstandard.org/dtd.html) enumeration covers the same concept, the values are that enumeration's codes, unchanged, and a value ADAPT adds is a value of the attribute. Today these are `boundaryCreationMethodCode`, `addressContactTypeCode` (ADAPT `AddressContactType` plus `BILLING`), `telecommunicationContactTypeCode` and `idTypeCode`.
 - Adding a value is a compatible change and MAY happen in a minor revision of this document. Removing or renaming a value is breaking and MUST NOT.
 
 ## Identifier mapping

@@ -51,39 +51,6 @@
   {
     "type": "party",
     "active": true,
-    "revision": 2,
-    "modified_at": "2026-03-02T15:40:00Z",
-    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
-    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-    "content": {
-      "id": {
-        "referenceId": "ORG-1002",
-        "uniqueIds": [
-          { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
-          { "idText": "ORG-1002", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
-        ]
-      },
-      "name": "Lohnunternehmen Meyer GmbH & Co. KG",
-      "contactInfo": {
-        "addressContactMethods": [
-          {
-            "addressContactTypeCode": "PHYSICAL",
-            "addressLines": ["Industriestraße 4"],
-            "city": "Bad Münder am Deister",
-            "postalCode": "31848",
-            "countrySubdivision": "Niedersachsen",
-            "countryCode": "DE"
-          }
-        ],
-        "telecommunicationContactMethods": [
-          { "valueText": "+49 5042 55120", "telecommunicationContactTypeCode": "FIXED_PHONE" }
-        ]
-      }
-    }
-  },
-  {
-    "type": "party",
-    "active": true,
     "revision": 4,
     "modified_at": "2026-08-30T10:05:12Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
@@ -108,58 +75,17 @@
         "title": "Dr.",
         "firstName": "Katharina",
         "lastName": "Brandt",
-        "memberships": [
-          {
-            "organizationRef": {
-              "id": {
-                "referenceId": "ORG-1001",
-                "uniqueIds": [
-                  { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
-                  { "idText": "ORG-1001", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
-                ]
-              }
-            },
-            "roleCode": "FARM_MANAGER"
+        "parentOrganizationRef": {
+          "id": {
+            "referenceId": "ORG-1001",
+            "uniqueIds": [
+              { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a51", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
+              { "idText": "ORG-1001", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
+            ]
           }
-        ]
+        }
       },
       "_agmasync_taxId": "12345678901"
-    }
-  },
-  {
-    "type": "party",
-    "active": true,
-    "revision": 1,
-    "modified_at": "2026-02-18T09:20:00Z",
-    "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
-    "source_endpoint_id": "8a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
-    "content": {
-      "id": {
-        "referenceId": "PER-2002",
-        "uniqueIds": [
-          { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
-          { "idText": "PER-2002", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
-        ]
-      },
-      "name": "Jonas Weber",
-      "contactInfo": {
-        "addressContactMethods": [
-          {
-            "addressContactTypeCode": "PHYSICAL",
-            "addressLines": ["Lindenweg 3"],
-            "city": "Ronnenberg",
-            "postalCode": "30952",
-            "countrySubdivision": "Niedersachsen",
-            "countryCode": "DE"
-          }
-        ],
-        "telecommunicationContactMethods": [
-          { "valueText": "+49 152 3344556", "telecommunicationContactTypeCode": "MOBILE_PHONE" },
-          { "valueText": "weber@agrarberatung-weber.de", "telecommunicationContactTypeCode": "EMAIL" }
-        ]
-      },
-      "_agmasync_details": { "partyTypeCode": "PERSON", "firstName": "Jonas", "lastName": "Weber" },
-      "_agmasync_taxNumber": "DE312345678"
     }
   },
   {
@@ -188,32 +114,6 @@
         }
       },
       "_agmasync_specialisedUsageType": "arable farming",
-      "_agmasync_partners": [
-        {
-          "partyRef": {
-            "id": {
-              "referenceId": "ORG-1002",
-              "uniqueIds": [
-                { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a53", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
-                { "idText": "ORG-1002", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
-              ]
-            }
-          },
-          "roleCode": "CUSTOM_SERVICE_PROVIDER"
-        },
-        {
-          "partyRef": {
-            "id": {
-              "referenceId": "PER-2002",
-              "uniqueIds": [
-                { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a57", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
-                { "idText": "PER-2002", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
-              ]
-            }
-          },
-          "roleCode": "CROP_ADVISOR"
-        }
-      ],
       "_agmasync_address": {
         "addressContactTypeCode": "PHYSICAL",
         "addressLines": ["Dorfstraße 12"],

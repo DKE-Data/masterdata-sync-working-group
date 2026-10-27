@@ -112,16 +112,16 @@ sweep does not track them at that granularity. It orders by a fixed reference gr
 instead: coarser, and enough, because an object can only reference objects of the
 classes its own class references, so an order that respects the graph respects
 every object dependency within it. A class is an entity type, except that parties
-split by party type: a membership references a party from a party, so a person sits one
-level below the organizations it names ([ADR 08](08-party-model.md)). The graph is
+split by party type: a person's `parentOrganizationRef` references a party from a party, so a person sits one
+level below the organization it names ([ADR 16](16-person-organization.md)). The graph is
 fixed by the canonical model rather than by the data, and each class sits at a
 fixed depth in it - its **tier**:
 
 | tier | class | references |
 | --- | --- | --- |
 | 0 | `party` without person `_agmasync_details` | none |
-| 1 | `party` with person `_agmasync_details` | organizations, through memberships |
-| 2 | `farm` | its owning party, its partner parties |
+| 1 | `party` with person `_agmasync_details` | its organization, through `parentOrganizationRef` |
+| 2 | `farm` | its owning party |
 | 3 | `field` | its farm, its owning party |
 | 4 | `fieldBoundary` | its field ([ADR 12](12-boundary-references-field.md)) |
 
@@ -478,7 +478,7 @@ rewritten - reads dependency order off the write history: nothing can reference 
 object that does not exist, so a parent's creating change always carries the lower
 number. It needs to know nothing about entity types, which is the whole of its
 appeal, and it holds only until a reference changes. A field moved to a farm created
-after it, a farm gaining a partner organization registered last week, a field's
+after it, a person moving to an organization registered last week, a field's
 owner reassigned to a person created today - each leaves a child whose creating
 number is below its parent's, and the sweep emits it first. Re-pointing a reference
 is an ordinary edit rather than an edge case, so the invariant does not survive
@@ -511,7 +511,7 @@ version would trade the ordering away to save.
   per-object dependency ordering.
 - **A party's tier depends on its content.** The tier of a party is read from its
   `_agmasync_details`, not from its type alone, so both sweep and tail derive it from the
-  revision they deliver, and membership targets are checked on write.
+  revision they deliver, and `parentOrganizationRef` targets are checked on write.
 - **A same-tier reference has no order to rely on.** Objects inside a tier arrive in
   change order, which says nothing about which of them references the other. No
   object in this version references one in its own tier, and the first that would -

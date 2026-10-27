@@ -589,8 +589,8 @@ func (s *store) checkKindChange(obj *object, patched map[string]json.RawMessage)
 		partyTypeOf(details) == agmasync.PartyTypeOrganization {
 		return nil
 	}
-	if s.namesAsMember(obj.id) {
-		return errors.New("the party is an organization persons still name in their memberships")
+	if s.namedAsParent(obj.id) {
+		return errors.New("the party is an organization persons still name as their parentOrganizationRef")
 	}
 	return nil
 }

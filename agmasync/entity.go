@@ -45,8 +45,8 @@ var EntityTypes = []EntityType{
 //
 // It is not [EntityTypes], which is the set rather than an order.
 //
-// Parties are the one type it does not order fully: a membership references a
-// party from a party, so within parties the order is per object — see
+// Parties are the one type it does not order fully: a person's parentOrganizationRef
+// references a party from a party, so within parties the order is per object — see
 // [PartyTier].
 var DependencyOrder = []EntityType{
 	TypeParty, TypeFarm, TypeField, TypeFieldBoundary,
@@ -217,11 +217,11 @@ func PartyTypeOf(p oapi.Party) (string, error) {
 }
 
 // PartyTier is the position of a party in send and delivery order: 1 for a
-// party with person `_agmasync_details`, which may name organizations through its
-// memberships, and 0 for any other, which references nothing.
+// party with person `_agmasync_details`, which may name an organization through
+// its parentOrganizationRef, and 0 for any other, which references nothing.
 //
-// Sending tier 0 before tier 1 means every membership target is bound by the
-// time a person names it. See "Entity dependencies" in specification.md and
+// Sending tier 0 before tier 1 means every parentOrganizationRef target is bound by
+// the time a person names it. See "Entity dependencies" in specification.md and
 // ADR 07.
 func PartyTier(p oapi.Party) (int, error) {
 	t, err := PartyTypeOf(p)

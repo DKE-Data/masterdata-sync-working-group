@@ -50,11 +50,11 @@ var person = body("party", "PTY-1", `"name":"Anke Meyer",`+
 var organization = body("party", "ORG-1", `"name":"Agrar GmbH",`+
 	`"_agmasync_details":{"partyTypeCode":"ORGANIZATION"}`)
 
-// member is a person who is a member of the party target names.
+// member is a person whose parentOrganizationRef names the party target names.
 func member(target string) string {
 	return body("party", "PTY-1", `"name":"Anke Meyer",`+
-		`"_agmasync_details":{"partyTypeCode":"PERSON","lastName":"Meyer","memberships":[`+
-		`{"organizationRef":{"id":{"referenceId":"`+target+`"}},"roleCode":"OWNER"}]}`)
+		`"_agmasync_details":{"partyTypeCode":"PERSON","lastName":"Meyer",`+
+		`"parentOrganizationRef":{"id":{"referenceId":"`+target+`"}}}`)
 }
 
 // boundaryOf is a boundary of the field named fieldID.
@@ -128,7 +128,7 @@ func TestAWriterThatDoesNotKnowTheKindKeepsIt(t *testing.T) {
 	}
 }
 
-func TestAMembershipMustNameAnOrganization(t *testing.T) {
+func TestAParentOrganizationRefMustNameAnOrganization(t *testing.T) {
 	f := newFixture(t)
 	p := f.join("fmis-a", "ep-a", agmasync.TypeParty)
 	put(t, p, body("party", "CUST-1", `"name":"Hof Nord"`), nil)
@@ -136,7 +136,7 @@ func TestAMembershipMustNameAnOrganization(t *testing.T) {
 
 	// A party of unknown party type might be a person; naming it is a 400.
 	if err := putErr(t, p, member("CUST-1"), nil); !errors.Is(err, agmasync.ErrValidation) {
-		t.Errorf("membership naming a party of unknown party type: error = %v, want ErrValidation", err)
+		t.Errorf("parentOrganizationRef naming a party of unknown party type: error = %v, want ErrValidation", err)
 	}
 	put(t, p, member("ORG-1"), nil)
 }

@@ -1,6 +1,7 @@
 # ADR 08 - Parties, membership, and partners
 
-- **Status:** WIP
+- **Status:** WIP; memberships and farm partners are superseded by
+  [ADR 16](./16-person-organization.md)
 - **Scope:** How AgmaSync models the people and businesses behind farms - who holds
   land, who belongs to an organization, and who works a farm for someone else
 

@@ -670,7 +670,7 @@ Compared with E:
 - **Generated code.** Prefixed names are valid identifiers, but generators
   spell them out: oapi-codegen produces `UnderscoreAgmasyncPartners`.
 
-[option-f-sample.json](../examples/option-f-sample.json) shows the whole farm.
+[agmasync-current-sample.json](../examples/agmasync-current-sample.json) shows the whole farm.
 
 F keeps E's strengths and makes the AgmaSync additions visible where they apply.
 The trade against C is the same as for E.

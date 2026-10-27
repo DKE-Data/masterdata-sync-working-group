@@ -25,7 +25,7 @@ type reference struct {
 // own keys without first correlating canonical ones.
 //
 // Every slot references one entity type, so the slot alone says where a
-// referenceId is looked up. A membership additionally has to name an
+// referenceId is looked up. A parentOrganizationRef additionally has to name an
 // organization, which is a check on the target's content rather than its type.
 func (s *store) resolveRefs(
 	ep *endpoint, typ agmasync.EntityType, content map[string]json.RawMessage,
@@ -56,7 +56,7 @@ func (s *store) resolveRefs(
 			return errUnresolvedRef
 		}
 		if slot.partyType != "" && partyTypeOf(obj.content[detailsKey]) != slot.partyType {
-			return fmt.Errorf("%s must name a party whose %s are %s", slot.attribute, detailsKey, slot.partyType)
+			return fmt.Errorf("%s must name a party whose %s are %s", slot.key, detailsKey, slot.partyType)
 		}
 		ref.ID = canonicalID(target)
 		return nil
@@ -84,8 +84,8 @@ func (s *store) rewriteRefs(
 	})
 }
 
-// namesAsMember reports whether any person's memberships name the object.
-func (s *store) namesAsMember(id uuid.UUID) bool {
+// namedAsParent reports whether any person's parentOrganizationRef names the object.
+func (s *store) namedAsParent(id uuid.UUID) bool {
 	for _, obj := range s.objects {
 		if obj.typ != agmasync.TypeParty {
 			continue
@@ -141,7 +141,7 @@ func (s *store) walkRefs(
 	return nil
 }
 
-// walkSlot visits the references in one slot of a container.
+// walkSlot visits the reference in one slot of a container.
 func walkSlot(
 	slot refSlot, container map[string]json.RawMessage, visit func(refSlot, *reference) error,
 ) error {
@@ -149,51 +149,11 @@ func walkSlot(
 	if !ok || len(raw) == 0 || isNull(raw) {
 		return nil
 	}
-	one := func(r *reference) error { return visit(slot, r) }
-
-	if !slot.each {
-		updated, err := visitRef(raw, one)
-		if err != nil {
-			return err
-		}
-		container[slot.key] = updated
-		return nil
+	updated, err := visitRef(raw, func(r *reference) error { return visit(slot, r) })
+	if err != nil {
+		return err
 	}
-
-	var items []json.RawMessage
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil
-	}
-	for i, item := range items {
-		if slot.attribute == "" {
-			updated, err := visitRef(item, one)
-			if err != nil {
-				return err
-			}
-			items[i] = updated
-			continue
-		}
-
-		var attributes map[string]json.RawMessage
-		if err := json.Unmarshal(item, &attributes); err != nil {
-			continue
-		}
-		inner, ok := attributes[slot.attribute]
-		if !ok {
-			continue
-		}
-		updated, err := visitRef(inner, one)
-		if err != nil {
-			return err
-		}
-		attributes[slot.attribute] = updated
-		if remade, err := json.Marshal(attributes); err == nil {
-			items[i] = remade
-		}
-	}
-	if remade, err := json.Marshal(items); err == nil {
-		container[slot.key] = remade
-	}
+	container[slot.key] = updated
 	return nil
 }
 

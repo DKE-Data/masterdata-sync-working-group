@@ -190,7 +190,7 @@ func TestIsRepeatLoad(t *testing.T) {
 }
 
 func TestPartyTierOrdersPersonsAfterOrganizations(t *testing.T) {
-	// A membership names an organization from a person, so persons go one tier
+	// A parentOrganizationRef names an organization from a person, so persons go one tier
 	// below every other party. The tier is read from the object, not its type.
 	party := func(name string, details nullable.Nullable[oapi.PartyDetails]) oapi.Party {
 		return oapi.Party{Content: oapi.PartyContent{Name: name, UnderscoreAgmasyncDetails: details}}
