@@ -170,15 +170,15 @@ type SyncRow struct {
 	AgrirouterID *uuid.UUID
 	Revision     *int
 
-	// Unbound is true where the platform told agrirouter it no longer holds the
-	// object. It is not the same as never having been bound: this record must
-	// not be sent, because the send would not resolve and would create a second
-	// canonical object for the same entity.
+	// Unbound is true where agrirouter refused the binding the platform
+	// offered for the record. It is not the same as never having been bound:
+	// this record must not be sent, because the send would not resolve and
+	// would create a second canonical object for the same entity.
 	Unbound bool
 }
 
 // Bound reports whether the record is bound to a canonical object. An unbound
-// record has never been sent, or has been unbound, and must not be sent under
+// record has never been sent, or had its binding refused, and must not be sent under
 // its own identifier until it is bound — an unbound send does not resolve and
 // mints a duplicate.
 func (r SyncRow) Bound() bool { return r.AgrirouterID != nil }
@@ -290,11 +290,12 @@ func (t *Tx) PutSyncRow(r SyncRow) error {
 	return nil
 }
 
-// Unbind drops the correspondence while leaving the record itself alone.
+// Unbind drops the correspondence while leaving the record itself alone, for a
+// binding agrirouter refused to record.
 //
-// It is the local half of unbinding: the platform stops claiming to hold the
-// canonical object. The record stays, because the platform may still want it —
-// what has gone is the claim that it is the same thing agrirouter holds.
+// The record stays, because the platform still holds it — what has gone is the
+// claim that it is the same thing agrirouter holds, and until a person settles
+// what it is, it must not be sent.
 //
 // The row is marked rather than deleted. A record with no row at all is one that
 // has never been sent, which is sendable; this one is not, and nothing else
@@ -310,6 +311,20 @@ func (t *Tx) Unbind(tenantID uuid.UUID, typ agmasync.EntityType, localID string)
 		tenantID.String(), string(typ), localID)
 	if err != nil {
 		return fmt.Errorf("unbinding: %w", err)
+	}
+	return nil
+}
+
+// DropSyncRow forgets the bookkeeping for one record in one agrirouter tenant,
+// leaving it a record the platform has never sent. A correction to none does
+// this: the record matched nothing, and is sent as a create.
+func (t *Tx) DropSyncRow(tenantID uuid.UUID, typ agmasync.EntityType, localID string) error {
+	_, err := t.tx.Exec(`
+		DELETE FROM agmasync_object
+		 WHERE agrirouter_tenant_id = ? AND entity_type = ? AND local_id = ?`,
+		tenantID.String(), string(typ), localID)
+	if err != nil {
+		return fmt.Errorf("dropping sync row: %w", err)
 	}
 	return nil
 }

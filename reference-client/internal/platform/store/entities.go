@@ -749,13 +749,10 @@ func rebuildModelled(r *Record, table string, values map[string]sql.NullString) 
 // showing it to a user — and dropping the pair would leave that one unable to
 // send it and unable to recognise its next delivery.
 //
-// It is a local deletion and nothing else: it says nothing to agrirouter, which
-// goes on holding the canonical object and the mapping to it. Tell agrirouter
-// with [Applier.Unbind] first — the platform no longer holds the object — or the
-// mapping is left naming a record that is gone and the object's next change is
-// delivered under an identifier that resolves to nothing. Deleting a record the
-// platform shares is not a deactivation either: what it deactivates for
-// everybody is [Applier.Deactivate].
+// It is a local deletion and nothing else, and it takes the pair with it, so it
+// is for a record that was never bound. A bound record's localId outlives it:
+// the user's deletion is [Applier.Deactivate], and a drop that keeps the pair as
+// a tombstone is [Tx.ForgetRecord].
 func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 	tables, err := tablesOf(typ)
 	if err != nil {
@@ -792,14 +789,13 @@ func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 }
 
 // ForgetRecord removes a record and leaves the binding to the canonical object
-// behind, as a restore that missed the tables the records sit in does.
+// behind: a tombstone.
 //
-// It is not something a platform chooses. [Tx.DeleteRecord] is the deliberate
-// deletion and takes the pair with it; this is the state a partial loss leaves,
-// where the bookkeeping remembers an object the platform no longer holds. The
-// binding is what makes it recoverable: it names the canonical object, which is
-// what a request needs, and agrirouter is not told anything, since the platform
-// wants the object back rather than to say it no longer holds it.
+// A platform drops a bound record this way, since no operation detaches it from
+// an object the network keeps, and it is also the state a restore that missed
+// the tables the records sit in leaves. The binding names the canonical object,
+// so a request brings it back, and its next delivery recreates the record under
+// the same localId. agrirouter is not told anything.
 func (t *Tx) ForgetRecord(typ agmasync.EntityType, localID string) error {
 	tables, err := tablesOf(typ)
 	if err != nil {

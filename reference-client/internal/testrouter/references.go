@@ -18,7 +18,7 @@ type reference struct {
 //
 // On send a participant may use either identifier. A reference without an
 // agrirouter entry is resolved by its referenceId against the sending
-// participant's own mapping, and if it does not resolve — the target has not
+// endpoint's own mapping, and if it does not resolve — the target has not
 // been sent yet — the write is rejected, which is what forces a target to be
 // sent before the first reference to it. This is what keeps the agrirouter
 // identifier off the write path: a participant builds references out of its
@@ -65,21 +65,21 @@ func (s *store) resolveRefs(
 
 // rewriteRefs prepares an outgoing entity's references for one recipient.
 //
-// agrirouter keeps the agrirouter entry and adds the receiving participant's
-// own identifier for the target, omitting it where there is none. It must not
-// be the sender's: the receiver resolves through the agrirouter entry, so the
-// sender's key carries no meaning in the receiver's namespace, and passing it
-// through would disclose the sender's internal key for the target. This is the
-// same rule the object's own `id` follows.
+// agrirouter keeps the agrirouter entry and adds the receiving endpoint's own
+// identifier for the target, omitting it where there is none. It must not be
+// the sender's, even a sibling endpoint's: the receiver resolves through the
+// agrirouter entry, so the sender's key carries no meaning in the receiver's
+// namespace, and passing it through would disclose the sender's internal key
+// for the target. This is the same rule the object's own `id` follows.
 func (s *store) rewriteRefs(
-	appID string, typ agmasync.EntityType, content map[string]json.RawMessage,
+	endpointID uuid.UUID, typ agmasync.EntityType, content map[string]json.RawMessage,
 ) {
 	_ = s.walkRefs(typ, content, func(_ refSlot, ref *reference) error {
 		target, _, err := ref.ID.read()
 		if err != nil || target == nil {
 			return nil
 		}
-		ref.ID = s.renderID(appID, *target)
+		ref.ID = s.renderID(endpointID, *target)
 		return nil
 	})
 }

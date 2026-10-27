@@ -40,6 +40,9 @@ func (e *revisionConflict) Is(target error) bool { return target == errRevisionC
 type mappingConflict struct {
 	reason   string
 	existing *binding
+	// submitted is the pair the rejection restates, where it is not the
+	// existing one: a correction names its own entry.
+	submitted *binding
 }
 
 func (e *mappingConflict) Error() string { return e.reason }
@@ -60,30 +63,34 @@ type store struct {
 
 	objects map[uuid.UUID]*object
 
-	// local maps a participant's own identifier to a canonical object. The key
-	// is (application, tenant, entity type, localId): a participant keeps one
-	// store behind however many endpoints it operates, so the same string from
-	// two of its endpoints in a tenant names the same record. Which endpoint
-	// acted still decides entitlement and sourceEndpointId; it does not
-	// partition this.
-	//
-	// Tenant does, because a canonical object belongs to one tenant. A
-	// participant holding one record in several tenants sends it under the same
-	// localId in each, and each tenant resolves it to its own canonical object.
+	// local maps an endpoint's own identifier to a canonical object. The key is
+	// (endpoint, entity type, localId): a localId names a record only in the
+	// namespace of the endpoint that sent it, so two endpoints of one
+	// application may use the same string for unrelated objects, and different
+	// strings for the same one. The specification keys it by the endpoint's
+	// external_id within its tenant; the agrirouter endpoint id is equivalent
+	// here, because the mapping does not outlive the endpoint.
 	local map[localKey]uuid.UUID
 
 	// canonical is the same mapping read the other way, which delivery needs:
-	// what does this participant call this object?
+	// what does this endpoint call this object?
 	canonical map[canonicalKey]string
 
-	// localEntries holds, per binding, what the participant's latest write of
-	// the object said about its local entry, relayed back to it alone. A
+	// localEntries holds, per binding, what the endpoint's latest write of the
+	// object said about its local entry, relayed back to it alone. A
 	// binding without one renders as `STRING` with no source.
 	localEntries map[canonicalKey]localEntry
 
 	endpoints  map[uuid.UUID]*endpoint
 	byExternal map[string]*endpoint
 	tenants    map[uuid.UUID]bool
+
+	// participants holds, per tenant, every application that has had an
+	// endpoint there take part. It outlives the endpoints: an application
+	// whose endpoints in the tenant were all removed may have kept a
+	// correspondence table for them, and a reset is what tells it to discard
+	// that table.
+	participants map[uuid.UUID]map[string]bool
 
 	// resets holds, per tenant, its latest masterdata reset. It is never
 	// discarded: positions do not expire, so a participant resuming from before
@@ -98,22 +105,20 @@ type store struct {
 }
 
 type localKey struct {
-	appID    string
-	tenantID uuid.UUID
-	typ      agmasync.EntityType
-	localID  string
+	endpointID uuid.UUID
+	typ        agmasync.EntityType
+	localID    string
 }
 
-// localKeyOf is the mapping key an endpoint's localId resolves under: its
-// application's, in its tenant.
+// localKeyOf is the mapping key an endpoint's localId resolves under: its own.
 func localKeyOf(ep *endpoint, typ agmasync.EntityType, localID string) localKey {
-	return localKey{ep.appID, ep.tenantID, typ, localID}
+	return localKey{ep.id, typ, localID}
 }
 
-// canonicalKey needs no tenant: the object it names belongs to exactly one.
+// canonicalKey needs no tenant: the endpoint belongs to exactly one.
 type canonicalKey struct {
-	appID string
-	objID uuid.UUID
+	endpointID uuid.UUID
+	objID      uuid.UUID
 }
 
 func newStore(hub *hub, obs *observer) *store {
@@ -125,6 +130,7 @@ func newStore(hub *hub, obs *observer) *store {
 		endpoints:    map[uuid.UUID]*endpoint{},
 		byExternal:   map[string]*endpoint{},
 		tenants:      map[uuid.UUID]bool{},
+		participants: map[uuid.UUID]map[string]bool{},
 		resets:       map[uuid.UUID]tenantReset{},
 		hub:          hub,
 		observer:     obs,
@@ -166,9 +172,8 @@ func (s *store) put(
 	if !known {
 		// A base on a write that resolves to nothing is a `412`: the
 		// participant believes it is updating an object agrirouter does not
-		// know under that localId — after an unbind, for example — and
-		// creating one silently would be the duplicate binding exists to
-		// prevent.
+		// know under that localId, and creating one silently would be the
+		// duplicate binding exists to prevent.
 		if base != nil {
 			return nil, false, &revisionConflict{current: 0}
 		}
@@ -180,7 +185,7 @@ func (s *store) put(
 			}
 		}
 		obj := s.create(ep, typ, localID, content, active == nil || *active)
-		s.recordLocalEntry(ep.appID, obj.id, sent.local)
+		s.recordLocalEntry(ep.id, obj.id, sent.local)
 		s.deliver(obj, ep.id, false)
 		return obj, true, nil
 	}
@@ -188,7 +193,7 @@ func (s *store) put(
 	obj := s.objects[objID]
 	// What the write says about its local entry is kept whatever else it
 	// changes: it is not content, and no other participant sees it.
-	s.recordLocalEntry(ep.appID, obj.id, sent.local)
+	s.recordLocalEntry(ep.id, obj.id, sent.local)
 
 	// Only what the write carries can change. An attribute it leaves out is
 	// neither a change of its own nor in the way of anyone else's.
@@ -294,7 +299,7 @@ func (s *store) create(
 	}
 	s.objects[obj.id] = obj
 	s.local[localKeyOf(ep, typ, localID)] = obj.id
-	s.canonical[canonicalKey{ep.appID, obj.id}] = localID
+	s.canonical[canonicalKey{ep.id, obj.id}] = localID
 	return obj
 }
 
@@ -339,12 +344,13 @@ func (s *store) deactivate(
 	return obj, nil
 }
 
-// bind records that a canonical object is one this participant already holds.
+// bind records that a canonical object is one this endpoint already holds.
 //
 // It creates no revision, does not change sourceEndpointId, and is delivered to
 // nobody. A local identifier denotes exactly one canonical object, so binding a
-// second is a conflict, and so is claiming an object the participant already
-// knows under another identifier.
+// second is a conflict, and so is claiming an object the endpoint already
+// knows under another identifier. A sibling endpoint's bindings do not enter
+// into it: each endpoint binds for itself.
 func (s *store) bind(ep *endpoint, typ agmasync.EntityType, localID string, objID uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -371,7 +377,7 @@ func (s *store) bindLocked(
 			existing: &binding{LocalID: localID, AgrirouterID: existing},
 		}
 	}
-	if existing, ok := s.canonical[canonicalKey{ep.appID, objID}]; ok {
+	if existing, ok := s.canonical[canonicalKey{ep.id, objID}]; ok {
 		return &mappingConflict{
 			reason:   agmasync.ReasonAgrirouterIDAlreadyBound,
 			existing: &binding{LocalID: existing, AgrirouterID: objID},
@@ -379,30 +385,79 @@ func (s *store) bindLocked(
 	}
 
 	s.local[localKeyOf(ep, typ, localID)] = objID
-	s.canonical[canonicalKey{ep.appID, objID}] = localID
-	delete(s.localEntries, canonicalKey{ep.appID, objID})
+	s.canonical[canonicalKey{ep.id, objID}] = localID
+	delete(s.localEntries, canonicalKey{ep.id, objID})
 	return nil
 }
 
-// unbind declares that the participant no longer holds an object.
+// correction is one entry of a correction: localID ends mapped to objID, or to
+// nothing where objID is nil.
+type correction struct {
+	localID string
+	objID   *uuid.UUID
+}
+
+// correct replaces bindings the participant's user found wrong.
 //
-// It removes no canonical object, touches no other participant's mapping,
-// creates no revision, and reaches nobody. It answers the same whether or not a
-// mapping existed, so a retry after a lost response is safe.
-func (s *store) unbind(
-	ep *endpoint, typ agmasync.EntityType, localID string, objID uuid.UUID,
-) error {
+// Uniqueness is checked on the result, so a swap is one call, applied whole or
+// not at all. A target held by a localId the request does not list is not
+// taken from it: that is the conflict. Like a bind it creates no revision, does
+// not change sourceEndpointId, and is delivered to nobody.
+func (s *store) correct(ep *endpoint, typ agmasync.EntityType, entries []correction) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	obj, ok := s.objects[objID]
-	if !ok || obj.typ != typ {
-		return errNotFound
+	if !ep.optedInto(typ) {
+		return errForbidden
 	}
-	if current, ok := s.local[localKeyOf(ep, typ, localID)]; ok && current == objID {
-		delete(s.local, localKeyOf(ep, typ, localID))
-		delete(s.canonical, canonicalKey{ep.appID, objID})
-		delete(s.localEntries, canonicalKey{ep.appID, objID})
+	listed := map[string]bool{}
+	targets := map[uuid.UUID]bool{}
+	for _, e := range entries {
+		if listed[e.localID] {
+			return fmt.Errorf("localId %q is listed more than once", e.localID)
+		}
+		listed[e.localID] = true
+		if e.objID == nil {
+			continue
+		}
+		if targets[*e.objID] {
+			return fmt.Errorf("agrirouterId %s is listed more than once", *e.objID)
+		}
+		targets[*e.objID] = true
+	}
+	for _, e := range entries {
+		if e.objID == nil {
+			continue
+		}
+		obj, ok := s.objects[*e.objID]
+		if !ok || obj.typ != typ || obj.tenantID != ep.tenantID {
+			return errNotFound
+		}
+		if holder, ok := s.canonical[canonicalKey{ep.id, *e.objID}]; ok && !listed[holder] {
+			return &mappingConflict{
+				reason:    agmasync.ReasonAgrirouterIDAlreadyBound,
+				existing:  &binding{LocalID: holder, AgrirouterID: *e.objID},
+				submitted: &binding{LocalID: e.localID, AgrirouterID: *e.objID},
+			}
+		}
+	}
+
+	// Every listed pair is dropped before any is written, so a swap never
+	// passes through a state in which one object has two names.
+	for _, e := range entries {
+		key := localKeyOf(ep, typ, e.localID)
+		if old, ok := s.local[key]; ok {
+			delete(s.local, key)
+			delete(s.canonical, canonicalKey{ep.id, old})
+			delete(s.localEntries, canonicalKey{ep.id, old})
+		}
+	}
+	for _, e := range entries {
+		if e.objID == nil {
+			continue
+		}
+		s.local[localKeyOf(ep, typ, e.localID)] = *e.objID
+		s.canonical[canonicalKey{ep.id, *e.objID}] = e.localID
 	}
 	return nil
 }
@@ -414,16 +469,12 @@ func (s *store) entitled(ep *endpoint, obj *object) bool {
 	return ep.tenantID == obj.tenantID && ep.optedInto(obj.typ)
 }
 
-// recipients returns one endpoint per application the object is delivered to,
-// in a stable order, optionally excluding the endpoint a change came from.
+// recipients returns every endpoint the object is delivered to, in a stable
+// order, optionally excluding the endpoint a change came from.
 //
-// Entitlement and origin suppression are decided per endpoint — tenant, opt-in,
-// and who wrote the change — but delivery is not. A frame names no endpoint, it
-// is rendered in the application's namespace, and it goes to a subscription the
-// application holds once. Two entitled siblings would therefore produce two
-// identical frames on one connection, so the fan-out collapses them: the
-// application is a recipient if any of its endpoints is, and the surviving
-// endpoint stands for it. Which sibling survives is not observable.
+// Each gets a frame of its own, even where two belong to one application and
+// share its stream: a frame is rendered in its recipient's namespace and names
+// it, so siblings' frames differ in the identifiers they carry.
 func (s *store) recipients(obj *object, exclude uuid.UUID) []*endpoint {
 	var eps []*endpoint
 	for _, ep := range s.endpoints {
@@ -435,22 +486,12 @@ func (s *store) recipients(obj *object, exclude uuid.UUID) []*endpoint {
 	sort.Slice(eps, func(i, j int) bool {
 		return eps[i].id.String() < eps[j].id.String()
 	})
-
-	seen := map[string]bool{}
-	deduped := eps[:0]
-	for _, ep := range eps {
-		if seen[ep.appID] {
-			continue
-		}
-		seen[ep.appID] = true
-		deduped = append(deduped, ep)
-	}
-	return deduped
+	return eps
 }
 
-// deliver fans a change out to every entitled application, suppressing the
-// endpoint it originated from. An application holding two entitled endpoints
-// receives the object once: the two frames would be identical.
+// deliver fans a change out to every entitled endpoint, suppressing the one it
+// originated from. Every frame of the change carries the same position: the
+// stream is the application's, and fan-out happens at render time.
 func (s *store) deliver(obj *object, source uuid.UUID, deactivated bool) {
 	event := eventMasterdataChanged
 	if deactivated {
@@ -478,18 +519,16 @@ func (s *store) deliverTo(ep *endpoint, obj *object) {
 	})
 }
 
-// render produces the object as one participant sees it. Every local
-// identifier in the result — the object's own and one per reference — is
-// resolved in the participant's namespace, which is keyed by application and
-// tenant: two endpoints of one application in the object's tenant render
-// identically, and the frame names no endpoint at all.
+// render produces the object as one endpoint sees it. Every local identifier
+// in the result — the object's own and one per reference — is resolved in that
+// endpoint's namespace, and recipient_endpoint_id names it.
 func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 	content := map[string]json.RawMessage{}
 	for k, v := range obj.content {
 		content[k] = v
 	}
-	s.rewriteRefs(ep.appID, obj.typ, content)
-	if id, err := json.Marshal(s.renderID(ep.appID, obj.id)); err == nil {
+	s.rewriteRefs(ep.id, obj.typ, content)
+	if id, err := json.Marshal(s.renderID(ep.id, obj.id)); err == nil {
 		content["id"] = id
 	}
 
@@ -506,6 +545,7 @@ func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 	put("modified_at", obj.modifiedAt)
 	put("tenant_id", obj.tenantID)
 	put("source_endpoint_id", obj.sourceEndpointID)
+	put("recipient_endpoint_id", ep.id)
 	put("content", content)
 
 	raw, err := json.Marshal(out)

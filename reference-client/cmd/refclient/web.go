@@ -264,12 +264,12 @@ type objectRow struct {
 	Unbound      bool
 	Attributes   []attribute
 
-	// Deletable says the record can be dropped here, and Unbinds that dropping
-	// it declares to agrirouter that this platform no longer holds the object.
-	// Both follow from the record and the routing together; see
-	// [instance.deleteRecord], which decides the same thing again on the post.
+	// Deletable says the record can be dropped here, and Tombstone that its
+	// binding is kept when it is. Both follow from the record and the routing
+	// together; see [instance.deleteRecord], which decides the same thing again
+	// on the post.
 	Deletable bool
-	Unbinds   bool
+	Tombstone bool
 }
 
 // deletability works out which of [instance.deleteRecord]'s three cases a
@@ -278,13 +278,13 @@ type objectRow struct {
 func (row *objectRow) deletability(routed bool) {
 	switch {
 	case !row.Bound:
-		// Never sent, or already unbound: nothing to tell anyone about.
-		row.Deletable, row.Unbinds = true, false
+		// Never sent, or its binding refused: no mapping to keep.
+		row.Deletable, row.Tombstone = true, false
 	case routed:
 		// Deactivation is available and is the operation that fits.
-		row.Deletable, row.Unbinds = false, false
+		row.Deletable, row.Tombstone = false, false
 	default:
-		row.Deletable, row.Unbinds = true, true
+		row.Deletable, row.Tombstone = true, true
 	}
 }
 

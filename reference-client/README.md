@@ -7,8 +7,8 @@ this disagrees with [specification.md](../specification.md) or
 
 What it is for is the part of the protocol prose cannot settle. Apply guarded by
 `revision` across two channels, `localId` meaning the near end of the transfer
-and nothing else, bind-before-send, unbind-then-recreate, a position derived
-from what was *durably applied*, and a four-state initial load driven from both
+and nothing else, bind-before-send, a crosswise binding corrected as one set, a
+position derived from what was *durably applied*, and a four-state initial load driven from both
 ends — a vendor reading about those has no way to check their reading. Running
 them does.
 
@@ -25,7 +25,7 @@ in process.
 1. Onboarding and first initial load
 2. Repeat load after opt-out and opt-in, matched through the surviving mapping
 3. A concurrent edit merged, and the overlapping one rejected
-4. Unbind, receive the object again with no `localId`, recreate and rebind
+4. Two farms matched crosswise, corrected as one set
 5. A deactivated object in the canonical set, recognised and not
 6. Resume after downtime, and a crash between applying and saving the position
 7. Non-unique mapping rejected, both causes, singly and in bulk
@@ -185,6 +185,7 @@ agmactl status                             # declaration, load state, rejected p
 agmactl put farm farm.json                 # -base <n> on an update
 agmactl replay -follow                     # watch the live stream
 agmactl bind farm FRM-1 <agrirouterId>
+agmactl correct farm FRM-1=<id> FRM-2=<id>  # one set: a swap lists both; =null for none
 ```
 
 `declare` is a PutEndpoint call, which upserts the whole endpoint: it sends no

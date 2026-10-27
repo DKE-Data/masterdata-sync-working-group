@@ -577,8 +577,7 @@ func (in *instance) deactivate(
 	return nil
 }
 
-// deleteRecord drops a record this platform holds, telling agrirouter first
-// where there is anything to tell.
+// deleteRecord drops a record this platform holds.
 //
 // Deleting a record is the platform's own act and the protocol models nothing
 // of it: agrirouter never removes a canonical object, and deactivation — which
@@ -586,23 +585,19 @@ func (in *instance) deactivate(
 // claim and not one to make on the platform's behalf just because its user
 // tidied up.
 //
-// What matters is the mapping. A local deletion that leaves one standing leaves
-// agrirouter resolving this platform's identifier to a record that is gone, and
-// the object's next change arriving under an identifier that resolves to
-// nothing. So the three cases differ by whether a mapping exists and whether
-// deactivation is available instead:
+// What matters is the mapping, which no operation detaches: the platform's
+// localId for an object outlives its record. So the three cases differ by
+// whether a mapping exists and whether deactivation is available instead:
 //
-//   - Nothing bound — never sent, or already unbound. Delete and tell nobody:
-//     there is no mapping to leave behind.
-//   - Bound, type not routed. Unbind first, which is exactly the declaration
-//     the specification provides for a record its user deleted locally, and
-//     then delete. Deactivation is not an option here — the endpoint cannot
-//     send about a type it is not routed to — so refusing would leave the
-//     record with nothing that can be done to it at all.
+//   - Nothing bound — never sent, or its binding refused. Delete and tell
+//     nobody: there is no mapping to leave behind.
+//   - Bound, type not routed. Drop the record and keep the pair as a
+//     tombstone. Nothing arrives for the type while it is not routed; once it
+//     is, the object is delivered under the kept localId and recreated under
+//     it. Deactivation is not an option here — the endpoint cannot send about
+//     a type it is not routed to.
 //   - Bound, type routed. Refused. Deactivation is available and is what a
-//     platform means when an entity is gone in the world; unbinding instead
-//     would silently keep the object alive for every other participant while
-//     this one stopped hearing about it.
+//     platform means by a record its user deleted.
 func (in *instance) deleteRecord(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) error {
@@ -621,7 +616,6 @@ func (in *instance) deleteRecord(
 		return err
 	}
 
-	told := false
 	if bound {
 		routed, err := in.routedTypes()
 		if err != nil {
@@ -632,23 +626,20 @@ func (in *instance) deleteRecord(
 				"%s %q is bound and %s is routed: deactivate it instead",
 				typ, localID, typ)
 		}
-		// agrirouter first. A platform that dropped the record locally but
-		// failed to say so would leave the pair standing with nothing behind it.
-		if err := in.applier.Unbind(ctx, typ, localID); err != nil {
-			return fmt.Errorf("unbinding before deleting: %w", err)
-		}
-		told = true
 	}
 
 	if err := in.store.Tx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
+		if bound {
+			return tx.ForgetRecord(typ, localID)
+		}
 		return tx.DeleteRecord(typ, localID)
 	}); err != nil {
 		return err
 	}
 
 	what := fmt.Sprintf("%s %s deleted", typ, localID)
-	if told {
-		what = fmt.Sprintf("%s %s unbound and deleted", typ, localID)
+	if bound {
+		what = fmt.Sprintf("%s %s deleted, its binding kept as a tombstone", typ, localID)
 	}
 	in.log.say("delete", what)
 	return nil

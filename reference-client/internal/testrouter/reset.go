@@ -33,8 +33,7 @@ func (r *Router) ResetTenant(tenantID uuid.UUID) error {
 		return errNotFound
 	}
 
-	// Decided before the wipe, which takes the bindings it is partly decided
-	// from, and kept with the reset for catch-up to read.
+	// Kept with the reset for catch-up to read.
 	apps := r.store.resetRecipientsLocked(tenantID)
 
 	for id, obj := range r.store.objects {
@@ -42,8 +41,8 @@ func (r *Router) ResetTenant(tenantID uuid.UUID) error {
 			delete(r.store.objects, id)
 		}
 	}
-	for key := range r.store.local {
-		if key.tenantID == tenantID {
+	for key, objID := range r.store.local {
+		if _, ok := r.store.objects[objID]; !ok {
 			delete(r.store.local, key)
 		}
 	}
@@ -76,43 +75,38 @@ func (r *Router) ResetTenant(tenantID uuid.UUID) error {
 type tenantReset struct {
 	seq uint64
 
-	// apps are the applications it was announced to, fixed when it happened:
-	// the bindings that decided some of them are gone afterwards.
+	// apps are the applications it was announced to, fixed when it happened.
 	apps []string
 }
 
 // resetRecipientsLocked names the applications a reset of this tenant is
-// announced to: those holding a binding to one of its objects, and those with
-// an endpoint there that has taken part at some point.
+// announced to: every one that has had an endpoint there take part.
 //
-// The first has bindings to discard, and includes an application whose
-// endpoints in the tenant have all been removed, the mapping having outlived
-// them. The second has a route to lose, and includes one that never bound
-// anything. An application that is neither has nothing the reset changes.
+// That includes one whose endpoints in the tenant have all been removed. Their
+// mappings went with them, but the application may have kept correspondence
+// tables for them, and the reset is what tells it those name nothing now. An
+// application that never took part has nothing the reset changes.
 func (s *store) resetRecipientsLocked(tenantID uuid.UUID) []string {
-	var apps []string
-	add := func(appID string) {
-		if !slices.Contains(apps, appID) {
-			apps = append(apps, appID)
-		}
-	}
-	for key := range s.canonical {
-		if obj, ok := s.objects[key.objID]; ok && obj.tenantID == tenantID {
-			add(key.appID)
-		}
-	}
-	for _, ep := range s.sortedEndpoints() {
-		if ep.tenantID == tenantID && ep.selectionChangedSeq != 0 {
-			add(ep.appID)
-		}
+	apps := []string{}
+	for appID := range s.participants[tenantID] {
+		apps = append(apps, appID)
 	}
 	slices.Sort(apps)
 	return apps
 }
 
+// recordParticipantLocked retains that the endpoint's application has taken
+// part in its tenant. Nothing discards it.
+func (s *store) recordParticipantLocked(ep *endpoint) {
+	if s.participants[ep.tenantID] == nil {
+		s.participants[ep.tenantID] = map[string]bool{}
+	}
+	s.participants[ep.tenantID][ep.appID] = true
+}
+
 // resetFrameLocked renders a RESET_MASTERDATA_SYNC frame for one application,
-// listing its endpoints in the tenant by both identifiers — none, where it is
-// told only for the bindings it held.
+// listing its endpoints in the tenant by both identifiers — none, where all of
+// them were removed.
 func (s *store) resetFrameLocked(tenantID uuid.UUID, appID, id string) frame {
 	endpoints := []map[string]any{}
 	for _, ep := range s.sortedEndpoints() {

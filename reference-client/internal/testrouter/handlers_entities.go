@@ -97,20 +97,25 @@ func (r *Router) BindPartyMapping(
 	return oapi.BindPartyMapping204Response{}, nil
 }
 
-// UnbindPartyMapping implements oapi.StrictServerInterface.
-func (r *Router) UnbindPartyMapping(
-	ctx context.Context, req oapi.UnbindPartyMappingRequestObject,
-) (oapi.UnbindPartyMappingResponseObject, error) {
-	err := r.doUnbind(ctx, agmasync.TypeParty, req.LocalId, req.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
+// CorrectPartyMappings implements oapi.StrictServerInterface.
+func (r *Router) CorrectPartyMappings(
+	ctx context.Context, req oapi.CorrectPartyMappingsRequestObject,
+) (oapi.CorrectPartyMappingsResponseObject, error) {
+	err := r.doCorrect(ctx, agmasync.TypeParty, req.Body, req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
-		if f.status == 403 {
-			return oapi.UnbindPartyMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		switch f.status {
+		case 403:
+			return oapi.CorrectPartyMappings403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		case 404:
+			return oapi.CorrectPartyMappings404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+		case 409:
+			return oapi.CorrectPartyMappings409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
+		default:
+			return oapi.CorrectPartyMappings400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
 		}
-		return oapi.UnbindPartyMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 	}
-	return oapi.UnbindPartyMapping204Response{}, nil
+	return oapi.CorrectPartyMappings204Response{}, nil
 }
 
 // RequestParty implements oapi.StrictServerInterface.
@@ -211,20 +216,25 @@ func (r *Router) BindFarmMapping(
 	return oapi.BindFarmMapping204Response{}, nil
 }
 
-// UnbindFarmMapping implements oapi.StrictServerInterface.
-func (r *Router) UnbindFarmMapping(
-	ctx context.Context, req oapi.UnbindFarmMappingRequestObject,
-) (oapi.UnbindFarmMappingResponseObject, error) {
-	err := r.doUnbind(ctx, agmasync.TypeFarm, req.LocalId, req.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
+// CorrectFarmMappings implements oapi.StrictServerInterface.
+func (r *Router) CorrectFarmMappings(
+	ctx context.Context, req oapi.CorrectFarmMappingsRequestObject,
+) (oapi.CorrectFarmMappingsResponseObject, error) {
+	err := r.doCorrect(ctx, agmasync.TypeFarm, req.Body, req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
-		if f.status == 403 {
-			return oapi.UnbindFarmMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		switch f.status {
+		case 403:
+			return oapi.CorrectFarmMappings403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		case 404:
+			return oapi.CorrectFarmMappings404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+		case 409:
+			return oapi.CorrectFarmMappings409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
+		default:
+			return oapi.CorrectFarmMappings400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
 		}
-		return oapi.UnbindFarmMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 	}
-	return oapi.UnbindFarmMapping204Response{}, nil
+	return oapi.CorrectFarmMappings204Response{}, nil
 }
 
 // RequestFarm implements oapi.StrictServerInterface.
@@ -325,20 +335,25 @@ func (r *Router) BindFieldMapping(
 	return oapi.BindFieldMapping204Response{}, nil
 }
 
-// UnbindFieldMapping implements oapi.StrictServerInterface.
-func (r *Router) UnbindFieldMapping(
-	ctx context.Context, req oapi.UnbindFieldMappingRequestObject,
-) (oapi.UnbindFieldMappingResponseObject, error) {
-	err := r.doUnbind(ctx, agmasync.TypeField, req.LocalId, req.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
+// CorrectFieldMappings implements oapi.StrictServerInterface.
+func (r *Router) CorrectFieldMappings(
+	ctx context.Context, req oapi.CorrectFieldMappingsRequestObject,
+) (oapi.CorrectFieldMappingsResponseObject, error) {
+	err := r.doCorrect(ctx, agmasync.TypeField, req.Body, req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
-		if f.status == 403 {
-			return oapi.UnbindFieldMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		switch f.status {
+		case 403:
+			return oapi.CorrectFieldMappings403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		case 404:
+			return oapi.CorrectFieldMappings404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+		case 409:
+			return oapi.CorrectFieldMappings409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
+		default:
+			return oapi.CorrectFieldMappings400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
 		}
-		return oapi.UnbindFieldMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 	}
-	return oapi.UnbindFieldMapping204Response{}, nil
+	return oapi.CorrectFieldMappings204Response{}, nil
 }
 
 // RequestField implements oapi.StrictServerInterface.
@@ -439,20 +454,25 @@ func (r *Router) BindFieldBoundaryMapping(
 	return oapi.BindFieldBoundaryMapping204Response{}, nil
 }
 
-// UnbindFieldBoundaryMapping implements oapi.StrictServerInterface.
-func (r *Router) UnbindFieldBoundaryMapping(
-	ctx context.Context, req oapi.UnbindFieldBoundaryMappingRequestObject,
-) (oapi.UnbindFieldBoundaryMappingResponseObject, error) {
-	err := r.doUnbind(ctx, agmasync.TypeFieldBoundary, req.LocalId, req.AgrirouterId,
-		req.Params.XAgrirouterEndpointId)
+// CorrectFieldBoundaryMappings implements oapi.StrictServerInterface.
+func (r *Router) CorrectFieldBoundaryMappings(
+	ctx context.Context, req oapi.CorrectFieldBoundaryMappingsRequestObject,
+) (oapi.CorrectFieldBoundaryMappingsResponseObject, error) {
+	err := r.doCorrect(ctx, agmasync.TypeFieldBoundary, req.Body, req.Params.XAgrirouterEndpointId)
 	if err != nil {
 		f := faultOf(err)
-		if f.status == 403 {
-			return oapi.UnbindFieldBoundaryMapping403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		switch f.status {
+		case 403:
+			return oapi.CorrectFieldBoundaryMappings403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+		case 404:
+			return oapi.CorrectFieldBoundaryMappings404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+		case 409:
+			return oapi.CorrectFieldBoundaryMappings409JSONResponse{MappingConflictJSONResponse: oapi.MappingConflictJSONResponse(f.mappingConflict())}, nil
+		default:
+			return oapi.CorrectFieldBoundaryMappings400JSONResponse{ValidationErrorJSONResponse: oapi.ValidationErrorJSONResponse(f.error())}, nil
 		}
-		return oapi.UnbindFieldBoundaryMapping404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 	}
-	return oapi.UnbindFieldBoundaryMapping204Response{}, nil
+	return oapi.CorrectFieldBoundaryMappings204Response{}, nil
 }
 
 // RequestFieldBoundary implements oapi.StrictServerInterface.

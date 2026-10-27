@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -86,7 +87,11 @@ func faultOf(err error) fault {
 	var mc *mappingConflict
 	if errors.As(err, &mc) {
 		rejection := oapiRejection{Reason: mc.reason, Existing: mc.existing}
-		if mc.existing != nil {
+		switch {
+		case mc.submitted != nil:
+			rejection.LocalID = mc.submitted.LocalID
+			rejection.AgrirouterID = mc.submitted.AgrirouterID
+		case mc.existing != nil:
 			rejection.LocalID = mc.existing.LocalID
 			rejection.AgrirouterID = mc.existing.AgrirouterID
 		}
@@ -222,22 +227,41 @@ func (r *Router) doBind(
 	return r.store.bind(ep, typ, localID, agrirouterID)
 }
 
-// doUnbind is the shared body of the five unbind handlers.
-func (r *Router) doUnbind(
-	ctx context.Context, typ agmasync.EntityType, localID string,
-	agrirouterID uuid.UUID, endpointID uuid.UUID,
+// doCorrect is the shared body of the correction handlers.
+func (r *Router) doCorrect(
+	ctx context.Context, typ agmasync.EntityType, body *oapi.IdMappingCorrection,
+	endpointID uuid.UUID,
 ) error {
 	ep, err := r.endpointFrom(ctx, endpointID)
 	if err != nil {
 		return err
 	}
-	r.observer.record("unbind", map[string]any{
+	if body == nil || len(body.IdMappings) == 0 {
+		return errors.New("id_mappings must list at least one entry")
+	}
+
+	entries := make([]correction, 0, len(body.IdMappings))
+	pairs := make([]map[string]any, 0, len(body.IdMappings))
+	for _, m := range body.IdMappings {
+		e := correction{localID: m.LocalId}
+		pair := map[string]any{"localId": m.LocalId, "agrirouterId": nil}
+		if !m.AgrirouterId.IsSpecified() {
+			return fmt.Errorf("agrirouter_id of %q is required, null for none", m.LocalId)
+		}
+		if !m.AgrirouterId.IsNull() {
+			id := m.AgrirouterId.MustGet()
+			e.objID = &id
+			pair["agrirouterId"] = id.String()
+		}
+		entries = append(entries, e)
+		pairs = append(pairs, pair)
+	}
+	r.observer.record("correct", map[string]any{
 		"externalEndpointId": ep.externalID,
 		"entityType":         string(typ),
-		"localId":            localID,
-		"agrirouterId":       agrirouterID.String(),
+		"idMappings":         pairs,
 	})
-	return r.store.unbind(ep, typ, localID, agrirouterID)
+	return r.store.correct(ep, typ, entries)
 }
 
 // doRequest is the shared body of the five request handlers.

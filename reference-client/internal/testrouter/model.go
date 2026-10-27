@@ -173,10 +173,10 @@ type endpoint struct {
 	externalID string
 
 	// appID identifies the participant. It decides which stream a frame is
-	// published on — the connection unit is the application — and, with the
-	// tenant, it is what the identifier mapping is keyed by: a localId names a
-	// record in the participant's namespace, so two endpoints of one
-	// application in one tenant share one.
+	// published on — the connection unit is the application — and nothing
+	// about the identifier mapping, which is keyed by the endpoint: two
+	// endpoints of one application in one tenant each have a namespace of
+	// their own.
 	appID string
 
 	tenantID uuid.UUID

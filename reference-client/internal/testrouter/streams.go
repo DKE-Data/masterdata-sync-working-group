@@ -269,9 +269,8 @@ func (r *Router) catchUp(appID, lastEventID string) []frame {
 		// Origin suppression applies here as it does live, which is why a
 		// full re-delivery is not a complete recovery: it withholds the
 		// objects whose current revision this participant's own endpoint
-		// wrote. One frame per object, as live delivery does: entitlement
-		// is decided per endpoint, but the frame it produces belongs to
-		// the application, so siblings collapse to one.
+		// wrote. One frame per entitled endpoint, as live delivery does,
+		// all at the object's position.
 		for _, ep := range r.store.recipients(obj, obj.sourceEndpointID) {
 			if ep.appID != appID {
 				continue

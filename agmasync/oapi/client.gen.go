@@ -192,6 +192,28 @@ type ClientInterface interface {
 	// Corresponds with GET /masterdata/events (the `StreamMasterdataEvents` operationId).
 	StreamMasterdataEvents(ctx context.Context, params *StreamMasterdataEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CorrectFarmMappingsWithBody Correct this endpoint's bindings of farms
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+	CorrectFarmMappingsWithBody(ctx context.Context, params *CorrectFarmMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectFarmMappings Correct this endpoint's bindings of farms
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+	CorrectFarmMappings(ctx context.Context, params *CorrectFarmMappingsParams, body CorrectFarmMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RequestFarmWithBody Request a farm (lazy loading)
 	//
 	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's own identifiers.
@@ -239,15 +261,6 @@ type ClientInterface interface {
 	// Corresponds with POST /masterdata/farms/{local_id}/deactivation (the `DeactivateFarm` operationId).
 	DeactivateFarm(ctx context.Context, localId LocalId, params *DeactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UnbindFarmMapping Declare that this endpoint no longer holds a farm
-	//
-	// Declares that the endpoint no longer holds the canonical farm in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Corresponds with DELETE /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFarmMapping` operationId).
-	UnbindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// BindFarmMapping Bind a local identifier to an existing farm
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -256,6 +269,28 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 	BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectFieldBoundaryMappingsWithBody Correct this endpoint's bindings of field boundaries
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+	CorrectFieldBoundaryMappingsWithBody(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectFieldBoundaryMappings Correct this endpoint's bindings of field boundaries
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+	CorrectFieldBoundaryMappings(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, body CorrectFieldBoundaryMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestFieldBoundaryWithBody Request a field boundary (lazy loading)
 	//
@@ -304,15 +339,6 @@ type ClientInterface interface {
 	// Corresponds with POST /masterdata/field-boundaries/{local_id}/deactivation (the `DeactivateFieldBoundary` operationId).
 	DeactivateFieldBoundary(ctx context.Context, localId LocalId, params *DeactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UnbindFieldBoundaryMapping Declare that this endpoint no longer holds a field boundary
-	//
-	// Declares that the endpoint no longer holds the canonical field boundary in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Corresponds with DELETE /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldBoundaryMapping` operationId).
-	UnbindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -321,6 +347,28 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectFieldMappingsWithBody Correct this endpoint's bindings of fields
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+	CorrectFieldMappingsWithBody(ctx context.Context, params *CorrectFieldMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectFieldMappings Correct this endpoint's bindings of fields
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+	CorrectFieldMappings(ctx context.Context, params *CorrectFieldMappingsParams, body CorrectFieldMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestFieldWithBody Request a field (lazy loading)
 	//
@@ -369,15 +417,6 @@ type ClientInterface interface {
 	// Corresponds with POST /masterdata/fields/{local_id}/deactivation (the `DeactivateField` operationId).
 	DeactivateField(ctx context.Context, localId LocalId, params *DeactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UnbindFieldMapping Declare that this endpoint no longer holds a field
-	//
-	// Declares that the endpoint no longer holds the canonical field in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Corresponds with DELETE /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldMapping` operationId).
-	UnbindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// BindFieldMapping Bind a local identifier to an existing field
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -386,6 +425,28 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectPartyMappingsWithBody Correct this endpoint's bindings of parties
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+	CorrectPartyMappingsWithBody(ctx context.Context, params *CorrectPartyMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CorrectPartyMappings Correct this endpoint's bindings of parties
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+	CorrectPartyMappings(ctx context.Context, params *CorrectPartyMappingsParams, body CorrectPartyMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestPartyWithBody Request a party (lazy loading)
 	//
@@ -437,15 +498,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
 	DeactivateParty(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UnbindPartyMapping Declare that this endpoint no longer holds a party
-	//
-	// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
-	UnbindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// BindPartyMapping Bind a local identifier to an existing party
 	//
@@ -639,6 +691,48 @@ func (c *Client) StreamMasterdataEvents(ctx context.Context, params *StreamMaste
 	return c.Client.Do(req)
 }
 
+// CorrectFarmMappingsWithBody Correct this endpoint's bindings of farms
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+func (c *Client) CorrectFarmMappingsWithBody(ctx context.Context, params *CorrectFarmMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectFarmMappingsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CorrectFarmMappings Correct this endpoint's bindings of farms
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+func (c *Client) CorrectFarmMappings(ctx context.Context, params *CorrectFarmMappingsParams, body CorrectFarmMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectFarmMappingsRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // RequestFarmWithBody Request a farm (lazy loading)
 //
 // Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's own identifiers.
@@ -736,15 +830,15 @@ func (c *Client) DeactivateFarm(ctx context.Context, localId LocalId, params *De
 	return c.Client.Do(req)
 }
 
-// UnbindFarmMapping Declare that this endpoint no longer holds a farm
+// BindFarmMapping Bind a local identifier to an existing farm
 //
-// Declares that the endpoint no longer holds the canonical farm in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
-// Corresponds with DELETE /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFarmMapping` operationId).
-func (c *Client) UnbindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnbindFarmMappingRequest(c.Server, localId, agrirouterId, params)
+// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
+func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBindFarmMappingRequest(c.Server, localId, agrirouterId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -755,15 +849,38 @@ func (c *Client) UnbindFarmMapping(ctx context.Context, localId LocalId, agrirou
 	return c.Client.Do(req)
 }
 
-// BindFarmMapping Bind a local identifier to an existing farm
+// CorrectFieldBoundaryMappingsWithBody Correct this endpoint's bindings of field boundaries
 //
-// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
 //
-// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
-func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBindFarmMappingRequest(c.Server, localId, agrirouterId, params)
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+func (c *Client) CorrectFieldBoundaryMappingsWithBody(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectFieldBoundaryMappingsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CorrectFieldBoundaryMappings Correct this endpoint's bindings of field boundaries
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+func (c *Client) CorrectFieldBoundaryMappings(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, body CorrectFieldBoundaryMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectFieldBoundaryMappingsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -871,15 +988,15 @@ func (c *Client) DeactivateFieldBoundary(ctx context.Context, localId LocalId, p
 	return c.Client.Do(req)
 }
 
-// UnbindFieldBoundaryMapping Declare that this endpoint no longer holds a field boundary
+// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
 //
-// Declares that the endpoint no longer holds the canonical field boundary in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
-// Corresponds with DELETE /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldBoundaryMapping` operationId).
-func (c *Client) UnbindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnbindFieldBoundaryMappingRequest(c.Server, localId, agrirouterId, params)
+// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
+func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBindFieldBoundaryMappingRequest(c.Server, localId, agrirouterId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -890,15 +1007,38 @@ func (c *Client) UnbindFieldBoundaryMapping(ctx context.Context, localId LocalId
 	return c.Client.Do(req)
 }
 
-// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
+// CorrectFieldMappingsWithBody Correct this endpoint's bindings of fields
 //
-// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
 //
-// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
-func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBindFieldBoundaryMappingRequest(c.Server, localId, agrirouterId, params)
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+func (c *Client) CorrectFieldMappingsWithBody(ctx context.Context, params *CorrectFieldMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectFieldMappingsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CorrectFieldMappings Correct this endpoint's bindings of fields
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+func (c *Client) CorrectFieldMappings(ctx context.Context, params *CorrectFieldMappingsParams, body CorrectFieldMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectFieldMappingsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1006,15 +1146,15 @@ func (c *Client) DeactivateField(ctx context.Context, localId LocalId, params *D
 	return c.Client.Do(req)
 }
 
-// UnbindFieldMapping Declare that this endpoint no longer holds a field
+// BindFieldMapping Bind a local identifier to an existing field
 //
-// Declares that the endpoint no longer holds the canonical field in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
+// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
 //
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
+// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
 //
-// Corresponds with DELETE /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldMapping` operationId).
-func (c *Client) UnbindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnbindFieldMappingRequest(c.Server, localId, agrirouterId, params)
+// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
+func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBindFieldMappingRequest(c.Server, localId, agrirouterId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1025,15 +1165,38 @@ func (c *Client) UnbindFieldMapping(ctx context.Context, localId LocalId, agriro
 	return c.Client.Do(req)
 }
 
-// BindFieldMapping Bind a local identifier to an existing field
+// CorrectPartyMappingsWithBody Correct this endpoint's bindings of parties
 //
-// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
 //
-// Within its own endpoint a local identifier denotes exactly one canonical object, so this is a singleton: binding a second one is the `409`. The request has no body, both ends of the mapping being in the path, and is idempotent.
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
 //
-// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
-func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewBindFieldMappingRequest(c.Server, localId, agrirouterId, params)
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+func (c *Client) CorrectPartyMappingsWithBody(ctx context.Context, params *CorrectPartyMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectPartyMappingsRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CorrectPartyMappings Correct this endpoint's bindings of parties
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+func (c *Client) CorrectPartyMappings(ctx context.Context, params *CorrectPartyMappingsParams, body CorrectPartyMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCorrectPartyMappingsRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1135,25 +1298,6 @@ func (c *Client) PutParty(ctx context.Context, localId LocalId, params *PutParty
 // Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
 func (c *Client) DeactivateParty(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeactivatePartyRequest(c.Server, localId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// UnbindPartyMapping Declare that this endpoint no longer holds a party
-//
-// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
-func (c *Client) UnbindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUnbindPartyMappingRequest(c.Server, localId, agrirouterId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1486,6 +1630,68 @@ func NewStreamMasterdataEventsRequest(server string, params *StreamMasterdataEve
 	return req, nil
 }
 
+// NewCorrectFarmMappingsRequest calls the generic CorrectFarmMappings builder with application/json body
+func NewCorrectFarmMappingsRequest(server string, params *CorrectFarmMappingsParams, body CorrectFarmMappingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCorrectFarmMappingsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCorrectFarmMappingsRequestWithBody constructs an http.Request for the CorrectFarmMappings method, with any body, and a specified content type
+func NewCorrectFarmMappingsRequestWithBody(server string, params *CorrectFarmMappingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/farms/id-mapping-corrections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+	}
+
+	return req, nil
+}
+
 // NewRequestFarmRequest calls the generic RequestFarm builder with application/json body
 func NewRequestFarmRequest(server string, params *RequestFarmParams, body RequestFarmJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1695,69 +1901,6 @@ func NewDeactivateFarmRequest(server string, localId LocalId, params *Deactivate
 	return req, nil
 }
 
-// NewUnbindFarmMappingRequest constructs an http.Request for the UnbindFarmMapping method
-func NewUnbindFarmMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFarmMappingParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "agrirouter_id", agrirouterId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/farms/%s/id-mapping/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
 // NewBindFarmMappingRequest constructs an http.Request for the BindFarmMapping method
 func NewBindFarmMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams) (*http.Request, error) {
 	var err error
@@ -1795,6 +1938,68 @@ func NewBindFarmMappingRequest(server string, localId LocalId, agrirouterId IdMa
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewCorrectFieldBoundaryMappingsRequest calls the generic CorrectFieldBoundaryMappings builder with application/json body
+func NewCorrectFieldBoundaryMappingsRequest(server string, params *CorrectFieldBoundaryMappingsParams, body CorrectFieldBoundaryMappingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCorrectFieldBoundaryMappingsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCorrectFieldBoundaryMappingsRequestWithBody constructs an http.Request for the CorrectFieldBoundaryMappings method, with any body, and a specified content type
+func NewCorrectFieldBoundaryMappingsRequestWithBody(server string, params *CorrectFieldBoundaryMappingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/field-boundaries/id-mapping-corrections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -2030,69 +2235,6 @@ func NewDeactivateFieldBoundaryRequest(server string, localId LocalId, params *D
 	return req, nil
 }
 
-// NewUnbindFieldBoundaryMappingRequest constructs an http.Request for the UnbindFieldBoundaryMapping method
-func NewUnbindFieldBoundaryMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldBoundaryMappingParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "agrirouter_id", agrirouterId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/field-boundaries/%s/id-mapping/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
 // NewBindFieldBoundaryMappingRequest constructs an http.Request for the BindFieldBoundaryMapping method
 func NewBindFieldBoundaryMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams) (*http.Request, error) {
 	var err error
@@ -2130,6 +2272,68 @@ func NewBindFieldBoundaryMappingRequest(server string, localId LocalId, agrirout
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewCorrectFieldMappingsRequest calls the generic CorrectFieldMappings builder with application/json body
+func NewCorrectFieldMappingsRequest(server string, params *CorrectFieldMappingsParams, body CorrectFieldMappingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCorrectFieldMappingsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCorrectFieldMappingsRequestWithBody constructs an http.Request for the CorrectFieldMappings method, with any body, and a specified content type
+func NewCorrectFieldMappingsRequestWithBody(server string, params *CorrectFieldMappingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/fields/id-mapping-corrections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -2365,69 +2569,6 @@ func NewDeactivateFieldRequest(server string, localId LocalId, params *Deactivat
 	return req, nil
 }
 
-// NewUnbindFieldMappingRequest constructs an http.Request for the UnbindFieldMapping method
-func NewUnbindFieldMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldMappingParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "agrirouter_id", agrirouterId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/fields/%s/id-mapping/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
 // NewBindFieldMappingRequest constructs an http.Request for the BindFieldMapping method
 func NewBindFieldMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams) (*http.Request, error) {
 	var err error
@@ -2465,6 +2606,68 @@ func NewBindFieldMappingRequest(server string, localId LocalId, agrirouterId IdM
 	if err != nil {
 		return nil, err
 	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewCorrectPartyMappingsRequest calls the generic CorrectPartyMappings builder with application/json body
+func NewCorrectPartyMappingsRequest(server string, params *CorrectPartyMappingsParams, body CorrectPartyMappingsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCorrectPartyMappingsRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCorrectPartyMappingsRequestWithBody constructs an http.Request for the CorrectPartyMappings method, with any body, and a specified content type
+func NewCorrectPartyMappingsRequestWithBody(server string, params *CorrectPartyMappingsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/parties/id-mapping-corrections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	if params != nil {
 
@@ -2700,69 +2903,6 @@ func NewDeactivatePartyRequest(server string, localId LocalId, params *Deactivat
 	return req, nil
 }
 
-// NewUnbindPartyMappingRequest constructs an http.Request for the UnbindPartyMapping method
-func NewUnbindPartyMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "agrirouter_id", agrirouterId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/masterdata/parties/%s/id-mapping/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-
-		var headerParam0 string
-
-		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
-
-		var headerParam1 string
-
-		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
-
-	}
-
-	return req, nil
-}
-
 // NewBindPartyMappingRequest constructs an http.Request for the BindPartyMapping method
 func NewBindPartyMappingRequest(server string, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams) (*http.Request, error) {
 	var err error
@@ -2980,6 +3120,28 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /masterdata/events (the `StreamMasterdataEvents` operationId).
 	StreamMasterdataEventsWithResponse(ctx context.Context, params *StreamMasterdataEventsParams, reqEditors ...RequestEditorFn) (*StreamMasterdataEventsResponse, error)
 
+	// CorrectFarmMappingsWithBodyWithResponse Correct this endpoint's bindings of farms
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+	CorrectFarmMappingsWithBodyWithResponse(ctx context.Context, params *CorrectFarmMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectFarmMappingsResponse, error)
+
+	// CorrectFarmMappingsWithResponse Correct this endpoint's bindings of farms
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+	CorrectFarmMappingsWithResponse(ctx context.Context, params *CorrectFarmMappingsParams, body CorrectFarmMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectFarmMappingsResponse, error)
+
 	// RequestFarmWithBodyWithResponse Request a farm (lazy loading)
 	//
 	// Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's own identifiers.
@@ -3029,17 +3191,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /masterdata/farms/{local_id}/deactivation (the `DeactivateFarm` operationId).
 	DeactivateFarmWithResponse(ctx context.Context, localId LocalId, params *DeactivateFarmParams, reqEditors ...RequestEditorFn) (*DeactivateFarmResponse, error)
 
-	// UnbindFarmMappingWithResponse Declare that this endpoint no longer holds a farm
-	//
-	// Declares that the endpoint no longer holds the canonical farm in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFarmMapping` operationId).
-	UnbindFarmMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFarmMappingParams, reqEditors ...RequestEditorFn) (*UnbindFarmMappingResponse, error)
-
 	// BindFarmMappingWithResponse Bind a local identifier to an existing farm
 	//
 	// Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -3050,6 +3201,28 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 	BindFarmMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*BindFarmMappingResponse, error)
+
+	// CorrectFieldBoundaryMappingsWithBodyWithResponse Correct this endpoint's bindings of field boundaries
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+	CorrectFieldBoundaryMappingsWithBodyWithResponse(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectFieldBoundaryMappingsResponse, error)
+
+	// CorrectFieldBoundaryMappingsWithResponse Correct this endpoint's bindings of field boundaries
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+	CorrectFieldBoundaryMappingsWithResponse(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, body CorrectFieldBoundaryMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectFieldBoundaryMappingsResponse, error)
 
 	// RequestFieldBoundaryWithBodyWithResponse Request a field boundary (lazy loading)
 	//
@@ -3100,17 +3273,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /masterdata/field-boundaries/{local_id}/deactivation (the `DeactivateFieldBoundary` operationId).
 	DeactivateFieldBoundaryWithResponse(ctx context.Context, localId LocalId, params *DeactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*DeactivateFieldBoundaryResponse, error)
 
-	// UnbindFieldBoundaryMappingWithResponse Declare that this endpoint no longer holds a field boundary
-	//
-	// Declares that the endpoint no longer holds the canonical field boundary in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldBoundaryMapping` operationId).
-	UnbindFieldBoundaryMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*UnbindFieldBoundaryMappingResponse, error)
-
 	// BindFieldBoundaryMappingWithResponse Bind a local identifier to an existing field boundary
 	//
 	// Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -3121,6 +3283,28 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*BindFieldBoundaryMappingResponse, error)
+
+	// CorrectFieldMappingsWithBodyWithResponse Correct this endpoint's bindings of fields
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+	CorrectFieldMappingsWithBodyWithResponse(ctx context.Context, params *CorrectFieldMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectFieldMappingsResponse, error)
+
+	// CorrectFieldMappingsWithResponse Correct this endpoint's bindings of fields
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+	CorrectFieldMappingsWithResponse(ctx context.Context, params *CorrectFieldMappingsParams, body CorrectFieldMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectFieldMappingsResponse, error)
 
 	// RequestFieldWithBodyWithResponse Request a field (lazy loading)
 	//
@@ -3171,17 +3355,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /masterdata/fields/{local_id}/deactivation (the `DeactivateField` operationId).
 	DeactivateFieldWithResponse(ctx context.Context, localId LocalId, params *DeactivateFieldParams, reqEditors ...RequestEditorFn) (*DeactivateFieldResponse, error)
 
-	// UnbindFieldMappingWithResponse Declare that this endpoint no longer holds a field
-	//
-	// Declares that the endpoint no longer holds the canonical field in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldMapping` operationId).
-	UnbindFieldMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldMappingParams, reqEditors ...RequestEditorFn) (*UnbindFieldMappingResponse, error)
-
 	// BindFieldMappingWithResponse Bind a local identifier to an existing field
 	//
 	// Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -3192,6 +3365,28 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*BindFieldMappingResponse, error)
+
+	// CorrectPartyMappingsWithBodyWithResponse Correct this endpoint's bindings of parties
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+	CorrectPartyMappingsWithBodyWithResponse(ctx context.Context, params *CorrectPartyMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectPartyMappingsResponse, error)
+
+	// CorrectPartyMappingsWithResponse Correct this endpoint's bindings of parties
+	//
+	// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+	//
+	// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+	CorrectPartyMappingsWithResponse(ctx context.Context, params *CorrectPartyMappingsParams, body CorrectPartyMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectPartyMappingsResponse, error)
 
 	// RequestPartyWithBodyWithResponse Request a party (lazy loading)
 	//
@@ -3245,17 +3440,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
 	DeactivatePartyWithResponse(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*DeactivatePartyResponse, error)
-
-	// UnbindPartyMappingWithResponse Declare that this endpoint no longer holds a party
-	//
-	// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-	//
-	// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
-	UnbindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*UnbindPartyMappingResponse, error)
 
 	// BindPartyMappingWithResponse Bind a local identifier to an existing party
 	//
@@ -3613,6 +3797,68 @@ func (r StreamMasterdataEventsResponse) ContentType() string {
 	return ""
 }
 
+type CorrectFarmMappingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *ValidationError
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *MappingConflict
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CorrectFarmMappingsResponse) GetJSON400() *ValidationError {
+	return r.JSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CorrectFarmMappingsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CorrectFarmMappingsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CorrectFarmMappingsResponse) GetJSON409() *MappingConflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CorrectFarmMappingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CorrectFarmMappingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CorrectFarmMappingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CorrectFarmMappingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type RequestFarmResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3813,54 +4059,6 @@ func (r DeactivateFarmResponse) ContentType() string {
 	return ""
 }
 
-type UnbindFarmMappingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UnbindFarmMappingResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UnbindFarmMappingResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r UnbindFarmMappingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UnbindFarmMappingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UnbindFarmMappingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnbindFarmMappingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type BindFarmMappingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3910,6 +4108,68 @@ func (r BindFarmMappingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r BindFarmMappingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CorrectFieldBoundaryMappingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *ValidationError
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *MappingConflict
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CorrectFieldBoundaryMappingsResponse) GetJSON400() *ValidationError {
+	return r.JSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CorrectFieldBoundaryMappingsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CorrectFieldBoundaryMappingsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CorrectFieldBoundaryMappingsResponse) GetJSON409() *MappingConflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CorrectFieldBoundaryMappingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CorrectFieldBoundaryMappingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CorrectFieldBoundaryMappingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CorrectFieldBoundaryMappingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4116,54 +4376,6 @@ func (r DeactivateFieldBoundaryResponse) ContentType() string {
 	return ""
 }
 
-type UnbindFieldBoundaryMappingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UnbindFieldBoundaryMappingResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UnbindFieldBoundaryMappingResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r UnbindFieldBoundaryMappingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UnbindFieldBoundaryMappingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UnbindFieldBoundaryMappingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnbindFieldBoundaryMappingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type BindFieldBoundaryMappingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4213,6 +4425,68 @@ func (r BindFieldBoundaryMappingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r BindFieldBoundaryMappingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CorrectFieldMappingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *ValidationError
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *MappingConflict
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CorrectFieldMappingsResponse) GetJSON400() *ValidationError {
+	return r.JSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CorrectFieldMappingsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CorrectFieldMappingsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CorrectFieldMappingsResponse) GetJSON409() *MappingConflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CorrectFieldMappingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CorrectFieldMappingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CorrectFieldMappingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CorrectFieldMappingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4419,54 +4693,6 @@ func (r DeactivateFieldResponse) ContentType() string {
 	return ""
 }
 
-type UnbindFieldMappingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UnbindFieldMappingResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UnbindFieldMappingResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r UnbindFieldMappingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UnbindFieldMappingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UnbindFieldMappingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnbindFieldMappingResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type BindFieldMappingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4516,6 +4742,68 @@ func (r BindFieldMappingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r BindFieldMappingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CorrectPartyMappingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *ValidationError
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *MappingConflict
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CorrectPartyMappingsResponse) GetJSON400() *ValidationError {
+	return r.JSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CorrectPartyMappingsResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CorrectPartyMappingsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CorrectPartyMappingsResponse) GetJSON409() *MappingConflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CorrectPartyMappingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CorrectPartyMappingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CorrectPartyMappingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CorrectPartyMappingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4716,54 +5004,6 @@ func (r DeactivatePartyResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r DeactivatePartyResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type UnbindPartyMappingResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON403 the response for an HTTP 403 `application/json` response
-	JSON403 *Forbidden
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-}
-
-// GetJSON403 returns the response for an HTTP 403 `application/json` response
-func (r UnbindPartyMappingResponse) GetJSON403() *Forbidden {
-	return r.JSON403
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r UnbindPartyMappingResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetBody returns the raw response body bytes
-func (r UnbindPartyMappingResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UnbindPartyMappingResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UnbindPartyMappingResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UnbindPartyMappingResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -4983,6 +5223,40 @@ func (c *ClientWithResponses) StreamMasterdataEventsWithResponse(ctx context.Con
 	return ParseStreamMasterdataEventsResponse(rsp)
 }
 
+// CorrectFarmMappingsWithBodyWithResponse Correct this endpoint's bindings of farms
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+func (c *ClientWithResponses) CorrectFarmMappingsWithBodyWithResponse(ctx context.Context, params *CorrectFarmMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectFarmMappingsResponse, error) {
+	rsp, err := c.CorrectFarmMappingsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectFarmMappingsResponse(rsp)
+}
+
+// CorrectFarmMappingsWithResponse Correct this endpoint's bindings of farms
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given farm, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A farm bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/farms/id-mapping-corrections (the `CorrectFarmMappings` operationId).
+func (c *ClientWithResponses) CorrectFarmMappingsWithResponse(ctx context.Context, params *CorrectFarmMappingsParams, body CorrectFarmMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectFarmMappingsResponse, error) {
+	rsp, err := c.CorrectFarmMappings(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectFarmMappingsResponse(rsp)
+}
+
 // RequestFarmWithBodyWithResponse Request a farm (lazy loading)
 //
 // Refetches a farm the caller is entitled to but does not currently hold — an object lost locally, or one referenced by an object that arrived on the live stream before the initial-load stream delivered its target. Opt-in remains the only filter on delivery, so a request never returns anything the stream would not also deliver. The object arrives asynchronously as a master-data change event (see `/masterdata/events`). It is delivered even when the requesting endpoint was the object's last writer: origin suppression does not apply to a requested object, since refetching something it wrote itself is exactly what an endpoint that lost the object needs. The frame is addressed to the requesting endpoint and carries that endpoint's own identifiers.
@@ -5062,23 +5336,6 @@ func (c *ClientWithResponses) DeactivateFarmWithResponse(ctx context.Context, lo
 	return ParseDeactivateFarmResponse(rsp)
 }
 
-// UnbindFarmMappingWithResponse Declare that this endpoint no longer holds a farm
-//
-// Declares that the endpoint no longer holds the canonical farm in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFarmMapping` operationId).
-func (c *ClientWithResponses) UnbindFarmMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFarmMappingParams, reqEditors ...RequestEditorFn) (*UnbindFarmMappingResponse, error) {
-	rsp, err := c.UnbindFarmMapping(ctx, localId, agrirouterId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUnbindFarmMappingResponse(rsp)
-}
-
 // BindFarmMappingWithResponse Bind a local identifier to an existing farm
 //
 // Declares that the canonical farm in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -5094,6 +5351,40 @@ func (c *ClientWithResponses) BindFarmMappingWithResponse(ctx context.Context, l
 		return nil, err
 	}
 	return ParseBindFarmMappingResponse(rsp)
+}
+
+// CorrectFieldBoundaryMappingsWithBodyWithResponse Correct this endpoint's bindings of field boundaries
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+func (c *ClientWithResponses) CorrectFieldBoundaryMappingsWithBodyWithResponse(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectFieldBoundaryMappingsResponse, error) {
+	rsp, err := c.CorrectFieldBoundaryMappingsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectFieldBoundaryMappingsResponse(rsp)
+}
+
+// CorrectFieldBoundaryMappingsWithResponse Correct this endpoint's bindings of field boundaries
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field boundary, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field boundary bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/field-boundaries/id-mapping-corrections (the `CorrectFieldBoundaryMappings` operationId).
+func (c *ClientWithResponses) CorrectFieldBoundaryMappingsWithResponse(ctx context.Context, params *CorrectFieldBoundaryMappingsParams, body CorrectFieldBoundaryMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectFieldBoundaryMappingsResponse, error) {
+	rsp, err := c.CorrectFieldBoundaryMappings(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectFieldBoundaryMappingsResponse(rsp)
 }
 
 // RequestFieldBoundaryWithBodyWithResponse Request a field boundary (lazy loading)
@@ -5175,23 +5466,6 @@ func (c *ClientWithResponses) DeactivateFieldBoundaryWithResponse(ctx context.Co
 	return ParseDeactivateFieldBoundaryResponse(rsp)
 }
 
-// UnbindFieldBoundaryMappingWithResponse Declare that this endpoint no longer holds a field boundary
-//
-// Declares that the endpoint no longer holds the canonical field boundary in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldBoundaryMapping` operationId).
-func (c *ClientWithResponses) UnbindFieldBoundaryMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*UnbindFieldBoundaryMappingResponse, error) {
-	rsp, err := c.UnbindFieldBoundaryMapping(ctx, localId, agrirouterId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUnbindFieldBoundaryMappingResponse(rsp)
-}
-
 // BindFieldBoundaryMappingWithResponse Bind a local identifier to an existing field boundary
 //
 // Declares that the canonical field boundary in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -5207,6 +5481,40 @@ func (c *ClientWithResponses) BindFieldBoundaryMappingWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseBindFieldBoundaryMappingResponse(rsp)
+}
+
+// CorrectFieldMappingsWithBodyWithResponse Correct this endpoint's bindings of fields
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+func (c *ClientWithResponses) CorrectFieldMappingsWithBodyWithResponse(ctx context.Context, params *CorrectFieldMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectFieldMappingsResponse, error) {
+	rsp, err := c.CorrectFieldMappingsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectFieldMappingsResponse(rsp)
+}
+
+// CorrectFieldMappingsWithResponse Correct this endpoint's bindings of fields
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given field, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A field bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/fields/id-mapping-corrections (the `CorrectFieldMappings` operationId).
+func (c *ClientWithResponses) CorrectFieldMappingsWithResponse(ctx context.Context, params *CorrectFieldMappingsParams, body CorrectFieldMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectFieldMappingsResponse, error) {
+	rsp, err := c.CorrectFieldMappings(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectFieldMappingsResponse(rsp)
 }
 
 // RequestFieldWithBodyWithResponse Request a field (lazy loading)
@@ -5288,23 +5596,6 @@ func (c *ClientWithResponses) DeactivateFieldWithResponse(ctx context.Context, l
 	return ParseDeactivateFieldResponse(rsp)
 }
 
-// UnbindFieldMappingWithResponse Declare that this endpoint no longer holds a field
-//
-// Declares that the endpoint no longer holds the canonical field in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `UnbindFieldMapping` operationId).
-func (c *ClientWithResponses) UnbindFieldMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindFieldMappingParams, reqEditors ...RequestEditorFn) (*UnbindFieldMappingResponse, error) {
-	rsp, err := c.UnbindFieldMapping(ctx, localId, agrirouterId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUnbindFieldMappingResponse(rsp)
-}
-
 // BindFieldMappingWithResponse Bind a local identifier to an existing field
 //
 // Declares that the canonical field in the path is the one this endpoint knows as `local_id` — used when the endpoint recognises a delivered object as one it already holds. Binding is not a data write: it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. Afterwards the ordinary PUT under that `local_id` resolves to this object and updates it. An endpoint MUST bind before sending an object it received: an unbound send does not resolve and creates a duplicate.
@@ -5320,6 +5611,40 @@ func (c *ClientWithResponses) BindFieldMappingWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseBindFieldMappingResponse(rsp)
+}
+
+// CorrectPartyMappingsWithBodyWithResponse Correct this endpoint's bindings of parties
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+func (c *ClientWithResponses) CorrectPartyMappingsWithBodyWithResponse(ctx context.Context, params *CorrectPartyMappingsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CorrectPartyMappingsResponse, error) {
+	rsp, err := c.CorrectPartyMappingsWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectPartyMappingsResponse(rsp)
+}
+
+// CorrectPartyMappingsWithResponse Correct this endpoint's bindings of parties
+//
+// Replaces bindings the endpoint's user found wrong. Each listed `local_id` ends mapped to the given party, or to none where `agrirouter_id` is `null`. Uniqueness is checked on the result, so a swap is one call, applied whole or not at all. A party bound to a `local_id` the request does not list is not taken from it: that is the `409`.
+//
+// Like binding it creates no revision, does not change `source_endpoint_id`, and is delivered to nobody. It corrects identity, not content: revisions written through the wrong binding stand. It is not a declaration that the endpoint deleted or discarded a record — for a deletion, use the deactivation operation.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/parties/id-mapping-corrections (the `CorrectPartyMappings` operationId).
+func (c *ClientWithResponses) CorrectPartyMappingsWithResponse(ctx context.Context, params *CorrectPartyMappingsParams, body CorrectPartyMappingsJSONRequestBody, reqEditors ...RequestEditorFn) (*CorrectPartyMappingsResponse, error) {
+	rsp, err := c.CorrectPartyMappings(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCorrectPartyMappingsResponse(rsp)
 }
 
 // RequestPartyWithBodyWithResponse Request a party (lazy loading)
@@ -5403,23 +5728,6 @@ func (c *ClientWithResponses) DeactivatePartyWithResponse(ctx context.Context, l
 		return nil, err
 	}
 	return ParseDeactivatePartyResponse(rsp)
-}
-
-// UnbindPartyMappingWithResponse Declare that this endpoint no longer holds a party
-//
-// Declares that the endpoint no longer holds the canonical party in the path under `local_id` — deleted locally, or discarded while the endpoint was not a participant. It is the counterpart of the binding above and, like it, a declaration about the endpoint's own store, which agrirouter takes at face value and never infers. It is not the correction of a mistaken binding, and it is not a statement that the entity is inactive in the world — for the latter, use the deactivation operation, which is about the entity rather than about this endpoint's copy of it.
-//
-// Unbinding removes no canonical object, touches no other endpoint's mapping, creates no revision, and reaches nobody. The object stays one this endpoint is entitled to, so its next change is delivered again, carrying no `referenceId`, and the endpoint MUST then treat it as new: opt-in is the only filter on what an endpoint receives, and unbinding is not an instruction to stop sending. An endpoint that wants the object back at once requests it by `agrirouter_id` rather than waiting for a change.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `UnbindPartyMapping` operationId).
-func (c *ClientWithResponses) UnbindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *UnbindPartyMappingParams, reqEditors ...RequestEditorFn) (*UnbindPartyMappingResponse, error) {
-	rsp, err := c.UnbindPartyMapping(ctx, localId, agrirouterId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUnbindPartyMappingResponse(rsp)
 }
 
 // BindPartyMappingWithResponse Bind a local identifier to an existing party
@@ -5702,6 +6010,56 @@ func ParseStreamMasterdataEventsResponse(rsp *http.Response) (*StreamMasterdataE
 	return response, nil
 }
 
+// ParseCorrectFarmMappingsResponse parses an HTTP response from a CorrectFarmMappingsWithResponse call
+func ParseCorrectFarmMappingsResponse(rsp *http.Response) (*CorrectFarmMappingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CorrectFarmMappingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ValidationError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest MappingConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseRequestFarmResponse parses an HTTP response from a RequestFarmWithResponse call
 func ParseRequestFarmResponse(rsp *http.Response) (*RequestFarmResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5860,15 +6218,15 @@ func ParseDeactivateFarmResponse(rsp *http.Response) (*DeactivateFarmResponse, e
 	return response, nil
 }
 
-// ParseUnbindFarmMappingResponse parses an HTTP response from a UnbindFarmMappingWithResponse call
-func ParseUnbindFarmMappingResponse(rsp *http.Response) (*UnbindFarmMappingResponse, error) {
+// ParseBindFarmMappingResponse parses an HTTP response from a BindFarmMappingWithResponse call
+func ParseBindFarmMappingResponse(rsp *http.Response) (*BindFarmMappingResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UnbindFarmMappingResponse{
+	response := &BindFarmMappingResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -5891,20 +6249,27 @@ func ParseUnbindFarmMappingResponse(rsp *http.Response) (*UnbindFarmMappingRespo
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest MappingConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseBindFarmMappingResponse parses an HTTP response from a BindFarmMappingWithResponse call
-func ParseBindFarmMappingResponse(rsp *http.Response) (*BindFarmMappingResponse, error) {
+// ParseCorrectFieldBoundaryMappingsResponse parses an HTTP response from a CorrectFieldBoundaryMappingsWithResponse call
+func ParseCorrectFieldBoundaryMappingsResponse(rsp *http.Response) (*CorrectFieldBoundaryMappingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &BindFarmMappingResponse{
+	response := &CorrectFieldBoundaryMappingsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -5912,6 +6277,13 @@ func ParseBindFarmMappingResponse(rsp *http.Response) (*BindFarmMappingResponse,
 	switch {
 	case rsp.StatusCode == 204:
 		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ValidationError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest Forbidden
@@ -6097,15 +6469,15 @@ func ParseDeactivateFieldBoundaryResponse(rsp *http.Response) (*DeactivateFieldB
 	return response, nil
 }
 
-// ParseUnbindFieldBoundaryMappingResponse parses an HTTP response from a UnbindFieldBoundaryMappingWithResponse call
-func ParseUnbindFieldBoundaryMappingResponse(rsp *http.Response) (*UnbindFieldBoundaryMappingResponse, error) {
+// ParseBindFieldBoundaryMappingResponse parses an HTTP response from a BindFieldBoundaryMappingWithResponse call
+func ParseBindFieldBoundaryMappingResponse(rsp *http.Response) (*BindFieldBoundaryMappingResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UnbindFieldBoundaryMappingResponse{
+	response := &BindFieldBoundaryMappingResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -6128,20 +6500,27 @@ func ParseUnbindFieldBoundaryMappingResponse(rsp *http.Response) (*UnbindFieldBo
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest MappingConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseBindFieldBoundaryMappingResponse parses an HTTP response from a BindFieldBoundaryMappingWithResponse call
-func ParseBindFieldBoundaryMappingResponse(rsp *http.Response) (*BindFieldBoundaryMappingResponse, error) {
+// ParseCorrectFieldMappingsResponse parses an HTTP response from a CorrectFieldMappingsWithResponse call
+func ParseCorrectFieldMappingsResponse(rsp *http.Response) (*CorrectFieldMappingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &BindFieldBoundaryMappingResponse{
+	response := &CorrectFieldMappingsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -6149,6 +6528,13 @@ func ParseBindFieldBoundaryMappingResponse(rsp *http.Response) (*BindFieldBounda
 	switch {
 	case rsp.StatusCode == 204:
 		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ValidationError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest Forbidden
@@ -6334,15 +6720,15 @@ func ParseDeactivateFieldResponse(rsp *http.Response) (*DeactivateFieldResponse,
 	return response, nil
 }
 
-// ParseUnbindFieldMappingResponse parses an HTTP response from a UnbindFieldMappingWithResponse call
-func ParseUnbindFieldMappingResponse(rsp *http.Response) (*UnbindFieldMappingResponse, error) {
+// ParseBindFieldMappingResponse parses an HTTP response from a BindFieldMappingWithResponse call
+func ParseBindFieldMappingResponse(rsp *http.Response) (*BindFieldMappingResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UnbindFieldMappingResponse{
+	response := &BindFieldMappingResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -6365,20 +6751,27 @@ func ParseUnbindFieldMappingResponse(rsp *http.Response) (*UnbindFieldMappingRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest MappingConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	}
 
 	return response, nil
 }
 
-// ParseBindFieldMappingResponse parses an HTTP response from a BindFieldMappingWithResponse call
-func ParseBindFieldMappingResponse(rsp *http.Response) (*BindFieldMappingResponse, error) {
+// ParseCorrectPartyMappingsResponse parses an HTTP response from a CorrectPartyMappingsWithResponse call
+func ParseCorrectPartyMappingsResponse(rsp *http.Response) (*CorrectPartyMappingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &BindFieldMappingResponse{
+	response := &CorrectPartyMappingsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -6386,6 +6779,13 @@ func ParseBindFieldMappingResponse(rsp *http.Response) (*BindFieldMappingRespons
 	switch {
 	case rsp.StatusCode == 204:
 		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ValidationError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest Forbidden
@@ -6565,42 +6965,6 @@ func ParseDeactivatePartyResponse(rsp *http.Response) (*DeactivatePartyResponse,
 			return nil, err
 		}
 		response.JSON428 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUnbindPartyMappingResponse parses an HTTP response from a UnbindPartyMappingWithResponse call
-func ParseUnbindPartyMappingResponse(rsp *http.Response) (*UnbindPartyMappingResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UnbindPartyMappingResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Forbidden
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 

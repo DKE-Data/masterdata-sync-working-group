@@ -203,9 +203,9 @@ func completeLoadFromReconciling(t *testing.T, p *participant) {
 }
 
 func TestAResetReachesAnApplicationWhoseEndpointWasRemoved(t *testing.T) {
-	// The mapping outlives endpoint removal, so an application with no endpoint
-	// left in the tenant still holds bindings there. The reset is how it learns
-	// they are stale; it lists no endpoints, the application having none there.
+	// An application with no endpoint left in the tenant may still hold the
+	// correspondence tables it kept for them. The reset is how it learns they
+	// are stale; it lists no endpoints, the application having none there.
 	f := newFixture(t)
 	sender := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	receiver := f.join("fmis-b", "ep-b", agmasync.TypeFarm)

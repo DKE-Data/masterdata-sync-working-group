@@ -547,6 +547,18 @@ type IdMappingBinding struct {
 	LocalId      string             `json:"local_id"`
 }
 
+// IdMappingCorrection The correct pairs for a set of the calling endpoint's local identifiers. A `local_id` and a non-null `agrirouter_id` each appear at most once.
+type IdMappingCorrection struct {
+	IdMappings []IdMappingCorrectionEntry `json:"id_mappings"`
+}
+
+// IdMappingCorrectionEntry defines model for IdMappingCorrectionEntry.
+type IdMappingCorrectionEntry struct {
+	// AgrirouterId The object `local_id` denotes, or `null` for none.
+	AgrirouterId nullable.Nullable[openapi_types.UUID] `json:"agrirouter_id"`
+	LocalId      string                                `json:"local_id"`
+}
+
 // IdMappingRejection A binding that could not be recorded: the pair as submitted, why, and the mapping standing in its way.
 type IdMappingRejection struct {
 	AgrirouterId openapi_types.UUID `json:"agrirouter_id"`
@@ -1050,6 +1062,17 @@ type StreamMasterdataEventsParams struct {
 	LastEventID *LastEventId `json:"Last-Event-ID,omitempty"`
 }
 
+// CorrectFarmMappingsParams defines parameters for CorrectFarmMappings.
+type CorrectFarmMappingsParams struct {
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
+	//
+	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
 // RequestFarmParams defines parameters for RequestFarm.
 type RequestFarmParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
@@ -1097,8 +1120,8 @@ type DeactivateFarmParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// UnbindFarmMappingParams defines parameters for UnbindFarmMapping.
-type UnbindFarmMappingParams struct {
+// BindFarmMappingParams defines parameters for BindFarmMapping.
+type BindFarmMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1108,8 +1131,8 @@ type UnbindFarmMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// BindFarmMappingParams defines parameters for BindFarmMapping.
-type BindFarmMappingParams struct {
+// CorrectFieldBoundaryMappingsParams defines parameters for CorrectFieldBoundaryMappings.
+type CorrectFieldBoundaryMappingsParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1166,8 +1189,8 @@ type DeactivateFieldBoundaryParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// UnbindFieldBoundaryMappingParams defines parameters for UnbindFieldBoundaryMapping.
-type UnbindFieldBoundaryMappingParams struct {
+// BindFieldBoundaryMappingParams defines parameters for BindFieldBoundaryMapping.
+type BindFieldBoundaryMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1177,8 +1200,8 @@ type UnbindFieldBoundaryMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// BindFieldBoundaryMappingParams defines parameters for BindFieldBoundaryMapping.
-type BindFieldBoundaryMappingParams struct {
+// CorrectFieldMappingsParams defines parameters for CorrectFieldMappings.
+type CorrectFieldMappingsParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1235,8 +1258,8 @@ type DeactivateFieldParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// UnbindFieldMappingParams defines parameters for UnbindFieldMapping.
-type UnbindFieldMappingParams struct {
+// BindFieldMappingParams defines parameters for BindFieldMapping.
+type BindFieldMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1246,8 +1269,8 @@ type UnbindFieldMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// BindFieldMappingParams defines parameters for BindFieldMapping.
-type BindFieldMappingParams struct {
+// CorrectPartyMappingsParams defines parameters for CorrectPartyMappings.
+type CorrectPartyMappingsParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1304,17 +1327,6 @@ type DeactivatePartyParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// UnbindPartyMappingParams defines parameters for UnbindPartyMapping.
-type UnbindPartyMappingParams struct {
-	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
-	//
-	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
-	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
-
-	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
-	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
-}
-
 // BindPartyMappingParams defines parameters for BindPartyMapping.
 type BindPartyMappingParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
@@ -1332,11 +1344,17 @@ type PutEndpointJSONRequestBody = PutEndpointRequest
 // SetInitialLoadStateJSONRequestBody defines body for SetInitialLoadState for application/json ContentType.
 type SetInitialLoadStateJSONRequestBody = InitialLoadStateUpdate
 
+// CorrectFarmMappingsJSONRequestBody defines body for CorrectFarmMappings for application/json ContentType.
+type CorrectFarmMappingsJSONRequestBody = IdMappingCorrection
+
 // RequestFarmJSONRequestBody defines body for RequestFarm for application/json ContentType.
 type RequestFarmJSONRequestBody = EntityRequest
 
 // PutFarmJSONRequestBody defines body for PutFarm for application/json ContentType.
 type PutFarmJSONRequestBody = Farm
+
+// CorrectFieldBoundaryMappingsJSONRequestBody defines body for CorrectFieldBoundaryMappings for application/json ContentType.
+type CorrectFieldBoundaryMappingsJSONRequestBody = IdMappingCorrection
 
 // RequestFieldBoundaryJSONRequestBody defines body for RequestFieldBoundary for application/json ContentType.
 type RequestFieldBoundaryJSONRequestBody = EntityRequest
@@ -1344,11 +1362,17 @@ type RequestFieldBoundaryJSONRequestBody = EntityRequest
 // PutFieldBoundaryJSONRequestBody defines body for PutFieldBoundary for application/json ContentType.
 type PutFieldBoundaryJSONRequestBody = FieldBoundary
 
+// CorrectFieldMappingsJSONRequestBody defines body for CorrectFieldMappings for application/json ContentType.
+type CorrectFieldMappingsJSONRequestBody = IdMappingCorrection
+
 // RequestFieldJSONRequestBody defines body for RequestField for application/json ContentType.
 type RequestFieldJSONRequestBody = EntityRequest
 
 // PutFieldJSONRequestBody defines body for PutField for application/json ContentType.
 type PutFieldJSONRequestBody = Field
+
+// CorrectPartyMappingsJSONRequestBody defines body for CorrectPartyMappings for application/json ContentType.
+type CorrectPartyMappingsJSONRequestBody = IdMappingCorrection
 
 // RequestPartyJSONRequestBody defines body for RequestParty for application/json ContentType.
 type RequestPartyJSONRequestBody = EntityRequest
@@ -1650,6 +1674,9 @@ type ServerInterface interface {
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	// (GET /masterdata/events)
 	StreamMasterdataEvents(ctx echo.Context, params StreamMasterdataEventsParams) error
+	// CorrectFarmMappings Correct this endpoint's bindings of farms
+	// (POST /masterdata/farms/id-mapping-corrections)
+	CorrectFarmMappings(ctx echo.Context, params CorrectFarmMappingsParams) error
 	// RequestFarm Request a farm (lazy loading)
 	// (POST /masterdata/farms/requests)
 	RequestFarm(ctx echo.Context, params RequestFarmParams) error
@@ -1659,12 +1686,12 @@ type ServerInterface interface {
 	// DeactivateFarm Deactivate a farm
 	// (POST /masterdata/farms/{local_id}/deactivation)
 	DeactivateFarm(ctx echo.Context, localId LocalId, params DeactivateFarmParams) error
-	// UnbindFarmMapping Declare that this endpoint no longer holds a farm
-	// (DELETE /masterdata/farms/{local_id}/id-mapping/{agrirouter_id})
-	UnbindFarmMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindFarmMappingParams) error
 	// BindFarmMapping Bind a local identifier to an existing farm
 	// (PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id})
 	BindFarmMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFarmMappingParams) error
+	// CorrectFieldBoundaryMappings Correct this endpoint's bindings of field boundaries
+	// (POST /masterdata/field-boundaries/id-mapping-corrections)
+	CorrectFieldBoundaryMappings(ctx echo.Context, params CorrectFieldBoundaryMappingsParams) error
 	// RequestFieldBoundary Request a field boundary (lazy loading)
 	// (POST /masterdata/field-boundaries/requests)
 	RequestFieldBoundary(ctx echo.Context, params RequestFieldBoundaryParams) error
@@ -1674,12 +1701,12 @@ type ServerInterface interface {
 	// DeactivateFieldBoundary Deactivate a field boundary
 	// (POST /masterdata/field-boundaries/{local_id}/deactivation)
 	DeactivateFieldBoundary(ctx echo.Context, localId LocalId, params DeactivateFieldBoundaryParams) error
-	// UnbindFieldBoundaryMapping Declare that this endpoint no longer holds a field boundary
-	// (DELETE /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id})
-	UnbindFieldBoundaryMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindFieldBoundaryMappingParams) error
 	// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
 	// (PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldBoundaryMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldBoundaryMappingParams) error
+	// CorrectFieldMappings Correct this endpoint's bindings of fields
+	// (POST /masterdata/fields/id-mapping-corrections)
+	CorrectFieldMappings(ctx echo.Context, params CorrectFieldMappingsParams) error
 	// RequestField Request a field (lazy loading)
 	// (POST /masterdata/fields/requests)
 	RequestField(ctx echo.Context, params RequestFieldParams) error
@@ -1689,12 +1716,12 @@ type ServerInterface interface {
 	// DeactivateField Deactivate a field
 	// (POST /masterdata/fields/{local_id}/deactivation)
 	DeactivateField(ctx echo.Context, localId LocalId, params DeactivateFieldParams) error
-	// UnbindFieldMapping Declare that this endpoint no longer holds a field
-	// (DELETE /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
-	UnbindFieldMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindFieldMappingParams) error
 	// BindFieldMapping Bind a local identifier to an existing field
 	// (PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldMappingParams) error
+	// CorrectPartyMappings Correct this endpoint's bindings of parties
+	// (POST /masterdata/parties/id-mapping-corrections)
+	CorrectPartyMappings(ctx echo.Context, params CorrectPartyMappingsParams) error
 	// RequestParty Request a party (lazy loading)
 	// (POST /masterdata/parties/requests)
 	RequestParty(ctx echo.Context, params RequestPartyParams) error
@@ -1704,9 +1731,6 @@ type ServerInterface interface {
 	// DeactivateParty Deactivate a party
 	// (POST /masterdata/parties/{local_id}/deactivation)
 	DeactivateParty(ctx echo.Context, localId LocalId, params DeactivatePartyParams) error
-	// UnbindPartyMapping Declare that this endpoint no longer holds a party
-	// (DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
-	UnbindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindPartyMappingParams) error
 	// BindPartyMapping Bind a local identifier to an existing party
 	// (PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
 	BindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindPartyMappingParams) error
@@ -1936,6 +1960,54 @@ func (w *ServerInterfaceWrapper) StreamMasterdataEvents(ctx echo.Context) error 
 	return err
 }
 
+// CorrectFarmMappings converts echo context to params.
+func (w *ServerInterfaceWrapper) CorrectFarmMappings(ctx echo.Context) error {
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CorrectFarmMappingsParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
+		var XAgrirouterEndpointId AgrirouterEndpointId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
+		}
+
+		params.XAgrirouterEndpointId = XAgrirouterEndpointId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CorrectFarmMappings(ctx, params)
+	return err
+}
+
 // RequestFarm converts echo context to params.
 func (w *ServerInterfaceWrapper) RequestFarm(ctx echo.Context) error {
 	var err error
@@ -2124,69 +2196,6 @@ func (w *ServerInterfaceWrapper) DeactivateFarm(ctx echo.Context) error {
 	return err
 }
 
-// UnbindFarmMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) UnbindFarmMapping(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// ------------- Path parameter "agrirouter_id" -------------
-	var agrirouterId IdMappingAgrirouterId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agrirouter_id", ctx.Param("agrirouter_id"), &agrirouterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter agrirouter_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params UnbindFarmMappingParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UnbindFarmMapping(ctx, localId, agrirouterId, params)
-	return err
-}
-
 // BindFarmMapping converts echo context to params.
 func (w *ServerInterfaceWrapper) BindFarmMapping(ctx echo.Context) error {
 	var err error
@@ -2247,6 +2256,54 @@ func (w *ServerInterfaceWrapper) BindFarmMapping(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.BindFarmMapping(ctx, localId, agrirouterId, params)
+	return err
+}
+
+// CorrectFieldBoundaryMappings converts echo context to params.
+func (w *ServerInterfaceWrapper) CorrectFieldBoundaryMappings(ctx echo.Context) error {
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CorrectFieldBoundaryMappingsParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
+		var XAgrirouterEndpointId AgrirouterEndpointId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
+		}
+
+		params.XAgrirouterEndpointId = XAgrirouterEndpointId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CorrectFieldBoundaryMappings(ctx, params)
 	return err
 }
 
@@ -2438,69 +2495,6 @@ func (w *ServerInterfaceWrapper) DeactivateFieldBoundary(ctx echo.Context) error
 	return err
 }
 
-// UnbindFieldBoundaryMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) UnbindFieldBoundaryMapping(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// ------------- Path parameter "agrirouter_id" -------------
-	var agrirouterId IdMappingAgrirouterId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agrirouter_id", ctx.Param("agrirouter_id"), &agrirouterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter agrirouter_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params UnbindFieldBoundaryMappingParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UnbindFieldBoundaryMapping(ctx, localId, agrirouterId, params)
-	return err
-}
-
 // BindFieldBoundaryMapping converts echo context to params.
 func (w *ServerInterfaceWrapper) BindFieldBoundaryMapping(ctx echo.Context) error {
 	var err error
@@ -2561,6 +2555,54 @@ func (w *ServerInterfaceWrapper) BindFieldBoundaryMapping(ctx echo.Context) erro
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.BindFieldBoundaryMapping(ctx, localId, agrirouterId, params)
+	return err
+}
+
+// CorrectFieldMappings converts echo context to params.
+func (w *ServerInterfaceWrapper) CorrectFieldMappings(ctx echo.Context) error {
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CorrectFieldMappingsParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
+		var XAgrirouterEndpointId AgrirouterEndpointId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
+		}
+
+		params.XAgrirouterEndpointId = XAgrirouterEndpointId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CorrectFieldMappings(ctx, params)
 	return err
 }
 
@@ -2752,69 +2794,6 @@ func (w *ServerInterfaceWrapper) DeactivateField(ctx echo.Context) error {
 	return err
 }
 
-// UnbindFieldMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) UnbindFieldMapping(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// ------------- Path parameter "agrirouter_id" -------------
-	var agrirouterId IdMappingAgrirouterId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agrirouter_id", ctx.Param("agrirouter_id"), &agrirouterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter agrirouter_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params UnbindFieldMappingParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UnbindFieldMapping(ctx, localId, agrirouterId, params)
-	return err
-}
-
 // BindFieldMapping converts echo context to params.
 func (w *ServerInterfaceWrapper) BindFieldMapping(ctx echo.Context) error {
 	var err error
@@ -2875,6 +2854,54 @@ func (w *ServerInterfaceWrapper) BindFieldMapping(ctx echo.Context) error {
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.BindFieldMapping(ctx, localId, agrirouterId, params)
+	return err
+}
+
+// CorrectPartyMappings converts echo context to params.
+func (w *ServerInterfaceWrapper) CorrectPartyMappings(ctx echo.Context) error {
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CorrectPartyMappingsParams
+
+	headers := ctx.Request().Header
+	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
+		var XAgrirouterEndpointId AgrirouterEndpointId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
+		}
+
+		params.XAgrirouterEndpointId = XAgrirouterEndpointId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
+	}
+	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
+		var XAgrirouterTenantId AgrirouterTenantId
+		n := len(valueList)
+		if n != 1 {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
+		}
+
+		params.XAgrirouterTenantId = XAgrirouterTenantId
+	} else {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CorrectPartyMappings(ctx, params)
 	return err
 }
 
@@ -3066,69 +3093,6 @@ func (w *ServerInterfaceWrapper) DeactivateParty(ctx echo.Context) error {
 	return err
 }
 
-// UnbindPartyMapping converts echo context to params.
-func (w *ServerInterfaceWrapper) UnbindPartyMapping(ctx echo.Context) error {
-	var err error
-	// ------------- Path parameter "local_id" -------------
-	var localId LocalId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "local_id", ctx.Param("local_id"), &localId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter local_id: %s", err))
-	}
-
-	// ------------- Path parameter "agrirouter_id" -------------
-	var agrirouterId IdMappingAgrirouterId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "agrirouter_id", ctx.Param("agrirouter_id"), &agrirouterId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: ctx.Request().URL.RawPath == ""})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter agrirouter_id: %s", err))
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params UnbindPartyMappingParams
-
-	headers := ctx.Request().Header
-	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-endpoint-id")]; found {
-		var XAgrirouterEndpointId AgrirouterEndpointId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-endpoint-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-endpoint-id", valueList[0], &XAgrirouterEndpointId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-endpoint-id: %s", err))
-		}
-
-		params.XAgrirouterEndpointId = XAgrirouterEndpointId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-endpoint-id is required, but not found"))
-	}
-	// ------------- Required header parameter "x-agrirouter-tenant-id" -------------
-	if valueList, found := headers[http.CanonicalHeaderKey("x-agrirouter-tenant-id")]; found {
-		var XAgrirouterTenantId AgrirouterTenantId
-		n := len(valueList)
-		if n != 1 {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Expected one value for x-agrirouter-tenant-id, got %d", n))
-		}
-
-		err = runtime.BindStyledParameterWithOptions("simple", "x-agrirouter-tenant-id", valueList[0], &XAgrirouterTenantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: "uuid"})
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter x-agrirouter-tenant-id: %s", err))
-		}
-
-		params.XAgrirouterTenantId = XAgrirouterTenantId
-	} else {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Header parameter x-agrirouter-tenant-id is required, but not found"))
-	}
-
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.UnbindPartyMapping(ctx, localId, agrirouterId, params)
-	return err
-}
-
 // BindPartyMapping converts echo context to params.
 func (w *ServerInterfaceWrapper) BindPartyMapping(ctx echo.Context) error {
 	var err error
@@ -3240,23 +3204,23 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 	}
 
 	router.PUT(options.BaseURL+"/masterdata/parties/:local_id", wrapper.PutParty, options.OperationMiddlewares["putParty"]...)
-	router.DELETE(options.BaseURL+"/masterdata/parties/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindPartyMapping, options.OperationMiddlewares["unbindPartyMapping"]...)
 	router.PUT(options.BaseURL+"/masterdata/parties/:local_id/id-mapping/:agrirouter_id", wrapper.BindPartyMapping, options.OperationMiddlewares["bindPartyMapping"]...)
+	router.POST(options.BaseURL+"/masterdata/parties/id-mapping-corrections", wrapper.CorrectPartyMappings, options.OperationMiddlewares["correctPartyMappings"]...)
 	router.POST(options.BaseURL+"/masterdata/parties/:local_id/deactivation", wrapper.DeactivateParty, options.OperationMiddlewares["deactivateParty"]...)
 	router.POST(options.BaseURL+"/masterdata/parties/requests", wrapper.RequestParty, options.OperationMiddlewares["requestParty"]...)
 	router.PUT(options.BaseURL+"/masterdata/farms/:local_id", wrapper.PutFarm, options.OperationMiddlewares["putFarm"]...)
-	router.DELETE(options.BaseURL+"/masterdata/farms/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindFarmMapping, options.OperationMiddlewares["unbindFarmMapping"]...)
 	router.PUT(options.BaseURL+"/masterdata/farms/:local_id/id-mapping/:agrirouter_id", wrapper.BindFarmMapping, options.OperationMiddlewares["bindFarmMapping"]...)
+	router.POST(options.BaseURL+"/masterdata/farms/id-mapping-corrections", wrapper.CorrectFarmMappings, options.OperationMiddlewares["correctFarmMappings"]...)
 	router.POST(options.BaseURL+"/masterdata/farms/:local_id/deactivation", wrapper.DeactivateFarm, options.OperationMiddlewares["deactivateFarm"]...)
 	router.POST(options.BaseURL+"/masterdata/farms/requests", wrapper.RequestFarm, options.OperationMiddlewares["requestFarm"]...)
 	router.PUT(options.BaseURL+"/masterdata/fields/:local_id", wrapper.PutField, options.OperationMiddlewares["putField"]...)
-	router.DELETE(options.BaseURL+"/masterdata/fields/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindFieldMapping, options.OperationMiddlewares["unbindFieldMapping"]...)
 	router.PUT(options.BaseURL+"/masterdata/fields/:local_id/id-mapping/:agrirouter_id", wrapper.BindFieldMapping, options.OperationMiddlewares["bindFieldMapping"]...)
+	router.POST(options.BaseURL+"/masterdata/fields/id-mapping-corrections", wrapper.CorrectFieldMappings, options.OperationMiddlewares["correctFieldMappings"]...)
 	router.POST(options.BaseURL+"/masterdata/fields/:local_id/deactivation", wrapper.DeactivateField, options.OperationMiddlewares["deactivateField"]...)
 	router.POST(options.BaseURL+"/masterdata/fields/requests", wrapper.RequestField, options.OperationMiddlewares["requestField"]...)
 	router.PUT(options.BaseURL+"/masterdata/field-boundaries/:local_id", wrapper.PutFieldBoundary, options.OperationMiddlewares["putFieldBoundary"]...)
-	router.DELETE(options.BaseURL+"/masterdata/field-boundaries/:local_id/id-mapping/:agrirouter_id", wrapper.UnbindFieldBoundaryMapping, options.OperationMiddlewares["unbindFieldBoundaryMapping"]...)
 	router.PUT(options.BaseURL+"/masterdata/field-boundaries/:local_id/id-mapping/:agrirouter_id", wrapper.BindFieldBoundaryMapping, options.OperationMiddlewares["bindFieldBoundaryMapping"]...)
+	router.POST(options.BaseURL+"/masterdata/field-boundaries/id-mapping-corrections", wrapper.CorrectFieldBoundaryMappings, options.OperationMiddlewares["correctFieldBoundaryMappings"]...)
 	router.POST(options.BaseURL+"/masterdata/field-boundaries/:local_id/deactivation", wrapper.DeactivateFieldBoundary, options.OperationMiddlewares["deactivateFieldBoundary"]...)
 	router.POST(options.BaseURL+"/masterdata/field-boundaries/requests", wrapper.RequestFieldBoundary, options.OperationMiddlewares["requestFieldBoundary"]...)
 	router.GET(options.BaseURL+"/masterdata/events", wrapper.StreamMasterdataEvents, options.OperationMiddlewares["streamMasterdataEvents"]...)
@@ -3740,6 +3704,79 @@ func (response StreamMasterdataEvents200TexteventStreamResponse) VisitStreamMast
 	}
 }
 
+type CorrectFarmMappingsRequestObject struct {
+	Params CorrectFarmMappingsParams
+	Body   *CorrectFarmMappingsJSONRequestBody
+}
+
+type CorrectFarmMappingsResponseObject interface {
+	VisitCorrectFarmMappingsResponse(w http.ResponseWriter) error
+}
+
+type CorrectFarmMappings204Response struct {
+}
+
+func (response CorrectFarmMappings204Response) VisitCorrectFarmMappingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CorrectFarmMappings400JSONResponse struct{ ValidationErrorJSONResponse }
+
+func (response CorrectFarmMappings400JSONResponse) VisitCorrectFarmMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFarmMappings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CorrectFarmMappings403JSONResponse) VisitCorrectFarmMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFarmMappings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectFarmMappings404JSONResponse) VisitCorrectFarmMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFarmMappings409JSONResponse struct{ MappingConflictJSONResponse }
+
+func (response CorrectFarmMappings409JSONResponse) VisitCorrectFarmMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RequestFarmRequestObject struct {
 	Params RequestFarmParams
 	Body   *RequestFarmJSONRequestBody
@@ -3975,52 +4012,6 @@ func (response DeactivateFarm428JSONResponse) VisitDeactivateFarmResponse(w http
 	return err
 }
 
-type UnbindFarmMappingRequestObject struct {
-	LocalId      LocalId               `json:"local_id"`
-	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       UnbindFarmMappingParams
-}
-
-type UnbindFarmMappingResponseObject interface {
-	VisitUnbindFarmMappingResponse(w http.ResponseWriter) error
-}
-
-type UnbindFarmMapping204Response struct {
-}
-
-func (response UnbindFarmMapping204Response) VisitUnbindFarmMappingResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type UnbindFarmMapping403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response UnbindFarmMapping403JSONResponse) VisitUnbindFarmMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UnbindFarmMapping404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response UnbindFarmMapping404JSONResponse) VisitUnbindFarmMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type BindFarmMappingRequestObject struct {
 	LocalId      LocalId               `json:"local_id"`
 	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
@@ -4070,6 +4061,79 @@ func (response BindFarmMapping404JSONResponse) VisitBindFarmMappingResponse(w ht
 type BindFarmMapping409JSONResponse struct{ MappingConflictJSONResponse }
 
 func (response BindFarmMapping409JSONResponse) VisitBindFarmMappingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldBoundaryMappingsRequestObject struct {
+	Params CorrectFieldBoundaryMappingsParams
+	Body   *CorrectFieldBoundaryMappingsJSONRequestBody
+}
+
+type CorrectFieldBoundaryMappingsResponseObject interface {
+	VisitCorrectFieldBoundaryMappingsResponse(w http.ResponseWriter) error
+}
+
+type CorrectFieldBoundaryMappings204Response struct {
+}
+
+func (response CorrectFieldBoundaryMappings204Response) VisitCorrectFieldBoundaryMappingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CorrectFieldBoundaryMappings400JSONResponse struct{ ValidationErrorJSONResponse }
+
+func (response CorrectFieldBoundaryMappings400JSONResponse) VisitCorrectFieldBoundaryMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldBoundaryMappings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CorrectFieldBoundaryMappings403JSONResponse) VisitCorrectFieldBoundaryMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldBoundaryMappings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectFieldBoundaryMappings404JSONResponse) VisitCorrectFieldBoundaryMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldBoundaryMappings409JSONResponse struct{ MappingConflictJSONResponse }
+
+func (response CorrectFieldBoundaryMappings409JSONResponse) VisitCorrectFieldBoundaryMappingsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4316,52 +4380,6 @@ func (response DeactivateFieldBoundary428JSONResponse) VisitDeactivateFieldBound
 	return err
 }
 
-type UnbindFieldBoundaryMappingRequestObject struct {
-	LocalId      LocalId               `json:"local_id"`
-	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       UnbindFieldBoundaryMappingParams
-}
-
-type UnbindFieldBoundaryMappingResponseObject interface {
-	VisitUnbindFieldBoundaryMappingResponse(w http.ResponseWriter) error
-}
-
-type UnbindFieldBoundaryMapping204Response struct {
-}
-
-func (response UnbindFieldBoundaryMapping204Response) VisitUnbindFieldBoundaryMappingResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type UnbindFieldBoundaryMapping403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response UnbindFieldBoundaryMapping403JSONResponse) VisitUnbindFieldBoundaryMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UnbindFieldBoundaryMapping404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response UnbindFieldBoundaryMapping404JSONResponse) VisitUnbindFieldBoundaryMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type BindFieldBoundaryMappingRequestObject struct {
 	LocalId      LocalId               `json:"local_id"`
 	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
@@ -4411,6 +4429,79 @@ func (response BindFieldBoundaryMapping404JSONResponse) VisitBindFieldBoundaryMa
 type BindFieldBoundaryMapping409JSONResponse struct{ MappingConflictJSONResponse }
 
 func (response BindFieldBoundaryMapping409JSONResponse) VisitBindFieldBoundaryMappingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldMappingsRequestObject struct {
+	Params CorrectFieldMappingsParams
+	Body   *CorrectFieldMappingsJSONRequestBody
+}
+
+type CorrectFieldMappingsResponseObject interface {
+	VisitCorrectFieldMappingsResponse(w http.ResponseWriter) error
+}
+
+type CorrectFieldMappings204Response struct {
+}
+
+func (response CorrectFieldMappings204Response) VisitCorrectFieldMappingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CorrectFieldMappings400JSONResponse struct{ ValidationErrorJSONResponse }
+
+func (response CorrectFieldMappings400JSONResponse) VisitCorrectFieldMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldMappings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CorrectFieldMappings403JSONResponse) VisitCorrectFieldMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldMappings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectFieldMappings404JSONResponse) VisitCorrectFieldMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFieldMappings409JSONResponse struct{ MappingConflictJSONResponse }
+
+func (response CorrectFieldMappings409JSONResponse) VisitCorrectFieldMappingsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4657,52 +4748,6 @@ func (response DeactivateField428JSONResponse) VisitDeactivateFieldResponse(w ht
 	return err
 }
 
-type UnbindFieldMappingRequestObject struct {
-	LocalId      LocalId               `json:"local_id"`
-	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       UnbindFieldMappingParams
-}
-
-type UnbindFieldMappingResponseObject interface {
-	VisitUnbindFieldMappingResponse(w http.ResponseWriter) error
-}
-
-type UnbindFieldMapping204Response struct {
-}
-
-func (response UnbindFieldMapping204Response) VisitUnbindFieldMappingResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type UnbindFieldMapping403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response UnbindFieldMapping403JSONResponse) VisitUnbindFieldMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UnbindFieldMapping404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response UnbindFieldMapping404JSONResponse) VisitUnbindFieldMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type BindFieldMappingRequestObject struct {
 	LocalId      LocalId               `json:"local_id"`
 	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
@@ -4752,6 +4797,79 @@ func (response BindFieldMapping404JSONResponse) VisitBindFieldMappingResponse(w 
 type BindFieldMapping409JSONResponse struct{ MappingConflictJSONResponse }
 
 func (response BindFieldMapping409JSONResponse) VisitBindFieldMappingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectPartyMappingsRequestObject struct {
+	Params CorrectPartyMappingsParams
+	Body   *CorrectPartyMappingsJSONRequestBody
+}
+
+type CorrectPartyMappingsResponseObject interface {
+	VisitCorrectPartyMappingsResponse(w http.ResponseWriter) error
+}
+
+type CorrectPartyMappings204Response struct {
+}
+
+func (response CorrectPartyMappings204Response) VisitCorrectPartyMappingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CorrectPartyMappings400JSONResponse struct{ ValidationErrorJSONResponse }
+
+func (response CorrectPartyMappings400JSONResponse) VisitCorrectPartyMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectPartyMappings403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CorrectPartyMappings403JSONResponse) VisitCorrectPartyMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectPartyMappings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectPartyMappings404JSONResponse) VisitCorrectPartyMappingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectPartyMappings409JSONResponse struct{ MappingConflictJSONResponse }
+
+func (response CorrectPartyMappings409JSONResponse) VisitCorrectPartyMappingsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4998,52 +5116,6 @@ func (response DeactivateParty428JSONResponse) VisitDeactivatePartyResponse(w ht
 	return err
 }
 
-type UnbindPartyMappingRequestObject struct {
-	LocalId      LocalId               `json:"local_id"`
-	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
-	Params       UnbindPartyMappingParams
-}
-
-type UnbindPartyMappingResponseObject interface {
-	VisitUnbindPartyMappingResponse(w http.ResponseWriter) error
-}
-
-type UnbindPartyMapping204Response struct {
-}
-
-func (response UnbindPartyMapping204Response) VisitUnbindPartyMappingResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type UnbindPartyMapping403JSONResponse struct{ ForbiddenJSONResponse }
-
-func (response UnbindPartyMapping403JSONResponse) VisitUnbindPartyMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UnbindPartyMapping404JSONResponse struct{ NotFoundJSONResponse }
-
-func (response UnbindPartyMapping404JSONResponse) VisitUnbindPartyMappingResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type BindPartyMappingRequestObject struct {
 	LocalId      LocalId               `json:"local_id"`
 	AgrirouterId IdMappingAgrirouterId `json:"agrirouter_id"`
@@ -5124,6 +5196,9 @@ type StrictServerInterface interface {
 	// StreamMasterdataEvents Receive master-data changes (Server-Sent Events)
 	// (GET /masterdata/events)
 	StreamMasterdataEvents(ctx context.Context, request StreamMasterdataEventsRequestObject) (StreamMasterdataEventsResponseObject, error)
+	// CorrectFarmMappings Correct this endpoint's bindings of farms
+	// (POST /masterdata/farms/id-mapping-corrections)
+	CorrectFarmMappings(ctx context.Context, request CorrectFarmMappingsRequestObject) (CorrectFarmMappingsResponseObject, error)
 	// RequestFarm Request a farm (lazy loading)
 	// (POST /masterdata/farms/requests)
 	RequestFarm(ctx context.Context, request RequestFarmRequestObject) (RequestFarmResponseObject, error)
@@ -5133,12 +5208,12 @@ type StrictServerInterface interface {
 	// DeactivateFarm Deactivate a farm
 	// (POST /masterdata/farms/{local_id}/deactivation)
 	DeactivateFarm(ctx context.Context, request DeactivateFarmRequestObject) (DeactivateFarmResponseObject, error)
-	// UnbindFarmMapping Declare that this endpoint no longer holds a farm
-	// (DELETE /masterdata/farms/{local_id}/id-mapping/{agrirouter_id})
-	UnbindFarmMapping(ctx context.Context, request UnbindFarmMappingRequestObject) (UnbindFarmMappingResponseObject, error)
 	// BindFarmMapping Bind a local identifier to an existing farm
 	// (PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id})
 	BindFarmMapping(ctx context.Context, request BindFarmMappingRequestObject) (BindFarmMappingResponseObject, error)
+	// CorrectFieldBoundaryMappings Correct this endpoint's bindings of field boundaries
+	// (POST /masterdata/field-boundaries/id-mapping-corrections)
+	CorrectFieldBoundaryMappings(ctx context.Context, request CorrectFieldBoundaryMappingsRequestObject) (CorrectFieldBoundaryMappingsResponseObject, error)
 	// RequestFieldBoundary Request a field boundary (lazy loading)
 	// (POST /masterdata/field-boundaries/requests)
 	RequestFieldBoundary(ctx context.Context, request RequestFieldBoundaryRequestObject) (RequestFieldBoundaryResponseObject, error)
@@ -5148,12 +5223,12 @@ type StrictServerInterface interface {
 	// DeactivateFieldBoundary Deactivate a field boundary
 	// (POST /masterdata/field-boundaries/{local_id}/deactivation)
 	DeactivateFieldBoundary(ctx context.Context, request DeactivateFieldBoundaryRequestObject) (DeactivateFieldBoundaryResponseObject, error)
-	// UnbindFieldBoundaryMapping Declare that this endpoint no longer holds a field boundary
-	// (DELETE /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id})
-	UnbindFieldBoundaryMapping(ctx context.Context, request UnbindFieldBoundaryMappingRequestObject) (UnbindFieldBoundaryMappingResponseObject, error)
 	// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
 	// (PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldBoundaryMapping(ctx context.Context, request BindFieldBoundaryMappingRequestObject) (BindFieldBoundaryMappingResponseObject, error)
+	// CorrectFieldMappings Correct this endpoint's bindings of fields
+	// (POST /masterdata/fields/id-mapping-corrections)
+	CorrectFieldMappings(ctx context.Context, request CorrectFieldMappingsRequestObject) (CorrectFieldMappingsResponseObject, error)
 	// RequestField Request a field (lazy loading)
 	// (POST /masterdata/fields/requests)
 	RequestField(ctx context.Context, request RequestFieldRequestObject) (RequestFieldResponseObject, error)
@@ -5163,12 +5238,12 @@ type StrictServerInterface interface {
 	// DeactivateField Deactivate a field
 	// (POST /masterdata/fields/{local_id}/deactivation)
 	DeactivateField(ctx context.Context, request DeactivateFieldRequestObject) (DeactivateFieldResponseObject, error)
-	// UnbindFieldMapping Declare that this endpoint no longer holds a field
-	// (DELETE /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
-	UnbindFieldMapping(ctx context.Context, request UnbindFieldMappingRequestObject) (UnbindFieldMappingResponseObject, error)
 	// BindFieldMapping Bind a local identifier to an existing field
 	// (PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldMapping(ctx context.Context, request BindFieldMappingRequestObject) (BindFieldMappingResponseObject, error)
+	// CorrectPartyMappings Correct this endpoint's bindings of parties
+	// (POST /masterdata/parties/id-mapping-corrections)
+	CorrectPartyMappings(ctx context.Context, request CorrectPartyMappingsRequestObject) (CorrectPartyMappingsResponseObject, error)
 	// RequestParty Request a party (lazy loading)
 	// (POST /masterdata/parties/requests)
 	RequestParty(ctx context.Context, request RequestPartyRequestObject) (RequestPartyResponseObject, error)
@@ -5178,9 +5253,6 @@ type StrictServerInterface interface {
 	// DeactivateParty Deactivate a party
 	// (POST /masterdata/parties/{local_id}/deactivation)
 	DeactivateParty(ctx context.Context, request DeactivatePartyRequestObject) (DeactivatePartyResponseObject, error)
-	// UnbindPartyMapping Declare that this endpoint no longer holds a party
-	// (DELETE /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
-	UnbindPartyMapping(ctx context.Context, request UnbindPartyMappingRequestObject) (UnbindPartyMappingResponseObject, error)
 	// BindPartyMapping Bind a local identifier to an existing party
 	// (PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
 	BindPartyMapping(ctx context.Context, request BindPartyMappingRequestObject) (BindPartyMappingResponseObject, error)
@@ -5385,6 +5457,47 @@ func (sh *strictHandler) StreamMasterdataEvents(ctx echo.Context, params StreamM
 	return nil
 }
 
+// CorrectFarmMappings operation middleware
+func (sh *strictHandler) CorrectFarmMappings(ctx echo.Context, params CorrectFarmMappingsParams) error {
+	var request CorrectFarmMappingsRequestObject
+
+	request.Params = params
+
+	var body CorrectFarmMappingsJSONRequestBody
+	var err error
+	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
+		// Bind only the request body, so that path and query parameters
+		// are not also bound into the body struct.
+		err = binder.BindBody(ctx, &body)
+	} else {
+		// A custom binder is installed on the Echo instance; defer to it
+		// entirely, since echo.Binder does not expose body-only binding.
+		err = ctx.Bind(&body)
+	}
+	if err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectFarmMappings(ctx.Request().Context(), request.(CorrectFarmMappingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectFarmMappings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(CorrectFarmMappingsResponseObject); ok {
+		return validResponse.VisitCorrectFarmMappingsResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // RequestFarm operation middleware
 func (sh *strictHandler) RequestFarm(ctx echo.Context, params RequestFarmParams) error {
 	var request RequestFarmRequestObject
@@ -5494,33 +5607,6 @@ func (sh *strictHandler) DeactivateFarm(ctx echo.Context, localId LocalId, param
 	return nil
 }
 
-// UnbindFarmMapping operation middleware
-func (sh *strictHandler) UnbindFarmMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindFarmMappingParams) error {
-	var request UnbindFarmMappingRequestObject
-
-	request.LocalId = localId
-	request.AgrirouterId = agrirouterId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UnbindFarmMapping(ctx.Request().Context(), request.(UnbindFarmMappingRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UnbindFarmMapping")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UnbindFarmMappingResponseObject); ok {
-		return validResponse.VisitUnbindFarmMappingResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
 // BindFarmMapping operation middleware
 func (sh *strictHandler) BindFarmMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFarmMappingParams) error {
 	var request BindFarmMappingRequestObject
@@ -5542,6 +5628,47 @@ func (sh *strictHandler) BindFarmMapping(ctx echo.Context, localId LocalId, agri
 		return err
 	} else if validResponse, ok := response.(BindFarmMappingResponseObject); ok {
 		return validResponse.VisitBindFarmMappingResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// CorrectFieldBoundaryMappings operation middleware
+func (sh *strictHandler) CorrectFieldBoundaryMappings(ctx echo.Context, params CorrectFieldBoundaryMappingsParams) error {
+	var request CorrectFieldBoundaryMappingsRequestObject
+
+	request.Params = params
+
+	var body CorrectFieldBoundaryMappingsJSONRequestBody
+	var err error
+	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
+		// Bind only the request body, so that path and query parameters
+		// are not also bound into the body struct.
+		err = binder.BindBody(ctx, &body)
+	} else {
+		// A custom binder is installed on the Echo instance; defer to it
+		// entirely, since echo.Binder does not expose body-only binding.
+		err = ctx.Bind(&body)
+	}
+	if err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectFieldBoundaryMappings(ctx.Request().Context(), request.(CorrectFieldBoundaryMappingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectFieldBoundaryMappings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(CorrectFieldBoundaryMappingsResponseObject); ok {
+		return validResponse.VisitCorrectFieldBoundaryMappingsResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -5657,33 +5784,6 @@ func (sh *strictHandler) DeactivateFieldBoundary(ctx echo.Context, localId Local
 	return nil
 }
 
-// UnbindFieldBoundaryMapping operation middleware
-func (sh *strictHandler) UnbindFieldBoundaryMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindFieldBoundaryMappingParams) error {
-	var request UnbindFieldBoundaryMappingRequestObject
-
-	request.LocalId = localId
-	request.AgrirouterId = agrirouterId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UnbindFieldBoundaryMapping(ctx.Request().Context(), request.(UnbindFieldBoundaryMappingRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UnbindFieldBoundaryMapping")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UnbindFieldBoundaryMappingResponseObject); ok {
-		return validResponse.VisitUnbindFieldBoundaryMappingResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
 // BindFieldBoundaryMapping operation middleware
 func (sh *strictHandler) BindFieldBoundaryMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldBoundaryMappingParams) error {
 	var request BindFieldBoundaryMappingRequestObject
@@ -5705,6 +5805,47 @@ func (sh *strictHandler) BindFieldBoundaryMapping(ctx echo.Context, localId Loca
 		return err
 	} else if validResponse, ok := response.(BindFieldBoundaryMappingResponseObject); ok {
 		return validResponse.VisitBindFieldBoundaryMappingResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// CorrectFieldMappings operation middleware
+func (sh *strictHandler) CorrectFieldMappings(ctx echo.Context, params CorrectFieldMappingsParams) error {
+	var request CorrectFieldMappingsRequestObject
+
+	request.Params = params
+
+	var body CorrectFieldMappingsJSONRequestBody
+	var err error
+	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
+		// Bind only the request body, so that path and query parameters
+		// are not also bound into the body struct.
+		err = binder.BindBody(ctx, &body)
+	} else {
+		// A custom binder is installed on the Echo instance; defer to it
+		// entirely, since echo.Binder does not expose body-only binding.
+		err = ctx.Bind(&body)
+	}
+	if err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectFieldMappings(ctx.Request().Context(), request.(CorrectFieldMappingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectFieldMappings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(CorrectFieldMappingsResponseObject); ok {
+		return validResponse.VisitCorrectFieldMappingsResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -5820,33 +5961,6 @@ func (sh *strictHandler) DeactivateField(ctx echo.Context, localId LocalId, para
 	return nil
 }
 
-// UnbindFieldMapping operation middleware
-func (sh *strictHandler) UnbindFieldMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindFieldMappingParams) error {
-	var request UnbindFieldMappingRequestObject
-
-	request.LocalId = localId
-	request.AgrirouterId = agrirouterId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UnbindFieldMapping(ctx.Request().Context(), request.(UnbindFieldMappingRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UnbindFieldMapping")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UnbindFieldMappingResponseObject); ok {
-		return validResponse.VisitUnbindFieldMappingResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
 // BindFieldMapping operation middleware
 func (sh *strictHandler) BindFieldMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldMappingParams) error {
 	var request BindFieldMappingRequestObject
@@ -5868,6 +5982,47 @@ func (sh *strictHandler) BindFieldMapping(ctx echo.Context, localId LocalId, agr
 		return err
 	} else if validResponse, ok := response.(BindFieldMappingResponseObject); ok {
 		return validResponse.VisitBindFieldMappingResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// CorrectPartyMappings operation middleware
+func (sh *strictHandler) CorrectPartyMappings(ctx echo.Context, params CorrectPartyMappingsParams) error {
+	var request CorrectPartyMappingsRequestObject
+
+	request.Params = params
+
+	var body CorrectPartyMappingsJSONRequestBody
+	var err error
+	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
+		// Bind only the request body, so that path and query parameters
+		// are not also bound into the body struct.
+		err = binder.BindBody(ctx, &body)
+	} else {
+		// A custom binder is installed on the Echo instance; defer to it
+		// entirely, since echo.Binder does not expose body-only binding.
+		err = ctx.Bind(&body)
+	}
+	if err != nil {
+		return err
+	}
+	request.Body = &body
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectPartyMappings(ctx.Request().Context(), request.(CorrectPartyMappingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectPartyMappings")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(CorrectPartyMappingsResponseObject); ok {
+		return validResponse.VisitCorrectPartyMappingsResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -5977,33 +6132,6 @@ func (sh *strictHandler) DeactivateParty(ctx echo.Context, localId LocalId, para
 		return err
 	} else if validResponse, ok := response.(DeactivatePartyResponseObject); ok {
 		return validResponse.VisitDeactivatePartyResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// UnbindPartyMapping operation middleware
-func (sh *strictHandler) UnbindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params UnbindPartyMappingParams) error {
-	var request UnbindPartyMappingRequestObject
-
-	request.LocalId = localId
-	request.AgrirouterId = agrirouterId
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UnbindPartyMapping(ctx.Request().Context(), request.(UnbindPartyMappingRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UnbindPartyMapping")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UnbindPartyMappingResponseObject); ok {
-		return validResponse.VisitUnbindPartyMappingResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}

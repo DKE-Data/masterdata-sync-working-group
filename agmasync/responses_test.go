@@ -3,6 +3,7 @@ package agmasync_test
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -170,3 +171,42 @@ func TestBaseRevisionRequiredCarriesTheCurrentRevision(t *testing.T) {
 		t.Errorf("a 428 matches ErrRevisionConflict")
 	}
 }
+
+func TestCorrectMappingsSendsNullAndDecodesTheConflict(t *testing.T) {
+	var sent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		sent = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"message":"taken","rejection":{"local_id":"north","agrirouter_id":"` + north.String() +
+			`","reason":"AGRIROUTER_ID_ALREADY_BOUND","existing_mapping":{"local_id":"south","agrirouter_id":"` + north.String() + `"}}}`))
+	}))
+	t.Cleanup(srv.Close)
+	api, err := oapi.NewClientWithResponses(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = agmasync.CorrectMappings(context.Background(), api, uuid.New(), uuid.New(), agmasync.TypeField,
+		[]oapi.IdMappingCorrectionEntry{
+			agmasync.Correction("north", &north),
+			agmasync.Correction("stray", nil),
+		})
+
+	// null is "none", which an omitted agrirouter_id would not say: the
+	// attribute is required.
+	want := `{"id_mappings":[{"agrirouter_id":"` + north.String() + `","local_id":"north"},{"agrirouter_id":null,"local_id":"stray"}]}`
+	if sent != want {
+		t.Errorf("body = %s, want %s", sent, want)
+	}
+	var mc *agmasync.MappingConflict
+	if !errors.As(err, &mc) || !errors.Is(err, agmasync.ErrMappingConflict) {
+		t.Fatalf("CorrectMappings error = %v, want a MappingConflict", err)
+	}
+	if mc.Rejection.ExistingMapping == nil || mc.Rejection.ExistingMapping.LocalId != "south" {
+		t.Errorf("ExistingMapping = %+v, want the unlisted south holding the target", mc.Rejection.ExistingMapping)
+	}
+}
+
+var north = uuid.MustParse("7d3e2f10-5a6b-4c8d-9e0f-1a2b3c4d5e6f")

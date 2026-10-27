@@ -64,59 +64,85 @@ func Bind(
 	}
 }
 
-// Unbind declares that this endpoint no longer holds the canonical object
-// under localID, e.g. it was deleted locally. Without it, recreating the object
-// locally mints a new localID that collides with the stale pair on [Bind].
+// Correction is the entry of a [CorrectMappings] request: localID ends mapped to
+// agrirouterID, or to nothing where agrirouterID is nil.
+func Correction(localID string, agrirouterID *uuid.UUID) oapi.IdMappingCorrectionEntry {
+	e := oapi.IdMappingCorrectionEntry{LocalId: localID}
+	if agrirouterID != nil {
+		e.AgrirouterId.Set(*agrirouterID)
+	} else {
+		e.AgrirouterId.SetNull()
+	}
+	return e
+}
+
+// CorrectMappings replaces bindings this endpoint's user found wrong. Each
+// listed localID ends mapped to the given canonical object, or to none; build
+// the entries with [Correction].
 //
-// It is not a deactivation: it removes no canonical object, creates no revision,
-// and reaches nobody. Nor does it filter delivery: the object's next change
-// arrives again without a localId, to be created locally and bound; [Request]
-// fetches it sooner.
+// Uniqueness is checked on the result, so a crosswise swap — the usual wrong
+// binding, each half valid on its own — is one call, applied whole or not at
+// all. A target bound to a localID the request does not list is not taken
+// from it: that is [ErrMappingConflict], naming that mapping. A localID or
+// target listed twice is [ErrValidation].
 //
-// Idempotent: the response is 204 whether or not a mapping existed.
-func Unbind(
+// It corrects identity, not content: no revision, delivered to nobody, and
+// revisions written through the wrong binding stand. Repair them with ordinary
+// writes, and the local records with [Request]. It is not for a local deletion,
+// which is a deactivation. See "Correcting a binding" in specification.md.
+func CorrectMappings(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
-	t EntityType, localID string, agrirouterID uuid.UUID,
+	t EntityType, entries []oapi.IdMappingCorrectionEntry,
 ) error {
+	body := oapi.IdMappingCorrection{IdMappings: entries}
 	switch t {
 	case TypeParty:
-		r, err := api.UnbindPartyMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindPartyMappingParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID})
+		r, err := api.CorrectPartyMappingsWithResponse(ctx,
+			&oapi.CorrectPartyMappingsParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
-		return mappingResult{statusCode: r.StatusCode(), forbidden: r.JSON403,
-			notFound: r.JSON404, body: r.Body}.err()
+		return correctionResult(r.StatusCode(), r.JSON400, r.JSON403, r.JSON404, r.JSON409, r.Body)
 
 	case TypeFarm:
-		r, err := api.UnbindFarmMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindFarmMappingParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID})
+		r, err := api.CorrectFarmMappingsWithResponse(ctx,
+			&oapi.CorrectFarmMappingsParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
-		return mappingResult{statusCode: r.StatusCode(), forbidden: r.JSON403,
-			notFound: r.JSON404, body: r.Body}.err()
+		return correctionResult(r.StatusCode(), r.JSON400, r.JSON403, r.JSON404, r.JSON409, r.Body)
 
 	case TypeField:
-		r, err := api.UnbindFieldMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindFieldMappingParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID})
+		r, err := api.CorrectFieldMappingsWithResponse(ctx,
+			&oapi.CorrectFieldMappingsParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
-		return mappingResult{statusCode: r.StatusCode(), forbidden: r.JSON403,
-			notFound: r.JSON404, body: r.Body}.err()
+		return correctionResult(r.StatusCode(), r.JSON400, r.JSON403, r.JSON404, r.JSON409, r.Body)
 
 	case TypeFieldBoundary:
-		r, err := api.UnbindFieldBoundaryMappingWithResponse(ctx, localID, agrirouterID,
-			&oapi.UnbindFieldBoundaryMappingParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID})
+		r, err := api.CorrectFieldBoundaryMappingsWithResponse(ctx,
+			&oapi.CorrectFieldBoundaryMappingsParams{XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID}, body)
 		if err != nil {
 			return transportErr(err)
 		}
-		return mappingResult{statusCode: r.StatusCode(), forbidden: r.JSON403,
-			notFound: r.JSON404, body: r.Body}.err()
+		return correctionResult(r.StatusCode(), r.JSON400, r.JSON403, r.JSON404, r.JSON409, r.Body)
 
 	default:
 		return fmt.Errorf("agmasync: %w: %q", ErrUnknownEntityType, t)
 	}
+}
+
+func correctionResult(
+	status int, validation, forbidden, notFound *oapi.Error, conflict *oapi.MappingConflictError, body []byte,
+) error {
+	return writeResult{
+		statusCode: status,
+		validation: validation,
+		forbidden:  forbidden,
+		notFound:   notFound,
+		conflict:   conflict,
+		body:       body,
+	}.err()
 }

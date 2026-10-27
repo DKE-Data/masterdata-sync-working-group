@@ -57,8 +57,10 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 		"Bind": func() error {
 			return agmasync.Bind(ctx, api, endpointID, tenant, agmasync.TypeParty, "o-1", uuid.New())
 		},
-		"Unbind": func() error {
-			return agmasync.Unbind(ctx, api, endpointID, tenant, agmasync.TypeParty, "o-1", uuid.New())
+		"CorrectMappings": func() error {
+			id := uuid.New()
+			return agmasync.CorrectMappings(ctx, api, endpointID, tenant, agmasync.TypeParty,
+				[]oapi.IdMappingCorrectionEntry{agmasync.Correction("o-1", &id)})
 		},
 		"Deactivate": func() error {
 			_, err := agmasync.Deactivate(ctx, api, endpointID, tenant, agmasync.TypeParty, "o-1", nil)

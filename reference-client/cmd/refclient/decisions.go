@@ -263,10 +263,9 @@ func (i *inbox) Answered() []answered {
 //
 // Bound records are left out because they are already accounted for: agrirouter
 // knows what this platform calls them, so an object arriving without a localId
-// is by definition not one of them. So are records this platform has unbound,
-// which is a stronger statement than never having been bound — it told
-// agrirouter it no longer holds that object, and the object's next delivery is
-// meant to be created afresh rather than quietly reattached to what was let go.
+// is by definition not one of them. So are records whose binding agrirouter
+// refused: each already answers to a canonical object, and waits for that
+// refusal to be settled rather than being matched to another.
 // unboundRecords lists the records not bound in the given agrirouter tenant. A
 // record bound in another tenant is still a candidate here: that binding is to
 // the other tenant's canonical object.

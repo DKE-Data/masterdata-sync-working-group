@@ -231,10 +231,9 @@ func (e *Endpoint) Bind(ctx context.Context, t agmasync.EntityType, localID stri
 	return agmasync.Bind(ctx, e.api, e.id, e.tenantID, t, localID, agrirouterID)
 }
 
-// Unbind declares that the endpoint no longer holds a canonical object. See
-// [agmasync.Unbind].
-func (e *Endpoint) Unbind(ctx context.Context, t agmasync.EntityType, localID string, agrirouterID uuid.UUID) error {
-	return agmasync.Unbind(ctx, e.api, e.id, e.tenantID, t, localID, agrirouterID)
+// Correct replaces bindings the user found wrong. See [agmasync.CorrectMappings].
+func (e *Endpoint) Correct(ctx context.Context, t agmasync.EntityType, entries []oapi.IdMappingCorrectionEntry) error {
+	return agmasync.CorrectMappings(ctx, e.api, e.id, e.tenantID, t, entries)
 }
 
 // InitialLoadEvents opens the endpoint's initial-load stream. See

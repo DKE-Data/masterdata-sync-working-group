@@ -635,9 +635,9 @@ func (l *Loader) push(ctx context.Context, res *LoadResult, skip map[ref]bool) e
 				case err == nil && row.Bound():
 					continue
 				case err == nil && row.Unbound:
-					// A record the platform told agrirouter it no longer holds.
-					// Offering it back would recreate, as a new canonical
-					// object, the very entity it stopped claiming.
+					// A record whose binding agrirouter refused. Offering it
+					// back would create, as a new canonical object, an entity
+					// that already has one.
 					continue
 				case err != nil && !errors.Is(err, store.ErrNotFound):
 					return err

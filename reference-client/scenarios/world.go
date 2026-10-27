@@ -609,15 +609,25 @@ func (p *Platform) Deactivate(
 	return p.Applier.Deactivate(ctx, typ, localID)
 }
 
-// Unbind declares that the platform no longer holds a canonical object.
-func (p *Platform) Unbind(
-	ctx context.Context, typ agmasync.EntityType, localID string,
-) error {
-	return p.Applier.Unbind(ctx, typ, localID)
+// Correct replaces bindings the platform's user found wrong, and returns once
+// the objects now bound have been delivered and applied. See
+// [psync.Applier.Correct].
+func (p *Platform) Correct(
+	ctx context.Context, typ agmasync.EntityType, entries []oapi.IdMappingCorrectionEntry,
+) (psync.ReceiveResult, error) {
+	var want []uuid.UUID
+	for _, e := range entries {
+		if !e.AgrirouterId.IsNull() {
+			want = append(want, e.AgrirouterId.MustGet())
+		}
+	}
+	return p.receiveAround(ctx, want, func() error {
+		return p.Applier.Correct(ctx, typ, entries)
+	})
 }
 
-// Delete removes a record from the platform's own tables, as its user does.
-// agrirouter is not told by this; see [Platform.Unbind].
+// Delete removes a never-bound record from the platform's own tables, as its
+// user does. agrirouter is not told by this; see [store.Tx.DeleteRecord].
 func (p *Platform) Delete(typ agmasync.EntityType, localID string) error {
 	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		return tx.DeleteRecord(typ, localID)
@@ -653,9 +663,23 @@ func (p *Platform) Request(
 func (p *Platform) Fetch(
 	ctx context.Context, typ agmasync.EntityType, agrirouterID uuid.UUID,
 ) (psync.ReceiveResult, error) {
+	return p.receiveAround(ctx, []uuid.UUID{agrirouterID}, func() error {
+		return p.Request(ctx, typ, agrirouterID)
+	})
+}
+
+// receiveAround runs act while receiving, and returns once every object in want
+// has been applied: connect, wait for CAUGHT_UP, act, collect.
+func (p *Platform) receiveAround(
+	ctx context.Context, want []uuid.UUID, act func() error,
+) (psync.ReceiveResult, error) {
 	streaming, stop := context.WithCancel(ctx)
 	defer stop()
 
+	pending := map[uuid.UUID]bool{}
+	for _, id := range want {
+		pending[id] = true
+	}
 	connected, applied := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	previous := p.Receiver.OnApplied
@@ -664,12 +688,12 @@ func (p *Platform) Fetch(
 		if previous != nil {
 			previous(ev, out)
 		}
-		if ev.Envelope.AgrirouterID != nil && *ev.Envelope.AgrirouterID == agrirouterID {
-			select {
-			case <-applied:
-			default:
-				close(applied)
-			}
+		if ev.Envelope.AgrirouterID == nil || !pending[*ev.Envelope.AgrirouterID] {
+			return
+		}
+		delete(pending, *ev.Envelope.AgrirouterID)
+		if len(pending) == 0 {
+			close(applied)
 		}
 	}
 	defer func() { p.Receiver.OnApplied, p.Receiver.OnCaughtUp = previous, nil }()
@@ -692,17 +716,19 @@ func (p *Platform) Fetch(
 		return psync.ReceiveResult{}, ctx.Err()
 	}
 
-	if err := p.Request(ctx, typ, agrirouterID); err != nil {
+	if err := act(); err != nil {
 		return psync.ReceiveResult{}, err
 	}
 
-	select {
-	case <-applied:
-	case finished := <-done:
-		return finished.result, fmt.Errorf(
-			"the stream ended before the requested object arrived: %w", finished.err)
-	case <-ctx.Done():
-		return psync.ReceiveResult{}, ctx.Err()
+	if len(want) > 0 {
+		select {
+		case <-applied:
+		case finished := <-done:
+			return finished.result, fmt.Errorf(
+				"the stream ended before the requested objects arrived: %w", finished.err)
+		case <-ctx.Done():
+			return psync.ReceiveResult{}, ctx.Err()
+		}
 	}
 
 	stop()

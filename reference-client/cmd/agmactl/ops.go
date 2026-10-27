@@ -452,24 +452,52 @@ func runBind(ctx context.Context, e *env, args []string) error {
 	return nil
 }
 
-// runUnbind declares that this endpoint no longer holds a canonical object.
-func runUnbind(ctx context.Context, e *env, args []string) error {
-	if err := wantArgs(args, 3, "unbind <type> <localId> <agrirouterId>"); err != nil {
-		return err
+// runCorrect replaces bindings found wrong. The pairs are applied as one set,
+// so a crosswise swap lists both; `null` leaves a localId bound to nothing.
+func runCorrect(ctx context.Context, e *env, args []string) error {
+	const usage = "correct <type> <localId>=<agrirouterId|null>..."
+	if len(args) < 2 {
+		return fmt.Errorf("usage: agmactl %s", usage)
 	}
-	typ, id, err := typeAndID(args[0], args[2])
+	typ, err := parseType(args[0])
 	if err != nil {
 		return err
+	}
+	entries := make([]oapi.IdMappingCorrectionEntry, 0, len(args)-1)
+	for _, arg := range args[1:] {
+		localID, rawID, ok := strings.Cut(arg, "=")
+		if !ok {
+			return fmt.Errorf("usage: agmactl %s: %q is not localId=agrirouterId", usage, arg)
+		}
+		if rawID == "null" {
+			entries = append(entries, agmasync.Correction(localID, nil))
+			continue
+		}
+		id, err := uuid.Parse(rawID)
+		if err != nil {
+			return fmt.Errorf("%q is not a uuid: %w", rawID, err)
+		}
+		entries = append(entries, agmasync.Correction(localID, &id))
 	}
 	endpoint, err := e.endpoint()
 	if err != nil {
 		return err
 	}
-	if err := endpoint.Unbind(ctx, typ, args[1], id); err != nil {
+
+	if err := endpoint.Correct(ctx, typ, entries); err != nil {
+		var conflict *agmasync.MappingConflict
+		if errors.As(err, &conflict) {
+			fmt.Printf("refused:  %s %s -> %s\n", conflict.Rejection.Reason,
+				conflict.Rejection.LocalId, conflict.Rejection.AgrirouterId)
+			if existing := conflict.Rejection.ExistingMapping; existing != nil {
+				fmt.Printf("standing: %s -> %s (list it too)\n", existing.LocalId, existing.AgrirouterId)
+			}
+		}
 		return err
 	}
-	fmt.Printf("unbound:  %s %s\n", typ, args[1])
-	fmt.Println("          the object's next change is delivered carrying no localId")
+	for _, arg := range args[1:] {
+		fmt.Printf("corrected: %s %s\n", typ, strings.Replace(arg, "=", " -> ", 1))
+	}
 	return nil
 }
 

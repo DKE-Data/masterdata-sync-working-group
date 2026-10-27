@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
@@ -582,6 +585,12 @@ func entityOf(t *testing.T, ev agmasync.Event) oapi.Entity {
 
 func deliverTo(t *testing.T, h *harness, appID string) []agmasync.Event {
 	t.Helper()
+	return deliverFrom(t, h, appID, "")
+}
+
+// deliverFrom is deliverTo resuming after position.
+func deliverFrom(t *testing.T, h *harness, appID, position string) []agmasync.Event {
+	t.Helper()
 
 	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken(appID))
 	if err != nil {
@@ -590,7 +599,7 @@ func deliverTo(t *testing.T, h *harness, appID string) []agmasync.Event {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := agmasync.Events(ctx, client, "")
+	stream, err := agmasync.Events(ctx, client, position)
 	if err != nil {
 		t.Fatalf("stream: %v", err)
 	}
@@ -785,12 +794,119 @@ func TestOneRecordInTwoAgrirouterTenantsIsBoundInEach(t *testing.T) {
 			firstRow.TenantID, secondRow.TenantID)
 	}
 
-	// Unbinding in one tenant leaves the other's pair standing.
-	if err := second.Unbind(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
-		t.Fatalf("unbind in the second tenant: %v", err)
+	// Correcting in one tenant leaves the other's pair standing.
+	if err := second.Correct(context.Background(), agmasync.TypeFarm,
+		[]oapi.IdMappingCorrectionEntry{agmasync.Correction("FRM-1", nil)}); err != nil {
+		t.Fatalf("correct in the second tenant: %v", err)
 	}
 	if !syncRow(t, first, agmasync.TypeFarm, "FRM-1").Bound() {
-		t.Error("unbinding in one tenant must not touch the other tenant's pair")
+		t.Error("correcting in one tenant must not touch the other tenant's pair")
+	}
+}
+
+func TestACorrectedSwapRebindsBothRecordsAndFetchesTheirObjects(t *testing.T) {
+	// Two similar farms the user matched crosswise. The correction rewrites both
+	// local pairs at once, and the requested objects bring each record the
+	// content and revision of the farm it now names.
+	h := newHarness(t)
+	a := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
+	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
+	ctx := context.Background()
+
+	createLocalFarm(t, a, "FRM-N", "Hof Nord")
+	createLocalFarm(t, a, "FRM-S", "Hof Süd")
+	for _, id := range []string{"FRM-N", "FRM-S"} {
+		if _, err := a.Send(ctx, agmasync.TypeFarm, id); err != nil {
+			t.Fatalf("send %s: %v", id, err)
+		}
+	}
+	north := *syncRow(t, a, agmasync.TypeFarm, "FRM-N").AgrirouterID
+	south := *syncRow(t, a, agmasync.TypeFarm, "FRM-S").AgrirouterID
+
+	createLocalFarm(t, b, "B-N", "Nord")
+	createLocalFarm(t, b, "B-S", "Süd")
+	for localID, id := range map[string]uuid.UUID{"B-N": south, "B-S": north} {
+		if err := b.Endpoint.Bind(ctx, agmasync.TypeFarm, localID, id); err != nil {
+			t.Fatalf("bind %s: %v", localID, err)
+		}
+		if err := b.Store.Tx(b.Tenant, func(tx *store.Tx) error {
+			return tx.PutSyncRow(store.SyncRow{
+				TenantID: h.tenant, EntityType: agmasync.TypeFarm, LocalID: localID, AgrirouterID: &id,
+			})
+		}); err != nil {
+			t.Fatalf("recording %s: %v", localID, err)
+		}
+	}
+
+	// What arrives through the wrong pairs is applied to the wrong records.
+	position := ""
+	for _, ev := range deliverTo(t, h, "fmis-b") {
+		if _, err := b.Apply(entityOf(t, ev), ev.ID); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		position = ev.ID
+	}
+	if got := loadRecord(t, b, agmasync.TypeFarm, "B-N").Modelled["name"]; string(got) != `"Hof Süd"` {
+		t.Fatalf("before the correction B-N name = %s, want the crosswise \"Hof Süd\"", got)
+	}
+
+	// A requested object is delivered live, so the stream is open, and caught
+	// up, before the correction requests them.
+	client, err := agrirouter.NewClient(h.server.URL, agrirouter.WithBearerToken("fmis-b"))
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	streamCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	stream, err := agmasync.Events(streamCtx, client, position)
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	defer stream.Close()
+	next, stop := iter.Pull2(stream.Events())
+	defer stop()
+	for {
+		ev, err, ok := next()
+		if !ok || err != nil {
+			t.Fatalf("stream ended before catching up: %v", err)
+		}
+		if ev.Type == "CAUGHT_UP" {
+			break
+		}
+	}
+
+	if err := b.Correct(ctx, agmasync.TypeFarm, []oapi.IdMappingCorrectionEntry{
+		agmasync.Correction("B-N", &north),
+		agmasync.Correction("B-S", &south),
+	}); err != nil {
+		t.Fatalf("correct: %v", err)
+	}
+	for localID, want := range map[string]uuid.UUID{"B-N": north, "B-S": south} {
+		if got := syncRow(t, b, agmasync.TypeFarm, localID).AgrirouterID; got == nil || *got != want {
+			t.Errorf("%s bound to %v, want %s", localID, got, want)
+		}
+	}
+
+	for applied := 0; applied < 2; {
+		ev, err, ok := next()
+		if !ok || err != nil {
+			t.Fatalf("stream ended before both requested objects arrived: %v", err)
+		}
+		if !ev.HasEntity() {
+			continue
+		}
+		if _, err := b.Apply(entityOf(t, ev), ev.ID); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		applied++
+	}
+	for localID, name := range map[string]string{"B-N": "Hof Nord", "B-S": "Hof Süd"} {
+		if got := loadRecord(t, b, agmasync.TypeFarm, localID).Modelled["name"]; string(got) != strconv.Quote(name) {
+			t.Errorf("%s name = %s, want %q", localID, got, name)
+		}
+		if syncRow(t, b, agmasync.TypeFarm, localID).Revision == nil {
+			t.Errorf("%s holds no revision after its object was delivered", localID)
+		}
 	}
 }
 

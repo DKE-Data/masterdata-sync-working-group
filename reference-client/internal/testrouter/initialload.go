@@ -82,6 +82,7 @@ func (r *Router) publishSelection(ep *endpoint) {
 	r.store.mu.Lock()
 	r.store.seq++
 	ep.selectionChangedSeq = r.store.seq
+	r.store.recordParticipantLocked(ep)
 	f := routeChangedFrame(ep, encodePosition(r.store.seq))
 	appID := ep.appID
 	r.store.mu.Unlock()

@@ -173,11 +173,11 @@ CREATE TABLE IF NOT EXISTS agmasync_object (
     -- than this one must not be applied over it, which is what keeps a write
     -- response processed after a later stream frame from undoing it.
     revision      INTEGER,
-    -- unbound records that this platform once held the object and has told
-    -- agrirouter it no longer does. The pair itself is gone, so it cannot be
-    -- read out of agrirouter_id: what remains is a record the platform must not
-    -- send. An unbound send does not resolve against the mapping and would mint
-    -- a second canonical object for an entity that already has one, so the row
+    -- unbound records that agrirouter refused the binding this platform
+    -- offered for the record. The pair itself is gone, so it cannot be read out
+    -- of agrirouter_id: what remains is a record the platform must not send.
+    -- An unbound send does not resolve against the mapping and would mint a
+    -- second canonical object for an entity that already has one, so the row
     -- outlives the pair for exactly as long as the record does.
     unbound       INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (agrirouter_tenant_id, entity_type, local_id)

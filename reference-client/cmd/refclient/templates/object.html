@@ -49,7 +49,7 @@
     <button type="submit">Delete</button>
   </form>
   <span class="muted hint">
-    {{if .Row.Unbinds}}Unbinds at agrirouter, then drops it here.
+    {{if .Row.Tombstone}}Drops it here and keeps the binding: once its type is routed, it is recreated under the same local id.
     {{else}}Local only.{{end}}
   </span>
   {{else if not .Row.Archived}}

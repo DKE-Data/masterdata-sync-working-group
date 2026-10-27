@@ -525,11 +525,11 @@ func (r *Router) AddEndpoint(appID string, tenantID uuid.UUID, externalID string
 // agrirouter.
 //
 // The canonical objects it contributed stay — they are the tenant's data, and
-// other endpoints are synchronizing against them — and so does the identifier
-// mapping. The mapping belongs to the participant rather than to the endpoint,
-// so removing one endpoint discards nothing: a participant that re-onboards
-// finds its pairs intact and resolves through them from the new endpoint, which
-// is the same store it had all along.
+// other endpoints are synchronizing against them. Its identifier mapping goes
+// in the same step, as its initial-load state and selection do: the mapping is
+// the endpoint's, so an endpoint onboarded later under the same external id
+// starts empty. A participant that kept its own correspondence table re-binds
+// from it.
 func (r *Router) RemoveEndpoint(externalID string) error {
 	ep, ok := r.lookupEndpoint(externalID)
 	if !ok {
@@ -539,6 +539,17 @@ func (r *Router) RemoveEndpoint(externalID string) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 
+	for key := range r.store.local {
+		if key.endpointID == ep.id {
+			delete(r.store.local, key)
+		}
+	}
+	for key := range r.store.canonical {
+		if key.endpointID == ep.id {
+			delete(r.store.canonical, key)
+			delete(r.store.localEntries, key)
+		}
+	}
 	delete(r.store.endpoints, ep.id)
 	delete(r.store.byExternal, externalID)
 	return nil

@@ -14,7 +14,7 @@ func All() []Scenario {
 		onboarding(),
 		repeatLoad(),
 		concurrentEdit(),
-		unbindAndRecreate(),
+		correctCrosswise(),
 		deactivatedInTheSet(),
 		resumeAfterDowntime(),
 		mappingRejections(),

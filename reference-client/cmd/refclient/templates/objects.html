@@ -94,11 +94,11 @@
       {{if .Deletable}}
       {{/* Not Deactivate: that states the entity is inactive in the world and
            travels to everyone, which is not what a local tidy-up means. Where
-           the record is bound, deleting unbinds it first. */}}
+           the record is bound, deleting keeps the binding as a tombstone. */}}
       <form class="inline" method="post" action="/objects/delete">
         <input type="hidden" name="type" value="{{$group.Type}}">
         <input type="hidden" name="local_id" value="{{.LocalID}}">
-        <button type="submit">Delete{{if .Unbinds}} (unbinds){{end}}</button>
+        <button type="submit">Delete{{if .Tombstone}} (keeps binding){{end}}</button>
       </form>
       {{else if not .Archived}}
       <form class="inline" method="post" action="/objects/deactivate">

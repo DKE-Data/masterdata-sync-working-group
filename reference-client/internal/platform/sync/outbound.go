@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
+	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
 	"github.com/DKE-Data/masterdata-sync-working-group/reference-client/internal/platform/store"
 )
 
@@ -68,14 +69,12 @@ func (a *Applier) send(
 		return Outcome{}, err
 	}
 
-	// A record whose binding was dropped must not be sent under its own
+	// A record whose binding agrirouter refused must not be sent under its own
 	// identifier: the send would not resolve and would mint a second canonical
-	// object for the same entity. What replaces it is the object's next
-	// delivery, which arrives carrying no localId and is created and bound as
-	// something the platform does not hold.
+	// object for the same entity. It waits for a person to bind or correct it.
 	if row.Unbound {
 		return Outcome{}, fmt.Errorf(
-			"sync: %s %q is unbound and must be re-created rather than sent", typ, localID)
+			"sync: %s %q is unbound and must be bound or corrected rather than sent", typ, localID)
 	}
 
 	entity, err := record.ToEntity(localID)
@@ -125,32 +124,53 @@ func (a *Applier) Deactivate(
 	return a.Apply(result, "")
 }
 
-// Unbind declares that the platform no longer holds an object, and drops its
-// own half of the correspondence.
+// Correct replaces bindings the platform's user found wrong, and fetches the
+// objects now bound so the records take their content and revision.
 //
-// agrirouter is told first. If that fails the local mapping is left alone,
-// which is the safe way round: a platform that had dropped the mapping locally
-// but failed to say so would go on believing it holds an object agrirouter
-// still maps to it, and its next send would resolve to the old pair.
-func (a *Applier) Unbind(
-	ctx context.Context, typ agmasync.EntityType, localID string,
+// agrirouter is told first and applies the set whole or not at all, so the
+// local rows are rewritten only once it has. Every listed row is dropped before
+// any is written, since the swap a correction usually is would otherwise pass
+// through a state in which one object has two local names.
+//
+// A record corrected to none is left as never sent: it matched nothing, and its
+// next send is a create. Content written through the wrong binding stands at
+// agrirouter; fixing it is an ordinary write once the request has delivered.
+func (a *Applier) Correct(
+	ctx context.Context, typ agmasync.EntityType, entries []oapi.IdMappingCorrectionEntry,
 ) error {
-	var row store.SyncRow
-	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		var err error
-		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
+	if err := a.Endpoint.Correct(ctx, typ, entries); err != nil {
 		return err
+	}
+	tenantID := a.Endpoint.TenantID()
+	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		for _, e := range entries {
+			if err := tx.DropSyncRow(tenantID, typ, e.LocalId); err != nil {
+				return err
+			}
+		}
+		for _, e := range entries {
+			if e.AgrirouterId.IsNull() {
+				continue
+			}
+			id := e.AgrirouterId.MustGet()
+			if err := tx.PutSyncRow(store.SyncRow{
+				TenantID: tenantID, EntityType: typ, LocalID: e.LocalId, AgrirouterID: &id,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
-	if !row.Bound() {
-		return nil
-	}
 
-	if err := a.Endpoint.Unbind(ctx, typ, localID, *row.AgrirouterID); err != nil {
-		return err
+	for _, e := range entries {
+		if e.AgrirouterId.IsNull() {
+			continue
+		}
+		if err := a.Endpoint.Request(ctx, typ, e.AgrirouterId.MustGet()); err != nil {
+			return fmt.Errorf("requesting %s %q after correcting it: %w", typ, e.LocalId, err)
+		}
 	}
-	return a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		return tx.Unbind(a.Endpoint.TenantID(), typ, localID)
-	})
+	return nil
 }

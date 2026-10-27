@@ -647,13 +647,13 @@ func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
 	}
 }
 
-func TestTwoEndpointsOfOneApplicationShareOneNamespace(t *testing.T) {
-	// Within a tenant the mapping is keyed by the application, not by the
-	// endpoint. A product that holds two organizations onboards each as its own
-	// endpoint over one store, so the same local identifier in each names the
-	// same record — and
-	// the second organization's send resolves to the canonical object the first
-	// created rather than minting a second for one record.
+func TestTwoEndpointsOfOneApplicationHaveTheirOwnNamespaces(t *testing.T) {
+	// The mapping is keyed by the endpoint, not by the application. A product
+	// that onboards each of two organizations as its own endpoint keeps one
+	// store per organization, so the same local identifier in each names a
+	// different record — and the second organization's send creates its own
+	// canonical object rather than resolving to the first one's. It is also
+	// what a sibling that sends before binding does: duplicate the object.
 	f := newFixture(t)
 	org1 := f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
 	org2 := f.join("fmis-a", "ep-a2", agmasync.TypeFarm)
@@ -662,39 +662,26 @@ func TestTwoEndpointsOfOneApplicationShareOneNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create in the first organization: %v", err)
 	}
-	firstEnv, _ := agrirouter.EnvelopeOf(first)
-
-	// It resolves, so it is an update — and an update without the revision it
-	// was made from is refused. That refusal is itself the evidence: a send
-	// that resolved to nothing would have been accepted as a create.
-	if _, err := org2.endpoint.Put(
-		context.Background(), farm("FRM-1", "Hof Süd"), nil,
-	); !errors.Is(err, agmasync.ErrBaseRevisionRequired) {
-		t.Fatalf("err = %v, want the send from the sibling to resolve and demand a base", err)
-	}
-
-	base := *firstEnv.Revision
-	second, err := org2.endpoint.Put(context.Background(), farm("FRM-1", "Hof Süd"), &base)
+	// No base: through the second endpoint FRM-1 names nothing yet.
+	second, err := org2.endpoint.Put(context.Background(), farm("FRM-1", "Hof Süd"), nil)
 	if err != nil {
-		t.Fatalf("update from the second organization: %v", err)
+		t.Fatalf("create in the second organization: %v", err)
 	}
+	firstEnv, _ := agrirouter.EnvelopeOf(first)
 	secondEnv, _ := agrirouter.EnvelopeOf(second)
 
-	if *firstEnv.AgrirouterID != *secondEnv.AgrirouterID {
-		t.Error("the same localId sent by two endpoints of one application is one object")
+	if *firstEnv.AgrirouterID == *secondEnv.AgrirouterID {
+		t.Error("the same localId sent by two endpoints of one application must name two objects")
 	}
-	if *secondEnv.Revision != base+1 {
-		t.Errorf("revision = %d, want %d: the sibling updated rather than created",
-			*secondEnv.Revision, base+1)
+	if *secondEnv.Revision != 1 {
+		t.Errorf("revision = %d, want 1: the sibling created rather than updated", *secondEnv.Revision)
 	}
 }
-
-func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
-	// A participant that keeps one store behind several endpoints binds once
-	// for the store, not once per endpoint. The binding one endpoint declares
-	// is the participant's, so a sibling's send resolves through it without
-	// binding again — and binding the same pair again is idempotent rather than
-	// a second, separate claim.
+func TestEachEndpointBindsForItself(t *testing.T) {
+	// Two endpoints of one application may know one object under different
+	// localIds, and neither binding is a conflict with the other. A sibling's
+	// binding is of no use to an endpoint's own send: that resolves through
+	// the endpoint's own pair or not at all.
 	f := newFixture(t)
 	sender := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	org1 := f.join("fmis-b", "ep-b1", agmasync.TypeFarm)
@@ -706,35 +693,38 @@ func TestBindingIsPerApplicationRatherThanPerEndpoint(t *testing.T) {
 	}
 	env, _ := agrirouter.EnvelopeOf(created)
 
-	// The receiving participant binds once, through one of its endpoints.
 	if err := org1.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterID,
+		context.Background(), agmasync.TypeFarm, "ORG1-7", *env.AgrirouterID,
 	); err != nil {
-		t.Fatalf("bind: %v", err)
-	}
-	// Repeating it through the sibling is the same claim about the same store,
-	// and is recorded idempotently rather than rejected as a second binding.
-	if err := org2.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "SHARED-1", *env.AgrirouterID,
-	); err != nil {
-		t.Fatalf("re-declaring the participant's own binding must be idempotent: %v", err)
+		t.Fatalf("bind through the first endpoint: %v", err)
 	}
 
-	// The sibling that bound nothing of its own sends through the same pair.
+	// Before binding, the sibling's send under the first endpoint's localId
+	// names nothing in its own namespace.
 	base := *env.Revision
-	echoed, err := org2.endpoint.Put(context.Background(), farm("SHARED-1", "Hof Nord"), &base)
+	if _, err := org2.endpoint.Put(
+		context.Background(), farm("ORG1-7", "Hof Nord"), &base,
+	); !errors.Is(err, agmasync.ErrRevisionConflict) {
+		t.Fatalf("err = %v, want the sibling's send not to resolve through another endpoint's binding", err)
+	}
+
+	if err := org2.endpoint.Bind(
+		context.Background(), agmasync.TypeFarm, "ORG2-3", *env.AgrirouterID,
+	); err != nil {
+		t.Fatalf("a second endpoint's own binding of the same object must not conflict: %v", err)
+	}
+	echoed, err := org2.endpoint.Put(context.Background(), farm("ORG2-3", "Hof Nord"), &base)
 	if err != nil {
 		t.Fatalf("re-emitting a bound object: %v", err)
 	}
 	echoedEnv, _ := agrirouter.EnvelopeOf(echoed)
 	if *echoedEnv.AgrirouterID != *env.AgrirouterID {
-		t.Error("a sibling's send must resolve through the application's binding")
+		t.Error("the endpoint's send must resolve through its own binding")
 	}
 	if *echoedEnv.Revision != base {
 		t.Errorf("revision = %d, want %d: an equal payload is a no-op", *echoedEnv.Revision, base)
 	}
 }
-
 func TestTheSameLocalIdInTwoTenantsNamesTwoObjects(t *testing.T) {
 	// The mapping is keyed by the tenant too, because a canonical object belongs
 	// to one tenant. A product holding one record in two tenants sends it under
@@ -866,99 +856,93 @@ func TestAReferenceToAnotherTenantsObjectIsRejected(t *testing.T) {
 	}
 }
 
-func TestASiblingsSendResolvesRatherThanDuplicating(t *testing.T) {
-	// What application-scoped keying buys. An endpoint re-emitting an object a
-	// sibling holds sends the store's own identifier, which resolves, so the
-	// no-op detection catches it and no second canonical object appears. Under
-	// endpoint keying this send would have been an unresolved create.
+func TestAnObjectTwoSiblingsAreEntitledToArrivesOncePerEndpoint(t *testing.T) {
+	// A frame is rendered in one endpoint's namespace and names it, so two
+	// entitled siblings receive one frame each on the application's one
+	// stream, both at the change's position. Each carries only its own
+	// recipient's localId: the bound one its own, the unbound one none.
 	f := newFixture(t)
-	org1 := f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
-	org2 := f.join("fmis-a", "ep-a2", agmasync.TypeFarm)
-
-	created, err := org1.endpoint.Put(context.Background(), farm("SHARED-1", "Hof Nord"), nil)
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	env, _ := agrirouter.EnvelopeOf(created)
-
-	echoed, err := org2.endpoint.Put(context.Background(), farm("SHARED-1", "Hof Nord"), nil)
-	if err != nil {
-		t.Fatalf("the sibling's send: %v", err)
-	}
-	echoedEnv, _ := agrirouter.EnvelopeOf(echoed)
-	if *echoedEnv.AgrirouterID != *env.AgrirouterID {
-		t.Fatal("a sibling's send must not mint a second canonical object")
-	}
-	if *echoedEnv.Revision != *env.Revision {
-		t.Errorf("revision = %d, want %d: an equal payload is a no-op",
-			*echoedEnv.Revision, *env.Revision)
-	}
-}
-
-func TestAnObjectTwoSiblingsAreEntitledToArrivesOnce(t *testing.T) {
-	// Entitlement is decided per endpoint, delivery is not. A frame names no
-	// endpoint, it is rendered in the application's namespace, and the
-	// subscription it goes to is the application's — so two entitled siblings
-	// would put two byte-identical frames on one connection. The receiver would
-	// apply the second to no effect, which is not a reason to send it.
-	f := newFixture(t)
-	f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
-	f.join("fmis-a", "ep-a2", agmasync.TypeFarm)
+	a1 := f.join("fmis-a", "ep-a1", agmasync.TypeFarm)
+	a2 := f.join("fmis-a", "ep-a2", agmasync.TypeFarm)
 	b := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
-
-	client, err := agrirouter.NewClient(f.server.URL, agrirouter.WithBearerToken("fmis-a"))
-	if err != nil {
-		t.Fatalf("building client: %v", err)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	created, err := b.endpoint.Put(ctx, farm("FRM-B", "Hof Ost"), nil)
+	if err != nil {
+		t.Fatalf("the other participant's create: %v", err)
+	}
+	env, _ := agrirouter.EnvelopeOf(created)
+	if err := a1.endpoint.Bind(ctx, agmasync.TypeFarm, "A1-FARM", *env.AgrirouterID); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+
 	// Listening from the live end, so what is counted is the fan-out of the one
 	// write below rather than anything restated by catch-up.
-	stream, err := agmasync.Events(ctx, client, "")
+	stream, err := agmasync.Events(ctx, a1.client, "")
 	if err != nil {
 		t.Fatalf("opening stream: %v", err)
 	}
 	defer stream.Close()
 
-	entities := make(chan string, 8)
+	entities := make(chan agmasync.Event, 8)
 	go func() {
 		for ev, err := range stream.Events() {
 			if err != nil {
 				return
 			}
-			if ev.HasEntity() {
-				entities <- ev.ID
+			if ev.HasEntity() && ev.Envelope.Revision != nil && *ev.Envelope.Revision == 2 {
+				entities <- ev
 			}
 		}
 	}()
 
-	if _, err := b.endpoint.Put(ctx, farm("FRM-B", "Hof Ost"), nil); err != nil {
-		t.Fatalf("the other participant's create: %v", err)
+	base := *env.Revision
+	if _, err := b.endpoint.Put(ctx, farm("FRM-B", "Hof West"), &base); err != nil {
+		t.Fatalf("the other participant's update: %v", err)
 	}
 
-	select {
-	case <-entities:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for the object to be delivered")
+	got := map[uuid.UUID]agmasync.Event{}
+	for len(got) < 2 {
+		select {
+		case ev := <-entities:
+			if ev.Envelope.RecipientEndpointId == nil {
+				t.Fatalf("frame names no recipient: %+v", ev.Envelope)
+			}
+			got[*ev.Envelope.RecipientEndpointId] = ev
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out with %d of 2 frames", len(got))
+		}
 	}
 
-	// The second frame is the failure, so the assertion is that the wait for it
+	first, okA1 := got[a1.endpoint.ID()]
+	second, okA2 := got[a2.endpoint.ID()]
+	if !okA1 || !okA2 {
+		t.Fatalf("recipients = %v, want one frame for each sibling", got)
+	}
+	if first.ID != second.ID {
+		t.Errorf("positions = %s, %s, want the frames of one change to share one", first.ID, second.ID)
+	}
+	if first.Envelope.LocalID == nil || *first.Envelope.LocalID != "A1-FARM" {
+		t.Errorf("bound sibling's localId = %v, want A1-FARM", first.Envelope.LocalID)
+	}
+	if second.Envelope.LocalID != nil {
+		t.Errorf("unbound sibling's localId = %q, want none", *second.Envelope.LocalID)
+	}
+
+	// A third frame is the failure, so the assertion is that the wait for it
 	// runs out.
 	select {
-	case id := <-entities:
-		t.Errorf("the object was delivered twice, second frame at position %s", id)
+	case ev := <-entities:
+		t.Errorf("an extra frame for %v at position %s", ev.Envelope.RecipientEndpointId, ev.ID)
 	case <-time.After(500 * time.Millisecond):
 	}
 }
-
-func TestRemovingAnEndpointLeavesTheMappingStanding(t *testing.T) {
-	// The mapping belongs to the participant, so nothing about it hangs off one
-	// endpoint. Type opt-out, hub disconnection and endpoint removal all leave
-	// it standing: a participant that re-onboards finds its pairs intact and
-	// resolves through them from the new endpoint, rather than reconciling a
-	// store it never lost.
+func TestRemovingAnEndpointDiscardsItsMapping(t *testing.T) {
+	// The mapping is the endpoint's, so it ends with the endpoint. An endpoint
+	// onboarded later under the same external id starts empty, and the
+	// participant re-binds from the correspondence table it kept.
 	f := newFixture(t)
 	sender := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	receiver := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
@@ -978,21 +962,31 @@ func TestRemovingAnEndpointLeavesTheMappingStanding(t *testing.T) {
 		t.Fatalf("removing the endpoint: %v", err)
 	}
 
-	// Re-onboarded under a new endpoint, the participant's binding is still
-	// there: the same localId resolves, so the send is an update of the object
-	// it bound and not a create.
-	reonboarded := f.join("fmis-b", "ep-b-again", agmasync.TypeFarm)
+	// Re-onboarded under the same external id, B-1 names nothing: an update
+	// from the revision the participant held does not resolve.
+	reonboarded := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
 	base := *env.Revision
+	if _, err := reonboarded.endpoint.Put(
+		context.Background(), farm("B-1", "Hof Süd"), &base,
+	); !errors.Is(err, agmasync.ErrRevisionConflict) {
+		t.Fatalf("err = %v, want the removed endpoint's binding to be gone", err)
+	}
+
+	// Re-binding the pair it kept is not a conflict, and makes it sendable.
+	if err := reonboarded.endpoint.Bind(
+		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterID,
+	); err != nil {
+		t.Fatalf("re-binding after re-onboarding: %v", err)
+	}
 	sent, err := reonboarded.endpoint.Put(context.Background(), farm("B-1", "Hof Süd"), &base)
 	if err != nil {
-		t.Fatalf("send after re-onboarding: %v", err)
+		t.Fatalf("send after re-binding: %v", err)
 	}
 	sentEnv, _ := agrirouter.EnvelopeOf(sent)
 	if *sentEnv.AgrirouterID != *env.AgrirouterID {
-		t.Error("a removed endpoint's binding belongs to the participant and must survive")
+		t.Error("the re-bound send must resolve to the object the participant kept")
 	}
 }
-
 func TestSelectingAnUndeclaredTypeIsRefused(t *testing.T) {
 	// The two steps are separate and the declaration bounds the selection: a
 	// user cannot opt an endpoint into a type its participant never said the
@@ -1577,5 +1571,93 @@ func TestPutEndpointRejectedForClosureCreatesNothing(t *testing.T) {
 	if code, _ := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
 		agmasync.TypeParty); code != http.StatusCreated {
 		t.Errorf("retry after rejection = %d, want 201 — the rejected call left an endpoint", code)
+	}
+}
+
+func TestACrosswiseBindingIsCorrectedInOneCall(t *testing.T) {
+	// Two similar farms matched the wrong way round: each half is a valid
+	// binding, so only a correction listing both can fix it.
+	f := newFixture(t)
+	a := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
+	b := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
+	ctx := context.Background()
+
+	northObj, err := a.endpoint.Put(ctx, farm("FRM-N", "Hof Nord"), nil)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	southObj, err := a.endpoint.Put(ctx, farm("FRM-S", "Hof Süd"), nil)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	northEnv, _ := agrirouter.EnvelopeOf(northObj)
+	southEnv, _ := agrirouter.EnvelopeOf(southObj)
+	north, south := *northEnv.AgrirouterID, *southEnv.AgrirouterID
+
+	for localID, id := range map[string]uuid.UUID{"B-N": south, "B-S": north} {
+		if err := b.endpoint.Bind(ctx, agmasync.TypeFarm, localID, id); err != nil {
+			t.Fatalf("bind %s: %v", localID, err)
+		}
+	}
+
+	// Half a swap would take north from B-S, which the request does not list.
+	err = b.endpoint.Correct(ctx, agmasync.TypeFarm, []oapi.IdMappingCorrectionEntry{
+		agmasync.Correction("B-N", &north),
+	})
+	var conflict *agmasync.MappingConflict
+	if !errors.As(err, &conflict) {
+		t.Fatalf("half a swap: error = %v, want a MappingConflict", err)
+	}
+	if conflict.Rejection.Reason != agmasync.ReasonAgrirouterIDAlreadyBound ||
+		conflict.Rejection.LocalId != "B-N" ||
+		conflict.Rejection.ExistingMapping == nil ||
+		conflict.Rejection.ExistingMapping.LocalId != "B-S" {
+		t.Errorf("rejection = %+v, want B-N refused for north, held by B-S", conflict.Rejection)
+	}
+
+	swap := []oapi.IdMappingCorrectionEntry{
+		agmasync.Correction("B-N", &north),
+		agmasync.Correction("B-S", &south),
+	}
+	for i := range 2 {
+		if err := b.endpoint.Correct(ctx, agmasync.TypeFarm, swap); err != nil {
+			t.Fatalf("swap, attempt %d: %v", i+1, err)
+		}
+	}
+	// A bind of the pair that stands answers 204; of any other, 409.
+	for localID, id := range map[string]uuid.UUID{"B-N": north, "B-S": south} {
+		if err := b.endpoint.Bind(ctx, agmasync.TypeFarm, localID, id); err != nil {
+			t.Errorf("after the swap %s should be bound to its own farm: %v", localID, err)
+		}
+	}
+
+	// null leaves the localId bound to nothing, and its object free.
+	if err := b.endpoint.Correct(ctx, agmasync.TypeFarm, []oapi.IdMappingCorrectionEntry{
+		agmasync.Correction("B-S", nil),
+	}); err != nil {
+		t.Fatalf("correct to none: %v", err)
+	}
+	if err := b.endpoint.Bind(ctx, agmasync.TypeFarm, "B-S2", south); err != nil {
+		t.Errorf("south should be free once B-S is corrected to none: %v", err)
+	}
+
+	err = b.endpoint.Correct(ctx, agmasync.TypeFarm, []oapi.IdMappingCorrectionEntry{
+		agmasync.Correction("B-N", &north),
+		agmasync.Correction("B-N", nil),
+	})
+	if !errors.Is(err, agmasync.ErrValidation) {
+		t.Errorf("a localId listed twice: error = %v, want ErrValidation", err)
+	}
+
+	unknown := uuid.New()
+	err = b.endpoint.Correct(ctx, agmasync.TypeFarm, []oapi.IdMappingCorrectionEntry{
+		agmasync.Correction("B-N", &unknown),
+	})
+	if !errors.Is(err, agmasync.ErrNotFound) {
+		t.Errorf("an unknown target: error = %v, want ErrNotFound", err)
+	}
+	// A refused correction changes nothing.
+	if err := b.endpoint.Bind(ctx, agmasync.TypeFarm, "B-N", north); err != nil {
+		t.Errorf("a refused correction must leave B-N bound to north: %v", err)
 	}
 }
