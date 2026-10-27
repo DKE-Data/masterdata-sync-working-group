@@ -46,7 +46,7 @@ func TestAWithdrawalMadeWhileAwayArrivesOnCatchUp(t *testing.T) {
 	receiver := &psync.Receiver{
 		Client:  client,
 		Store:   applier.Store,
-		Tenants: map[uuid.UUID]*psync.Applier{h.tenant: applier},
+		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(_ *store.Tx, s oapi.RouteChangedEventData) error {
 			seen[s.ExternalId] = agmasync.SelectedTypes(s)
 			return nil
@@ -112,7 +112,7 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 	failing := &psync.Receiver{
 		Client:  client,
 		Store:   applier.Store,
-		Tenants: map[uuid.UUID]*psync.Applier{h.tenant: applier},
+		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(tx *store.Tx, s oapi.RouteChangedEventData) error {
 			// The tenancy is the one the named endpoint was onboarded as, so a
 			// handler acting on a withdrawal acts on the right holdings.
@@ -152,7 +152,7 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 	recovering := &psync.Receiver{
 		Client:  client,
 		Store:   applier.Store,
-		Tenants: map[uuid.UUID]*psync.Applier{h.tenant: applier},
+		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(tx *store.Tx, s oapi.RouteChangedEventData) error {
 			seen = append(seen, s.ExternalId)
 			return mark(tx)
@@ -193,7 +193,7 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 	receiver := &psync.Receiver{
 		Client:  client,
 		Store:   applier.Store,
-		Tenants: map[uuid.UUID]*psync.Applier{h.tenant: applier},
+		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(_ *store.Tx, s oapi.RouteChangedEventData) error {
 			if s.ExternalId == "ep-a" {
 				seen = append(seen, agmasync.SelectedTypes(s))

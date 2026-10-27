@@ -18,15 +18,14 @@
 -- schema is the master-data entity beside it: a tenant is who is using the
 -- product, an organization is a company the master data is about.
 --
--- The shape follows the identifier mapping. agrirouter keys the mapping by the
--- participant and the tenant rather than by the endpoint, so the same local_id
--- sent through two of the product's endpoints in a tenant resolves to one
--- canonical object — which is only coherent if it is one record here too.
--- Partitioning the tables by tenant would put two rows behind one canonical
--- object and leave the platform unable to say which of them agrirouter is
--- talking about. A record held in two agrirouter tenants is still one record
--- here; it is the bookkeeping that has a row per tenant, one for each tenant's
--- canonical object.
+-- agrirouter keys the identifier mapping by the endpoint, so a record held by
+-- two tenancies is known to agrirouter once per endpoint. That is the platform's
+-- choice to make: it may keep a store per endpoint, or, as this one does, one
+-- store behind all of them, sending the same local_id through each. The
+-- bookkeeping then has a row per endpoint, and where two tenancies onboarded
+-- into one agrirouter tenant hold a record, both rows name one canonical
+-- object. A record held in two agrirouter tenants is still one record here,
+-- bound to a separate canonical object in each.
 --
 -- The second half is the sync bookkeeping, in tables prefixed agmasync_. It is
 -- separate because `revision` and the delivery position have nowhere to live in
@@ -40,16 +39,15 @@
 
 -- tenant is one of the product's own tenancies: what a user works in, and what
 -- they switch between. Each is onboarded to agrirouter separately and therefore
--- has its own endpoint, which is what acts on a request. A delivery is not
--- addressed to it: the stream is the application's, and the tenant is read off
--- the envelope. It is not what the identifier mapping is keyed by either: that
--- is agrirouter's tenant, which a tenancy is onboarded into.
+-- has its own endpoint, which is what acts on a request, what a delivery is
+-- addressed to in `recipient_endpoint_id`, and what the identifier mapping is
+-- keyed by.
 CREATE TABLE IF NOT EXISTS tenant (
     tenant_id            TEXT PRIMARY KEY,
     name                 TEXT NOT NULL,
     -- The endpoint this tenant is onboarded as, as agrirouter knows it. A record
     -- synchronized through this tenant is sent by that endpoint, and bound in
-    -- the application's namespace rather than in that endpoint's.
+    -- that endpoint's namespace.
     external_endpoint_id TEXT
 );
 
@@ -123,12 +121,12 @@ CREATE TABLE IF NOT EXISTS field_boundary (
 -- exists for: the same farm appearing in two of a user's tenancies is one record
 -- here, listed twice. Under a schema that put tenant_id in the record's primary
 -- key it would have been two records for one farm. In agrirouter it is one
--- canonical object per agrirouter tenant, each with its own row in
--- agmasync_object.
+-- canonical object per agrirouter tenant, bound once per endpoint, each with
+-- its own row in agmasync_object.
 --
 -- Membership is the platform's own bookkeeping and is exchanged with nobody. It
--- lines up with agrirouter's `tenantId` because each tenancy is onboarded as its
--- own endpoint in its own tenant, which is what lets a delivery be routed to one
+-- lines up with agrirouter's `recipient_endpoint_id` because each tenancy is
+-- onboarded as its own endpoint, which is what lets a delivery be routed to one
 -- of them.
 CREATE TABLE IF NOT EXISTS tenant_entity (
     tenant_id   TEXT NOT NULL,
@@ -153,18 +151,25 @@ CREATE INDEX IF NOT EXISTS tenant_entity_by_record
 -- restore with the rest of its data — losing it means losing the ability to
 -- send, since an ordinary write resolves through a localId already mapped.
 --
--- It is keyed by (agrirouter_tenant_id, entity_type, local_id), because that is
--- what agrirouter keys it by: the mapping belongs to the participant within a
--- tenant, so one pair covers the record whichever of the product's endpoints in
--- that tenant sends it. The tenant is in the key because a canonical object
--- belongs to one: a record held in two agrirouter tenants is two canonical
--- objects, bound under the same local_id, each with its own revision.
+-- It is keyed by (agrirouter_tenant_id, external_endpoint_id, entity_type,
+-- local_id), because that is what agrirouter keys it by: a local_id names a
+-- record in the namespace of the endpoint that sent it, and an external id
+-- names an endpoint within its tenant. Each endpoint binds for itself, so two
+-- tenancies onboarded into one agrirouter tenant hold a pair each for a record
+-- they share, both naming one canonical object.
+--
+-- Rows outlive the endpoint they belong to. agrirouter discards a removed
+-- endpoint's mapping; this table keeps it, so that an endpoint onboarded again
+-- under the same external id offers the pairs back on its initial-load
+-- confirmation and re-binds without asking its user.
 CREATE TABLE IF NOT EXISTS agmasync_object (
     -- agrirouter_tenant_id is the agrirouter tenant the canonical object
-    -- belongs to, as its `tenantId` said. It is not the product's tenancy in
-    -- tenant_entity: two tenancies onboarded into one agrirouter tenant share
-    -- a row here. A masterdata reset, which is per tenant, discards by it.
+    -- belongs to, as its `tenantId` said. A masterdata reset, which is per
+    -- tenant, discards by it.
     agrirouter_tenant_id TEXT NOT NULL,
+    -- external_endpoint_id is the endpoint whose pair this is, by the
+    -- identifier this platform gave it.
+    external_endpoint_id TEXT NOT NULL,
     entity_type   TEXT NOT NULL,
     local_id      TEXT NOT NULL,
     agrirouter_id TEXT,
@@ -180,17 +185,23 @@ CREATE TABLE IF NOT EXISTS agmasync_object (
     -- second canonical object for an entity that already has one, so the row
     -- outlives the pair for exactly as long as the record does.
     unbound       INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (agrirouter_tenant_id, entity_type, local_id)
+    PRIMARY KEY (agrirouter_tenant_id, external_endpoint_id, entity_type, local_id)
 );
 
 -- One canonical object is known by at most one local identifier, and the other
--- way round. The constraint is agrirouter's `409`, decided per participant and
--- tenant, so it is enforced here at the same scope: a mistaken binding then
--- fails locally rather than becoming a `409` nobody expected. The canonical
--- side needs no tenant column, an agrirouter_id belonging to one tenant.
+-- way round. The constraint is agrirouter's `409`, decided per endpoint, so it
+-- is enforced here at the same scope: a mistaken binding then fails locally
+-- rather than becoming a `409` nobody expected. Two endpoints binding the same
+-- object is not a conflict.
 CREATE UNIQUE INDEX IF NOT EXISTS agmasync_object_canonical
-    ON agmasync_object (entity_type, agrirouter_id)
+    ON agmasync_object (agrirouter_tenant_id, external_endpoint_id, entity_type, agrirouter_id)
     WHERE agrirouter_id IS NOT NULL;
+
+-- The reverse lookup across endpoints: which of this platform's records an
+-- object is, whichever endpoint bound it. It is how a sibling endpoint
+-- recognises an object the store already holds.
+CREATE INDEX IF NOT EXISTS agmasync_object_by_canonical
+    ON agmasync_object (entity_type, agrirouter_id);
 
 -- agmasync_stream holds the delivery position, and there is exactly one.
 --

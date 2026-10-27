@@ -53,13 +53,14 @@ func (a *Applier) send(
 		for attribute := range unselected {
 			delete(record.Modelled, attribute)
 		}
-		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
+		row, err = tx.SyncRow(a.Namespace(), typ, localID)
 		switch {
 		case err == nil:
 			bound = row.Bound()
 			return nil
 		case errors.Is(err, store.ErrNotFound):
-			// Never sent, and never told about: a create.
+			// Never sent through this endpoint: a create, unless a sibling
+			// has made it a canonical object already.
 			return nil
 		default:
 			return err
@@ -67,6 +68,11 @@ func (a *Applier) send(
 	})
 	if err != nil {
 		return Outcome{}, err
+	}
+	if !bound && !row.Unbound {
+		if row, bound, err = a.bindAsSibling(ctx, typ, localID); err != nil {
+			return Outcome{}, err
+		}
 	}
 
 	// A record whose binding agrirouter refused must not be sent under its own
@@ -107,10 +113,19 @@ func (a *Applier) Deactivate(
 	var row store.SyncRow
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(a.Endpoint.TenantID(), typ, localID)
+		row, err = tx.SyncRow(a.Namespace(), typ, localID)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
 		return err
 	}); err != nil {
 		return Outcome{}, err
+	}
+	if !row.Bound() && !row.Unbound {
+		var err error
+		if row, _, err = a.bindAsSibling(ctx, typ, localID); err != nil {
+			return Outcome{}, err
+		}
 	}
 	if !row.Bound() {
 		return Outcome{}, fmt.Errorf(
@@ -141,10 +156,10 @@ func (a *Applier) Correct(
 	if err := a.Endpoint.Correct(ctx, typ, entries); err != nil {
 		return err
 	}
-	tenantID := a.Endpoint.TenantID()
+	ns := a.Namespace()
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		for _, e := range entries {
-			if err := tx.DropSyncRow(tenantID, typ, e.LocalId); err != nil {
+			if err := tx.DropSyncRow(ns, typ, e.LocalId); err != nil {
 				return err
 			}
 		}
@@ -154,7 +169,7 @@ func (a *Applier) Correct(
 			}
 			id := e.AgrirouterId.MustGet()
 			if err := tx.PutSyncRow(store.SyncRow{
-				TenantID: tenantID, EntityType: typ, LocalID: e.LocalId, AgrirouterID: &id,
+				Endpoint: ns, EntityType: typ, LocalID: e.LocalId, AgrirouterID: &id,
 			}); err != nil {
 				return err
 			}
@@ -173,4 +188,50 @@ func (a *Applier) Correct(
 		}
 	}
 	return nil
+}
+
+// bindAsSibling binds a record this endpoint has never sent where a sibling
+// endpoint in the same agrirouter tenant already has: the record is one store's,
+// so it is that canonical object here too. Sending it unbound would not resolve
+// and would mint a second canonical object for it.
+//
+// The specification has a participant bind on its other entitled endpoints as
+// soon as it learns the agrirouterId. This one binds at the latest moment that
+// still prevents the duplicate — before the endpoint's own first send — or on
+// the sibling's delivery, whichever comes first (see [Applier.Apply]).
+//
+// It reports the endpoint's new row, and whether there was a sibling's pair to
+// take, holding the sibling's revision as the base the record was last seen at.
+func (a *Applier) bindAsSibling(
+	ctx context.Context, typ agmasync.EntityType, localID string,
+) (store.SyncRow, bool, error) {
+	var sibling store.SyncRow
+	err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		var err error
+		sibling, err = tx.SiblingRowByLocalID(a.Namespace(), typ, localID)
+		return err
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return store.SyncRow{}, false, nil
+	}
+	if err != nil {
+		return store.SyncRow{}, false, err
+	}
+
+	// agrirouter first, as everywhere else: a pair the platform holds and
+	// agrirouter does not is one the next send resolves through and finds
+	// nothing.
+	if err := a.Endpoint.Bind(ctx, typ, localID, *sibling.AgrirouterID); err != nil {
+		return store.SyncRow{}, false, err
+	}
+	row := store.SyncRow{
+		Endpoint: a.Namespace(), EntityType: typ, LocalID: localID,
+		AgrirouterID: sibling.AgrirouterID, Revision: sibling.Revision,
+	}
+	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		return tx.PutSyncRow(row)
+	}); err != nil {
+		return store.SyncRow{}, false, err
+	}
+	return row, true, nil
 }

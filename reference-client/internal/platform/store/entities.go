@@ -476,7 +476,7 @@ func (t *Tx) resolveRef(raw json.RawMessage, typ agmasync.EntityType) (any, erro
 		return nil, nil
 	}
 
-	row, err := t.SyncRowByAgrirouterID(typ, *id.AgrirouterID)
+	row, err := t.recordOf(typ, *id.AgrirouterID)
 	switch {
 	case err == nil:
 		return row.LocalID, nil

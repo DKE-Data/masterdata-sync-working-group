@@ -334,7 +334,7 @@ func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			for _, localID := range localIDs {
-				row, err := objectRowOf(tx, in.cfg.tenantID, typ, localID)
+				row, err := objectRowOf(tx, in.applier.Namespace(), typ, localID)
 				if err != nil {
 					return err
 				}
@@ -361,7 +361,7 @@ func (in *instance) showObjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func objectRowOf(
-	tx *store.Tx, tenantID uuid.UUID, typ agmasync.EntityType, localID string,
+	tx *store.Tx, ns store.Endpoint, typ agmasync.EntityType, localID string,
 ) (objectRow, error) {
 	out := objectRow{LocalID: localID, AgrirouterID: "—", Revision: "—"}
 
@@ -374,7 +374,7 @@ func objectRowOf(
 	out.Attributes = attributesOfRecord(record)
 	out.Name = nameOfRecord(record)
 
-	switch row, err := tx.SyncRow(tenantID, typ, localID); {
+	switch row, err := tx.SyncRow(ns, typ, localID); {
 	case err == nil:
 		out.Unbound = row.Unbound
 		out.Bound = row.Bound()
@@ -474,7 +474,7 @@ func (in *instance) showObject(w http.ResponseWriter, r *http.Request) {
 	view := objectView{page: p, Routed: slices.Contains(p.Routed, typ)}
 
 	err = in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
-		row, err := objectRowOf(tx, in.cfg.tenantID, typ, localID)
+		row, err := objectRowOf(tx, in.applier.Namespace(), typ, localID)
 		if err != nil {
 			return err
 		}

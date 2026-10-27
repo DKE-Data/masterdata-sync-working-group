@@ -138,7 +138,7 @@ func newInstance(ctx context.Context, cfg config) (*instance, error) {
 	in.receiver = &psync.Receiver{
 		Client:      client,
 		Store:       db,
-		Tenants:     map[uuid.UUID]*psync.Applier{cfg.tenantID: in.applier},
+		Endpoints:   map[uuid.UUID]*psync.Applier{endpointID: in.applier},
 		OnApplied:   in.onApplied,
 		OnCaughtUp:  in.onCaughtUp,
 		OnSelection: in.onRouteChanged,
@@ -603,7 +603,7 @@ func (in *instance) deleteRecord(
 ) error {
 	var bound bool
 	if err := in.store.ReadTx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
-		row, err := tx.SyncRow(in.cfg.tenantID, typ, localID)
+		row, err := tx.SyncRow(in.applier.Namespace(), typ, localID)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				return nil

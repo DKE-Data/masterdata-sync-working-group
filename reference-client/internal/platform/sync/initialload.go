@@ -510,7 +510,7 @@ func (l *Loader) bindings(types []agmasync.EntityType) ([]oapi.IdMappingBinding,
 	var rows []store.SyncRow
 	if err := l.Applier.Store.Tx(l.Applier.Tenant, func(tx *store.Tx) error {
 		var err error
-		rows, err = tx.Bindings(l.Applier.Endpoint.TenantID())
+		rows, err = tx.Bindings(l.Applier.Namespace())
 		return err
 	}); err != nil {
 		return nil, err
@@ -558,7 +558,7 @@ func (l *Loader) dropRejected(rejected []oapi.IdMappingRejection) (map[ref]bool,
 		// identifier alone would collide across types, and does so precisely in
 		// the DUPLICATE_IN_REQUEST case, where one identifier appearing in
 		// several pairs is what was rejected.
-		rows, err := tx.Bindings(l.Applier.Endpoint.TenantID())
+		rows, err := tx.Bindings(l.Applier.Namespace())
 		if err != nil {
 			return err
 		}
@@ -586,7 +586,7 @@ func (l *Loader) dropRejected(rejected []oapi.IdMappingRejection) (map[ref]bool,
 					"%q/%s (%s)", r.LocalId, r.AgrirouterId, r.Reason))
 				continue
 			}
-			if err := tx.Unbind(l.Applier.Endpoint.TenantID(), typ, r.LocalId); err != nil {
+			if err := tx.Unbind(l.Applier.Namespace(), typ, r.LocalId); err != nil {
 				return err
 			}
 			dropped[ref{Type: typ, LocalID: r.LocalId}] = true
@@ -630,7 +630,7 @@ func (l *Loader) push(ctx context.Context, res *LoadResult, skip map[ref]bool) e
 				if skip[ref{Type: typ, LocalID: id}] {
 					continue
 				}
-				row, err := tx.SyncRow(l.Applier.Endpoint.TenantID(), typ, id)
+				row, err := tx.SyncRow(l.Applier.Namespace(), typ, id)
 				switch {
 				case err == nil && row.Bound():
 					continue

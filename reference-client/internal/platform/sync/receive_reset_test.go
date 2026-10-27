@@ -40,7 +40,7 @@ func TestAResetDropsThePairsAndKeepsTheRecords(t *testing.T) {
 	receiver := &psync.Receiver{
 		Client:  client,
 		Store:   a.Store,
-		Tenants: map[uuid.UUID]*psync.Applier{h.tenant: a},
+		Endpoints: map[uuid.UUID]*psync.Applier{a.Endpoint.ID(): a},
 		OnSelection: func(tx *store.Tx, s oapi.RouteChangedEventData) error {
 			types := agmasync.SelectedTypes(s)
 			selections = append(selections, types)
@@ -92,7 +92,7 @@ func TestAResetDropsThePairsAndKeepsTheRecords(t *testing.T) {
 		t.Error("the reset's position was not held before what followed it was applied")
 	}
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		if _, err := tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
+		if _, err := tx.SyncRow(a.Namespace(), agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("sync row after reset: err = %v, want none", err)
 		}
 		held, err := tx.Exists(agmasync.TypeFarm, "FRM-1")
@@ -157,14 +157,14 @@ func TestAResetClearsThePairsOfATenantNoApplierClaims(t *testing.T) {
 	receiver := &psync.Receiver{
 		Client:  client,
 		Store:   a.Store,
-		Tenants: map[uuid.UUID]*psync.Applier{},
+		Endpoints: map[uuid.UUID]*psync.Applier{},
 	}
 	if _, err := receiver.CatchUp(context.Background()); err != nil {
 		t.Fatalf("catch up: %v", err)
 	}
 
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
-		if _, err := tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
+		if _, err := tx.SyncRow(a.Namespace(), agmasync.TypeFarm, "FRM-1"); !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("sync row after reset: err = %v, want none", err)
 		}
 		return nil

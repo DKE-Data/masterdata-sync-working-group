@@ -2,7 +2,6 @@ package sync
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
@@ -18,9 +17,10 @@ import (
 // geometries, and a user's answers. What it does illustrate is the shape the
 // protocol needs from that step, whatever fills it —
 //
-//   - a record already bound to some canonical object is never a candidate. It
-//     stands in a pair agrirouter holds, and matching it to a second object is
-//     the non-unique mapping the confirmation would reject anyway.
+//   - a record already bound to some canonical object of the tenant, through
+//     any of the platform's endpoints, is never a candidate. It stands in a
+//     pair agrirouter holds, and matching it to a second object would make one
+//     record two objects of the tenant.
 //   - two records answering to one canonical object is not a match to pick
 //     between. It is the n:1 granularity mismatch the specification pushes back
 //     to the participating systems, so it matches nothing and asks for a person.
@@ -43,12 +43,12 @@ func (ByName) Recognise(
 
 	var found []string
 	for _, id := range ids {
-		row, err := tx.SyncRow(*env.TenantId, env.Type, id)
-		switch {
-		case err == nil && row.Bound():
-			continue
-		case err != nil && !errors.Is(err, store.ErrNotFound):
+		bound, err := tx.BoundInTenant(*env.TenantId, env.Type, id)
+		if err != nil {
 			return Recognition{}, err
+		}
+		if bound {
+			continue
 		}
 
 		record, err := tx.LoadRecord(env.Type, id)

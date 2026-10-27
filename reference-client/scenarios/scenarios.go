@@ -28,6 +28,7 @@ func All() []Scenario {
 		unresolvedReference(),
 		masterdataReset(),
 		optionalReferences(),
+		oneRecordTwoEndpoints(),
 	}
 }
 

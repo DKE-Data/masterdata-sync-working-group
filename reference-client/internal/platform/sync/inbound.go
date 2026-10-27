@@ -41,12 +41,11 @@ type LocalIDs interface {
 // One Applier serves one tenant, through the endpoint that tenant is onboarded
 // as. A product holding several tenants holds several of these over one store,
 // and they share the records that store holds. The identifier mapping is keyed
-// by the application and the agrirouter tenant, so a record bound through one
-// endpoint is bound for every other endpoint in the same agrirouter tenant, and
-// bound separately, to that tenant's own canonical object, in any other. What
-// the tenant decides is which endpoint acts, and which of them shows the record
-// to a user. What is not shared is the endpoint, which is why there is an
-// Applier per tenant rather than one for the product.
+// by the endpoint, so each Applier keeps its own pairs, and where two of them
+// are in one agrirouter tenant a record they share is bound by each, to one
+// canonical object. An Applier that meets a record its sibling already bound
+// binds the same local_id for itself rather than creating a duplicate: see
+// [store.Tx.SiblingRow].
 type Applier struct {
 	Store *store.Store
 
@@ -89,6 +88,12 @@ type Outcome struct {
 	// Discarded is true where the object named no tenant. Nothing was applied
 	// and no position was recorded.
 	Discarded bool
+
+	// Joined is true where a sibling endpoint over the same store had already
+	// bound the object, so the record was there and this endpoint bound the
+	// same local_id for itself rather than creating one. It needs binding
+	// like a created object.
+	Joined bool
 
 	// Matched is true where the platform recognised the object as one of its
 	// own records rather than creating one — the reconciliation of an initial
@@ -140,12 +145,16 @@ func (a *Applier) apply(
 	if envelope.AgrirouterID == nil {
 		return Outcome{}, fmt.Errorf("sync: a delivered object carries no agrirouterId")
 	}
-	// The bookkeeping is keyed by the object's tenant. An object naming none
-	// is discarded rather than given this applier's: on the live stream it
-	// could belong to any tenant the application is routed to.
+	// An object naming no tenant is discarded rather than given this
+	// applier's: on the live stream it could belong to any tenant the
+	// application is routed to.
 	if envelope.TenantId == nil {
 		logDiscarded(envelope)
 		return Outcome{Discarded: true}, nil
+	}
+	if *envelope.TenantId != a.Endpoint.TenantID() {
+		return Outcome{}, fmt.Errorf("sync: an object of tenant %s delivered to endpoint %s in tenant %s",
+			*envelope.TenantId, a.Endpoint.ExternalID(), a.Endpoint.TenantID())
 	}
 
 	var outcome Outcome
@@ -178,10 +187,12 @@ func (a *Applier) applyIn(
 	typ := envelope.Type
 	active := envelope.Active == nil || *envelope.Active
 
+	ns := a.Namespace()
+
 	// localId is always the near end of the transfer. On a delivered object it
-	// is the platform's own identifier where agrirouter holds one, and absent
+	// is this endpoint's own identifier where agrirouter holds one, and absent
 	// where it does not — and that absence is meaningful: it says agrirouter
-	// does not believe this platform holds the object.
+	// does not believe this endpoint holds the object.
 	localID := ""
 	if envelope.LocalID != nil {
 		localID = *envelope.LocalID
@@ -189,10 +200,23 @@ func (a *Applier) applyIn(
 
 	// Trust the mapping over the delivered identifier where both exist: the
 	// platform's own table is what it has to stay consistent with.
-	if row, err := tx.SyncRowByAgrirouterID(typ, *envelope.AgrirouterID); err == nil {
+	if row, err := tx.SyncRowByAgrirouterID(ns, typ, *envelope.AgrirouterID); err == nil {
 		localID = row.LocalID
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return Outcome{}, err
+	}
+
+	// Not held through this endpoint, but perhaps through a sibling over the
+	// same store. Its delivery without a localId is the cue to bind: the
+	// record is already here, and creating another would duplicate it.
+	joined := false
+	if localID == "" {
+		switch row, err := tx.SiblingRow(ns, typ, *envelope.AgrirouterID); {
+		case err == nil:
+			localID, joined = row.LocalID, true
+		case !errors.Is(err, store.ErrNotFound):
+			return Outcome{}, err
+		}
 	}
 
 	if localID == "" {
@@ -204,7 +228,7 @@ func (a *Applier) applyIn(
 	// because a write response may be processed after a later stream frame has
 	// already been applied — so an object whose revision is lower than the one
 	// held must not be applied over it.
-	row, err := tx.SyncRow(*envelope.TenantId, typ, localID)
+	row, err := tx.SyncRow(ns, typ, localID)
 	switch {
 	case err == nil:
 		if row.Revision != nil && envelope.Revision != nil && *envelope.Revision < *row.Revision {
@@ -220,7 +244,12 @@ func (a *Applier) applyIn(
 	if err := a.write(tx, typ, localID, entity, envelope, active, selected); err != nil {
 		return Outcome{}, err
 	}
-	return Outcome{LocalID: localID}, nil
+	return Outcome{LocalID: localID, Joined: joined, NeedsBinding: joined}, nil
+}
+
+// Namespace is the endpoint this applier's pairs are kept under.
+func (a *Applier) Namespace() store.Endpoint {
+	return store.Endpoint{TenantID: a.Endpoint.TenantID(), ExternalID: a.Endpoint.ExternalID()}
 }
 
 // applyUnheldObject handles a delivery for an object agrirouter holds no
@@ -271,7 +300,7 @@ func (a *Applier) applyUnheldObject(
 			LocalID:      known.LocalID,
 			AgrirouterID: env.AgrirouterID,
 			Revision:     env.Revision,
-			TenantID:     *env.TenantId,
+			Endpoint:     a.Namespace(),
 		}); err != nil {
 			return Outcome{}, err
 		}
@@ -334,7 +363,7 @@ func (a *Applier) write(
 		LocalID:      localID,
 		AgrirouterID: envelope.AgrirouterID,
 		Revision:     envelope.Revision,
-		TenantID:     *envelope.TenantId,
+		Endpoint:     a.Namespace(),
 	})
 }
 

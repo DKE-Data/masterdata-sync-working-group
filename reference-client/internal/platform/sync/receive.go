@@ -15,8 +15,8 @@ import (
 // last durably applied, apply what arrives, bind what it had to create.
 //
 // It is application-scoped because the stream is. One connection carries every
-// tenant the application is routed to, so the receiver holds an [Applier] per
-// tenant and routes each frame by the tenant its object belongs to. See
+// endpoint the application holds, so the receiver holds an [Applier] per
+// endpoint and routes each frame to the endpoint it names as its recipient. See
 // "Common envelope" in specification.md.
 type Receiver struct {
 	Client *agrirouter.Client
@@ -25,16 +25,14 @@ type Receiver struct {
 	// position rather than one tenant's, one stream serving all of them.
 	Store *store.Store
 
-	// Tenants holds one applier per tenant this application is routed to, keyed
-	// by the tenant's agrirouter identifier — the `tenantId` every delivered
-	// object carries. They share one store, the mapping in it being the
-	// application's.
+	// Endpoints holds one applier per endpoint of this application, keyed by
+	// its agrirouter identifier — the `recipient_endpoint_id` every delivered
+	// object carries. They share one store, each keeping its own pairs in it.
 	//
-	// The tenant is the partition because it is the only thing on a delivered
-	// object that says whose data it is: a delivered object names no recipient,
-	// and `sourceEndpointId` names the endpoint the change came from, which is
-	// somebody else's.
-	Tenants map[uuid.UUID]*Applier
+	// The recipient is the partition because a frame is rendered in one
+	// endpoint's namespace: its localIds are that endpoint's, and an object two
+	// endpoints are entitled to arrives once for each.
+	Endpoints map[uuid.UUID]*Applier
 
 	// OnApplied is called after each frame is applied, for narration. It is not
 	// part of the protocol.
@@ -87,6 +85,10 @@ type ReceiveResult struct {
 	CaughtUp bool
 
 	Created, Matched, Superseded, Ignored, Bound int
+
+	// Joined counts objects a sibling endpoint had already bound, which this
+	// endpoint bound for itself rather than creating a record.
+	Joined int
 
 	// Discarded counts objects that named no tenant and were not applied.
 	Discarded int
@@ -259,6 +261,8 @@ func (r *Receiver) consume(
 			res.Created++
 		case outcome.Matched:
 			res.Matched++
+		case outcome.Joined:
+			res.Joined++
 		case outcome.Superseded:
 			res.Superseded++
 		case outcome.Ignored:
@@ -339,12 +343,15 @@ func (r *Receiver) applySelection(
 func (r *Receiver) applyReset(ev agmasync.Event, reset oapi.MasterdataResetEventData) error {
 	// The pairs are found by the tenant the frame names, which each was
 	// recorded with, so this needs no applier for the tenant: an application
-	// with no endpoint left there is still told, for the pairs it holds, and
+	// with no endpoint left there is still told, for the pairs it kept, and
 	// Endpoints is then empty. The tenancy only decides who the transaction
 	// acts for.
 	tenant := ""
-	if applier, ok := r.Tenants[reset.TenantId]; ok {
-		tenant = applier.Tenant
+	for _, applier := range r.Endpoints {
+		if applier.Endpoint.TenantID() == reset.TenantId {
+			tenant = applier.Tenant
+			break
+		}
 	}
 	return r.Store.Tx(tenant, func(tx *store.Tx) error {
 		discarded, err := tx.DiscardTenant(reset.TenantId)
@@ -378,35 +385,30 @@ func (r *Receiver) applyReset(ev agmasync.Event, reset oapi.MasterdataResetEvent
 }
 
 func (r *Receiver) tenantOf(sel oapi.RouteChangedEventData) string {
-	if applier, ok := r.Tenants[sel.TenantId]; ok {
+	if applier, ok := r.Endpoints[sel.EndpointId]; ok {
 		return applier.Tenant
 	}
 	return ""
 }
 
-// applierFor routes a frame to the tenant its object belongs to.
+// applierFor routes a frame to the endpoint it is rendered for.
 //
-// The localId in a frame is resolved in the application's namespace for the
-// object's tenant, so the identifiers would be the same whichever of the
-// application's endpoints in that tenant took it. What the tenant
-// decides is whose data this is: the tenancy the object belongs to is the one
-// that ends up holding the record, and the one whose user sees it. A delivered
-// object names no recipient, so `tenantId` is what says which — one stream
-// carries every tenant the application is routed to, and a receiver holding
-// data for several MUST partition on it rather than on the connection.
+// Every localId in a frame is the recipient's own, so it has to be applied
+// through that endpoint's applier and recorded in its pairs: through a
+// sibling's, the identifiers would name nothing or the wrong record. One stream
+// carries every endpoint the application holds, and a receiver MUST partition
+// on `recipient_endpoint_id` rather than on the connection.
 func (r *Receiver) applierFor(ev agmasync.Event) (*Applier, error) {
-	id := ev.Envelope.TenantId
+	id := ev.Envelope.RecipientEndpointId
 	if id == nil {
-		// Not guessed at, even with one tenant: an object naming none is
-		// discarded, and consume does so before routing.
-		return nil, fmt.Errorf("sync: a delivered object names no tenant")
+		return nil, fmt.Errorf("sync: a delivered object names no recipient endpoint")
 	}
 
-	applier, ok := r.Tenants[*id]
+	applier, ok := r.Endpoints[*id]
 	if !ok {
 		// Dropping it silently would lose the object: the position would move
 		// past a frame nothing applied, and agrirouter does not send it again.
-		return nil, fmt.Errorf("sync: no applier for tenant %s", *id)
+		return nil, fmt.Errorf("sync: no applier for endpoint %s", *id)
 	}
 	return applier, nil
 }

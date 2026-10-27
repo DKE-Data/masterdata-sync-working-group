@@ -265,10 +265,10 @@ func (i *inbox) Answered() []answered {
 // knows what this platform calls them, so an object arriving without a localId
 // is by definition not one of them. So are records whose binding agrirouter
 // refused: each already answers to a canonical object, and waits for that
-// refusal to be settled rather than being matched to another.
-// unboundRecords lists the records not bound in the given agrirouter tenant. A
-// record bound in another tenant is still a candidate here: that binding is to
-// the other tenant's canonical object.
+// refusal to be settled rather than being matched to another. Both through any
+// of the platform's endpoints in the agrirouter tenant: a record a sibling
+// endpoint bound is that canonical object here too. A record bound in another
+// tenant is still a candidate: that binding is to the other tenant's object.
 func unboundRecords(
 	tx *store.Tx, tenantID uuid.UUID, typ agmasync.EntityType,
 ) ([]candidate, error) {
@@ -279,12 +279,12 @@ func unboundRecords(
 
 	var out []candidate
 	for _, localID := range localIDs {
-		row, err := tx.SyncRow(tenantID, typ, localID)
-		switch {
-		case err == nil && (row.Bound() || row.Unbound):
-			continue
-		case err != nil && !errors.Is(err, store.ErrNotFound):
+		claimed, err := tx.ClaimedInTenant(tenantID, typ, localID)
+		if err != nil {
 			return nil, err
+		}
+		if claimed {
+			continue
 		}
 
 		record, err := tx.LoadRecord(typ, localID)

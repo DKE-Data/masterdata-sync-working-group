@@ -117,7 +117,7 @@ func (s *Store) Close() error {
 // unit of work is done on behalf of one tenancy, and it decides whose holdings
 // a write joins and whose holdings a listing walks. It does not scope the
 // records themselves, which are the whole platform's, nor the identifier
-// mapping, which is scoped by the agrirouter tenant each call names — the scope
+// mapping, which is scoped by the endpoint each call names — the scope
 // agrirouter keys the mapping at. See schema.sql.
 func (s *Store) Tx(tenant string, fn func(*Tx) error) error {
 	tx, err := s.db.Begin()
@@ -157,14 +157,22 @@ type Tx struct {
 // Tenant is the tenancy this transaction runs in.
 func (t *Tx) Tenant() string { return t.tenant }
 
+// Endpoint names the namespace a pair lives in: one of the product's endpoints,
+// by the external id it gave it, within the agrirouter tenant the endpoint is
+// in. It is what agrirouter keys the identifier mapping by.
+type Endpoint struct {
+	TenantID   uuid.UUID
+	ExternalID string
+}
+
 // SyncRow is what the platform knows about one record's place in the exchange
-// in one agrirouter tenant. There is one row per record and agrirouter tenant,
-// however many of the product's tenancies in that agrirouter tenant hold it.
+// through one endpoint. There is one row per record and endpoint that has sent
+// or bound it; two endpoints in one agrirouter tenant hold a row each, both
+// naming one canonical object.
 type SyncRow struct {
-	// TenantID is the agrirouter tenant the canonical object belongs to, taken
-	// from its `tenantId`. It is part of the key: the same record held in two
-	// agrirouter tenants is bound to a separate canonical object in each.
-	TenantID     uuid.UUID
+	// Endpoint is whose pair this is. Its TenantID is the agrirouter tenant the
+	// canonical object belongs to.
+	Endpoint     Endpoint
 	EntityType   agmasync.EntityType
 	LocalID      string
 	AgrirouterID *uuid.UUID
@@ -183,68 +191,105 @@ type SyncRow struct {
 // mints a duplicate.
 func (r SyncRow) Bound() bool { return r.AgrirouterID != nil }
 
-// SyncRow reads the bookkeeping for one of the platform's records in one
-// agrirouter tenant.
-func (t *Tx) SyncRow(
-	tenantID uuid.UUID, typ agmasync.EntityType, localID string,
-) (SyncRow, error) {
-	row := t.tx.QueryRow(`
-		SELECT agrirouter_id, revision, unbound
-		  FROM agmasync_object
-		 WHERE agrirouter_tenant_id = ? AND entity_type = ? AND local_id = ?`,
-		tenantID.String(), string(typ), localID)
+const syncColumns = `agrirouter_tenant_id, external_endpoint_id, entity_type, local_id,
+	agrirouter_id, revision, unbound`
 
-	var rawID sql.NullString
-	var revision sql.NullInt64
-	var unbound int
-	if err := row.Scan(&rawID, &revision, &unbound); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return SyncRow{}, ErrNotFound
-		}
-		return SyncRow{}, fmt.Errorf("reading sync row: %w", err)
-	}
-	return toSyncRow(tenantID.String(), typ, localID, rawID, revision, unbound)
+// SyncRow reads one endpoint's bookkeeping for one of the platform's records.
+func (t *Tx) SyncRow(ep Endpoint, typ agmasync.EntityType, localID string) (SyncRow, error) {
+	return scanSyncRow(t.tx.QueryRow(`
+		SELECT `+syncColumns+`
+		  FROM agmasync_object
+		 WHERE agrirouter_tenant_id = ? AND external_endpoint_id = ?
+		   AND entity_type = ? AND local_id = ?`,
+		ep.TenantID.String(), ep.ExternalID, string(typ), localID))
 }
 
-// SyncRowByAgrirouterID reads the bookkeeping by canonical identifier, which is
-// how a delivered object is matched when it carries no localId of ours.
-//
-// It needs no tenant: an agrirouterId names one canonical object, in one
-// tenant, so at most one row answers it. A product tenancy onboarded into the
-// same agrirouter tenant as one that already bound the object finds that pair
-// here and joins the record rather than creating a duplicate agrirouter would
-// then refuse to bind.
+// SyncRowByAgrirouterID reads one endpoint's bookkeeping by canonical
+// identifier, which is how a delivered object is matched when it carries no
+// localId of ours.
 func (t *Tx) SyncRowByAgrirouterID(
-	typ agmasync.EntityType, agrirouterID uuid.UUID,
+	ep Endpoint, typ agmasync.EntityType, agrirouterID uuid.UUID,
 ) (SyncRow, error) {
-	row := t.tx.QueryRow(`
-		SELECT agrirouter_tenant_id, local_id, agrirouter_id, revision, unbound
+	return scanSyncRow(t.tx.QueryRow(`
+		SELECT `+syncColumns+`
 		  FROM agmasync_object
-		 WHERE entity_type = ? AND agrirouter_id = ?`,
-		string(typ), agrirouterID.String())
+		 WHERE agrirouter_tenant_id = ? AND external_endpoint_id = ?
+		   AND entity_type = ? AND agrirouter_id = ?`,
+		ep.TenantID.String(), ep.ExternalID, string(typ), agrirouterID.String()))
+}
 
-	var tenantID, localID string
+// SiblingRow reads another endpoint's pair for a canonical object: which of the
+// platform's records it is, as a sibling endpoint bound it.
+//
+// The store is one behind every endpoint, so a record a sibling bound is a
+// record this endpoint holds too, and an endpoint that finds one binds the
+// same local_id for itself rather than creating a second record — or, on
+// send, a second canonical object. An agrirouterId belongs to one tenant, so
+// every row answering it is a sibling in that tenant.
+func (t *Tx) SiblingRow(
+	ep Endpoint, typ agmasync.EntityType, agrirouterID uuid.UUID,
+) (SyncRow, error) {
+	return scanSyncRow(t.tx.QueryRow(`
+		SELECT `+syncColumns+`
+		  FROM agmasync_object
+		 WHERE entity_type = ? AND agrirouter_id = ?
+		   AND NOT (agrirouter_tenant_id = ? AND external_endpoint_id = ?)
+		 ORDER BY external_endpoint_id
+		 LIMIT 1`,
+		string(typ), agrirouterID.String(), ep.TenantID.String(), ep.ExternalID))
+}
+
+// SiblingRowByLocalID reads another endpoint's bound pair for one of the
+// platform's records in the same agrirouter tenant. An endpoint about to send
+// a record it has never bound uses it to bind first: the record is already a
+// canonical object there, and sending it unbound would mint a second.
+func (t *Tx) SiblingRowByLocalID(
+	ep Endpoint, typ agmasync.EntityType, localID string,
+) (SyncRow, error) {
+	return scanSyncRow(t.tx.QueryRow(`
+		SELECT `+syncColumns+`
+		  FROM agmasync_object
+		 WHERE agrirouter_tenant_id = ? AND external_endpoint_id <> ?
+		   AND entity_type = ? AND local_id = ? AND agrirouter_id IS NOT NULL
+		 ORDER BY external_endpoint_id
+		 LIMIT 1`,
+		ep.TenantID.String(), ep.ExternalID, string(typ), localID))
+}
+
+// recordOf reads which of the platform's records a canonical object is,
+// whichever endpoint bound it. Records are the whole platform's, so any pair
+// answers.
+func (t *Tx) recordOf(typ agmasync.EntityType, agrirouterID uuid.UUID) (SyncRow, error) {
+	return scanSyncRow(t.tx.QueryRow(`
+		SELECT `+syncColumns+`
+		  FROM agmasync_object
+		 WHERE entity_type = ? AND agrirouter_id = ?
+		 ORDER BY external_endpoint_id
+		 LIMIT 1`,
+		string(typ), agrirouterID.String()))
+}
+
+type scanner interface{ Scan(dest ...any) error }
+
+func scanSyncRow(row scanner) (SyncRow, error) {
+	var tenantID, externalID, typ, localID string
 	var rawID sql.NullString
 	var revision sql.NullInt64
 	var unbound int
-	if err := row.Scan(&tenantID, &localID, &rawID, &revision, &unbound); err != nil {
+	if err := row.Scan(&tenantID, &externalID, &typ, &localID, &rawID, &revision, &unbound); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return SyncRow{}, ErrNotFound
 		}
 		return SyncRow{}, fmt.Errorf("reading sync row: %w", err)
 	}
-	return toSyncRow(tenantID, typ, localID, rawID, revision, unbound)
-}
-
-func toSyncRow(
-	tenantID string, typ agmasync.EntityType, localID string, rawID sql.NullString,
-	revision sql.NullInt64, unbound int,
-) (SyncRow, error) {
 	tenant, err := uuid.Parse(tenantID)
 	if err != nil {
 		return SyncRow{}, fmt.Errorf("stored agrirouter tenant is not a uuid: %w", err)
 	}
-	out := SyncRow{TenantID: tenant, EntityType: typ, LocalID: localID, Unbound: unbound != 0}
+	out := SyncRow{
+		Endpoint:   Endpoint{TenantID: tenant, ExternalID: externalID},
+		EntityType: agmasync.EntityType(typ), LocalID: localID, Unbound: unbound != 0,
+	}
 	if rawID.Valid {
 		parsed, err := uuid.Parse(rawID.String)
 		if err != nil {
@@ -261,8 +306,8 @@ func toSyncRow(
 
 // PutSyncRow records the correspondence and the revision for one record.
 func (t *Tx) PutSyncRow(r SyncRow) error {
-	if r.TenantID == uuid.Nil {
-		return fmt.Errorf("writing sync row: no agrirouter tenant for %s %q", r.EntityType, r.LocalID)
+	if r.Endpoint.TenantID == uuid.Nil || r.Endpoint.ExternalID == "" {
+		return fmt.Errorf("writing sync row: no endpoint for %s %q", r.EntityType, r.LocalID)
 	}
 	var rawID any
 	if r.AgrirouterID != nil {
@@ -277,13 +322,15 @@ func (t *Tx) PutSyncRow(r SyncRow) error {
 	// again, under this identifier, whether that is a rebinding of the same one
 	// or a fresh record.
 	_, err := t.tx.Exec(`
-		INSERT INTO agmasync_object (agrirouter_tenant_id, entity_type, local_id, agrirouter_id, revision)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (agrirouter_tenant_id, entity_type, local_id) DO UPDATE SET
+		INSERT INTO agmasync_object
+			(agrirouter_tenant_id, external_endpoint_id, entity_type, local_id, agrirouter_id, revision)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (agrirouter_tenant_id, external_endpoint_id, entity_type, local_id) DO UPDATE SET
 			agrirouter_id = excluded.agrirouter_id,
 			revision      = excluded.revision,
 			unbound       = 0`,
-		r.TenantID.String(), string(r.EntityType), r.LocalID, rawID, revision)
+		r.Endpoint.TenantID.String(), r.Endpoint.ExternalID, string(r.EntityType), r.LocalID,
+		rawID, revision)
 	if err != nil {
 		return fmt.Errorf("writing sync row: %w", err)
 	}
@@ -301,28 +348,30 @@ func (t *Tx) PutSyncRow(r SyncRow) error {
 // has never been sent, which is sendable; this one is not, and nothing else
 // would say so once the pair is gone.
 //
-// It is per agrirouter tenant, as the pair is: the record stays bound in any
-// other tenant that holds it.
-func (t *Tx) Unbind(tenantID uuid.UUID, typ agmasync.EntityType, localID string) error {
+// It is per endpoint, as the pair is: the record stays bound through any other
+// endpoint that holds it.
+func (t *Tx) Unbind(ep Endpoint, typ agmasync.EntityType, localID string) error {
 	_, err := t.tx.Exec(`
 		UPDATE agmasync_object
 		   SET agrirouter_id = NULL, revision = NULL, unbound = 1
-		 WHERE agrirouter_tenant_id = ? AND entity_type = ? AND local_id = ?`,
-		tenantID.String(), string(typ), localID)
+		 WHERE agrirouter_tenant_id = ? AND external_endpoint_id = ?
+		   AND entity_type = ? AND local_id = ?`,
+		ep.TenantID.String(), ep.ExternalID, string(typ), localID)
 	if err != nil {
 		return fmt.Errorf("unbinding: %w", err)
 	}
 	return nil
 }
 
-// DropSyncRow forgets the bookkeeping for one record in one agrirouter tenant,
-// leaving it a record the platform has never sent. A correction to none does
-// this: the record matched nothing, and is sent as a create.
-func (t *Tx) DropSyncRow(tenantID uuid.UUID, typ agmasync.EntityType, localID string) error {
+// DropSyncRow forgets one endpoint's bookkeeping for one record, leaving it a
+// record that endpoint has never sent. A correction to none does this: the
+// record matched nothing, and is sent as a create.
+func (t *Tx) DropSyncRow(ep Endpoint, typ agmasync.EntityType, localID string) error {
 	_, err := t.tx.Exec(`
 		DELETE FROM agmasync_object
-		 WHERE agrirouter_tenant_id = ? AND entity_type = ? AND local_id = ?`,
-		tenantID.String(), string(typ), localID)
+		 WHERE agrirouter_tenant_id = ? AND external_endpoint_id = ?
+		   AND entity_type = ? AND local_id = ?`,
+		ep.TenantID.String(), ep.ExternalID, string(typ), localID)
 	if err != nil {
 		return fmt.Errorf("dropping sync row: %w", err)
 	}
@@ -330,8 +379,9 @@ func (t *Tx) DropSyncRow(tenantID uuid.UUID, typ agmasync.EntityType, localID st
 }
 
 // DiscardTenant drops every pair whose canonical object belongs to the given
-// agrirouter tenant, which is what a masterdata reset of it requires, and
-// reports how many it dropped.
+// agrirouter tenant, through whichever endpoint, which is what a masterdata
+// reset of it requires, and reports how many it dropped. That includes the
+// pairs kept for an endpoint agrirouter has since removed.
 //
 // The rows are deleted rather than marked unbound. Unbound says the record must
 // not be sent because a canonical object for it exists; after a reset none
@@ -350,20 +400,18 @@ func (t *Tx) DiscardTenant(tenantID uuid.UUID) (int, error) {
 	return int(n), nil
 }
 
-// Bindings lists every correspondence the platform holds in one agrirouter
-// tenant, which is what a reconciliation confirmation carries in bulk.
+// Bindings lists every correspondence one endpoint holds, which is what its
+// reconciliation confirmation carries in bulk.
 //
-// Every pair in the tenant, not only this tenancy's: a pair another of the
-// product's endpoints there produced is one agrirouter already holds for this
-// participant, so carrying it on this endpoint's confirmation claims nothing
-// new and is recorded idempotently. Another tenant's pairs name objects this
-// endpoint cannot see, and are left out.
-func (t *Tx) Bindings(tenantID uuid.UUID) ([]SyncRow, error) {
+// Only this endpoint's: a sibling's pairs are in the sibling's namespace, and
+// carrying them here would bind them for this endpoint without its having
+// recognised anything.
+func (t *Tx) Bindings(ep Endpoint) ([]SyncRow, error) {
 	rows, err := t.tx.Query(`
-		SELECT entity_type, local_id, agrirouter_id, revision
+		SELECT `+syncColumns+`
 		  FROM agmasync_object
-		 WHERE agrirouter_tenant_id = ? AND agrirouter_id IS NOT NULL
-		 ORDER BY entity_type, local_id`, tenantID.String())
+		 WHERE agrirouter_tenant_id = ? AND external_endpoint_id = ? AND agrirouter_id IS NOT NULL
+		 ORDER BY entity_type, local_id`, ep.TenantID.String(), ep.ExternalID)
 	if err != nil {
 		return nil, fmt.Errorf("listing bindings: %w", err)
 	}
@@ -371,14 +419,7 @@ func (t *Tx) Bindings(tenantID uuid.UUID) ([]SyncRow, error) {
 
 	var out []SyncRow
 	for rows.Next() {
-		var typ, localID string
-		var rawID sql.NullString
-		var revision sql.NullInt64
-		if err := rows.Scan(&typ, &localID, &rawID, &revision); err != nil {
-			return nil, fmt.Errorf("scanning binding: %w", err)
-		}
-		// A bound row is by definition not unbound.
-		row, err := toSyncRow(tenantID.String(), agmasync.EntityType(typ), localID, rawID, revision, 0)
+		row, err := scanSyncRow(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -486,4 +527,35 @@ func (s *Store) Position() (string, error) {
 		return err
 	})
 	return out, err
+}
+
+// BoundInTenant reports whether a record is bound to a canonical object of an
+// agrirouter tenant through any of the platform's endpoints there.
+func (t *Tx) BoundInTenant(tenantID uuid.UUID, typ agmasync.EntityType, localID string) (bool, error) {
+	return t.anyRowInTenant(tenantID, typ, localID, `agrirouter_id IS NOT NULL`)
+}
+
+// ClaimedInTenant reports whether a record is bound in an agrirouter tenant, or
+// had its binding there refused, through any of the platform's endpoints.
+// Either way it answers to a canonical object of the tenant already.
+func (t *Tx) ClaimedInTenant(tenantID uuid.UUID, typ agmasync.EntityType, localID string) (bool, error) {
+	return t.anyRowInTenant(tenantID, typ, localID, `(agrirouter_id IS NOT NULL OR unbound = 1)`)
+}
+
+func (t *Tx) anyRowInTenant(
+	tenantID uuid.UUID, typ agmasync.EntityType, localID, condition string,
+) (bool, error) {
+	var one int
+	err := t.tx.QueryRow(`
+		SELECT 1 FROM agmasync_object
+		 WHERE agrirouter_tenant_id = ? AND entity_type = ? AND local_id = ?
+		   AND `+condition+`
+		 LIMIT 1`, tenantID.String(), string(typ), localID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("checking bindings of %s %q: %w", typ, localID, err)
+	}
+	return true, nil
 }

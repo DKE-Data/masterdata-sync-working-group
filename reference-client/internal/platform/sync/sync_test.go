@@ -2,6 +2,7 @@ package sync_test
 
 import (
 	"context"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"iter"
@@ -157,7 +158,7 @@ func TestSendCreatesAndRecordsTheCorrespondence(t *testing.T) {
 	var row store.SyncRow
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1")
+		row, err = tx.SyncRow(a.Namespace(), agmasync.TypeFarm, "FRM-1")
 		return err
 	}); err != nil {
 		t.Fatalf("reading sync row: %v", err)
@@ -215,7 +216,7 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 	var row store.SyncRow
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1")
+		row, err = tx.SyncRow(a.Namespace(), agmasync.TypeFarm, "FRM-1")
 		return err
 	}); err != nil {
 		t.Fatalf("reading sync row: %v", err)
@@ -245,7 +246,7 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 
 	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(a.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1")
+		row, err = tx.SyncRow(a.Namespace(), agmasync.TypeFarm, "FRM-1")
 		return err
 	}); err != nil {
 		t.Fatalf("reading sync row: %v", err)
@@ -284,7 +285,7 @@ func TestDeliveryWithoutLocalIDIsCreatedAndBound(t *testing.T) {
 	var row store.SyncRow
 	if err := b.Store.Tx(b.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(b.Endpoint.TenantID(), agmasync.TypeFarm, outcome.LocalID)
+		row, err = tx.SyncRow(b.Namespace(), agmasync.TypeFarm, outcome.LocalID)
 		return err
 	}); err != nil {
 		t.Fatalf("reading sync row: %v", err)
@@ -623,12 +624,11 @@ func deliverFrom(t *testing.T, h *harness, appID, position string) []agmasync.Ev
 func strptr(s string) *string { return &s }
 
 func TestTwoTenantsOfOnePlatformShareOneRecord(t *testing.T) {
-	// The case the application-scoped mapping decides. One product, one store,
-	// two tenancies its users switch between, onboarded into one agrirouter
-	// tenant — and one local identifier names one record whichever of them
-	// reaches it, because that is what agrirouter resolves it as. Each tenancy is
-	// onboarded as its own endpoint, and what the tenancy decides is which of
-	// them holds the record, not which record the identifier names.
+	// One product, one store, two tenancies its users switch between, onboarded
+	// into one agrirouter tenant as an endpoint each. One local identifier names
+	// one record here whichever tenancy reaches it; agrirouter keys the mapping
+	// by the endpoint, so each endpoint binds that record for itself, to the one
+	// canonical object.
 	h := newHarness(t)
 	first := h.join("fmis-a", "ep-a1", agmasync.TypeFarm)
 	second := h.joinTenant("fmis-a", "ep-a2", "tenant-two", first.Store, agmasync.TypeFarm)
@@ -655,39 +655,55 @@ func TestTwoTenantsOfOnePlatformShareOneRecord(t *testing.T) {
 	}
 
 	// The second tenant taking on the first tenant's record joins it rather than
-	// copying it: same row, same bookkeeping, and after the send the same
-	// canonical object.
+	// copying it: same record, and after its own send the same canonical
+	// object, bound through its own pair.
 	if _, err := first.Send(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
 		t.Fatalf("send from the first tenant: %v", err)
 	}
-
-	var held store.Record
-	var row store.SyncRow
 	if err := second.Store.Tx(second.Tenant, func(tx *store.Tx) error {
-		var err error
-		if held, err = tx.LoadRecord(agmasync.TypeFarm, "FRM-1"); err != nil {
+		record, err := tx.LoadRecord(agmasync.TypeFarm, "FRM-1")
+		if err != nil {
 			return err
 		}
-		row, err = tx.SyncRow(second.Endpoint.TenantID(), agmasync.TypeFarm, "FRM-1")
-		return err
+		if string(record.Modelled["name"]) != `"Hof Nord"` {
+			t.Errorf("name = %s, want the one record the platform holds", record.Modelled["name"])
+		}
+		_, err = tx.SyncRow(second.Namespace(), agmasync.TypeFarm, "FRM-1")
+		if !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("err = %v, want no pair for the second endpoint before it binds", err)
+		}
+		return tx.UpsertRecord(record, "FRM-1")
 	}); err != nil {
-		t.Fatalf("the second tenant reading the platform's record: %v", err)
+		t.Fatalf("the second tenant taking on the platform's record: %v", err)
 	}
-	if string(held.Modelled["name"]) != `"Hof Nord"` {
-		t.Errorf("name = %s, want the one record the platform holds", held.Modelled["name"])
+
+	// Sending it unbound would mint a second canonical object. The sibling's
+	// pair says what it is, so the send binds first and is then a no-op.
+	outcome, err := second.Send(context.Background(), agmasync.TypeFarm, "FRM-1")
+	if err != nil {
+		t.Fatalf("send from the second tenant: %v", err)
 	}
-	if !row.Bound() {
-		t.Error("the binding is the platform's in its agrirouter tenant, so it stands for the second tenancy too")
+	if outcome.Created {
+		t.Error("the second tenant's send must not create a record")
+	}
+	firstRow := syncRow(t, first, agmasync.TypeFarm, "FRM-1")
+	secondRow := syncRow(t, second, agmasync.TypeFarm, "FRM-1")
+	if !secondRow.Bound() || *secondRow.AgrirouterID != *firstRow.AgrirouterID {
+		t.Errorf("second pair = %+v, want its own pair to the first's object %s",
+			secondRow, *firstRow.AgrirouterID)
+	}
+	if *secondRow.Revision != *firstRow.Revision {
+		t.Errorf("revision = %d, want %d: an equal payload is a no-op",
+			*secondRow.Revision, *firstRow.Revision)
 	}
 }
 
-func TestOneTenantsBindingSpeaksForTheWholePlatform(t *testing.T) {
-	// Bookkeeping is the platform's within an agrirouter tenant, so a delivery
-	// reaching a second tenancy onboarded there is matched against the binding
-	// the first produced. If it matched per
-	// tenant, the second would create a duplicate record and bind a second
-	// identifier to an object agrirouter already knows this participant's name
-	// for — which is the 409 the specification calls a non-unique mapping.
+func TestASiblingTenancyBindsTheRecordTheOtherHolds(t *testing.T) {
+	// Bookkeeping is per endpoint, the records are the platform's. A delivery
+	// reaching the second tenancy carries no localId — its endpoint has bound
+	// nothing — but the store already holds the record through the first, so
+	// it is joined and bound under the same local identifier, not created
+	// again.
 	h := newHarness(t)
 	sender := h.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	first := h.join("fmis-b", "ep-b1", agmasync.TypeFarm)
@@ -698,51 +714,52 @@ func TestOneTenantsBindingSpeaksForTheWholePlatform(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	delivered := deliverTo(t, h, "fmis-b")
-	if len(delivered) == 0 {
-		t.Fatal("the receiving platform received nothing")
+	// One frame per endpoint, each rendered for its recipient.
+	frames := map[uuid.UUID]agmasync.Event{}
+	for _, ev := range deliverTo(t, h, "fmis-b") {
+		frames[*ev.Envelope.RecipientEndpointId] = ev
+	}
+	forFirst, ok1 := frames[first.Endpoint.ID()]
+	forSecond, ok2 := frames[second.Endpoint.ID()]
+	if !ok1 || !ok2 {
+		t.Fatalf("frames for %v, want one for each endpoint", frames)
 	}
 
 	// The first tenant creates the platform's record for the object and binds it.
-	outcome, err := first.Apply(entityOf(t, delivered[0]), delivered[0].ID)
+	outcome, err := first.Apply(entityOf(t, forFirst), forFirst.ID)
 	if err != nil {
 		t.Fatalf("apply in the first tenant: %v", err)
 	}
-	if !outcome.NeedsBinding {
+	if !outcome.Created || !outcome.NeedsBinding {
 		t.Fatalf("outcome = %+v, want a created record awaiting binding", outcome)
 	}
-	var row store.SyncRow
-	if err := first.Store.Tx(first.Tenant, func(tx *store.Tx) error {
-		var err error
-		row, err = tx.SyncRow(first.Endpoint.TenantID(), agmasync.TypeFarm, outcome.LocalID)
-		return err
-	}); err != nil {
-		t.Fatalf("reading sync row: %v", err)
-	}
 	if err := first.Bind(
-		context.Background(), agmasync.TypeFarm, outcome.LocalID, *row.AgrirouterID,
+		context.Background(), agmasync.TypeFarm, outcome.LocalID, *forFirst.Envelope.AgrirouterID,
 	); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 
-	// The same object reaching the second tenant finds the platform's own record
-	// through the mapping. Nothing is created, and there is nothing left to
-	// bind — agrirouter already holds this participant's identifier for it.
-	secondOutcome, err := second.Apply(entityOf(t, delivered[0]), delivered[0].ID)
+	secondOutcome, err := second.Apply(entityOf(t, forSecond), forSecond.ID)
 	if err != nil {
 		t.Fatalf("apply in the second tenant: %v", err)
 	}
-	if secondOutcome.Created || secondOutcome.NeedsBinding {
-		t.Errorf("outcome = %+v, want the second tenant to join the record the platform holds",
+	if secondOutcome.Created || !secondOutcome.Joined || !secondOutcome.NeedsBinding {
+		t.Errorf("outcome = %+v, want the record joined and awaiting this endpoint's binding",
 			secondOutcome)
 	}
 	if secondOutcome.LocalID != outcome.LocalID {
 		t.Errorf("localId = %q, want the platform's own %q",
 			secondOutcome.LocalID, outcome.LocalID)
 	}
+	// The same local identifier on a second endpoint is not a conflict.
+	if err := second.Bind(
+		context.Background(), agmasync.TypeFarm, secondOutcome.LocalID, *forSecond.Envelope.AgrirouterID,
+	); err != nil {
+		t.Fatalf("bind through the second endpoint: %v", err)
+	}
 
-	// What the second tenant does gain is the record: it holds it now, and its
-	// user sees it, which is the only thing the tenant partitions.
+	// What the second tenant also gains is the record: it holds it now, and
+	// its user sees it.
 	var holds bool
 	if err := second.Store.Tx(second.Tenant, func(tx *store.Tx) error {
 		var err error
@@ -789,9 +806,9 @@ func TestOneRecordInTwoAgrirouterTenantsIsBoundInEach(t *testing.T) {
 	if *firstRow.AgrirouterID == *secondRow.AgrirouterID {
 		t.Error("one record in two agrirouter tenants is two canonical objects")
 	}
-	if firstRow.TenantID != h.tenant || secondRow.TenantID != other {
+	if firstRow.Endpoint.TenantID != h.tenant || secondRow.Endpoint.TenantID != other {
 		t.Errorf("tenants = %s, %s, want each pair filed under its own tenant",
-			firstRow.TenantID, secondRow.TenantID)
+			firstRow.Endpoint.TenantID, secondRow.Endpoint.TenantID)
 	}
 
 	// Correcting in one tenant leaves the other's pair standing.
@@ -831,7 +848,7 @@ func TestACorrectedSwapRebindsBothRecordsAndFetchesTheirObjects(t *testing.T) {
 		}
 		if err := b.Store.Tx(b.Tenant, func(tx *store.Tx) error {
 			return tx.PutSyncRow(store.SyncRow{
-				TenantID: h.tenant, EntityType: agmasync.TypeFarm, LocalID: localID, AgrirouterID: &id,
+				Endpoint: b.Namespace(), EntityType: agmasync.TypeFarm, LocalID: localID, AgrirouterID: &id,
 			})
 		}); err != nil {
 			t.Fatalf("recording %s: %v", localID, err)

@@ -208,11 +208,55 @@ func (w *World) Join(ctx context.Context, name, appID, externalID string) (*Plat
 		IDs:      p.ids,
 	}
 	p.Receiver = &psync.Receiver{
-		Client:  client,
-		Store:   db,
-		Tenants: map[uuid.UUID]*psync.Applier{w.Tenant: p.Applier},
+		Client:    client,
+		Store:     db,
+		Endpoints: map[uuid.UUID]*psync.Applier{endpointID: p.Applier},
 	}
 	return p, nil
+}
+
+// JoinTenancy onboards another of a platform's own tenancies into this world's
+// tenant, as a second endpoint of the same application over the same store.
+//
+// It shares the platform's database, identifiers, client and receive loop —
+// one product, one stream — and has an endpoint and an applier of its own, so
+// it keeps its own pairs. Like [World.Join] it is opted into nothing yet.
+func (w *World) JoinTenancy(
+	ctx context.Context, of *Platform, name, externalID string,
+) (*Platform, error) {
+	externalID += w.suffix
+	endpointID, err := w.onboard(ctx, externalID, of.ApplicationID, uuid.New())
+	if err != nil {
+		return nil, err
+	}
+
+	p := &Platform{
+		Name: name, ApplicationID: of.ApplicationID,
+		ExternalID: externalID, EndpointID: endpointID,
+		Client: of.Client, Store: of.Store, Receiver: of.Receiver,
+		world: w, ids: of.ids,
+	}
+	p.Applier = &psync.Applier{
+		Store:    of.Store,
+		Tenant:   "tenant-" + externalID,
+		Endpoint: agrirouter.For(of.Client, endpointID, externalID, w.Tenant),
+		IDs:      of.ids,
+	}
+	of.Receiver.Endpoints[endpointID] = p.Applier
+	return p, nil
+}
+
+// Hold records that this tenancy holds one of the platform's records too, as
+// a user adding it to the tenancy they work in does. The record is the
+// platform's: nothing about it is copied.
+func (p *Platform) Hold(typ agmasync.EntityType, localID string) error {
+	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
+		record, err := tx.LoadRecord(typ, localID)
+		if err != nil {
+			return err
+		}
+		return tx.UpsertRecord(record, localID)
+	})
 }
 
 const endpointType = oapi.EndpointTypeToCreate("cloud_software")
@@ -448,7 +492,7 @@ func (p *Platform) Supplement(
 		if record, err = tx.LoadRecord(typ, localID); err != nil {
 			return err
 		}
-		row, err = tx.SyncRow(p.world.Tenant, typ, localID)
+		row, err = tx.SyncRow(p.Applier.Namespace(), typ, localID)
 		return err
 	})
 	if err != nil {
@@ -886,7 +930,7 @@ func (p *Platform) Row(typ agmasync.EntityType, localID string) (store.SyncRow, 
 	var row store.SyncRow
 	err := p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		var err error
-		row, err = tx.SyncRow(p.world.Tenant, typ, localID)
+		row, err = tx.SyncRow(p.Applier.Namespace(), typ, localID)
 		return err
 	})
 	return row, err
@@ -957,7 +1001,7 @@ func (p *Platform) Adopt(
 	return p.Store.Tx(p.Applier.Tenant, func(tx *store.Tx) error {
 		return tx.PutSyncRow(store.SyncRow{
 			EntityType: typ, LocalID: localID, AgrirouterID: &agrirouterID,
-			TenantID: p.world.Tenant,
+			Endpoint: p.Applier.Namespace(),
 		})
 	})
 }
