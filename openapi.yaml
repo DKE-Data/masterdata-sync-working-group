@@ -159,38 +159,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    delete:
+
+  /masterdata/parties/id-mapping-corrections:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+    post:
       tags: [Parties]
-      summary: Declare that this endpoint no longer holds a party
+      summary: Correct this endpoint's bindings of parties
       description: >
-        Declares that the endpoint no longer holds the canonical party in the
-        path under `local_id` — deleted locally, or discarded while the endpoint
-        was not a participant. It is the counterpart of the binding above and,
-        like it, a declaration about the endpoint's own store, which agrirouter
-        takes at face value and never infers. It is not the correction of a
-        mistaken binding, and it is not a statement that the entity is inactive
-        in the world — for the latter, use the deactivation operation, which is
-        about the entity rather than about this endpoint's copy of it.
+        Replaces bindings the endpoint's user found wrong. Each listed
+        `local_id` ends mapped to the given party, or to none where
+        `agrirouter_id` is `null`. Uniqueness is checked on the result, so a
+        swap is one call, applied whole or not at all. A party bound to a
+        `local_id` the request does not list is not taken from it: that is the
+        `409`.
 
 
-        Unbinding removes no canonical object, touches no other endpoint's
-        mapping, creates no revision, and reaches nobody. The object stays one
-        this endpoint is entitled to, so its next change is delivered again,
-        carrying no `referenceId`, and the endpoint MUST then treat it as new:
-        opt-in is the only filter on what an endpoint receives, and unbinding is
-        not an instruction to stop sending. An endpoint that wants the object
-        back at once requests it by `agrirouter_id` rather than waiting for a
-        change.
-      operationId: unbindPartyMapping
+        Like binding it creates no revision, does not change
+        `source_endpoint_id`, and is delivered to nobody. It corrects identity,
+        not content: revisions written through the wrong binding stand. It is
+        not a declaration that the endpoint deleted or discarded a record —
+        for a deletion, use the deactivation operation.
+      operationId: correctPartyMappings
+      requestBody:
+        $ref: '#/components/requestBodies/IdMappingCorrection'
       responses:
         '204':
-          description: >
-            The endpoint holds no mapping for this pair. Returned whether or not
-            one existed, so a retry after a lost response is safe.
+          description: The listed mappings are as requested. Repeating the request changes nothing.
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
 
   /masterdata/parties/{local_id}/deactivation:
     parameters:
@@ -351,38 +355,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    delete:
+
+  /masterdata/farms/id-mapping-corrections:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+    post:
       tags: [Farms]
-      summary: Declare that this endpoint no longer holds a farm
+      summary: Correct this endpoint's bindings of farms
       description: >
-        Declares that the endpoint no longer holds the canonical farm in the
-        path under `local_id` — deleted locally, or discarded while the endpoint
-        was not a participant. It is the counterpart of the binding above and,
-        like it, a declaration about the endpoint's own store, which agrirouter
-        takes at face value and never infers. It is not the correction of a
-        mistaken binding, and it is not a statement that the entity is inactive
-        in the world — for the latter, use the deactivation operation, which is
-        about the entity rather than about this endpoint's copy of it.
+        Replaces bindings the endpoint's user found wrong. Each listed
+        `local_id` ends mapped to the given farm, or to none where
+        `agrirouter_id` is `null`. Uniqueness is checked on the result, so a
+        swap is one call, applied whole or not at all. A farm bound to a
+        `local_id` the request does not list is not taken from it: that is the
+        `409`.
 
 
-        Unbinding removes no canonical object, touches no other endpoint's
-        mapping, creates no revision, and reaches nobody. The object stays one
-        this endpoint is entitled to, so its next change is delivered again,
-        carrying no `referenceId`, and the endpoint MUST then treat it as new:
-        opt-in is the only filter on what an endpoint receives, and unbinding is
-        not an instruction to stop sending. An endpoint that wants the object
-        back at once requests it by `agrirouter_id` rather than waiting for a
-        change.
-      operationId: unbindFarmMapping
+        Like binding it creates no revision, does not change
+        `source_endpoint_id`, and is delivered to nobody. It corrects identity,
+        not content: revisions written through the wrong binding stand. It is
+        not a declaration that the endpoint deleted or discarded a record —
+        for a deletion, use the deactivation operation.
+      operationId: correctFarmMappings
+      requestBody:
+        $ref: '#/components/requestBodies/IdMappingCorrection'
       responses:
         '204':
-          description: >
-            The endpoint holds no mapping for this pair. Returned whether or not
-            one existed, so a retry after a lost response is safe.
+          description: The listed mappings are as requested. Repeating the request changes nothing.
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
 
   /masterdata/farms/{local_id}/deactivation:
     parameters:
@@ -543,38 +551,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    delete:
+
+  /masterdata/fields/id-mapping-corrections:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+    post:
       tags: [Fields]
-      summary: Declare that this endpoint no longer holds a field
+      summary: Correct this endpoint's bindings of fields
       description: >
-        Declares that the endpoint no longer holds the canonical field in the
-        path under `local_id` — deleted locally, or discarded while the endpoint
-        was not a participant. It is the counterpart of the binding above and,
-        like it, a declaration about the endpoint's own store, which agrirouter
-        takes at face value and never infers. It is not the correction of a
-        mistaken binding, and it is not a statement that the entity is inactive
-        in the world — for the latter, use the deactivation operation, which is
-        about the entity rather than about this endpoint's copy of it.
+        Replaces bindings the endpoint's user found wrong. Each listed
+        `local_id` ends mapped to the given field, or to none where
+        `agrirouter_id` is `null`. Uniqueness is checked on the result, so a
+        swap is one call, applied whole or not at all. A field bound to a
+        `local_id` the request does not list is not taken from it: that is the
+        `409`.
 
 
-        Unbinding removes no canonical object, touches no other endpoint's
-        mapping, creates no revision, and reaches nobody. The object stays one
-        this endpoint is entitled to, so its next change is delivered again,
-        carrying no `referenceId`, and the endpoint MUST then treat it as new:
-        opt-in is the only filter on what an endpoint receives, and unbinding is
-        not an instruction to stop sending. An endpoint that wants the object
-        back at once requests it by `agrirouter_id` rather than waiting for a
-        change.
-      operationId: unbindFieldMapping
+        Like binding it creates no revision, does not change
+        `source_endpoint_id`, and is delivered to nobody. It corrects identity,
+        not content: revisions written through the wrong binding stand. It is
+        not a declaration that the endpoint deleted or discarded a record —
+        for a deletion, use the deactivation operation.
+      operationId: correctFieldMappings
+      requestBody:
+        $ref: '#/components/requestBodies/IdMappingCorrection'
       responses:
         '204':
-          description: >
-            The endpoint holds no mapping for this pair. Returned whether or not
-            one existed, so a retry after a lost response is safe.
+          description: The listed mappings are as requested. Repeating the request changes nothing.
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
 
   /masterdata/fields/{local_id}/deactivation:
     parameters:
@@ -735,38 +747,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MappingConflict'
-    delete:
+
+  /masterdata/field-boundaries/id-mapping-corrections:
+    parameters:
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+    post:
       tags: [FieldBoundaries]
-      summary: Declare that this endpoint no longer holds a field boundary
+      summary: Correct this endpoint's bindings of field boundaries
       description: >
-        Declares that the endpoint no longer holds the canonical field boundary in the
-        path under `local_id` — deleted locally, or discarded while the endpoint
-        was not a participant. It is the counterpart of the binding above and,
-        like it, a declaration about the endpoint's own store, which agrirouter
-        takes at face value and never infers. It is not the correction of a
-        mistaken binding, and it is not a statement that the entity is inactive
-        in the world — for the latter, use the deactivation operation, which is
-        about the entity rather than about this endpoint's copy of it.
+        Replaces bindings the endpoint's user found wrong. Each listed
+        `local_id` ends mapped to the given field boundary, or to none where
+        `agrirouter_id` is `null`. Uniqueness is checked on the result, so a
+        swap is one call, applied whole or not at all. A field boundary bound to a
+        `local_id` the request does not list is not taken from it: that is the
+        `409`.
 
 
-        Unbinding removes no canonical object, touches no other endpoint's
-        mapping, creates no revision, and reaches nobody. The object stays one
-        this endpoint is entitled to, so its next change is delivered again,
-        carrying no `referenceId`, and the endpoint MUST then treat it as new:
-        opt-in is the only filter on what an endpoint receives, and unbinding is
-        not an instruction to stop sending. An endpoint that wants the object
-        back at once requests it by `agrirouter_id` rather than waiting for a
-        change.
-      operationId: unbindFieldBoundaryMapping
+        Like binding it creates no revision, does not change
+        `source_endpoint_id`, and is delivered to nobody. It corrects identity,
+        not content: revisions written through the wrong binding stand. It is
+        not a declaration that the endpoint deleted or discarded a record —
+        for a deletion, use the deactivation operation.
+      operationId: correctFieldBoundaryMappings
+      requestBody:
+        $ref: '#/components/requestBodies/IdMappingCorrection'
       responses:
         '204':
-          description: >
-            The endpoint holds no mapping for this pair. Returned whether or not
-            one existed, so a retry after a lost response is safe.
+          description: The listed mappings are as requested. Repeating the request changes nothing.
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MappingConflict'
 
   /masterdata/field-boundaries/{local_id}/deactivation:
     parameters:
@@ -1411,6 +1427,12 @@ components:
       example: 'v1.f8yQ_KL5hHBS.TBQjL_8GeXSs6TIxFzsdQQ'
 
   requestBodies:
+    IdMappingCorrection:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IdMappingCorrection'
     EntityRequest:
       required: true
       content:
@@ -1479,6 +1501,8 @@ components:
         n:1 mapping the caller must resolve. The body names which of the two
         identifiers is taken, and the mapping that holds it, since that is what
         the resolving side has to show its user.
+        When correcting, the canonical object is bound to a local identifier of
+        this endpoint that the correction does not list.
       content:
         application/json:
           schema:
@@ -1610,6 +1634,30 @@ components:
         local_id:
           type: string
       required: [agrirouter_id, local_id]
+
+    IdMappingCorrection:
+      type: object
+      description: >
+        The correct pairs for a set of the calling endpoint's local identifiers.
+        A `local_id` and a non-null `agrirouter_id` each appear at most once.
+      properties:
+        id_mappings:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/IdMappingCorrectionEntry'
+      required: [id_mappings]
+
+    IdMappingCorrectionEntry:
+      type: object
+      properties:
+        local_id:
+          type: string
+        agrirouter_id:
+          type: [string, 'null']
+          format: uuid
+          description: The object `local_id` denotes, or `null` for none.
+      required: [local_id, agrirouter_id]
 
     Id:
       # Generated by tools/adapt from adapt/deviations.yaml. Do not edit.

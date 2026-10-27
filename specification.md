@@ -136,7 +136,8 @@ the collection of one supported entity type (`parties`, `farms`,
 | `PUT /masterdata/<types>/{local_id}`                | Sends the entity (creation or update) as a merge patch: an attribute left out is unchanged, `null` removes one, see [Writing an entity](#writing-an-entity). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
 | `POST /masterdata/<types>/requests`                | Actively requests an entity ("lazy loading"), see [Requesting objects](#requesting-objects-lazy-loading). |
 | `POST /masterdata/<types>/{local_id}/deactivation`  | Signals that the entity was deactivated in its source system (archival, deletion, or similar). |
-| `PUT`/`DELETE /masterdata/<types>/{local_id}/id-mapping/{agrirouter_id}` | Binds or unbinds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
+| `PUT /masterdata/<types>/{local_id}/id-mapping/{agrirouter_id}` | Binds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
+| `POST /masterdata/<types>/id-mapping-corrections` | Replaces bindings the user found wrong, see [Correcting a binding](#correcting-a-binding). |
 
 What agrirouter sends would potentially travel on two streams, which serve different
 purposes and are independent of each other:
@@ -476,8 +477,8 @@ and MAY use `label` to round-trip its own presentation.
 | ADAPT's reference strings (`growerId`, `farmId`, `fieldId`) are not used. References are `_agmasync_<name>Ref` objects carrying an `Id`, and `_agmasync_growerRef` names a party. | A reference says which identifier it holds, and Grower is not an entity. |
 | `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter entry and, where the receiver sent one, its local entry. A sent one holds no others. | An object or target the receiver has not bound has no local identifier for it. [Hard validation](#hard-validation): an entry agrirouter would not keep is rejected, not dropped. |
 | The party carries no `partyTypeCode`. `_agmasync_details.partyTypeCode` carries the party type, as `PERSON` or `ORGANIZATION`. | A party of unknown type is one without details, and absence keeps another participant's statement under merge patch. |
-| FieldBoundary `name` is optional. | Not every system names boundaries. |
 | A person's parent is `_agmasync_details.parentOrganizationRef`, which names an organization. ADAPT's `parentPartyId` sits on any party. | The party graph stays two levels deep and free of cycles: a person belongs to an organization. |
+| FieldBoundary `name` is optional. | Not every system names boundaries. |
 | agrirouter delivers WKT in one canonical form, and `arableArea` is in `ha` only (see [Encoding](#encoding)). | [Hard validation](#hard-validation). |
 
 A FarmSPT attribute that a later ADAPT version gives a slot keeps its prefixed
@@ -569,7 +570,7 @@ participant's decision about its own data.
 
   - if the mapping already resolves (E, X) to a canonical object, that object is updated;
   - otherwise a new canonical object is created in E's tenant, `agrirouter_id` is assigned, and (E, X) is recorded in its mapping.
-- When agrirouter delivers a canonical object to endpoint E, it MUST set the local identifier in `content.id` to E's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit it when it holds none (see [Identity](#identity)). An absent local identifier is meaningful: it states that agrirouter does not believe E holds this object, which is what makes an unbound or unbound-again object recognisable as one E must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
+- When agrirouter delivers a canonical object to endpoint E, it MUST set the local identifier in `content.id` to E's own identifier for the object when the mapping holds one, so the receiver can reconcile against its local data without a lookup, and MUST omit it when it holds none (see [Identity](#identity)). An absent local identifier is meaningful: it states that agrirouter does not believe E holds this object, which is what makes an unbound object recognisable as one E must create locally (see [Disconnection and re-connection](#disconnection-and-re-connection)).
 - **The mapping is delivered one endpoint at a time, and only to that endpoint.** agrirouter holds every endpoint's `local_id` for a canonical object, but a delivered copy carries at most the recipient's own, named by `recipient_endpoint_id` (see [Common envelope](#common-envelope)). This holds between endpoints of one participant as much as between participants: an endpoint learns what *it* calls an object, never what a sibling calls it. agrirouter MUST NOT disclose one endpoint's local identifiers to another: nothing in synchronization consumes them — a receiver resolves through `agrirouter_id` — and they are a participant's internal keys for a user's data. See [Security considerations](#security-considerations).
 - The mapping MUST remain compatible with the ISOXML **LinkList** concept (ISO 11783-10, Annex E), so that identifier correspondence can be expressed to task-data-based tooling.
 
@@ -599,30 +600,19 @@ on its other entitled endpoints as soon as it learns the `agrirouter_id` — fro
 the response to the write that created it — rather than wait for each sibling's
 delivery.
 
-Symmetrically, an endpoint that no longer holds an object — its user deleted it
-locally, or it discarded its data while it was not a participant — MAY **unbind**
-its identifier from the canonical object. Binding and unbinding are the same kind
-of claim: a declaration about the endpoint's own store, which agrirouter records
-and never infers. Unbinding is not the correction of a mistaken binding, and it
-is not a [deactivation](#deactivation), which states that the entity is inactive
-in the world and is delivered to every participant. It removes no canonical
-object, affects no other endpoint's mapping, and reaches nobody.
-
-Unbinding does not narrow what the endpoint receives: opt-in is the only such
-filter (see [Security considerations](#security-considerations)). The object's
-next change is therefore delivered again, carrying no `local_id` for that
-endpoint, and the endpoint MUST treat it as a canonical object it does not hold
-— creating it locally and binding the identifier it then issues. An endpoint that
-wants the object back sooner requests it (see
-[Requesting objects (lazy loading)](#requesting-objects-lazy-loading)) rather
-than waiting for a change.
-
-Without unbinding these situations have no exit: the endpoint recreates the
-object under a new local identifier, because most systems cannot choose their own
-primary keys, and binding that identifier collides with the stale pair.
+An endpoint's `local_id` for an object outlives its local record. A participant
+whose own keys change — a record re-created on edit, local duplicates merged, a
+store migrated — keeps the `local_id` in its correspondence table and goes on
+using it: `local_id` need not be a primary key. A record its user deleted is
+[deactivated](#deactivation). A participant that drops an object from its own
+store without deactivating it keeps the pair as a tombstone: the object is still
+delivered under that `local_id`, and the participant may ignore it or recreate
+it under the same identifier. No operation detaches an endpoint from an object
+the network keeps — opt-in is the only filter on what it receives (see
+[Security considerations](#security-considerations)).
 
 Every operation above is keyed by an identifier the endpoint is assumed to hold:
-unbinding names a pair, [requesting](#requesting-objects-lazy-loading) names an
+a correction names pairs, [requesting](#requesting-objects-lazy-loading) names an
 `agrirouter_id`, and an ordinary send resolves through a `local_id` already mapped.
 An endpoint whose own store was restored from a backup or migrated may hold none
 of them, and agrirouter does not disclose the mapping on demand — a participant's
@@ -654,6 +644,42 @@ the request, agrirouter MUST reject it (see
 [Asymmetric and non-unique mappings](#asymmetric-and-non-unique-mappings)). The
 rule stops at the endpoint: two endpoints of one participant using the same
 `local_id` for unrelated entities is not a collision and MUST NOT be rejected.
+
+### Correcting a binding
+
+A binding is a claim, and its user can make a wrong one — most often two similar
+objects matched crosswise, which no check at bind time sees, each half being a
+valid binding. The endpoint corrects it with
+`POST /masterdata/<types>/id-mapping-corrections`, listing the correct pair for
+each `local_id` involved:
+
+~~~ json
+{ "id_mappings": [
+    { "local_id": "north-local", "agrirouter_id": "north-canonical" },
+    { "local_id": "south-local", "agrirouter_id": "south-canonical" } ] }
+~~~
+
+- Each listed `local_id` ends mapped to the given object, or to none where
+  `agrirouter_id` is `null`.
+- An object bound to a `local_id` the request does not list is not taken from it:
+  the request is rejected with `409` naming that pair, so a correction is never
+  half a swap. E.g. with the two bound crosswise (`north-local`↔`south-canonical`,
+  `south-local`↔`north-canonical`), a request listing only
+  `north-local`→`north-canonical` is rejected naming
+  `south-local`↔`north-canonical`.
+- Like a binding it creates no revision, does not alter `source_endpoint_id`, and
+  is delivered to nobody. Repeating it changes nothing.
+
+A correction repairs identity, not content. Revisions written through the wrong
+binding stand and were delivered. The participant repairs them by writing its
+user's content to the now-correct objects, and its own records from the objects
+it [requests](#requesting-objects-lazy-loading). A participant SHOULD offer
+correction where its user matches, so a mistake is undone before anything is
+written through it.
+
+A correction is for a binding the user found wrong. A participant MUST NOT use it
+to declare that it deleted or discarded a record (see
+[Identifier mapping](#identifier-mapping)).
 
 # Synchronization processes
 
@@ -1062,10 +1088,9 @@ matching is mechanical and a participant that still holds its data has nothing t
 reconcile and nothing to bind. Reconciliation is only as large as the divergence
 that accumulated while the endpoint was away.
 
-A participant that discarded its local copies in the meantime is in the opposite
-position: the objects arrive carrying identifiers it no longer recognises. It
-**unbinds** those (see [Identifier mapping](#identifier-mapping)) and takes them
-as new, rather than reusing identifiers its own store has forgotten.
+A participant that discarded its local copies in the meantime and wants a clean
+start removes the endpoint and onboards it again: the mapping goes with the
+endpoint, and the set arrives carrying no `local_id`s.
 
 agrirouter marks a repeat load as such: an endpoint re-entering
 `LOADING_FROM_AGRIROUTER` having previously reached `COMPLETED` carries the time
@@ -1237,8 +1262,7 @@ one.
 A create carries no base, there being no revision to compare against. A base on a
 request that does not resolve to an existing object is rejected with `412`: the
 participant believes it is updating an object agrirouter does not know under that
-`local_id` — after an [unbind](#identifier-mapping), for example — and creating one
-silently would be exactly the duplicate that binding exists to prevent.
+`local_id` and creating one silently would be exactly the duplicate that binding exists to prevent.
 
 Every outcome answers with the resulting revision: a success carries the canonical
 object, a rejection carries the current revision. A participant MUST take the

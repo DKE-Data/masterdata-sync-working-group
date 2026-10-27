@@ -2,7 +2,7 @@
 
 - **Status:** WIP
 - **Scope:** How an endpoint's `local_id` becomes attached to a canonical object
-  it did not create, and how it is detached when the endpoint no longer holds it
+  it did not create, and how a wrong one is corrected
 
 ## Context
 
@@ -61,45 +61,27 @@ knowledge of what this endpoint calls it. Afterwards the ordinary
 is not an error agrirouter can detect - it is a well-formed create, and it is
 the duplicate above.
 
-### The endpoint can also declare that it no longer holds an object
+### A wrong binding is corrected as a set
 
 ```
-DELETE /masterdata/{type}/{local_id}/id-mapping/{agrirouter_id}
-x-agrirouter-endpoint-id: <the endpoint binding>
+POST /masterdata/{type}/id-mapping-corrections
+{ "id_mappings": [ { "local_id": "A", "agrirouter_id": "B1" },
+                   { "local_id": "B", "agrirouter_id": "A1" } ] }
 ```
 
-`204` whether or not the pair was bound, so a retry after a lost response is
-safe. `404` only for no such canonical object, or no entitlement. Same
-properties as the bind: no revision, no `source_endpoint_id`, delivered to nobody.
+The likely wrong binding is two similar objects matched crosswise. Each half is
+valid, so the `409` at bind time does not see it, and no single re-pointing fixes
+it: A cannot take B1 while B holds it. A correction is a target state for a set of
+`local_id`s, checked on the result and applied whole. `"agrirouter_id": null` leaves a `local_id`
+unbound, for a record that matched nothing; it is then sent as a create. An object
+held by an unlisted `local_id` is a `409`, so a correction is never half a swap.
+No revision, no `source_endpoint_id`, delivered to nobody.
 
-The operation states *"I no longer hold this object"*. It is a claim about the
-endpoint's own store, of the same kind as the bind and recorded the same way - at
-face value, never inferred
-([agrirouter never infers a mapping](#agrirouter-never-infers-a-mapping)). It is
-not a `:deactivate`, which says the entity is inactive in the world and is
-delivered to everyone, where this concerns one endpoint's copy.
+It corrects identity, not data: revisions written through the wrong binding stand
+and were fanned out, and the participant repairs them with ordinary writes.
 
-Two situations produce it:
-
-- the endpoint discarded its data while it was not a participant, and the mapping
-  outlived the absence
-  ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection))
-- its user deleted the object in its own system while the rest of the network
-  kept it
-
-In both the endpoint recreates the object under a *new* local identifier, since
-most systems cannot choose their own primary keys, and binding that identifier
-collides with the stale pair. Unbinding is what clears it.
-
-Unbinding is not an instruction to stop sending. Opt-in is the only filter on
-what an endpoint receives, so the object's next change is delivered again,
-carrying no `local_id`, and the endpoint treats it as new. An endpoint that wants
-it back at once requests it by `agrirouter_id` instead of waiting.
-
-A wrong bind is recoverable through the same operation, within a limit: it
-corrects identity, not data. Revisions a mis-bound endpoint already merged into
-the canonical object stand and were fanned out. The `409` at bind time is where
-the mistake is cheap to catch.
+Bind stays a separate operation so that a routine bind never overrides a pair.
+Overriding is only ever explicit.
 
 ### An endpoint that lost its own table re-loads
 
@@ -109,7 +91,7 @@ anyway to reconcile deliveries. It stops being survivable when that copy is lost
 a restored backup, a migration between stores - because every recovery the design
 offers is keyed by an identifier the loss took with it. The request of
 [Requesting objects](../specification.md#requesting-objects-lazy-loading) names an
-`agrirouter_id`. The unbind names a pair. An endpoint holding objects it can no
+`agrirouter_id`. A correction names pairs. An endpoint holding objects it can no
 longer name to agrirouter can reach none of them, and its own next send does not
 resolve and duplicates.
 
@@ -211,6 +193,8 @@ could not settle it.
 | The endpoint keeps the correspondence privately | It already must, to reconcile deliveries against its own store. But a private table cannot be used on the write path, which is keyed by identifiers agrirouter knows. Nothing changes and the duplicates continue. |
 | The confirmation's `id_mappings` is authoritative for the set - pairs it omits are unbound | Covers the mass case in one call with no new verb. But an accidentally omitted pair then unbinds silently, it says nothing about an object deleted locally in ordinary operation, and it turns a list of assertions into a list plus an implied negation of everything else. |
 | A read operation for the endpoint's own mapping, `GET /masterdata/{type}/id-mappings` | Proportionate to the failure: it returns two identifiers per object rather than the object, so an endpoint that lost only its table pays only for what it lost, and it is the sole way to *audit* a mapping rather than assume the worst about it. It discloses nothing either - both ends of every pair were asserted by the caller. Rejected on surface rather than on principle: it is five paths and a paged collection in a specification partners must implement, for a failure the [re-load](#an-endpoint-that-lost-its-own-table-re-loads) already resolves, and it makes the correspondence something agrirouter serves rather than something a participant keeps. The audit case survives as an open issue. |
+| `DELETE …/id-mapping/{agrirouter_id}` (unbind per pair) | As a correction it fixes a swap only through an intermediate state in which a send of the unbound record duplicates it. |
+| Bind overrides the existing pair when the caller names it | Cannot express a swap: B1 is held by B, which the request does not move. |
 
 ## Consequences
 
@@ -238,13 +222,10 @@ could not settle it.
   that skips the bind does not echo, it duplicates, and that is the one loop the
   safeguards in agrirouter cannot close
   ([ADR 15](./15-endpoint-scope-of-mappings.md)).
-- **An endpoint's mapping tracks its own store in both directions.** What it
-  holds it binds, what it loses it unbinds, and neither is a change to the
-  entity. A stale pair - mapped to an object the endpoint no longer has - is
-  recoverable rather than terminal.
+- **A wrong binding is correctable, its writes are not.** Identity is restored in
+  one call; content written through the wrong pair is repaired by ordinary writes.
 - **Losing the local table has an exit, and it is a delivery.** Every operation
-  keyed by an identifier the endpoint might have lost - unbind, request, and the
-  ordinary send - is reachable again once the set has been re-delivered with the
+  keyed by an identifier the endpoint might have lost is reachable again once the set has been re-delivered with the
   endpoint's own `local_id` on it, as long as the endpoint itself was kept.
 - **The correspondence stays something a participant keeps.** agrirouter holds
   the mapping and uses it on delivery, but never serves it. A participant that
