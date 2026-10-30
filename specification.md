@@ -25,7 +25,7 @@ throughout as the **MVP entities**:
 - **Parties**
 - **Farms**
 - **Fields**, including their metadata
-- **FieldBoundaries**, including their obstacles, and metadata
+- **FieldBoundaries**, including their metadata
 
 Further entity types (points of interest, guidance/AB lines, inputs, crops, work
 orders, and work records) are out of scope for this version and are expected to
@@ -394,7 +394,7 @@ Canonical attributes (subset):
 A geometry that identifies the geo-spatial coordinates of a field.
 The boundary can be used to define the area for a particular operation, a particular crop or crops, or for legal purposes.
 A field can have different boundaries that may vary in geometry based on their specific use.
-A field boundary include the outer boundary of the editable area and obstacles within the field (such as poles, biotopes or wet patches) that are left out.
+A field boundary includes the outer boundary of the editable area and the areas within the field that are left out (such as biotopes or wet patches), as holes in its geometry.
 Based on the ADAPT `FieldBoundary`.
 
 Canonical attributes:
@@ -403,7 +403,7 @@ Canonical attributes:
 - `name` (string, optional): the name the boundary is known by.
 - `description` (string, optional): free text about the boundary.
 - `boundary` (object, required):
-  - `geometry` (WKT, required): the field boundary as a `POLYGON` or `MULTIPOLYGON`.
+  - `geometry` (WKT, required): the field boundary as a `POLYGON` or `MULTIPOLYGON`. An area left out is a hole: a further ring of the polygon whose exterior encloses it (see [Encoding](#encoding)).
   - `boundaryCreationMethodCode` (string, optional): from the [ADAPT BoundaryCreationMethod](https://adaptstandard.org/dtd.html) list. Enum value like:
 
     - `UNKNOWN`:	Creation method is unknown
@@ -415,7 +415,6 @@ Canonical attributes:
     - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
   - `gNSSBaseStationTypeCode`, `gNSSBaseSurveyTypeCode` (string, optional): from the ADAPT GNSSBaseStationType and GNSSBaseSurveyType lists.
   - `gNSSCorrectionNetworkName`, `gNSSCorrectionNetworkBrand` (string, optional): the GNSS correction network the geometry was recorded with, and its provider.
-- `obstacles` (array, optional): obstacles within the field, each an ADAPT `Obstacle` whose `boundary` has the attributes above, and which carries an obstacle kind in `_agmasync_kind` (string, required), and optionally a `name` and `isPassable` (boolean: whether a vehicle may cross it).
 - `_agmasync_boundaryType` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
@@ -496,12 +495,19 @@ whose `content` types are based on ADAPT 2.0.2 (see
 Geometries are Well-Known Text in WGS84 (EPSG:4326), as in ADAPT. Positions are
 `longitude latitude` or `longitude latitude altitude`.
 
+A polygon's first ring is its exterior and every further ring a hole, whichever
+direction each runs in. An area inside the boundary that is not part of the
+field, such as a pond or a biotope, is a hole of the polygon whose exterior
+encloses it, never a polygon of its own. An area inside a hole that belongs to
+the field again is another polygon of a `MULTIPOLYGON`. Points and lines, such as
+poles and fences, are not carried ([ADR 17](./architecture/17-holes-not-obstacles.md)).
+
 agrirouter accepts any valid WKT within these limits, and rejects the rest:
 
 - Only `POINT`, `POLYGON`, and `MULTIPOLYGON`, each where its attribute allows it.
 - No `EMPTY`, no `M` coordinates, and one dimension for every position.
 - A number has no leading `+`.
-- Rings are closed and have at least four positions.
+- Rings are closed and have at least four positions, after repeated positions are merged.
 
 agrirouter stores and delivers every geometry in one canonical form, so two
 encodings of one geometry are one value:
@@ -510,8 +516,10 @@ encodings of one geometry are one value:
 - Coordinates are separated by one space, positions by a comma and one space, and parentheses carry no whitespace inside them.
 - A number is the IEEE 754 double the input denotes, in the shortest decimal that reads back as it: no exponent, no leading or trailing zeros, and `0` rather than `-0`.
 - A `MULTIPOLYGON` of one polygon is that `POLYGON`.
+- A position that repeats the one before it is dropped.
 - A polygon's first ring runs counter-clockwise and every further ring clockwise, as in {{?RFC7946}}. A ring without area keeps its direction.
 - Every ring starts at its northmost position, then eastmost.
+- A polygon's holes follow its exterior ordered by their first position, northmost first, then eastmost, with the next positions breaking a tie. The polygons of a `MULTIPOLYGON` are ordered the same way by their exterior rings.
 
 `POLYGON((9.56 52.205,9.566 52.205,9.5665 52.208,9.56 52.205))` is delivered as
 `POLYGON ((9.5665 52.208, 9.56 52.205, 9.566 52.205, 9.5665 52.208))`.

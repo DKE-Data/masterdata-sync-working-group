@@ -133,7 +133,7 @@ func formFields(typ recordType) []formField {
 			// one shows the geometry the map would have produced.
 			{Name: "boundary.geometry", Label: "Boundary (WKT)", Kind: "geometry",
 				Required: true,
-				Hint:     "POLYGON or MULTIPOLYGON, in WGS84"},
+				Hint:     "POLYGON or MULTIPOLYGON, in WGS84; holes as further rings"},
 		}
 	default:
 		return nil

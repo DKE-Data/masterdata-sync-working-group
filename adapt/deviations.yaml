@@ -226,37 +226,10 @@ schemas:
       geometry:
         ref: WktArea
 
-  ObstacleBoundary:
-    adapt: boundary
-    replacedWhole: true
-    description: The geometry of an obstacle, based on the ADAPT `Boundary`.
-    exclude:
-      - highDefinitionSourceLayerId
-      - gNSSReceiverMetadata
-      - gNSSMobileBaseStationMetadata
-      - gNSSDataQualityMetrics
-      - partyRoles
-    properties:
-      geometry:
-        ref: WktArea
-
-  Obstacle:
-    adapt: obstacle
-    replacedWhole: true
-    description: An in-field obstacle, based on the ADAPT `Obstacle`.
-    exclude: [contextItems]
-    properties:
-      boundary:
-        ref: ObstacleBoundary
-      _agmasync_kind:
-        type: string
-        required: true
-        description: 'Obstacle kind, e.g. "pole", "tree", "waterhole".'
-
   FieldBoundaryContent:
     adapt: fieldBoundary
     description: Based on the ADAPT `FieldBoundary`.
-    exclude: [contextItems, fieldId, seasonIds, headlands]
+    exclude: [contextItems, fieldId, seasonIds, headlands, obstacles]
     optional: [name, fieldId]
     properties:
       _agmasync_fieldRef:
@@ -267,9 +240,6 @@ schemas:
           boundaries that name it.
       boundary:
         ref: Boundary
-      obstacles:
-        # ADAPT requires at least one obstacle. Kept open: `[]` is accepted.
-        minItems: 0
       _agmasync_boundaryType:
         type: string
         description: >

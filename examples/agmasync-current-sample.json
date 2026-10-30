@@ -190,21 +190,9 @@
         }
       },
       "boundary": {
-        "geometry": "POLYGON ((9.5605 52.2085, 9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085))",
+        "geometry": "POLYGON ((9.5605 52.2085, 9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085), (9.5646 52.2072, 9.5646 52.2068, 9.564 52.2068, 9.564 52.2072, 9.5646 52.2072))",
         "boundaryCreationMethodCode": "ADMINISTRATIVE"
       },
-      "obstacles": [
-        {
-          "boundary": { "geometry": "POLYGON ((9.56211 52.20621, 9.56209 52.20621, 9.56209 52.20619, 9.56211 52.20619, 9.56211 52.20621))" },
-          "_agmasync_kind": "pole"
-        },
-        {
-          "boundary": {
-            "geometry": "POLYGON ((9.5646 52.2072, 9.564 52.2072, 9.564 52.2068, 9.5646 52.2068, 9.5646 52.2072))"
-          },
-          "_agmasync_kind": "waterhole"
-        }
-      ],
       "_agmasync_boundaryType": "ADMINISTRATIVE_RECEIVED",
       "_agmasync_regulatoryRequirements": "RED_ZONE_NITROGEN",
       "_agmasync_harvestPeriod": { "validFrom": "2025-08-01", "validTo": "2026-07-31", "label": "2025/2026" },

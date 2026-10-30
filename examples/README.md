@@ -5,7 +5,8 @@ Hofgut Sonnenberg near Springe, Lower Saxony.
 - A GmbH owns the farm.
 - Its employee, Dr. Katharina Brandt, privately owns the one field. Her
   `parentOrganizationRef` names the GmbH.
-- The field has a single administrative boundary with two obstacles.
+- The field has a single administrative boundary, with a waterhole left out
+  as a hole.
 
 ## The wire format
 
@@ -19,8 +20,7 @@ option F.
   the receiving endpoint's local id, repeated in `referenceId`. References are `_agmasync_<name>Ref` objects
   with the same `id`, in place of ADAPT's `<name>Id` strings.
 - Where ADAPT has no slot, the value is a property `_agmasync_` plus the
-  AgmaSync attribute name in camelCase, with the AgmaSync type. Prefixed
-  properties also appear on nested ADAPT objects (obstacle `_agmasync_kind`).
+  AgmaSync attribute name in camelCase, with the AgmaSync type.
 - `_agmasync_growerRef` on the farm and on the field names a party. There is
   no Grower object.
 - Another endpoint has just created the boundary, and the receiver has not
