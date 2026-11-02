@@ -506,8 +506,13 @@ agrirouter accepts any valid WKT within these limits, and rejects the rest:
 
 - Only `POINT`, `POLYGON`, and `MULTIPOLYGON`, each where its attribute allows it.
 - No `EMPTY`, no `M` coordinates, and one dimension for every position.
-- A number has no leading `+`.
-- Rings are closed and have at least four positions, after repeated positions are merged.
+- The decimal point is a period. The WKT grammar's comma is ambiguous with the comma between positions.
+- A `POLYGON` or `MULTIPOLYGON` is valid as in [OGC Simple Features](https://portal.ogc.org/files/?artifact_id=25355) (06-103r4 6.1.11), checked in longitude and latitude ([ADR 18](./architecture/18-valid-polygons.md)):
+  - every ring is closed and simple;
+  - rings touch at points only, and neither cross nor share a segment;
+  - every hole lies inside the exterior, and no hole inside another;
+  - the interior is connected;
+  - the polygons of a `MULTIPOLYGON` do not overlap, and touch at points only.
 
 agrirouter stores and delivers every geometry in one canonical form, so two
 encodings of one geometry are one value:
@@ -517,7 +522,7 @@ encodings of one geometry are one value:
 - A number is the IEEE 754 double the input denotes, in the shortest decimal that reads back as it: no exponent, no leading or trailing zeros, and `0` rather than `-0`.
 - A `MULTIPOLYGON` of one polygon is that `POLYGON`.
 - A position that repeats the one before it is dropped.
-- A polygon's first ring runs counter-clockwise and every further ring clockwise, as in {{?RFC7946}}. A ring without area keeps its direction.
+- A polygon's first ring runs counter-clockwise and every further ring clockwise, as in {{?RFC7946}}.
 - Every ring starts at its northmost position, then eastmost.
 - A polygon's holes follow its exterior ordered by their first position, northmost first, then eastmost, with the next positions breaking a tie. The polygons of a `MULTIPOLYGON` are ordered the same way by their exterior rings.
 

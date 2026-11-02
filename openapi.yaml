@@ -2319,9 +2319,9 @@ components:
       type: string
       description: >
         A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. A polygon's
-        first ring is its exterior, every further ring a hole. Any valid WKT is
-        accepted and delivered in the canonical form of "Encoding" in
-        specification.md.
+        first ring is its exterior, every further ring a hole, and it must be
+        valid as in OGC Simple Features. Any valid WKT is accepted and
+        delivered in the canonical form of "Encoding" in specification.md.
       examples: ['POLYGON ((9.5605 52.2085, 9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085), (9.5646 52.2072, 9.5646 52.2068, 9.564 52.2068, 9.564 52.2072, 9.5646 52.2072))']
 
     EntityTypeToggle:

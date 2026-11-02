@@ -1,6 +1,7 @@
 # ADR 17 - Holes instead of obstacles
 
-- **Status:** WIP
+- **Status:** WIP; the unchecked polygon validity is superseded by
+  [ADR 18](./18-valid-polygons.md)
 - **Scope:** Supersedes the field boundary obstacles of
   [ADR 11](./11-entity-model.md). The rest of ADR 11 stands.
 

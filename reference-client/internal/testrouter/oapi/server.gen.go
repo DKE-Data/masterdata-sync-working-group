@@ -200,7 +200,7 @@ type Boundary struct {
 	GNSSCorrectionNetworkBrand nullable.Nullable[string] `json:"gNSSCorrectionNetworkBrand,omitempty"`
 	GNSSCorrectionNetworkName  nullable.Nullable[string] `json:"gNSSCorrectionNetworkName,omitempty"`
 
-	// Geometry A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. A polygon's first ring is its exterior, every further ring a hole. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
+	// Geometry A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. A polygon's first ring is its exterior, every further ring a hole, and it must be valid as in OGC Simple Features. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
 	//
 	//
 	// Examples: POLYGON ((9.5605 52.2085, 9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085), (9.5646 52.2072, 9.5646 52.2068, 9.564 52.2068, 9.564 52.2072, 9.5646 52.2072))
@@ -926,7 +926,7 @@ type UniqueId struct {
 	IdTypeCode string `json:"idTypeCode"`
 }
 
-// WktArea A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. A polygon's first ring is its exterior, every further ring a hole. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
+// WktArea A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. A polygon's first ring is its exterior, every further ring a hole, and it must be valid as in OGC Simple Features. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.
 //
 // Examples: POLYGON ((9.5605 52.2085, 9.56 52.205, 9.566 52.205, 9.5665 52.208, 9.5605 52.2085), (9.5646 52.2072, 9.5646 52.2068, 9.564 52.2068, 9.564 52.2072, 9.5646 52.2072))
 type WktArea = string
