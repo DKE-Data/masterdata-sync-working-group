@@ -955,11 +955,12 @@ paths:
         Masterdata routes must be separately created by a user, selecting a subset of 
         these entity types. There is no default routing for masterdata. 
         The configuration MUST be dependency-closed: enabling field boundaries
-        requires the fields they reference to be enabled as well. A configuration
-        that is not dependency-closed is rejected with `400`. Every other
-        reference is optional, so any other combination of entity types is
-        valid, for example parties and fields without farms, or farms and
-        fields without parties.
+        requires the fields they reference to be enabled as well, and enabling
+        parties and fields requires farms, the only link between them. A
+        configuration that is not dependency-closed is rejected with `400`
+        naming the missing entity type. Any
+        other combination of entity types is valid, for example farms and
+        fields without parties, or fields alone.
       security:
         - agrirouterOauthQA: ["endpoints:manage"]
         - agrirouterOauthPROD: ["endpoints:manage"]
@@ -2156,17 +2157,9 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Ref'
             - type: 'null'
-          description: The farm this field belongs to.
-        _agmasync_growerRef:
-          oneOf:
-            - $ref: '#/components/schemas/Ref'
-            - type: 'null'
           description: >
-            The party holding this field, for systems that
-            attribute fields to a party directly. When absent, the field is
-            held by its farm's grower. When present, it takes precedence for
-            this field, which is how a field held by one party but managed
-            under another's farm is expressed.
+            The farm this field belongs to. The field's grower is its farm's
+            `_agmasync_growerRef`.
         _agmasync_soil:
           oneOf:
             - $ref: '#/components/schemas/SoilInfo'

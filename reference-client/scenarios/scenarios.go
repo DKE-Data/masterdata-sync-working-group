@@ -29,6 +29,7 @@ func All() []Scenario {
 		masterdataReset(),
 		optionalReferences(),
 		oneRecordTwoEndpoints(),
+		customerFarm(),
 	}
 }
 

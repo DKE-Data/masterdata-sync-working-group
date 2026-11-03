@@ -20,6 +20,7 @@ Use [pull requests](https://github.com/DKE-Data/masterdata-sync-working-group/pu
 - [./examples](./examples) - One farm encoded both as AgmaSync and as an ADAPT 2 catalog.
 - [./adapt](./adapt) - The pinned ADAPT release, and [deviations.yaml](./adapt/deviations.yaml), the deviations from it that the ADAPT-based schemas of `openapi.yaml` are generated from.
 - [./architecture](./architecture) - non normative collection of architecture decision records illustrating masterdata sync concepts and flows and reasoning behind the specification.
+- [./guides](./guides) - non normative guidance for implementers, such as mapping a system's own party, farm and field model.
 
 Other:
 

@@ -16,8 +16,9 @@ import (
 func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 	// Opt-in must be dependency-closed over the required references, because a
 	// receiving endpoint has to be able to resolve them on the objects it is
-	// sent. A boundary's field is the only one (ADR 13): every other reference
-	// is optional and pulls in nothing.
+	// sent. A boundary's field is the only one (ADR 13). Parties and fields
+	// together pull in farms, the only link between them (ADR 19). Every other
+	// reference is optional and pulls in nothing.
 	tests := map[string]struct {
 		in   []agmasync.EntityType
 		want []agmasync.EntityType
@@ -38,10 +39,20 @@ func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 			in:   []agmasync.EntityType{agmasync.TypeParty},
 			want: []agmasync.EntityType{agmasync.TypeParty},
 		},
+		"parties and fields pull in farms": {
+			in: []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeField},
+			want: []agmasync.EntityType{
+				agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField,
+			},
+		},
+		"parties and farms pull in no fields": {
+			in:   []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeFarm},
+			want: []agmasync.EntityType{agmasync.TypeParty, agmasync.TypeFarm},
+		},
 		"order follows EntityTypes": {
 			in: []agmasync.EntityType{agmasync.TypeFieldBoundary, agmasync.TypeParty},
 			want: []agmasync.EntityType{
-				agmasync.TypeParty, agmasync.TypeField, agmasync.TypeFieldBoundary,
+				agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary,
 			},
 		},
 	}
@@ -53,6 +64,57 @@ func TestDependencyClosureExpandsToWhatReferencesResolveTo(t *testing.T) {
 				t.Errorf("DependencyClosure(%v) = %v, want %v", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCheckClosedNamesWhatIsMissing(t *testing.T) {
+	// A set is never closed behind the caller's back: an unclosed one is an
+	// error naming the type it lacks, worded as agrirouter's 400 is.
+	tests := map[string]struct {
+		in   []agmasync.EntityType
+		want string
+	}{
+		"field boundaries without fields": {
+			in:   []agmasync.EntityType{agmasync.TypeFieldBoundary},
+			want: `enabling "fieldBoundary" requires "field" to be enabled as well`,
+		},
+		"parties and fields without farms": {
+			in:   []agmasync.EntityType{agmasync.TypeField, agmasync.TypeParty},
+			want: `enabling "party" and "field" requires "farm" to be enabled as well`,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := agmasync.CheckClosed(tc.in)
+			var notClosed *agmasync.NotClosedError
+			if !errors.As(err, &notClosed) || err.Error() != tc.want {
+				t.Errorf("CheckClosed(%v) = %v, want %q", tc.in, err, tc.want)
+			}
+		})
+	}
+
+	for _, closed := range [][]agmasync.EntityType{
+		nil,
+		{agmasync.TypeParty, agmasync.TypeFarm},
+		{agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary},
+		agmasync.EntityTypes,
+	} {
+		if err := agmasync.CheckClosed(closed); err != nil {
+			t.Errorf("CheckClosed(%v) = %v, want nil", closed, err)
+		}
+	}
+}
+
+func TestDeclareCapabilitiesSendsExactlyWhatIsGiven(t *testing.T) {
+	// agrirouter rejects an unclosed declaration with its reason, so the
+	// declaration is not quietly widened to avoid that.
+	cfg := agmasync.DeclareCapabilities(agmasync.TypeParty, agmasync.TypeField)
+	var got []string
+	for _, c := range cfg.Capabilities {
+		got = append(got, c.EntityType)
+	}
+	if !slices.Equal(got, []string{"party", "field"}) {
+		t.Errorf("declared %v, want [party field]", got)
 	}
 }
 

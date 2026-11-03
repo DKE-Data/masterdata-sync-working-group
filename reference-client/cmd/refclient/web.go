@@ -188,7 +188,7 @@ func (in *instance) postDeclare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	names := make([]string, 0, len(types))
-	for _, typ := range agmasync.DependencyClosure(types) {
+	for _, typ := range types {
 		names = append(names, string(typ))
 	}
 	redirect(w, r, "/", "declared: "+orNone(strings.Join(names, ", ")), "")

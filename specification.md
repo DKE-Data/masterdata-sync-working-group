@@ -340,6 +340,11 @@ party itself carries no `partyTypeCode`, as it would in ADAPT.
 A party without `_agmasync_details` is of unknown party type. Many systems keep a customer
 or grower without recording whether it is a person or a business.
 
+A customer, or client, SHOULD be written as a party, with its farm as in
+[Field](#field). A system that writes customers as farms appears to every other
+system as one with farms and fields only: party data does not reach it, and a
+party with several farms becomes several customers.
+
 A participant whose data model has no place for a party of unknown party type may
 file it under a party type of its own choosing, or let its user decide. Whatever
 `_agmasync_details` it then writes is stated to every participant: the canonical party takes
@@ -378,9 +383,8 @@ Canonical attributes (subset):
 - `name` (string, required).
 - `description` (string, optional): free text about the field.
 - `arableArea` (object, optional): nominal area, `numericValue` with `unitOfMeasureCode` `ha`.
-- `_agmasync_farmRef` (reference, optional): the farm this field belongs to.
+- `_agmasync_farmRef` (reference, optional): the farm this field belongs to. The field's grower is its farm's `_agmasync_growerRef`.
 - `timeZone` (string, optional): the field's time zone, an IANA identifier such as `Europe/Berlin`.
-- `_agmasync_growerRef` (reference, optional): the party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's grower. When present, it takes precedence for this field — that is how a field held by one party but managed under another's farm is expressed. A field MAY carry `_agmasync_growerRef` without a `_agmasync_farmRef`.
 - `_agmasync_soil` (object, optional):
   - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`),
   - `ratingPoints` (integer 0–100, optional): soil rating points (Bodenzahl / Ackerzahl). Germany only, as defined by the [Bodenschätzungsgesetz](https://www.bundesfinanzministerium.de/Content/DE/Standardartikel/Themen/Steuern/Weitere_Steuerthemen/2014-07-21-bodenschaetzung-anlage-VRBodSchaetzG.pdf?__blob=publicationFile&v=1).
@@ -388,6 +392,21 @@ Canonical attributes (subset):
   - 👷‍♂️ _to be refined_
 - `_agmasync_harvestPeriod` (object, optional): see [Harvest period](#harvest-period).
 - `_agmasync_metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. A participant leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
+
+A field has one parent, its farm, as in ADAPT. A field held by another party
+than its farm's grower cannot be expressed.
+
+A system that records a field's party but no farm for it MUST write one farm
+per party itself. The system:
+
+- writes the farm when it first sends a field of that party;
+- sets the farm's `name` to the party's name when it creates the farm, and does not change it when the party is renamed later;
+- sends only `name` and `_agmasync_growerRef`, naming the party;
+- gives the farm a stable local identifier of its own, never the same as the party, and uses it for every later field of that party.
+
+It is an ordinary farm: nothing marks it as virtual, and other systems may
+maintain it. A system that shows no farms MUST keep a received field's
+`_agmasync_farmRef` by leaving it out of its writes.
 
 ## FieldBoundary
 
@@ -430,18 +449,19 @@ Canonical attributes:
 
 ### Entity dependencies
 
-A field boundary references the field it describes; a field MAY reference a farm
-and MAY reference a party as its grower; a farm MAY reference the party that is its
-grower; and a person MAY reference the organization it belongs to.
+A field boundary references the field it describes; a field MAY reference a farm;
+a farm MAY reference the party that is its grower; and a person MAY reference the
+organization it belongs to.
 
 A person's `parentOrganizationRef` references a party from a party, so dependency order is
 per object rather than per entity type: a person with a `parentOrganizationRef` follows the
 organization it names, on send and on delivery.
 
-Only a boundary's `_agmasync_fieldRef` is a **required** reference, and only it constrains
-what an endpoint declares and selects (see [Routing and opt-in](#routing-and-opt-in)).
-The others are **optional**, so a system may model parties and fields without
-farms, or farms and fields without parties. An endpoint may therefore receive a
+Only a boundary's `_agmasync_fieldRef` is a **required** reference. The others
+are **optional**, so a system may model farms and fields without parties, or
+fields alone. Parties and fields are linked only through a farm, so an endpoint
+with both also takes farms. These two constrain what an endpoint declares and
+selects (see [Routing and opt-in](#routing-and-opt-in)). An endpoint may receive a
 reference whose target's entity type is not selected on it. It:
 
 - MUST ignore that reference, and cannot [request](#requesting-objects-lazy-loading) its target;
@@ -473,7 +493,7 @@ and MAY use `label` to round-trip its own presentation.
 | Deviation | Why |
 | --- | --- |
 | A property ADAPT has no slot for is named `_agmasync_` plus the AgmaSync name in camelCase, and has the AgmaSync type. No ADAPT property starts with `_`. | FarmSPT content ADAPT lacks stays typed and validated, rather than becoming context items. |
-| ADAPT's reference strings (`growerId`, `farmId`, `fieldId`) are not used. References are `_agmasync_<name>Ref` objects carrying an `Id`, and `_agmasync_growerRef` names a party. | A reference says which identifier it holds, and Grower is not an entity. |
+| ADAPT's reference strings (`growerId`, `farmId`, `fieldId`) are not used. References are `_agmasync_<name>Ref` objects carrying an `Id`, and a farm's `_agmasync_growerRef` names a party. | A reference says which identifier it holds, and Grower is not an entity. |
 | `referenceId` is optional, and a delivered `uniqueIds` holds only the agrirouter entry and, where the receiver sent one, its local entry. A sent one holds no others. | An object or target the receiver has not bound has no local identifier for it. [Hard validation](#hard-validation): an entry agrirouter would not keep is rejected, not dropped. |
 | The party carries no `partyTypeCode`. `_agmasync_details.partyTypeCode` carries the party type, as `PERSON` or `ORGANIZATION`. | A party of unknown type is one without details, and absence keeps another participant's statement under merge patch. |
 | A person's parent is `_agmasync_details.parentOrganizationRef`, which names an organization. ADAPT's `parentPartyId` sits on any party. | The party graph stays two levels deep and free of cycles: a person belongs to an organization. |
@@ -724,13 +744,14 @@ anyone's intent: it says the endpoint can parse, store, and produce fields, not
 that any user wants it to.
 
 - The declaration is written by the participant on the endpoint's master-data configuration.
-- It MUST be **dependency-closed** over the required reference (see [Entity dependencies](#entity-dependencies)): declaring field boundaries requires declaring fields.
+- It MUST be **dependency-closed** (see [Entity dependencies](#entity-dependencies)): declaring field boundaries requires declaring fields, and declaring parties and fields requires declaring farms.
 
   ~~~
   field boundaries → fields
+  parties + fields → farms
   ~~~
 
-  An endpoint that could receive boundaries but not the fields they describe could not resolve them, so agrirouter MUST reject such a declaration rather than record it. Any other combination of entity types is valid.
+  An endpoint that could receive boundaries but not the fields they describe could not resolve them. An endpoint with parties and fields but no farms could not link the two. agrirouter MUST reject either declaration with `400`, naming the missing entity type, rather than record it or add the type. Any other combination of entity types is valid.
 - Declaring an entity type enables no exchange, creates no route, and starts no [initial load](#initial-load). It only puts the type in front of the user as something selectable. Adding one to the declaration of an endpoint that already takes part therefore changes nothing until the user selects it.
 - Withdrawing an entity type from the declaration narrows any selection naming it. agrirouter MUST narrow the selection to what is still declared.
 - An endpoint that has declared nothing offers the user nothing to select and cannot take part in masterdata exchange
@@ -743,7 +764,7 @@ declared entity types the endpoint exchanges.
 - The selection MUST be a subset of the declaration.
 - The selection is made by the user in agrirouter.
 - A participant is notified about it (see [Learning what an endpoint exchanges](#learning-what-an-endpoint-exchanges)).
-- It MUST likewise be **dependency-closed**, and agrirouter MUST surface the dependency where the user makes the choice.
+- It MUST likewise be **dependency-closed**, and agrirouter MUST surface the dependency where the user makes the choice. agrirouter MUST refuse a selection that is not, naming the missing entity type, rather than add the type.
 - Selecting an entity type on an endpoint that is already connected to masterdata restarts that endpoint's [initial load](#initial-load), since it is per endpoint and not per entity type, triggering the whole set to be sent again.
 - Deselecting an entity type removes it from the selection and stops its delivery. The endpoint's initial-load state is left as it is, and is discarded only with the last entity type.
 - **Every move of the selection is announced**, narrowings included, on the notification of [Learning what an endpoint exchanges](#learning-what-an-endpoint-exchanges).

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -1063,7 +1064,7 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 		t.Errorf("selection on connecting = %v, want %v", got, want)
 	}
 
-	if err := f.router.OptIn("ep-a", agmasync.TypeFarm, agmasync.TypeFieldBoundary); err != nil {
+	if err := f.router.OptIn("ep-a", agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary); err != nil {
 		t.Fatalf("widening the selection: %v", err)
 	}
 
@@ -1091,9 +1092,8 @@ func TestRouteChangedStatesWhatTheEndpointExchanges(t *testing.T) {
 		t.Error("frame carries no changedAt")
 	}
 
-	// The frame states the closure and not just what the user clicked: field
-	// boundaries pull in the fields they describe, opt-in being
-	// dependency-closed. Parties, no longer clicked, are deselected.
+	// The frame states the whole selection. Parties, no longer selected, are
+	// deselected.
 	want = []agmasync.EntityType{agmasync.TypeFarm, agmasync.TypeField, agmasync.TypeFieldBoundary}
 	if got := agmasync.SelectedTypes(*frame); !slices.Equal(got, want) {
 		t.Errorf("selected types = %v, want %v", got, want)
@@ -1446,9 +1446,8 @@ func putEndpointOverHTTP(
 }
 
 // putConfigOverHTTP is [putEndpointOverHTTP] with the declaration given
-// verbatim, for the cases that must send one agmasync would not build:
-// [agmasync.DeclareCapabilities] closes the set over dependencies, so it cannot express
-// a declaration the router is supposed to reject.
+// verbatim, for a declaration in a shape [agmasync.DeclareCapabilities] does
+// not build.
 func putConfigOverHTTP(
 	t *testing.T, f *fixture, token, externalID string, tenant uuid.UUID,
 	cfg oapi.MasterdataConfig,
@@ -1571,6 +1570,47 @@ func TestPutEndpointRejectedForClosureCreatesNothing(t *testing.T) {
 	if code, _ := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
 		agmasync.TypeParty); code != http.StatusCreated {
 		t.Errorf("retry after rejection = %d, want 201 — the rejected call left an endpoint", code)
+	}
+}
+
+func TestPartiesAndFieldsWithoutFarmsAreNotClosed(t *testing.T) {
+	f := newFixture(t)
+
+	unclosed := oapi.MasterdataConfig{Capabilities: []oapi.EntityTypeToggle{
+		{EntityType: string(agmasync.TypeParty)},
+		{EntityType: string(agmasync.TypeField)},
+	}}
+	if code, _ := putConfigOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
+		unclosed); code != http.StatusBadRequest {
+		t.Fatalf("parties and fields without farms = %d, want 400", code)
+	}
+	if code, _ := putEndpointOverHTTP(t, f, "fmis-new", "ep-new", f.tenant,
+		agmasync.TypeParty, agmasync.TypeFarm, agmasync.TypeField); code != http.StatusCreated {
+		t.Errorf("with farms = %d, want 201", code)
+	}
+
+	// Nor is a selection closed for the user: it is refused, naming the farm.
+	err := f.router.OptIn("ep-new", agmasync.TypeParty, agmasync.TypeField)
+	if err == nil || !strings.Contains(err.Error(), `requires "farm"`) {
+		t.Errorf("selecting parties and fields = %v, want a refusal naming the farm", err)
+	}
+}
+
+func TestAnUnclosedSelectionIsRefusedNotWidened(t *testing.T) {
+	// A selection is never closed behind the user's back. Field boundaries
+	// alone are refused, with the field named, and nothing is selected.
+	f := newFixture(t)
+	f.router.AddEndpoint("fmis-a", f.tenant, "ep-a")
+	if err := f.router.Declare("ep-a", agmasync.TypeField, agmasync.TypeFieldBoundary); err != nil {
+		t.Fatalf("declare: %v", err)
+	}
+
+	if code := optInOverHTTP(t, f, "ep-a", "fieldBoundary"); code != http.StatusBadRequest {
+		t.Errorf("field boundaries alone = %d, want 400", code)
+	}
+	err := f.router.OptIn("ep-a", agmasync.TypeFieldBoundary)
+	if err == nil || !strings.Contains(err.Error(), `enabling "fieldBoundary" requires "field"`) {
+		t.Errorf("field boundaries alone = %v, want a refusal naming the field", err)
 	}
 }
 

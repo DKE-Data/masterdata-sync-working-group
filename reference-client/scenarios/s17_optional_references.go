@@ -29,8 +29,8 @@ func optionalReferences() Scenario {
 // requested. Its own writes leave the attribute out, which keeps the farm for
 // the participants that exchange farms (ADR 13).
 //
-// Alpha exchanges farms and fields. Beta exchanges parties and fields, and its
-// own software files fields under farms of its own that it does not exchange.
+// Alpha exchanges farms and fields. Beta exchanges fields only, and its own
+// software files fields under farms of its own that it does not exchange.
 func runOptionalReferences(ctx context.Context, w *World) error {
 	say := w.Say
 
@@ -53,9 +53,9 @@ func runOptionalReferences(ctx context.Context, w *World) error {
 		return err
 	}
 
-	say.Step("Beta's user selects parties and fields, without farms, and Beta loads.")
+	say.Step("Beta's user selects fields, without farms, and Beta loads.")
 	beta, err := w.Contributor(ctx, "Beta FMIS", "fmis-beta", "beta",
-		agmasync.TypeParty, agmasync.TypeField)
+		agmasync.TypeField)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func runOptionalReferences(ctx context.Context, w *World) error {
 	if err != nil {
 		return err
 	}
-	if err := say.Check(names(selected) == "party, field",
+	if err := say.Check(names(selected) == "field",
 		"the selection stays as chosen, fields pulling in no farms: %s", names(selected)); err != nil {
 		return err
 	}

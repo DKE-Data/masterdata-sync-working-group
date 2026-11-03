@@ -350,8 +350,8 @@ func (r *Router) PutEndpoint(
 	}
 	// Closure is checked before anything is created, so a rejected declaration
 	// leaves no endpoint behind. r.declare checks it again, on the update path.
-	if len(agmasync.DependencyClosure(types)) != len(types) {
-		return oapi.PutEndpoint400JSONResponse{Message: errNotClosed.Error()}, nil
+	if err := agmasync.CheckClosed(types); err != nil {
+		return oapi.PutEndpoint400JSONResponse{Message: fmt.Errorf("%w: %w", errNotClosed, err).Error()}, nil
 	}
 
 	created := false

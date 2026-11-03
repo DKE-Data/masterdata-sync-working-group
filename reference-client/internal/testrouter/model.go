@@ -103,7 +103,6 @@ var refSlots = map[agmasync.EntityType][]refSlot{
 	},
 	agmasync.TypeField: {
 		{key: "_agmasync_farmRef", target: agmasync.TypeFarm},
-		{key: "_agmasync_growerRef", target: agmasync.TypeParty},
 	},
 	agmasync.TypeFieldBoundary: {
 		{key: "_agmasync_fieldRef", target: agmasync.TypeField},

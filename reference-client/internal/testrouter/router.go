@@ -308,11 +308,13 @@ func (r *Router) setOptIn(ctx echo.Context) error {
 //
 // It states the whole selection rather than adding to it, as the user's own
 // choice does: types not named are deselected, and naming none deselects
-// everything. The set is closed over entity dependencies first, because a
-// receiving endpoint has to be able to resolve every required reference on the
-// objects it is sent.
+// everything. A set that is not dependency-closed is refused, naming what it
+// lacks.
 func (r *Router) selectTypes(ep *endpoint, types []agmasync.EntityType) error {
-	closure := agmasync.DependencyClosure(types)
+	if err := agmasync.CheckClosed(types); err != nil {
+		return fmt.Errorf("%w: %w", errNotClosed, err)
+	}
+	closure := types
 
 	// A user can only select from what the participant declared. Nothing else
 	// bounds this, so a selection naming an undeclared type is the one case
@@ -433,9 +435,8 @@ func (r *Router) declarationFor(ep *endpoint) oapi.MasterdataConfig {
 // own call changes what is delivered, and it can only ever remove — withdrawing
 // a type has the effect on it that the user deselecting it would.
 func (r *Router) declare(ep *endpoint, types []agmasync.EntityType) error {
-	closure := agmasync.DependencyClosure(types)
-	if len(closure) != len(types) {
-		return errNotClosed
+	if err := agmasync.CheckClosed(types); err != nil {
+		return fmt.Errorf("%w: %w", errNotClosed, err)
 	}
 
 	r.store.mu.Lock()

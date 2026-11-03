@@ -1,6 +1,7 @@
 # ADR 13 - Optional references between parties, farms and fields
 
-- **Status:** Decided
+- **Status:** Decided; "any other combination of entity types is valid" is
+  superseded by [ADR 19](./19-field-single-parent.md)
 - **Scope:** Which references constrain opt-in, and who enforces the rest
 
 ## Context

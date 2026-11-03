@@ -151,15 +151,6 @@
         }
       },
       "arableArea": { "numericValue": 12.45, "unitOfMeasureCode": "ha" },
-      "_agmasync_growerRef": {
-        "id": {
-          "referenceId": "PER-2001",
-          "uniqueIds": [
-            { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a52", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" },
-            { "idText": "PER-2001", "idTypeCode": "STRING", "idSource": "https://fmis.example.com" }
-          ]
-        }
-      },
       "_agmasync_soil": { "type": "SANDY_TO_SILTY_LOAM", "ratingPoints": 62 },
       "_agmasync_topography": 3.5,
       "_agmasync_harvestPeriod": { "validFrom": "2025-08-01", "validTo": "2026-07-31", "label": "2025/2026" },

@@ -44,8 +44,8 @@ func TestAWithdrawalMadeWhileAwayArrivesOnCatchUp(t *testing.T) {
 
 	seen := map[string][]agmasync.EntityType{}
 	receiver := &psync.Receiver{
-		Client:  client,
-		Store:   applier.Store,
+		Client:    client,
+		Store:     applier.Store,
 		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(_ *store.Tx, s oapi.RouteChangedEventData) error {
 			seen[s.ExternalId] = agmasync.SelectedTypes(s)
@@ -110,8 +110,8 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 	}
 
 	failing := &psync.Receiver{
-		Client:  client,
-		Store:   applier.Store,
+		Client:    client,
+		Store:     applier.Store,
 		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(tx *store.Tx, s oapi.RouteChangedEventData) error {
 			// The tenancy is the one the named endpoint was onboarded as, so a
@@ -150,8 +150,8 @@ func TestASelectionThatCannotBeRecordedTakesNoPosition(t *testing.T) {
 	// And because no position was taken, the withdrawal is still owed.
 	var seen []string
 	recovering := &psync.Receiver{
-		Client:  client,
-		Store:   applier.Store,
+		Client:    client,
+		Store:     applier.Store,
 		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(tx *store.Tx, s oapi.RouteChangedEventData) error {
 			seen = append(seen, s.ExternalId)
@@ -191,8 +191,8 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 
 	var seen [][]agmasync.EntityType
 	receiver := &psync.Receiver{
-		Client:  client,
-		Store:   applier.Store,
+		Client:    client,
+		Store:     applier.Store,
 		Endpoints: map[uuid.UUID]*psync.Applier{applier.Endpoint.ID(): applier},
 		OnSelection: func(_ *store.Tx, s oapi.RouteChangedEventData) error {
 			if s.ExternalId == "ep-a" {
@@ -211,9 +211,8 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 		t.Fatalf("selection on connecting = %v, want nothing stated", seen)
 	}
 
-	// The user selects field boundaries, which pulls in the fields they
-	// describe.
-	if err := h.router.OptIn("ep-a", agmasync.TypeFieldBoundary); err != nil {
+	// The user selects field boundaries and the fields they describe.
+	if err := h.router.OptIn("ep-a", agmasync.TypeField, agmasync.TypeFieldBoundary); err != nil {
 		t.Fatalf("selecting field boundaries: %v", err)
 	}
 
@@ -221,8 +220,8 @@ func TestAMoveArrivesCarryingTheWholeSelection(t *testing.T) {
 		t.Fatalf("catch up: %v", err)
 	}
 
-	// The frame states the closure and not just what the user clicked: a
-	// participant acts on it as it stands rather than closing it itself.
+	// The frame states the whole selection, which a participant acts on as it
+	// stands.
 	want := []agmasync.EntityType{
 		agmasync.TypeField, agmasync.TypeFieldBoundary,
 	}

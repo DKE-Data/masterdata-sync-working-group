@@ -501,10 +501,9 @@ func (in *instance) declare(ctx context.Context, types []agmasync.EntityType) er
 		return err
 	}
 
-	// What went out is the closure, not the ticks: a declaration naming field
-	// boundaries names the fields they describe. Reading it back from the same helper keeps
-	// the screen honest about what agrirouter was actually told.
-	declared := agmasync.DependencyClosure(types)
+	// What went out is the ticks as they are: agrirouter refused the call
+	// above had they not been dependency-closed.
+	declared := types
 	in.mu.Lock()
 	in.declared = declared
 	in.mu.Unlock()

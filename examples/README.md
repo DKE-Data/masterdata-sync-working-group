@@ -3,8 +3,9 @@
 Hofgut Sonnenberg near Springe, Lower Saxony.
 
 - A GmbH owns the farm.
-- Its employee, Dr. Katharina Brandt, privately owns the one field. Her
+- Its employee, Dr. Katharina Brandt, is a person whose
   `parentOrganizationRef` names the GmbH.
+- The farm has one field. The field's grower is the farm's.
 - The field has a single administrative boundary, with a waterhole left out
   as a hole.
 
@@ -21,8 +22,8 @@ option F.
   with the same `id`, in place of ADAPT's `<name>Id` strings.
 - Where ADAPT has no slot, the value is a property `_agmasync_` plus the
   AgmaSync attribute name in camelCase, with the AgmaSync type.
-- `_agmasync_growerRef` on the farm and on the field names a party. There is
-  no Grower object.
+- `_agmasync_growerRef` on the farm names a party. There is no Grower
+  object, and a field names its farm only.
 - Another endpoint has just created the boundary, and the receiver has not
   bound it yet: its `id` carries only the agrirouter entry, with no
   `referenceId`.

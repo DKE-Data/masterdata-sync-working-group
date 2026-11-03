@@ -1079,6 +1079,11 @@ func (c *control) do(ctx context.Context, method, path string, body, out any) er
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
+		// The router's reason, where it gives one, says why.
+		var reason oapi.Error
+		if json.NewDecoder(resp.Body).Decode(&reason) == nil && reason.Message != "" {
+			return fmt.Errorf("control plane %s %s: HTTP %d: %s", method, path, resp.StatusCode, reason.Message)
+		}
 		return fmt.Errorf("control plane %s %s: HTTP %d", method, path, resp.StatusCode)
 	}
 	if out == nil {

@@ -190,15 +190,9 @@ schemas:
         description: Nominal area of the field.
       _agmasync_farmRef:
         ref: Ref
-        description: The farm this field belongs to.
-      _agmasync_growerRef:
-        ref: Ref
         description: >
-          The party holding this field, for systems that
-          attribute fields to a party directly. When absent, the field is
-          held by its farm's grower. When present, it takes precedence for
-          this field, which is how a field held by one party but managed
-          under another's farm is expressed.
+          The farm this field belongs to. The field's grower is its farm's
+          `_agmasync_growerRef`.
       _agmasync_soil:
         ref: SoilInfo
       _agmasync_topography:

@@ -160,7 +160,7 @@ func TestAnOrganizationPersonsNameKeepsItsKind(t *testing.T) {
 
 func TestABoundaryNamesItsField(t *testing.T) {
 	f := newFixture(t)
-	p := f.join("fmis-a", "ep-a", agmasync.TypeFieldBoundary)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeField, agmasync.TypeFieldBoundary)
 
 	if err := putErr(t, p, boundaryOf("PFD-1"), nil); !errors.Is(err, agmasync.ErrValidation) {
 		t.Errorf("boundary naming an unsent field: error = %v, want ErrValidation", err)

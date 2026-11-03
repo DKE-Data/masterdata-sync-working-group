@@ -116,10 +116,9 @@ func onboard(
 	// the list the user is later offered a choice from, and until they choose,
 	// the endpoint exchanges nothing.
 	//
-	// [agmasync.DeclareCapabilities] closes the set over entity dependencies, so a
-	// declaration naming field boundaries names the fields they describe
-	// whether or not the caller thought to. An endpoint able to receive one and
-	// not the other could not resolve the references it was sent.
+	// [agmasync.DeclareCapabilities] sends the set as given. One that is not
+	// dependency-closed, such as field boundaries without the fields they
+	// describe, is refused with a 400 naming what it lacks.
 	declaration := agmasync.DeclareCapabilities(types...)
 
 	// Where a user is sent to answer what an initial load stopped for, which for

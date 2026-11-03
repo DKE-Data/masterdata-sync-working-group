@@ -1,7 +1,8 @@
 # ADR 11 - Entity model: FarmSPT, AgmaSync and ADAPT
 
 - **Status:** Decided; field boundary obstacles are superseded by
-  [ADR 17](./17-holes-not-obstacles.md)
+  [ADR 17](./17-holes-not-obstacles.md), a field's own grower by
+  [ADR 19](./19-field-single-parent.md)
 - **Scope:** The master-data entities of the specification, derived from
   FarmSPT, compared with ADAPT 2. Whether AgmaSync should encode them in the
   ADAPT data model, and what to take from ADAPT otherwise

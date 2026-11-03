@@ -481,11 +481,8 @@ type FieldBoundaryContent struct {
 
 // FieldContent Based on the ADAPT `Field`.
 type FieldContent struct {
-	// UnderscoreAgmasyncFarmRef The farm this field belongs to.
-	UnderscoreAgmasyncFarmRef nullable.Nullable[Ref] `json:"_agmasync_farmRef,omitempty"`
-
-	// UnderscoreAgmasyncGrowerRef The party holding this field, for systems that attribute fields to a party directly. When absent, the field is held by its farm's grower. When present, it takes precedence for this field, which is how a field held by one party but managed under another's farm is expressed.
-	UnderscoreAgmasyncGrowerRef     nullable.Nullable[Ref]           `json:"_agmasync_growerRef,omitempty"`
+	// UnderscoreAgmasyncFarmRef The farm this field belongs to. The field's grower is its farm's `_agmasync_growerRef`.
+	UnderscoreAgmasyncFarmRef       nullable.Nullable[Ref]           `json:"_agmasync_farmRef,omitempty"`
 	UnderscoreAgmasyncHarvestPeriod nullable.Nullable[HarvestPeriod] `json:"_agmasync_harvestPeriod,omitempty"`
 
 	// UnderscoreAgmasyncMetadata Additional key/value metadata. A participant leaves the keys it does not understand out of its writes, which keeps them.
