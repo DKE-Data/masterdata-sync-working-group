@@ -481,6 +481,9 @@ type FieldBoundaryContent struct {
 
 // FieldContent Based on the ADAPT `Field`.
 type FieldContent struct {
+	// UnderscoreAgmasyncActiveBoundaryRef The field's active boundary, in place of ADAPT's `activeBoundaryId`. A weak reference: the boundary may arrive after the field. A receiver treats a deactivated boundary, or one naming another field, as no active boundary.
+	UnderscoreAgmasyncActiveBoundaryRef nullable.Nullable[WeakRef] `json:"_agmasync_activeBoundaryRef,omitempty"`
+
 	// UnderscoreAgmasyncFarmRef The farm this field belongs to. The field's grower is its farm's `_agmasync_growerRef`.
 	UnderscoreAgmasyncFarmRef       nullable.Nullable[Ref]           `json:"_agmasync_farmRef,omitempty"`
 	UnderscoreAgmasyncHarvestPeriod nullable.Nullable[HarvestPeriod] `json:"_agmasync_harvestPeriod,omitempty"`
@@ -921,6 +924,20 @@ type UniqueId struct {
 	//
 	// Examples: UUID, STRING, LONGINT, URI, GLN
 	IdTypeCode string `json:"idTypeCode"`
+}
+
+// WeakRef A weak reference: shaped like a `Ref`, but outside the dependency order. A property `_agmasync_<name>Ref` typed `WeakRef`.
+//
+// On send it resolves as a `Ref` does: its target must have been sent or bound through the calling endpoint first. On delivery its target may arrive after the object referencing it. A receiver applies the referencing object without waiting and links the target when it arrives. A reference is replaced whole on write.
+type WeakRef struct {
+	// Id Identity of an object, based on the ADAPT `Id`. Used for the object's own `id` and inside every `Ref`. Both identifiers it can carry are those of the near end of the transfer: on send the sending endpoint's, on delivery the receiving endpoint's. It never carries another endpoint's identifier, a sibling endpoint's of the same application included.
+	//
+	// On delivery `referenceId` is the receiving endpoint's local identifier, present exactly when it has bound the object. `uniqueIds` holds the agrirouter entry, the canonical identifier, and then, only when the endpoint's latest write of the object sent one, the local entry it sent: `idText` equal to `referenceId`, with that write's `idTypeCode` and `idSource`. An endpoint that never sends a local entry receives none.
+	//
+	// On send the local identifier is `referenceId`, and the local entry is the entry whose `idText` equals it. `uniqueIds` holds at most the local entry and the agrirouter entry, the one with `idSource` `https://agrirouter.com`, one of each: any other entry is a `400`.
+	//
+	// As an object's own `id`, on send `referenceId` must equal the `{local_id}` in the path, and an agrirouter entry, if any, must be the object that `local_id` is bound to. On delivery `referenceId` and the local entry are absent when the receiving endpoint has not bound the object, or has unbound it. An absent `referenceId` means "you do not hold this object": create it locally and bind the identifier you issue.
+	Id Id `json:"id"`
 }
 
 // WktArea A POLYGON or MULTIPOLYGON as Well-Known Text in WGS84. A polygon's first ring is its exterior, every further ring a hole, and it must be valid as in OGC Simple Features. Any valid WKT is accepted and delivered in the canonical form of "Encoding" in specification.md.

@@ -100,6 +100,9 @@ CREATE TABLE IF NOT EXISTS field (
     name           TEXT NOT NULL,
     area           REAL,
     farm_local_id  TEXT,
+    -- A weak reference: the boundary may arrive after the field. Until it does
+    -- the column is empty and weak_ref_pending names the target.
+    active_boundary_local_id TEXT,
     archived       INTEGER NOT NULL DEFAULT 0
 );
 
@@ -128,6 +131,23 @@ CREATE TABLE IF NOT EXISTS field_boundary (
 -- lines up with agrirouter's `recipient_endpoint_id` because each tenancy is
 -- onboarded as its own endpoint, which is what lets a delivery be routed to one
 -- of them.
+-- weak_ref_pending keeps a weak reference whose target the platform does not
+-- hold yet. The referrer is the platform's record carrying the reference, by
+-- its own local identifier. The target has no local identifier yet, so it is
+-- named by its agrirouter identifier. The record is applied without waiting;
+-- when the target is bound, the referrer's column is filled in and the row
+-- goes. See "Weak references" in specification.md.
+CREATE TABLE IF NOT EXISTS weak_ref_pending (
+    referrer_type        TEXT NOT NULL,
+    referrer_local_id    TEXT NOT NULL,
+    attribute            TEXT NOT NULL,
+    target_type          TEXT NOT NULL,
+    target_agrirouter_id TEXT NOT NULL,
+    PRIMARY KEY (referrer_type, referrer_local_id, attribute)
+);
+CREATE INDEX IF NOT EXISTS weak_ref_pending_by_target
+    ON weak_ref_pending (target_type, target_agrirouter_id);
+
 CREATE TABLE IF NOT EXISTS tenant_entity (
     tenant_id   TEXT NOT NULL,
     entity_type TEXT NOT NULL,

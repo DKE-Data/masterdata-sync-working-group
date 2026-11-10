@@ -102,10 +102,6 @@ func CheckClosed(types []EntityType) error {
 // DependencyClosure expands a set of entity types to the smallest
 // dependency-closed set containing it.
 //
-// Neither a declaration nor a selection is closed for the caller: an unclosed
-// one is rejected (see [CheckClosed]). This is for a participant that wants the
-// closed set on purpose, such as offering its user the types a choice implies.
-//
 // See "Entity dependencies" in specification.md.
 func DependencyClosure(types []EntityType) []EntityType {
 	want := make(map[EntityType]bool, len(EntityTypes))

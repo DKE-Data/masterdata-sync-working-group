@@ -9,6 +9,7 @@ import (
 
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync/oapi"
+	"github.com/google/uuid"
 )
 
 // Record is one of the platform's own records, as the sync code handles it.
@@ -39,9 +40,25 @@ type Record struct {
 // References names, per entity type, the reference attributes the platform
 // models and the entity type each one names.
 var References = map[agmasync.EntityType]map[string]agmasync.EntityType{
-	agmasync.TypeFarm:          {"_agmasync_growerRef": agmasync.TypeParty},
-	agmasync.TypeField:         {"_agmasync_farmRef": agmasync.TypeFarm},
+	agmasync.TypeFarm: {"_agmasync_growerRef": agmasync.TypeParty},
+	agmasync.TypeField: {
+		"_agmasync_farmRef":           agmasync.TypeFarm,
+		"_agmasync_activeBoundaryRef": agmasync.TypeFieldBoundary,
+	},
 	agmasync.TypeFieldBoundary: {"_agmasync_fieldRef": agmasync.TypeField},
+}
+
+// weakRefColumn is where a linked weak reference is stored: the table and the
+// column of the referrer, the record carrying it.
+type weakRefColumn struct{ table, column string }
+
+// weakRefs names the weak references the platform models (see "Weak
+// references" in specification.md). Their target may arrive after the record,
+// so an unresolved one is kept in weak_ref_pending and linked when the target
+// is bound. On send, one whose target is not bound yet is left out, and the
+// record is sent again once the target has been created.
+var weakRefs = map[agmasync.EntityType]map[string]weakRefColumn{
+	agmasync.TypeField: {"_agmasync_activeBoundaryRef": {"field", "active_boundary_local_id"}},
 }
 
 // The party attributes the codec treats specially.
@@ -55,7 +72,7 @@ const (
 var columns = map[agmasync.EntityType][]string{
 	agmasync.TypeParty: {"name", detailsKey, contactInfoKey},
 	agmasync.TypeFarm:  {"name", "_agmasync_growerRef", "_agmasync_address"},
-	agmasync.TypeField: {"name", "arableArea", "_agmasync_farmRef"},
+	agmasync.TypeField: {"name", "arableArea", "_agmasync_farmRef", "_agmasync_activeBoundaryRef"},
 	agmasync.TypeFieldBoundary: {
 		"_agmasync_fieldRef", "name", "_agmasync_boundaryType", "boundary",
 	},
@@ -138,6 +155,7 @@ var modelledDetails = map[string][]string{
 var notNullable = map[string]bool{
 	"name": true, "boundary": true,
 	"_agmasync_growerRef": true, "_agmasync_farmRef": true, "_agmasync_fieldRef": true,
+	"_agmasync_activeBoundaryRef": true,
 }
 
 // ToEntity is FromEntity in reverse: the platform's own record as an entity to send.
@@ -408,6 +426,9 @@ func (t *Tx) columnValues(r Record, table string) (map[string]any, error) {
 		if err := t.refColumn(out, r, "_agmasync_farmRef", "farm_local_id"); err != nil {
 			return nil, err
 		}
+		if err := t.refColumn(out, r, "_agmasync_activeBoundaryRef", "active_boundary_local_id"); err != nil {
+			return nil, err
+		}
 	case "field_boundary":
 		if err := t.refColumn(out, r, "_agmasync_fieldRef", "field_local_id"); err != nil {
 			return nil, err
@@ -524,6 +545,9 @@ func (t *Tx) UpsertRecord(r Record, localID string) error {
 	if _, err := t.tx.Exec(query, args...); err != nil {
 		return fmt.Errorf("writing %s: %w", table, err)
 	}
+	if err := t.notePending(r, localID, values); err != nil {
+		return err
+	}
 	// A party whose party type changed leaves the table of its old one.
 	tables, _ := tablesOf(r.EntityType)
 	for _, other := range tables {
@@ -537,6 +561,138 @@ func (t *Tx) UpsertRecord(r Record, localID string) error {
 		}
 	}
 	return t.hold(r.EntityType, localID)
+}
+
+// IsWeak reports whether attribute of typ is a weak reference.
+func IsWeak(typ agmasync.EntityType, attribute string) bool {
+	_, ok := weakRefs[typ][attribute]
+	return ok
+}
+
+// WeakReferrer is a record naming another by a weak reference.
+type WeakReferrer struct {
+	EntityType agmasync.EntityType
+	LocalID    string
+}
+
+// WeakReferrers lists the records whose linked weak reference names the
+// target record targetLocalID of type targetType.
+func (t *Tx) WeakReferrers(targetType agmasync.EntityType, targetLocalID string) ([]WeakReferrer, error) {
+	var out []WeakReferrer
+	for referrerType, attributes := range weakRefs {
+		for attribute, col := range attributes {
+			if References[referrerType][attribute] != targetType {
+				continue
+			}
+			rows, err := t.tx.Query(
+				fmt.Sprintf("SELECT local_id FROM %s WHERE %s = ?", col.table, col.column), targetLocalID)
+			if err != nil {
+				return nil, fmt.Errorf("reading what names %s %q: %w", targetType, targetLocalID, err)
+			}
+			for rows.Next() {
+				var id string
+				if err := rows.Scan(&id); err != nil {
+					_ = rows.Close()
+					return nil, fmt.Errorf("reading what names %s %q: %w", targetType, targetLocalID, err)
+				}
+				out = append(out, WeakReferrer{EntityType: referrerType, LocalID: id})
+			}
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+				return nil, fmt.Errorf("reading what names %s %q: %w", targetType, targetLocalID, err)
+			}
+		}
+	}
+	return out, nil
+}
+
+// notePending keeps the weak references of a written record, the referrer,
+// that did not resolve: the target is named by its agrirouter identifier and
+// not held yet. One the record carries resolved, or set to null, leaves
+// nothing pending. One it does not carry, or ignores, is left as it
+// was.
+func (t *Tx) notePending(r Record, referrerLocalID string, values map[string]any) error {
+	for attribute, col := range weakRefs[r.EntityType] {
+		raw, carried := r.Modelled[attribute]
+		if !carried || r.Ignored[attribute] {
+			continue
+		}
+		if _, err := t.tx.Exec(`
+			DELETE FROM weak_ref_pending
+			 WHERE referrer_type = ? AND referrer_local_id = ? AND attribute = ?`,
+			string(r.EntityType), referrerLocalID, attribute,
+		); err != nil {
+			return fmt.Errorf("clearing pending %s: %w", attribute, err)
+		}
+		if values[col.column] != nil || string(raw) == "null" {
+			continue
+		}
+		var ref oapi.WeakRef
+		if err := json.Unmarshal(raw, &ref); err != nil {
+			return fmt.Errorf("reading %s: %w", attribute, err)
+		}
+		id, err := agmasync.IdentityOf(ref.Id)
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", attribute, err)
+		}
+		if id.AgrirouterID == nil {
+			continue
+		}
+		if _, err := t.tx.Exec(`
+			INSERT INTO weak_ref_pending
+			       (referrer_type, referrer_local_id, attribute, target_type, target_agrirouter_id)
+			VALUES (?, ?, ?, ?, ?)`,
+			string(r.EntityType), referrerLocalID, attribute,
+			string(References[r.EntityType][attribute]), id.AgrirouterID.String(),
+		); err != nil {
+			return fmt.Errorf("keeping pending %s: %w", attribute, err)
+		}
+	}
+	return nil
+}
+
+// linkPending links the pending weak references to a target that is now
+// bound: targetAgrirouterID has become the platform's record targetLocalID.
+func (t *Tx) linkPending(targetType agmasync.EntityType, targetAgrirouterID uuid.UUID, targetLocalID string) error {
+	rows, err := t.tx.Query(`
+		SELECT referrer_type, referrer_local_id, attribute
+		  FROM weak_ref_pending
+		 WHERE target_type = ? AND target_agrirouter_id = ?`,
+		string(targetType), targetAgrirouterID.String())
+	if err != nil {
+		return fmt.Errorf("reading pending references to %s: %w", targetAgrirouterID, err)
+	}
+	type pending struct{ referrerType, referrerLocalID, attribute string }
+	var all []pending
+	for rows.Next() {
+		var u pending
+		if err := rows.Scan(&u.referrerType, &u.referrerLocalID, &u.attribute); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("reading pending reference: %w", err)
+		}
+		all = append(all, u)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return fmt.Errorf("reading pending references: %w", err)
+	}
+	for _, u := range all {
+		col, ok := weakRefs[agmasync.EntityType(u.referrerType)][u.attribute]
+		if !ok {
+			continue
+		}
+		if _, err := t.tx.Exec(
+			fmt.Sprintf("UPDATE %s SET %s = ? WHERE local_id = ?", col.table, col.column),
+			targetLocalID, u.referrerLocalID,
+		); err != nil {
+			return fmt.Errorf("linking %s of %s %q: %w", u.attribute, u.referrerType, u.referrerLocalID, err)
+		}
+	}
+	if _, err := t.tx.Exec(`
+		DELETE FROM weak_ref_pending WHERE target_type = ? AND target_agrirouter_id = ?`,
+		string(targetType), targetAgrirouterID.String(),
+	); err != nil {
+		return fmt.Errorf("clearing pending references to %s: %w", targetAgrirouterID, err)
+	}
+	return nil
 }
 
 // hold records that the transaction's tenant holds a record. It is idempotent:
@@ -619,7 +775,7 @@ func scanColumns(table string) []string {
 	case "farm":
 		return []string{"name", "owner_local_id", "address"}
 	case "field":
-		return []string{"name", "area", "farm_local_id"}
+		return []string{"name", "area", "farm_local_id", "active_boundary_local_id"}
 	case "field_boundary":
 		return []string{"field_local_id", "name", "boundary_type", "creation_method", "geometry"}
 	default:
@@ -726,7 +882,8 @@ func rebuildModelled(r *Record, table string, values map[string]sql.NullString) 
 				area = set("arableArea", oapi.Area{NumericValue: float32(parsed), UnitOfMeasureCode: oapi.Ha})
 			}
 		}
-		return errors.Join(str("name", "name"), area, ref("farm_local_id", "_agmasync_farmRef"))
+		return errors.Join(str("name", "name"), area, ref("farm_local_id", "_agmasync_farmRef"),
+			ref("active_boundary_local_id", "_agmasync_activeBoundaryRef"))
 	case "field_boundary":
 		return errors.Join(
 			ref("field_local_id", "_agmasync_fieldRef"),
@@ -777,6 +934,12 @@ func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 
 	if err := t.deleteFrom(tables, localID); err != nil {
 		return err
+	}
+	if _, err := t.tx.Exec(`
+		DELETE FROM weak_ref_pending WHERE referrer_type = ? AND referrer_local_id = ?`,
+		string(typ), localID,
+	); err != nil {
+		return fmt.Errorf("deleting pending references: %w", err)
 	}
 	if _, err := t.tx.Exec(`
 		DELETE FROM agmasync_object

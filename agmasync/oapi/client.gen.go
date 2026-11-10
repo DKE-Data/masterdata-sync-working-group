@@ -94,7 +94,7 @@ type ClientInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -105,7 +105,7 @@ type ClientInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -513,7 +513,7 @@ type ClientInterface interface {
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 //
 // Takes any type of body and a specified content type.
 //
@@ -534,7 +534,7 @@ func (c *Client) PutEndpointWithBody(ctx context.Context, externalId ExternalId,
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -3014,7 +3014,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3025,7 +3025,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// This resource can be used to create new endpoint or reconfigure existing one.
 	//
-	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+	// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -5069,7 +5069,7 @@ func (r BindPartyMappingResponse) ContentType() string {
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5086,7 +5086,7 @@ func (c *ClientWithResponses) PutEndpointWithBodyWithResponse(ctx context.Contex
 //
 // This resource can be used to create new endpoint or reconfigure existing one.
 //
-// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type, never widened. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
+// Masterdata: Declare what masterdata entity types the endpoint can exchange.  Masterdata routes must be separately created by a user, selecting a subset of  these entity types. There is no default routing for masterdata.  The configuration MUST be dependency-closed: enabling field boundaries requires the fields they reference to be enabled as well, and enabling parties and fields requires farms, the only link between them. A configuration that is not dependency-closed is rejected with `400` naming the missing entity type. Any other combination of entity types is valid, for example farms and fields without parties, or fields alone.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

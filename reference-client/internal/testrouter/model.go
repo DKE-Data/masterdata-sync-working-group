@@ -103,6 +103,9 @@ var refSlots = map[agmasync.EntityType][]refSlot{
 	},
 	agmasync.TypeField: {
 		{key: "_agmasync_farmRef", target: agmasync.TypeFarm},
+		// A weak reference: resolved on send like any other, but outside the
+		// delivery order, which tierOf leaves to the other references.
+		{key: "_agmasync_activeBoundaryRef", target: agmasync.TypeFieldBoundary},
 	},
 	agmasync.TypeFieldBoundary: {
 		{key: "_agmasync_fieldRef", target: agmasync.TypeField},

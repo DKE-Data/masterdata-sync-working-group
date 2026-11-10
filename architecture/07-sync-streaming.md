@@ -1,6 +1,6 @@
 # ADR 07 - Sync streaming
 
-- **Status:** WIP
+- **Status:** WIP; for weak references, "an order that respects the graph respects every object dependency" is superseded by [ADR 20](./20-field-active-boundary.md)
 - **Scope:** Delivery of canonical master data to partner applications - the store
   that backs delivery, the connection unit, catch-up, and resume
 
@@ -532,6 +532,11 @@ version would trade the ordering away to save.
   far it got. A large first load over an unreliable connection is the case to
   watch: a sweep that cannot finish between drops does not converge, so
   throughput and connection stability bound how large a set can be delivered.
+  A fixed cut is worse than a random one: if a proxy, load balancer or TCP
+  idle timeout ends every connection after a few minutes, a sweep longer than
+  that stops at roughly the same point on each attempt and never completes.
+  This is a known limitation, accepted for now; carrying sweep progress in the
+  id ([above](#the-cursor-is-a-single-change-number)) could be a solution.
 - **Cursors are integers to agrirouter and opaque tokens to the application.**
   An application applying in parallel commits the id of the earliest frame, in
   delivery order, that it has not yet applied; it cannot compare two ids and

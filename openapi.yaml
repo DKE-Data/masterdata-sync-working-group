@@ -1756,6 +1756,24 @@ components:
           $ref: '#/components/schemas/Id'
       required: [id]
 
+    WeakRef:
+      type: object
+      additionalProperties: false
+      description: >
+        A weak reference: shaped like a `Ref`, but outside the dependency
+        order. A property `_agmasync_<name>Ref` typed `WeakRef`.
+
+
+        On send it resolves as a `Ref` does: its target must have been sent or
+        bound through the calling endpoint first. On delivery its target may
+        arrive after the object referencing it. A receiver applies the
+        referencing object without waiting and links the target when it
+        arrives. A reference is replaced whole on write.
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+      required: [id]
+
     Envelope:
       type: object
       description: >
@@ -2160,6 +2178,15 @@ components:
           description: >
             The farm this field belongs to. The field's grower is its farm's
             `_agmasync_growerRef`.
+        _agmasync_activeBoundaryRef:
+          oneOf:
+            - $ref: '#/components/schemas/WeakRef'
+            - type: 'null'
+          description: >
+            The field's active boundary, in place of ADAPT's `activeBoundaryId`.
+            A weak reference: the boundary may arrive after the field. A
+            receiver treats a deactivated boundary, or one naming another
+            field, as no active boundary.
         _agmasync_soil:
           oneOf:
             - $ref: '#/components/schemas/SoilInfo'

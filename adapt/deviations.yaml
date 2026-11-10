@@ -193,6 +193,13 @@ schemas:
         description: >
           The farm this field belongs to. The field's grower is its farm's
           `_agmasync_growerRef`.
+      _agmasync_activeBoundaryRef:
+        ref: WeakRef
+        description: >
+          The field's active boundary, in place of ADAPT's `activeBoundaryId`.
+          A weak reference: the boundary may arrive after the field. A
+          receiver treats a deactivated boundary, or one naming another
+          field, as no active boundary.
       _agmasync_soil:
         ref: SoilInfo
       _agmasync_topography:

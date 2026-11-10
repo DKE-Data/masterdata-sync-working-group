@@ -334,6 +334,9 @@ func (t *Tx) PutSyncRow(r SyncRow) error {
 	if err != nil {
 		return fmt.Errorf("writing sync row: %w", err)
 	}
+	if r.AgrirouterID != nil {
+		return t.linkPending(r.EntityType, *r.AgrirouterID, r.LocalID)
+	}
 	return nil
 }
 

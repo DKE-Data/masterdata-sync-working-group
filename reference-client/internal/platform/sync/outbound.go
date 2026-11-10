@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -36,6 +37,7 @@ func (a *Applier) send(
 	var record store.Record
 	var row store.SyncRow
 	var bound bool
+	var dropped map[string]json.RawMessage
 
 	err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
 		var err error
@@ -52,6 +54,12 @@ func (a *Applier) send(
 		}
 		for attribute := range unselected {
 			delete(record.Modelled, attribute)
+		}
+		// A weak reference resolves on send like any other, so one whose
+		// target this endpoint has not sent yet is left out, which keeps what
+		// agrirouter holds for it. Sending the target sends this record again.
+		if dropped, err = a.dropUnboundWeakRefs(tx, &record); err != nil {
+			return err
 		}
 		row, err = tx.SyncRow(a.Namespace(), typ, localID)
 		switch {
@@ -102,7 +110,104 @@ func (a *Applier) send(
 	// none. Applying it still has to go through the revision guard, because it
 	// may arrive after a later stream frame has already been applied, and
 	// against the same selection, or the reference left out would be cleared.
-	return a.apply(result, "", nil, selected)
+	outcome, err := a.apply(result, "", nil, selected)
+	if err != nil {
+		return outcome, err
+	}
+	// The response is applied as a whole object, which cleared the weak
+	// references left out of the write. They are the platform's own and are
+	// put back.
+	if err := a.restoreWeakRefs(typ, localID, dropped); err != nil {
+		return outcome, err
+	}
+	if bound {
+		return outcome, nil
+	}
+	// A create: records already sent that name this one by a weak reference
+	// left it out, and are sent again now that it resolves. For a field and a
+	// new active boundary that is the third write.
+	return outcome, a.sendWeakReferrers(ctx, typ, localID, selected)
+}
+
+// dropUnboundWeakRefs removes from record each weak reference whose target
+// this endpoint has not sent or bound, and returns what it removed.
+func (a *Applier) dropUnboundWeakRefs(tx *store.Tx, record *store.Record) (map[string]json.RawMessage, error) {
+	dropped := map[string]json.RawMessage{}
+	for attribute, raw := range record.Modelled {
+		if !store.IsWeak(record.EntityType, attribute) || string(raw) == "null" {
+			continue
+		}
+		var ref oapi.WeakRef
+		if err := json.Unmarshal(raw, &ref); err != nil {
+			return nil, fmt.Errorf("sync: reading %s: %w", attribute, err)
+		}
+		id, err := agmasync.IdentityOf(ref.Id)
+		if err != nil {
+			return nil, fmt.Errorf("sync: reading %s: %w", attribute, err)
+		}
+		if id.LocalID == nil {
+			continue
+		}
+		row, err := tx.SyncRow(a.Namespace(), store.References[record.EntityType][attribute], *id.LocalID)
+		switch {
+		case errors.Is(err, store.ErrNotFound) || (err == nil && !row.Bound()):
+			dropped[attribute] = raw
+			delete(record.Modelled, attribute)
+		case err != nil:
+			return nil, err
+		}
+	}
+	return dropped, nil
+}
+
+// restoreWeakRefs puts the weak references dropUnboundWeakRefs left out back
+// on the platform's record.
+func (a *Applier) restoreWeakRefs(typ agmasync.EntityType, localID string, dropped map[string]json.RawMessage) error {
+	if len(dropped) == 0 {
+		return nil
+	}
+	return a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		record, err := tx.LoadRecord(typ, localID)
+		if err != nil {
+			return err
+		}
+		for attribute, raw := range dropped {
+			record.Modelled[attribute] = raw
+		}
+		return tx.UpsertRecord(record, localID)
+	})
+}
+
+// sendWeakReferrers sends again the records this endpoint has already sent
+// whose weak reference names the record just created.
+func (a *Applier) sendWeakReferrers(
+	ctx context.Context, typ agmasync.EntityType, localID string, selected []agmasync.EntityType,
+) error {
+	var referrers []store.WeakReferrer
+	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		all, err := tx.WeakReferrers(typ, localID)
+		if err != nil {
+			return err
+		}
+		for _, r := range all {
+			row, err := tx.SyncRow(a.Namespace(), r.EntityType, r.LocalID)
+			switch {
+			case err == nil && row.Bound():
+				referrers = append(referrers, r)
+			case err != nil && !errors.Is(err, store.ErrNotFound):
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, r := range referrers {
+		if _, err := a.send(ctx, r.EntityType, r.LocalID, selected); err != nil {
+			return fmt.Errorf("sync: sending %s %q again for its weak reference: %w", r.EntityType, r.LocalID, err)
+		}
+	}
+	return nil
 }
 
 // Deactivate tells agrirouter that a record has been deactivated locally, and

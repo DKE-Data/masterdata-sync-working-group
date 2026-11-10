@@ -150,6 +150,13 @@
           ]
         }
       },
+      "_agmasync_activeBoundaryRef": {
+        "id": {
+          "uniqueIds": [
+            { "idText": "0b6e2f4a-1c3d-4e5f-8a9b-0c1d2e3f4a56", "idTypeCode": "UUID", "idSource": "https://agrirouter.com" }
+          ]
+        }
+      },
       "arableArea": { "numericValue": 12.45, "unitOfMeasureCode": "ha" },
       "_agmasync_soil": { "type": "SANDY_TO_SILTY_LOAM", "ratingPoints": 62 },
       "_agmasync_topography": 3.5,
