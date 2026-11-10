@@ -78,7 +78,7 @@ held by an unlisted `local_id` is a `409`, so a correction is never half a swap.
 No revision, no `source_endpoint_id`, delivered to nobody.
 
 It corrects identity, not data: revisions written through the wrong binding stand
-and were fanned out, and the participant repairs them with ordinary writes.
+and were fanned out, and the application repairs them with ordinary writes.
 
 Bind stays a separate operation so that a routine bind never overrides a pair.
 Overriding is only ever explicit.
@@ -105,13 +105,13 @@ rather than reconcile.
 The re-load has to be of the same endpoint. Removing the endpoint and onboarding
 it again is not an exit: agrirouter discards the mapping with the endpoint
 ([ADR 15](./15-endpoint-scope-of-mappings.md)), so the new endpoint's set arrives
-carrying no `local_id`s, and only a correspondence table the participant kept
+carrying no `local_id`s, and only a correspondence table the application kept
 itself can match it.
 
 That costs the endpoint's whole canonical set in bandwidth to recover two
-identifiers per object, and it is the deliberate trade: agrirouter does not hand a participant its
+identifiers per object, and it is the deliberate trade: agrirouter does not hand an application its
 correspondence table on demand, so there is one path back rather than two, and the
-mapping stays something a participant keeps rather than something it can fetch.
+mapping stays something an application keeps rather than something it can fetch.
 
 ### Initial load binds in bulk
 
@@ -192,7 +192,7 @@ could not settle it.
 | agrirouter matches on content | Above. |
 | The endpoint keeps the correspondence privately | It already must, to reconcile deliveries against its own store. But a private table cannot be used on the write path, which is keyed by identifiers agrirouter knows. Nothing changes and the duplicates continue. |
 | The confirmation's `id_mappings` is authoritative for the set - pairs it omits are unbound | Covers the mass case in one call with no new verb. But an accidentally omitted pair then unbinds silently, it says nothing about an object deleted locally in ordinary operation, and it turns a list of assertions into a list plus an implied negation of everything else. |
-| A read operation for the endpoint's own mapping, `GET /masterdata/{type}/id-mappings` | Proportionate to the failure: it returns two identifiers per object rather than the object, so an endpoint that lost only its table pays only for what it lost, and it is the sole way to *audit* a mapping rather than assume the worst about it. It discloses nothing either - both ends of every pair were asserted by the caller. Rejected on surface rather than on principle: it is five paths and a paged collection in a specification partners must implement, for a failure the [re-load](#an-endpoint-that-lost-its-own-table-re-loads) already resolves, and it makes the correspondence something agrirouter serves rather than something a participant keeps. The audit case survives as an open issue. |
+| A read operation for the endpoint's own mapping, `GET /masterdata/{type}/id-mappings` | Proportionate to the failure: it returns two identifiers per object rather than the object, so an endpoint that lost only its table pays only for what it lost, and it is the sole way to *audit* a mapping rather than assume the worst about it. It discloses nothing either - both ends of every pair were asserted by the caller. Rejected on surface rather than on principle: it is five paths and a paged collection in a specification partners must implement, for a failure the [re-load](#an-endpoint-that-lost-its-own-table-re-loads) already resolves, and it makes the correspondence something agrirouter serves rather than something an application keeps. The audit case survives as an open issue. |
 | `DELETE …/id-mapping/{agrirouter_id}` (unbind per pair) | As a correction it fixes a swap only through an intermediate state in which a send of the unbound record duplicates it. |
 | Bind overrides the existing pair when the caller names it | Cannot express a swap: B1 is held by B, which the request does not move. |
 
@@ -215,7 +215,7 @@ could not settle it.
 - **`409` at bind time is the earliest the n:1 conflict can surface**, while the
   endpoint is reconciling and has a user in front of it, rather than later on an
   edit with the duplicate already created.
-- **Every endpoint binds for itself.** A participant with one store behind
+- **Every endpoint binds for itself.** An application with one store behind
   several endpoints holds one binding per (endpoint, object), often against the
   same `local_id` string, and a record held in several tenants is bound once per
   tenant's endpoint, each tenant having its own canonical object for it. A sibling
@@ -227,11 +227,11 @@ could not settle it.
 - **Losing the local table has an exit, and it is a delivery.** Every operation
   keyed by an identifier the endpoint might have lost is reachable again once the set has been re-delivered with the
   endpoint's own `local_id` on it, as long as the endpoint itself was kept.
-- **The correspondence stays something a participant keeps.** agrirouter holds
-  the mapping and uses it on delivery, but never serves it. A participant that
+- **The correspondence stays something an application keeps.** agrirouter holds
+  the mapping and uses it on delivery, but never serves it. An application that
   wants to know what agrirouter calls its records has to have kept the answer, or
   have its user ask agrirouter for the set again - which also means the ISOXML
   LinkList correspondence the
   [specification requires](../specification.md#identifier-mapping) is expressed
-  from the participant's own table, not exported from ours.
+  from the application's own table, not exported from ours.
 

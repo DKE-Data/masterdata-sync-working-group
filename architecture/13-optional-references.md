@@ -17,7 +17,7 @@ parties could not write a farm.
 optional. Declaration and selection are closed over `field boundaries → fields`
 alone, and any other combination of entity types is valid.
 
-**Participants handle the optional references.** An endpoint ignores a reference
+**Applications handle the optional references.** An endpoint ignores a reference
 to a type not selected on it and leaves that attribute out of its writes, which
 keeps it under merge patch. Its own data model already decides which attributes
 it requires on its own writes. For data from others, the stricter recipient

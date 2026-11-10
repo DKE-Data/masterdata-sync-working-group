@@ -40,4 +40,4 @@ name it.
 - **Finding a field's boundaries** is a lookup on the receiving side, not a list
   on the field.
 - **Encoding only.** FarmSPT's content is unchanged. ISOXML nests polygons in the
-  partfield, so an ISOXML participant inverts at its edge.
+  partfield, so an ISOXML application inverts at its edge.

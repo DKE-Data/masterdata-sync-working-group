@@ -98,7 +98,7 @@ several entitled endpoints in one tenant.
 Fan-out needs no position of its own. Entity frames carry the position their
 sweep started from, and only `CAUGHT_UP` moves the cursor
 ([below](#the-cursor-is-a-single-change-number)), so every frame of an object
-carries the same `id` and none moves past the others. A participant resuming
+carries the same `id` and none moves past the others. An application resuming
 between them receives all of them again, applying the ones it holds as no-ops.
 
 Which tenants an application may read is decided by the masterdata
@@ -572,7 +572,7 @@ version would trade the ordering away to save.
   deletion deliverable at any distance rather than only within a retention
   window. Purging them would reintroduce exactly the horizon this design removes.
 - **A sweep delivers them too**, and the absence of that filter is load-bearing.
-  A first load is usually taken by a participant that already holds its own data,
+  A first load is usually taken by an application that already holds its own data,
   so withholding a deactivated object leads it to send that object back as new -
   duplicating the canonical object and resurrecting what a user archived.
 - **The cursor is the application's coordination point.** Delivery being stateless

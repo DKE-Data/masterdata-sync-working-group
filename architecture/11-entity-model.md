@@ -281,29 +281,29 @@ file.
 
 ## Criteria
 
-1. **Adoption cost** for each kind of participant.
+1. **Adoption cost** for each kind of application.
 2. **Contract strength.** Can the published schema reject invalid data?
    ([ADR 02](02-data-model.md) chose strict validation because ISOXML's
    permissiveness made implementations diverge.)
 3. **Fit with sync.** Identity, revision, and typed references per object.
-4. **Lossless round trip** between participants.
+4. **Lossless round trip** between applications.
 5. **Evolution and governance.** Who controls change, and at what speed.
 6. **Tooling.** Generated clients, validators, readability of payloads.
 7. **Cost to agrirouter.**
 
 ## Analysis
 
-### 1. Adoption cost by participant
+### 1. Adoption cost by application
 
-Participants fall into three groups. Their share is not known.
+Applications fall into three groups. Their share is not known.
 
-| Participant | A | B | C | D | E | F |
+| Application | A | B | C | D | E | F |
 | --- | --- | --- | --- | --- | --- | --- |
 | Built on ADAPT 2 | map to AgmaSync | lowest: native shape, still must handle `AgmaSync-` items | low: published mapping and definitions | low: send B's shape | low: `adapt` passes through unchanged, `extensions` are typed | low: `content` follows ADAPT, `_agmasync_` properties are typed |
 | Built on ISOXML / EFDI | low: FarmSPT maps its attributes to ISO 11783 Customer / Farm / Partfield | high: map to ADAPT, then to context items | low | low: send A's shape | medium to high: map to ADAPT, no context items | medium to high, as E |
 | Proprietary REST (client / farm / field) | medium | medium to high | medium | medium: send A's shape | medium to high | medium to high |
 
-D is cheapest for participants because each picks its format; the cost moves to
+D is cheapest for applications because each picks its format; the cost moves to
 agrirouter (see 7).
 
 B lowers the cost for one group and raises it for the group FarmSPT and ADR 2
@@ -325,9 +325,9 @@ contract it is a known anti-pattern.
   `400`, which ADAPT's own rules support. It can also check values against each
   definition's base type, regular expression, range and scopes. That is a second
   validator in addition to JSON schema. It is custom and must be reimplemented by
-  every participant that wants to validate before sending.
+  every application that wants to validate before sending.
 
-Example: a participant misspells one name in the partner above.
+Example: an application misspells one name in the partner above.
 
 | | Misspelling | JSON schema says |
 | --- | --- | --- |
@@ -335,7 +335,7 @@ Example: a participant misspells one name in the partner above.
 | ADAPT | `"definitionCode": "AgmaSync-PartnerRol"` | valid: any string is a definition code |
 
 Under ADAPT, only the custom validator notices that `AgmaSync-PartnerRol` is not
-declared. A participant without it sends the object, and the role is lost.
+declared. An application without it sends the object, and the role is lost.
 
 This recreates the situation ADR 02 set out to avoid: validity defined outside
 the schema, so implementations diverge in how strictly they apply it.
@@ -380,7 +380,7 @@ the schema, so implementations diverge in how strictly they apply it.
   FarmSPT's FieldIdentifier (ID and Source, repeatable) is ADAPT's `uniqueIds`
   (`idText`, `idSource`) under another name. AgmaSync drops both for `local_id`,
   because a list of every system's id would show each receiver the other
-  participants' identifiers, which the specification rules out.
+  applications' identifiers, which the specification rules out.
 - **References.** In AgmaSync, every attribute that points at another object has
   the type `EntityReference`: `partner_id` above, `owner`, `farm`,
   `organization_id`. agrirouter finds them from the schema and applies the same
@@ -409,7 +409,7 @@ the schema, so implementations diverge in how strictly they apply it.
 
   This works, with the cost described under Contract strength: the JSON schema
   does not enforce the convention, generic ADAPT tools do not understand it, and
-  every participant implements it. In AgmaSync it comes with the schema type.
+  every application implements it. In AgmaSync it comes with the schema type.
 - **Aggregate boundaries.** ADAPT is better on one point. A boundary references
   its field (`fieldId`), whereas AgmaSync's field lists its boundaries
   (`field_boundaries`), mirroring FarmSPT, where boundaries sit
@@ -461,7 +461,7 @@ the schema, so implementations diverge in how strictly they apply it.
     Merging them per item needs a key per array: `telecommunicationContactTypeCode`,
     `addressContactTypeCode`, `idSource` for `uniqueIds`.
 
-  Every participant implements these rules, since no RFC 7396 library applies
+  Every application implements these rules, since no RFC 7396 library applies
   them.
 
 ### 4. Lossless round trip
@@ -476,7 +476,7 @@ Where one side has something the other lacks, the loss is structural:
   definitions. An ADAPT tool that does not know them keeps the values but loses
   their meaning. A party without `details` becomes a Party of type `UNKNOWN`.
 
-Under B, a participant that ignores unknown context items, which ADAPT allows,
+Under B, an application that ignores unknown context items, which ADAPT allows,
 writes back an object without them. For example, an ADAPT tool renames the farm
 and sends it back with only `name` and `growerId`, dropping `AgmaSync-Partners`.
 What protects the partners then depends on write semantics, not on the model.
@@ -491,7 +491,7 @@ Write semantics keeps them.
   FarmSPT attribute that enters scope becomes a typed AgmaSync attribute, and
   the mapping records its ADAPT slot or custom definition. When ADAPT adds a
   slot, the mapping moves an attribute out of custom items. Neither AgmaSync nor
-  its participants have to change.
+  its applications have to change.
 - Under B, the shape of every object follows AgGateway's release cycle and
   governance, while FarmSPT's content sits beneath it in `AgmaSync-`
   definitions. B couples AgmaSync to ADAPT without handing the content over.
@@ -502,7 +502,7 @@ Write semantics keeps them.
 ### 6. Tooling
 
 - **Generated clients.** Under B, generated code exposes `contextItems` lists,
-  not `partners` or `tax_id`. Every participant writes its own lookup and
+  not `partners` or `tax_id`. Every application writes its own lookup and
   conversion code for about 60% of the data. Reading the contractor's role,
   in Go:
 
@@ -533,11 +533,11 @@ Write semantics keeps them.
 | --- | --- | --- | --- | --- | --- | --- |
 | Schema and validation | exists | rewrite, plus a validator driven by the definitions | exists | both | envelope and `extensions` typed; `adapt` by a tightened copy of the ADAPT schema | as E, with the `_agmasync_` properties declared in the tightened ADAPT-based schema |
 | Registry of custom definitions | none | required | publish once | required | none | none |
-| Translation | none | none | none, done at the participant's edge | server-side in both directions | none | none |
+| Translation | none | none | none, done at the application's edge | server-side in both directions | none | none |
 | Conflict and merge semantics | exists | custom merge: keyed by `definitionCode`, plus rules for removal, repeated codes and ADAPT's own arrays | exists | across two representations | RFC 7396; only ADAPT's own arrays are replaced whole | as E |
 
 D is the most expensive. It also makes agrirouter responsible for lossy
-translation between participants, so a field lost in translation becomes
+translation between applications, so a field lost in translation becomes
 agrirouter's fault.
 
 ### Option E in detail
@@ -602,7 +602,7 @@ the [criteria](#criteria) above:
   AgmaSync decides when to move to a new one.
 
 E is the strongest option built on ADAPT. Compared with C, it trades a lower
-cost for ADAPT participants against a higher one for ISOXML participants,
+cost for ADAPT applications against a higher one for ISOXML applications,
 FarmSPT's content split across two vocabularies, and an extra Grower object to
 sync.
 
@@ -648,7 +648,7 @@ collide with a later ADAPT slot.
 
 Compared with E:
 
-- **One object.** `content` follows the ADAPT type, so a participant can hand
+- **One object.** `content` follows the ADAPT type, so an application can hand
   it to ADAPT tooling as a whole. Tools that do not know the prefix drop or
   ignore those properties.
 - **Identity.** The envelope carries sync state only. `content.id` is ADAPT's
@@ -689,7 +689,7 @@ The trade against C is the same as for E.
 3. Identity is `content.id` and references are `_agmasync_<name>Ref`, as
    above. ADAPT's `growerId`, `farmId` and `fieldId` are not used.
 4. **No Grower entity.** `_agmasync_growerRef` names a party, on the farm and,
-   for a field held apart from its farm, on the field. ADAPT-based participants create a
+   for a field held apart from its farm, on the field. ADAPT-based applications create a
    Grower per party at their edge.
 5. **Party keeps its shape** ([ADR 08](08-party-model.md)): person or
    organization in `_agmasync_details`, discriminated by `partyTypeCode`.
@@ -706,8 +706,8 @@ The trade against C is the same as for E.
 
 ## Consequences
 
-- **ISOXML and proprietary participants map to ADAPT-shaped objects**, at the
-  cost given for F under [Adoption cost](#1-adoption-cost-by-participant).
+- **ISOXML and proprietary applications map to ADAPT-shaped objects**, at the
+  cost given for F under [Adoption cost](#1-adoption-cost-by-application).
 - **Street and PO box become address lines**, following ADAPT's
   `addressLines`.
 - **No context-item registry and no custom validator.** `contextItems` is not

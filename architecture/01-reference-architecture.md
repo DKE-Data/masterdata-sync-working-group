@@ -31,7 +31,7 @@ with the canonical version of master data and not duplicate it.
 A purely meshed exchange - partners forwarding changes directly to one another -
 leaves no single place to establish cross-vendor identity, to break loops, or to
 seed a returning system. Those problems become intractable as the number of
-participants grows.
+applications grows.
 
 ## Decision
 
@@ -67,7 +67,7 @@ flowchart TB
 
 Every partner keeps its **own local copy** of the master data under its **own
 identifiers**, and continues to serve its own users from that copy. Read "Partner
-A" as any [participant](../specification.md#terminology): an FMIS, a machine
+A" as any [application](../specification.md#terminology): an FMIS, a machine
 platform, terminal software, a service provider.
 
 "Its own copy" is scoped to the **endpoint**, not to the partner. A partner that
@@ -90,9 +90,9 @@ These are the key reasons:
   answered from that store and never reaches agrirouter, while only *changes* are
   propagated through it.
 - **The central platform must scale with change, not with use.** If agrirouter
-  had to answer the query traffic of every participant's application, it would
+  had to answer the query traffic of every application, it would
   become the bottleneck of the whole ecosystem and could not scale as
-  participants are added. Keeping the query side local means the center's load
+  applications are added. Keeping the query side local means the center's load
   is proportional to how often master data *changes*, not to how often it is
   *read* - which is what makes an n:m network tractable.
 - **Existing applications keep their internal state.** Partner applications today

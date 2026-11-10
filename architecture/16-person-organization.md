@@ -31,6 +31,6 @@ per party type ([ADR 07](./07-sync-streaming.md)). The name says
 - Receiving a farm no longer discloses third parties.
 - The ADAPT Role list is no longer used.
 - A farm keeps `_agmasync_address`. Moving it to a party of the farm's own,
-  ADAPT's `Farm.partyId`, is rejected: a participant that keeps an address on
+  ADAPT's `Farm.partyId`, is rejected: an application that keeps an address on
   the farm but models no persons or organizations would have to model parties
   and select the party entity type, only to carry that address.

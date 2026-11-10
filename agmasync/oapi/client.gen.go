@@ -256,7 +256,7 @@ type ClientInterface interface {
 
 	// DeactivateFarm Deactivate a farm
 	//
-	// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the farm locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/farms/{local_id}/deactivation (the `DeactivateFarm` operationId).
 	DeactivateFarm(ctx context.Context, localId LocalId, params *DeactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -334,7 +334,7 @@ type ClientInterface interface {
 
 	// DeactivateFieldBoundary Deactivate a field boundary
 	//
-	// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the field boundary locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/field-boundaries/{local_id}/deactivation (the `DeactivateFieldBoundary` operationId).
 	DeactivateFieldBoundary(ctx context.Context, localId LocalId, params *DeactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -412,7 +412,7 @@ type ClientInterface interface {
 
 	// DeactivateField Deactivate a field
 	//
-	// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the field locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/fields/{local_id}/deactivation (the `DeactivateField` operationId).
 	DeactivateField(ctx context.Context, localId LocalId, params *DeactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -472,7 +472,7 @@ type ClientInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
-	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -485,7 +485,7 @@ type ClientInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
-	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -494,7 +494,7 @@ type ClientInterface interface {
 
 	// DeactivateParty Deactivate a party
 	//
-	// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the party locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
 	DeactivateParty(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -815,7 +815,7 @@ func (c *Client) PutFarm(ctx context.Context, localId LocalId, params *PutFarmPa
 
 // DeactivateFarm Deactivate a farm
 //
-// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the farm locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/farms/{local_id}/deactivation (the `DeactivateFarm` operationId).
 func (c *Client) DeactivateFarm(ctx context.Context, localId LocalId, params *DeactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -973,7 +973,7 @@ func (c *Client) PutFieldBoundary(ctx context.Context, localId LocalId, params *
 
 // DeactivateFieldBoundary Deactivate a field boundary
 //
-// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the field boundary locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/field-boundaries/{local_id}/deactivation (the `DeactivateFieldBoundary` operationId).
 func (c *Client) DeactivateFieldBoundary(ctx context.Context, localId LocalId, params *DeactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1131,7 +1131,7 @@ func (c *Client) PutField(ctx context.Context, localId LocalId, params *PutField
 
 // DeactivateField Deactivate a field
 //
-// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the field locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/fields/{local_id}/deactivation (the `DeactivateField` operationId).
 func (c *Client) DeactivateField(ctx context.Context, localId LocalId, params *DeactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1251,7 +1251,7 @@ func (c *Client) RequestParty(ctx context.Context, params *RequestPartyParams, b
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
-// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1274,7 +1274,7 @@ func (c *Client) PutPartyWithBody(ctx context.Context, localId LocalId, params *
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
-// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1293,7 +1293,7 @@ func (c *Client) PutParty(ctx context.Context, localId LocalId, params *PutParty
 
 // DeactivateParty Deactivate a party
 //
-// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the party locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Corresponds with POST /masterdata/parties/{local_id}/deactivation (the `DeactivateParty` operationId).
 func (c *Client) DeactivateParty(ctx context.Context, localId LocalId, params *DeactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -3184,7 +3184,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateFarmWithResponse Deactivate a farm
 	//
-	// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the farm locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3266,7 +3266,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateFieldBoundaryWithResponse Deactivate a field boundary
 	//
-	// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the field boundary locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3348,7 +3348,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivateFieldWithResponse Deactivate a field
 	//
-	// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the field locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -3412,7 +3412,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
-	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3425,7 +3425,7 @@ type ClientWithResponsesInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
-	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3434,7 +3434,7 @@ type ClientWithResponsesInterface interface {
 
 	// DeactivatePartyWithResponse Deactivate a party
 	//
-	// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+	// Signals that the endpoint deactivated the party locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -5323,7 +5323,7 @@ func (c *ClientWithResponses) PutFarmWithResponse(ctx context.Context, localId L
 
 // DeactivateFarmWithResponse Deactivate a farm
 //
-// Signals that the farm was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the farm locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5453,7 +5453,7 @@ func (c *ClientWithResponses) PutFieldBoundaryWithResponse(ctx context.Context, 
 
 // DeactivateFieldBoundaryWithResponse Deactivate a field boundary
 //
-// Signals that the field boundary was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the field boundary locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5583,7 +5583,7 @@ func (c *ClientWithResponses) PutFieldWithResponse(ctx context.Context, localId 
 
 // DeactivateFieldWithResponse Deactivate a field
 //
-// Signals that the field was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the field locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -5683,7 +5683,7 @@ func (c *ClientWithResponses) RequestPartyWithResponse(ctx context.Context, para
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
-// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5702,7 +5702,7 @@ func (c *ClientWithResponses) PutPartyWithBodyWithResponse(ctx context.Context, 
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
-// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. A participant that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another participant stated.
+// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5717,7 +5717,7 @@ func (c *ClientWithResponses) PutPartyWithResponse(ctx context.Context, localId 
 
 // DeactivatePartyWithResponse Deactivate a party
 //
-// Signals that the party was deactivated in the source system (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
+// Signals that the endpoint deactivated the party locally (archival, deletion, or similar). The canonical object is set inactive but retained. The operation is idempotent: deactivating an already-inactive entity succeeds without creating a new revision or notification. The first deactivation is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already inactive the header is ignored.
 //
 // Returns a wrapper object for the known response body format(s).
 //

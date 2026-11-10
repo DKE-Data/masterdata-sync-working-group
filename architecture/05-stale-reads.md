@@ -122,7 +122,7 @@ object in its own write response, and the stream is never the only way to reach
 it. This is the same channel through which a client already learns an
 `agrirouter_id` it did not author.
 
-The requirement this puts on participants is that **a write response is applied
+The requirement this puts on applications is that **a write response is applied
 exactly as a delivered object is** - it is not merely an acknowledgement carrying
 a revision. Detecting a merge needs no diff against what was sent: the response
 carries a revision that is not the client's precondition + 1.
@@ -140,7 +140,7 @@ carries only the revision, and agrirouter marks a revision it synthesised and
 exempts it from origin suppression so the merged content arrives on the stream.
 
 It is the more appealing of the two at first sight - one channel carries content,
-so a participant applies frames blindly in stream order and needs no comparison -
+so an application applies frames blindly in stream order and needs no comparison -
 and it is rejected because it loses A's change in the case it exists to protect.
 
 **The split channel breaks CAS.** The writer must take the revision from the
@@ -179,7 +179,7 @@ Special cases:
 Consequences of automatic merge:
 - a revision can exist that no client sent, which means `source_endpoint_id` stops being a complete answer to "who wrote this". Whether agrirouter records that a revision was merged is an internal matter: it does not affect what is delivered to whom.
 - **a write response is a delivery, not an acknowledgement.** The merging client gets back content it did not send, so adopting the returned revision is not enough - the response body goes through the same apply path a stream frame does. That is a second entrance to apply, and the reason for the two rules below.
-- **apply MUST be revision-guarded.** With a second channel, "later in the stream" stops meaning "newer": a response carrying revision 10 can land after the stream consumer has applied 11. A participant MUST NOT apply an object whose `revision` is lower than the one it holds. The comparison is what [ADR 03](./03-revision-model.md) built a totally ordered integer for.
-- **an unobserved outcome means the object is unknown.** A participant whose write neither succeeds nor fails visibly - a dropped connection after agrirouter committed - MUST NOT assume its own value stands. It re-requests the object ([lazy loading](../specification.md#requesting-objects-lazy-loading)) or retries the write, which returns the current revision either way. Under a merge-and-stream design the stream covered this silently.
+- **apply MUST be revision-guarded.** With a second channel, "later in the stream" stops meaning "newer": a response carrying revision 10 can land after the stream consumer has applied 11. An application MUST NOT apply an object whose `revision` is lower than the one it holds. The comparison is what [ADR 03](./03-revision-model.md) built a totally ordered integer for.
+- **an unobserved outcome means the object is unknown.** An application whose write neither succeeds nor fails visibly - a dropped connection after agrirouter committed - MUST NOT assume its own value stands. It re-requests the object ([lazy loading](../specification.md#requesting-objects-lazy-loading)) or retries the write, which returns the current revision either way. Under a merge-and-stream design the stream covered this silently.
 - origin suppression stays unconditional, so [ADR 07](./07-sync-streaming.md) needs no exception and the delivery record needs no marker.
 

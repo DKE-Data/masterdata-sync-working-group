@@ -5,7 +5,7 @@ info:
   version: 0.1.0-alpha1
   description: >
     HTTP surface for the Agriculture Masterdata Sync protocol (AgmaSync). It lets a
-    connected participant send, deactivate, request, and read the master-data
+    connected application send, deactivate, request, and read the master-data
     entities (parties, farms, fields, field boundaries) that
     agrirouter synchronizes across an n:m network of systems, and configure
     per-entity opt-in for an endpoint.
@@ -15,7 +15,7 @@ info:
     single channel genuinely carries all types — the event stream.
 
     agrirouter holds the Single Source of Truth (SSOT): the canonical copy of
-    every entity plus a mapping to each participant's own identifier.
+    every entity plus a mapping to each application's own identifier.
 
     A write answers with the resulting canonical object, and that response is a
     delivery rather than an acknowledgement: it is the only place the writing
@@ -93,9 +93,9 @@ paths:
         `_agmasync_details` carries its `partyTypeCode` on every write that includes
         it. It merges like any nested object while that `partyTypeCode` is
         unchanged; a write that changes it replaces `_agmasync_details` whole,
-        so no attribute of the other party type survives. A participant that
+        so no attribute of the other party type survives. An application that
         does not record whether a party is a person or an organization leaves
-        `_agmasync_details` out, which keeps what another participant stated.
+        `_agmasync_details` out, which keeps what another application stated.
       operationId: putParty
       requestBody:
         required: true
@@ -206,7 +206,7 @@ paths:
       tags: [Parties]
       summary: Deactivate a party
       description: >
-        Signals that the party was deactivated in the source system (archival,
+        Signals that the endpoint deactivated the party locally (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
@@ -402,7 +402,7 @@ paths:
       tags: [Farms]
       summary: Deactivate a farm
       description: >
-        Signals that the farm was deactivated in the source system (archival,
+        Signals that the endpoint deactivated the farm locally (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
@@ -598,7 +598,7 @@ paths:
       tags: [Fields]
       summary: Deactivate a field
       description: >
-        Signals that the field was deactivated in the source system (archival,
+        Signals that the endpoint deactivated the field locally (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
@@ -794,7 +794,7 @@ paths:
       tags: [FieldBoundaries]
       summary: Deactivate a field boundary
       description: >
-        Signals that the field boundary was deactivated in the source system (archival,
+        Signals that the endpoint deactivated the field boundary locally (archival,
         deletion, or similar). The canonical object is set inactive but retained.
         The operation is idempotent: deactivating an already-inactive entity
         succeeds without creating a new revision or notification. The first
@@ -1978,7 +1978,7 @@ components:
             Whether the party is a person or an organization, with the
             attributes specific to that party type. Absent means the party
             type is unknown. Whatever a write sends here is stated to every
-            participant.
+            application.
         _agmasync_taxNumber:
           type: [string, 'null']
           description: Identifier assigned by tax authorities.
@@ -2201,7 +2201,7 @@ components:
         _agmasync_metadata:
           type: [object, 'null']
           description: >
-            Additional key/value metadata. A participant leaves the keys it
+            Additional key/value metadata. An application leaves the keys it
             does not understand out of its writes, which keeps them.
           additionalProperties: true
       required: [id, name]
@@ -2305,7 +2305,7 @@ components:
         _agmasync_metadata:
           type: [object, 'null']
           description: >
-            Additional key/value metadata. A participant leaves the keys it
+            Additional key/value metadata. An application leaves the keys it
             does not understand out of its writes, which keeps them.
           additionalProperties: true
       required: [id, boundary, _agmasync_fieldRef]
@@ -2564,7 +2564,7 @@ components:
           readOnly: true
           description: >
             The agrirouter identifier of the endpoint this resource belongs to.
-            The path addresses it by the participant's own `external_id`.
+            The path addresses it by the application's own `external_id`.
         capabilities:
           type: array
           items:
@@ -2695,7 +2695,7 @@ components:
         Entered when the user selects the endpoint's first entity type, and again
         whenever a further entity type is selected. Both are a user's opt-in
         decision carried out by agrirouter, and the application is told of them
-        by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot
+        by `ROUTE_CHANGED` on `/masterdata/events`. An application cannot
         enter this state directly — neither by adding a type to its declaration,
         which enables nothing, nor by setting it on the `status` resource, which
         is a `409`.
@@ -2741,7 +2741,7 @@ components:
           readOnly: true
           description: >
             The agrirouter identifier of the endpoint this resource belongs to.
-            The path addresses it by the participant's own `external_id`.
+            The path addresses it by the application's own `external_id`.
         state:
           $ref: '#/components/schemas/InitialLoadState'
         awaiting_user:
@@ -2766,7 +2766,7 @@ components:
           description: >
             When this endpoint last reached `COMPLETED`, present only if it
             has. Its presence means the canonical set now arriving is a repeat
-            load — the endpoint was a participant before and has returned, having
+            load — the endpoint took part before and has returned, having
             been deselected, had its masterdata route removed, or had a further
             entity type selected on it. Each of those is the user's act: an
             application cannot ask for the set again. The identifier mapping

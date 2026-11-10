@@ -3,7 +3,7 @@
 - **Status:** WIP; the mapping key is amended by
   [ADR 15](./15-endpoint-scope-of-mappings.md)
 - **Scope:** Whether a canonical object belongs to exactly one tenant, or can be
-  shared by several tenants, and what each answer means for participants and for
+  shared by several tenants, and what each answer means for applications and for
   agrirouter
 
 ## Context
@@ -70,14 +70,14 @@ flowchart LR
     App -- "local_id 'B:field17'" --> OB
 ```
 
-### For a participant
+### For an application
 
 - **One record, two tenants, two local ids.** A `local_id` maps to one canonical
   object, so the application gives the record a different `local_id` per tenant,
   for example a tenant-qualified one. Reusing the same `local_id` in the second
   tenant is rejected with `400`.
 - **Edits stay in their tenant.** An edit in tenant A reaches tenant A's other
-  participants only. If the application wants both copies to agree, it writes to
+  applications only. If the application wants both copies to agree, it writes to
   both, itself.
 - **Reset is local.** A reset of tenant A discards the application's bindings in
   A. Its bindings in B are untouched, and B keeps syncing.
@@ -136,7 +136,7 @@ flowchart LR
     App[App X local record 'field17'] -- "local_id 'field17'" --> O
 ```
 
-### For a participant
+### For an application
 
 - **One record, one local id.** The application maps its record to f1 once, and
   uses it in both tenants.
@@ -144,7 +144,7 @@ flowchart LR
   and the endpoint's tenant is the tenant the write comes through. The object
   must be linked to that tenant.
 - **Edits cross tenants.** An edit through tenant A changes the field that
-  tenant B's participants receive. B's user did not route anything from A, but
+  tenant B's applications receive. B's user did not route anything from A, but
   receives A's change.
 - **`tenant_id` names the delivery, not the object.** A receiver still needs a
   `tenant_id` to partition on, so it means "the tenant this delivery is for", and
@@ -152,7 +152,7 @@ flowchart LR
   endpoint in another tenant, which discloses that endpoint to tenant B and
   cannot drive origin suppression per tenant.
 - **Reset unlinks.** A reset of tenant A removes A's link to f1. f1 survives in B.
-  A reset cannot ask participants to discard every binding in the tenant: the
+  A reset cannot ask applications to discard every binding in the tenant: the
   application's binding to f1 is one binding, used in both tenants, so it must
   keep it. The reset event has to say which objects are gone and which are only
   unlinked.
@@ -213,7 +213,7 @@ flowchart TD
 | Which tenant may a reference point into? | A field in B referencing a farm linked only to A would deliver a dangling reference in B. Links would have to be dependency-closed, like opt-in. |
 | What does initial load in B contain? | Objects linked to B, including ones last written through A, with A's `source_endpoint_id`. |
 | What does `source_endpoint_id` say on a delivery to B? | Either another tenant's endpoint (disclosure) or a placeholder (origin suppression breaks). |
-| How does a participant hold bindings? | Per object, shared across tenants, so it cannot discard "the bindings of a tenant" on reset. The reset event has to distinguish deleted objects from unlinked ones. |
+| How does an application hold bindings? | Per object, shared across tenants, so it cannot discard "the bindings of a tenant" on reset. The reset event has to distinguish deleted objects from unlinked ones. |
 | What happens when B unlinks while A keeps editing? | B stops receiving changes; A carries on. Needs a defined event for "object left this tenant", short of a reset. |
 
 ### Edge cases
@@ -231,7 +231,7 @@ flowchart TD
 One object per real-world thing, and no duplicate copies to keep in step. In
 exchange, tenants are not isolated: writes, conflicts and deactivations cross
 tenant lines, linking needs a consent model, `tenant_id` and the reset event carry
-per-tenant meaning, and every participant's binding store has to cope with
+per-tenant meaning, and every application's binding store has to cope with
 objects that outlive a reset.
 
 ## Option 3 - each object belongs to one tenant, `local_id` scoped per tenant
@@ -261,7 +261,7 @@ flowchart LR
     EB -- "mapping key B, field17" --> OB
 ```
 
-### For a participant
+### For an application
 
 - **One record, one local id, two bindings.** The application keeps its own id.
   agrirouter returns a different `agrirouter_id` per tenant, so the application
@@ -309,7 +309,7 @@ sequenceDiagram
 ### Cost
 
 Applications no longer invent tenant-qualified ids, and a reset maps cleanly
-onto their binding store. In exchange, a participant's binding store must be
+onto their binding store. In exchange, an application's binding store must be
 keyed by tenant as well, and the rule that a `local_id` names one object across
 all of an application's endpoints becomes "within one tenant".
 
@@ -318,7 +318,7 @@ all of an application's endpoints becomes "within one tenant".
 | Concern | Option 1 - one owning tenant | Option 2 - shared by several tenants | Option 3 - one owning tenant, `local_id` per tenant |
 | --- | --- | --- | --- |
 | Same field in two tenants | Two objects; app uses two `local_id`s | One object; one `local_id` | Two objects; app reuses one `local_id` |
-| Participant's binding key | `local_id` | `local_id` | `(tenant, local_id)` |
+| Application's binding key | `local_id` | `local_id` | `(tenant, local_id)` |
 | Keeping copies consistent | Application's job | agrirouter's job | Application's job |
 | Edit in A visible in B | No | Yes | No |
 | Tenant isolation | Complete | Broken by design; needs consent rules | Complete |

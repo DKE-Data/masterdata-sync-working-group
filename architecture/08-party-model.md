@@ -16,7 +16,7 @@ and a farm is worked by people who neither own it nor belong to its owner.
 A model that names these guises as types forces an actor into one of them.
 A model that expresses them as relations does not.
 
-Many source systems do not record whether a party is a person or an organization
+Many applications do not record whether a party is a person or an organization
 at all. ISOXML's Customer, FarmSPT's Customer/Grower and ADAPT's Grower carry a
 name and contact data, nothing more. Such a system cannot tell which of two party types
 it holds, and any guess it makes will disagree with a system that does know.
@@ -33,10 +33,10 @@ company does.
 - `PERSON`: `title`, `firstName`, `lastName`, `memberships`
 - `ORGANIZATION`: `commercialRegistryNumber`
 
-A party without `_agmasync_details` is of unknown party type. A participant that does not
+A party without `_agmasync_details` is of unknown party type. An application that does not
 distinguish never sends `_agmasync_details`, and on update its absence keeps what another
-participant stated. One that files such a party under a party type of its own, or
-lets its user pick one, states that party type to every participant on its next
+application stated. One that files such a party under a party type of its own, or
+lets its user pick one, states that party type to every application on its next
 write.
 
 **A member is a person holding a role in an organization.** Membership is state
@@ -163,7 +163,7 @@ flowchart LR
 ```
 
 A system that keeps only a customer name creates the party without `_agmasync_details`.
-Another participant that knows Müller is a person adds `_agmasync_details` later. The
+Another application that knows Müller is a person adds `_agmasync_details` later. The
 first system's updates omit `_agmasync_details` and leave it in place. Both hold the same
 canonical party throughout.
 
@@ -175,7 +175,7 @@ canonical party throughout.
   type survives.
 - A membership references a party of the same entity type. Delivery order is
   therefore per object, not per type: parties with person details follow all
-  other parties (see [ADR 07](07-sync-streaming.md)). A participant sends in the
+  other parties (see [ADR 07](07-sync-streaming.md)). An application sends in the
   same order - parties without memberships first.
 - A person may own a farm, and a member is an ordinary person, so a farm manager
   who also farms privately is expressible.
@@ -198,7 +198,7 @@ canonical party throughout.
 individual, carrying a required party type code: `ORGANIZATION`, `INDIVIDUAL` or
 `UNKNOWN`. AgmaSync takes the concept, the name and the three party types, with two
 departures: it says **person** where ADAPT says *individual*, and it expresses
-`UNKNOWN` as the absence of `_agmasync_details`, so a participant that does not record the
+`UNKNOWN` as the absence of `_agmasync_details`, so an application that does not record the
 party type has nothing to send. The party type code sits in `_agmasync_details`, not on
 the party. There is no
 Grower: a farm's `_agmasync_growerRef` names the party, and a Grower without a Party maps
@@ -216,5 +216,5 @@ more accurate holder. This is a deliberate departure from the source document.
 visibility of the farm or of anything below it. Who receives what is decided by endpoint opt-in and routing, before anything is
 sent.
 
-A participant receiving a farm MUST NOT translate its `_agmasync_partners` entries into
+An application receiving a farm MUST NOT translate its `_agmasync_partners` entries into
 access grants in its own system without a separate decision by its user.

@@ -38,7 +38,7 @@ order cannot respect.
 | A plain `Ref`, with the exception in prose | Invisible to generated code. Every implementation would hard-code one attribute name. |
 | Forward reference on send: an unsent `referenceId` reserves an identifier, the later create takes it (two writes) | Saves one field revision per field created with an active boundary, at the cost below. |
 | agrirouter checks that the boundary names the field | Goes stale when the boundary moves, so receivers check anyway. agrirouter enforces no references (ADR 13). |
-| agrirouter clears the reference when the boundary moves or is deactivated | agrirouter would write revisions no participant made. |
+| agrirouter clears the reference when the boundary moves or is deactivated | agrirouter would write revisions no application made. |
 
 ### Forward reference against three writes
 

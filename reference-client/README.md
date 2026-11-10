@@ -1,6 +1,6 @@
 # Reference client
 
-A working AgmaSync participant, and a working implementation of the agrirouter
+A working AgmaSync application, and a working implementation of the agrirouter
 side to run it against. Both are illustrative and neither is normative: where
 this disagrees with [specification.md](../specification.md) or
 [openapi.yaml](../openapi.yaml), the specification is right and this is a bug.
@@ -32,12 +32,12 @@ in process.
 8. Reconciliation that needs a person stops the load until it has an answer
 9. An object asked back for after the endpoint that wrote it lost it
 10. A live change referencing what the set has not delivered, wating rather than requesting
-11. Attributes a participant does not model, kept by leaving them out
+11. Attributes an application does not model, kept by leaving them out
 12. A recipient stricter than the protocol
-13. A route removal performed while the participant was offline
+13. A route removal performed while the application was offline
 14. A field split in two, and the two merged back, with no lineage on the wire
 15. A reference that does not resolve
-16. A masterdata reset made while the participant was offline, and the first load after it
+16. A masterdata reset made while the application was offline, and the first load after it
 17. A reference to a type not exchanged, ignored on delivery and left out of writes
 18. One record in two tenancies, onboarded as two endpoints into one tenant
 
@@ -61,7 +61,7 @@ the default answer stands and the run stays automatable.
 | [internal/platform/](internal/platform/) | one plausible FMIS: a SQLite store, and the sync it does over it |
 | [internal/testrouter/](internal/testrouter/) | the agrirouter side, in memory, generated from the same `openapi.yaml` |
 | [cmd/agmactl/](cmd/agmactl/) | single operations from a shell |
-| [cmd/refclient/](cmd/refclient/) | one participant, kept running, with screens to drive it from |
+| [cmd/refclient/](cmd/refclient/) | one application, kept running, with screens to drive it from |
 | [cmd/testrouter/](cmd/testrouter/) | the test router over HTTP |
 | [cmd/scenarios/](cmd/scenarios/) | the narrated runner |
 
@@ -73,7 +73,7 @@ Everything here is under `internal/` except the scenarios, so that nobody can
 accidentally depend on this sample's design choices. The choices worth reading
 rather than copying are in [store/schema.sql](internal/platform/store/schema.sql)
 — in particular the split between the platform's own tables and the `agmasync_`
-ones beside them, which hold the three things a participant has to keep and
+ones beside them, which hold the three things an application has to keep and
 usually has nowhere to put: the correspondence, the delivery position, and the
 routing it was last told about.
 
@@ -87,7 +87,7 @@ against it. It holds everything in memory, treats the bearer token as the
 application identifier, and stands in for agrirouter's own screens with a
 control plane under `/_test` that has no counterpart in `openapi.yaml`.
 
-## Two participants, running
+## Two applications, running
 
 The scenarios narrate; `refclient` lets you do it yourself. It is the same
 platform kept running instead of scripted, with screens to drive it from.
@@ -118,29 +118,29 @@ Three things prose cannot settle, watched rather than read:
   question only a user can answer, so the load parks on it. Not slows — stops.
   Left unanswered it is given up on rather than guessed at, and has to be asked
   for again, because the canonical set is delivered once.
-- **Resuming from what was durably applied.** Stop one participant, change
+- **Resuming from what was durably applied.** Stop one application, change
   things in the other, start it again: it connects from its stored position
   rather than from the beginning. `docker compose stop beta` is scenario 6 with
   a real process boundary.
 - **A load driven by hand when nothing drove it.** The dashboard has two
   buttons, and which one you need says what went wrong. *Run the initial load
-  now* re-runs the loader against the routing this participant holds — safe at
+  now* re-runs the loader against the routing this application holds — safe at
   any time, since the loader re-enters at whatever state the endpoint is
   actually in. *Reconnect from the beginning* is for when the routing itself
-  never landed: routing reaches a participant on the stream and nowhere else,
+  never landed: routing reaches an application on the stream and nowhere else,
   there is no operation that reads it back, and catch-up restates it only above
-  the participant's position. An endpoint that took a position past a
+  the application's position. An endpoint that took a position past a
   `ROUTE_CHANGED` it failed to record has to go back for it.
 - **An attribute this platform has no column for, kept by leaving it out.** Put
   a `metadata` object on a field: the canonical model defines it, this sample's
-  tables do not, and it survives the other participant's edits without that
-  participant storing it, because a write only changes what it carries.
+  tables do not, and it survives the other application's edits without that
+  application storing it, because a write only changes what it carries.
   Attributes the canonical model does not define are a different matter — the
   schema is closed, and the typed client drops them before they reach the wire.
 
 ### As a counterpart to your own implementation
 
-Bring the test router and one participant up, point your client at the same
+Bring the test router and one application up, point your client at the same
 agrirouter and tenant, and send something:
 
 ```
@@ -160,7 +160,7 @@ it. A tenant is all it has to be told — the endpoint is created on startup by
 `PUT /endpoints/{external_id}`, which answers with its id — and credentials
 become OAuth client credentials instead of a static bearer token. See
 [.env.example](.env.example). What has no equivalent is the routing: a user does
-that in agrirouter, and the participant learns of it on the stream.
+that in agrirouter, and the application learns of it on the stream.
 
 ## agmactl
 
@@ -192,7 +192,7 @@ agmactl correct farm FRM-1=<id> FRM-2=<id>  # one set: a swap lists both; =null 
 
 `declare` is a PutEndpoint call, which upserts the whole endpoint: it sends no
 message capabilities or subscriptions, so it withdraws any the endpoint has. A
-participant that also exchanges messages declares on its own PutEndpoint call,
+application that also exchanges messages declares on its own PutEndpoint call,
 with [`agmasync.DeclareCapabilities`](../agmasync/initialload.go) as its `masterdata`
 field.
 
@@ -222,7 +222,7 @@ confirming always advances to `LOADING_TO_AGRIROUTER` regardless of what it
 rejects completes right behind it.
 
 The one thing it will not carry past is a rejection agrirouter says needs a
-person (`LOCAL_ID_ALREADY_BOUND`, not one this participant's own bookkeeping
+person (`LOCAL_ID_ALREADY_BOUND`, not one this application's own bookkeeping
 could resolve): `load` prints it and stops at `LOADING_TO_AGRIROUTER` instead
 of completing. Resolve it and drive the rest by hand:
 

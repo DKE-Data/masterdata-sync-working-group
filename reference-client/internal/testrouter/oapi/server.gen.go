@@ -455,7 +455,7 @@ type FieldBoundaryContent struct {
 	UnderscoreAgmasyncFieldRef      Ref                              `json:"_agmasync_fieldRef"`
 	UnderscoreAgmasyncHarvestPeriod nullable.Nullable[HarvestPeriod] `json:"_agmasync_harvestPeriod,omitempty"`
 
-	// UnderscoreAgmasyncMetadata Additional key/value metadata. A participant leaves the keys it does not understand out of its writes, which keeps them.
+	// UnderscoreAgmasyncMetadata Additional key/value metadata. An application leaves the keys it does not understand out of its writes, which keeps them.
 	UnderscoreAgmasyncMetadata nullable.Nullable[map[string]interface{}] `json:"_agmasync_metadata,omitempty"`
 
 	// UnderscoreAgmasyncRegulatoryRequirements [Extensible enum](https://github.com/DKE-Data/masterdata-sync-working-group/blob/main/specification.md#extensible-enumerations). A regulatory constraint applying to the boundary.
@@ -488,7 +488,7 @@ type FieldContent struct {
 	UnderscoreAgmasyncFarmRef       nullable.Nullable[Ref]           `json:"_agmasync_farmRef,omitempty"`
 	UnderscoreAgmasyncHarvestPeriod nullable.Nullable[HarvestPeriod] `json:"_agmasync_harvestPeriod,omitempty"`
 
-	// UnderscoreAgmasyncMetadata Additional key/value metadata. A participant leaves the keys it does not understand out of its writes, which keeps them.
+	// UnderscoreAgmasyncMetadata Additional key/value metadata. An application leaves the keys it does not understand out of its writes, which keeps them.
 	UnderscoreAgmasyncMetadata nullable.Nullable[map[string]interface{}] `json:"_agmasync_metadata,omitempty"`
 	UnderscoreAgmasyncSoil     nullable.Nullable[SoilInfo]               `json:"_agmasync_soil,omitempty"`
 
@@ -596,7 +596,7 @@ type IdMappingRejectionReason = string
 
 // InitialLoadState Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 //
-// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
+// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. An application cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 //
 // `RECONCILING` — the whole canonical set has been delivered, and agrirouter moves the endpoint here before closing the initial-load stream. agrirouter moves it here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. Moving first is what makes reading it once, as the response ends, enough. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 //
@@ -614,7 +614,7 @@ type InitialLoadStateUpdate struct {
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
-	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
+	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. An application cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
 	// `RECONCILING` — the whole canonical set has been delivered, and agrirouter moves the endpoint here before closing the initial-load stream. agrirouter moves it here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. Moving first is what makes reading it once, as the response ends, enough. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
@@ -631,10 +631,10 @@ type InitialLoadStatus struct {
 	// AwaitingUser Whether the endpoint's own software is needing user action — a conflict, a missing required attribute, a granularity mismatch. Raised by the endpoint through the `user-attention` resource and cleared by agrirouter, on the two endpoint-driven transitions only: advancing to `LOADING_TO_AGRIROUTER` clears it, and so does advancing to `COMPLETED`. The step to `RECONCILING` does not, since that is agrirouter reporting it has finished sending and says nothing about whether the user has finished deciding. agrirouter renders the flag as "waiting for you in <app>", linking to the master-data resolution URI supplied for this endpoint.
 	AwaitingUser *bool `json:"awaiting_user,omitempty"`
 
-	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `external_id`.
+	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the application's own `external_id`.
 	EndpointId *openapi_types.UUID `json:"endpoint_id,omitempty"`
 
-	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint was a participant before and has returned, having been deselected, had its masterdata route removed, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `referenceId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
+	// PreviousLoadCompletedAt When this endpoint last reached `COMPLETED`, present only if it has. Its presence means the canonical set now arriving is a repeat load — the endpoint took part before and has returned, having been deselected, had its masterdata route removed, or had a further entity type selected on it. Each of those is the user's act: an application cannot ask for the set again. The identifier mapping survived all of them, so the objects arrive carrying the endpoint's own `referenceId` and match rather than reconcile. An endpoint MUST NOT take the arrival of a canonical set as evidence of a first connection: without this check it creates local duplicates of data it already holds.
 	PreviousLoadCompletedAt *time.Time `json:"previous_load_completed_at,omitempty"`
 
 	// RejectedIdMappings Bindings supplied on this request that could not be recorded, each with its `reason` and, where one exists, the mapping that stands in its way. They do not fail the transition: one unresolvable pair should not block the load of a set. The endpoint resolves them as it resolves a `409` on the per-entity operation, and rebinds through that operation once it has. Recomputed on every request that carries `id_mappings`, including a repeat of the transition, so a retry after a lost response reports the current outcome rather than the first.
@@ -642,7 +642,7 @@ type InitialLoadStatus struct {
 
 	// State Per-endpoint initial-load state, covering every entity type the endpoint is opted into.
 	//
-	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. A participant cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
+	// `LOADING_FROM_AGRIROUTER` — agrirouter is still sending the canonical set. Entered when the user selects the endpoint's first entity type, and again whenever a further entity type is selected. Both are a user's opt-in decision carried out by agrirouter, and the application is told of them by `ROUTE_CHANGED` on `/masterdata/events`. An application cannot enter this state directly — neither by adding a type to its declaration, which enables nothing, nor by setting it on the `status` resource, which is a `409`.
 	//
 	// `RECONCILING` — the whole canonical set has been delivered, and agrirouter moves the endpoint here before closing the initial-load stream. agrirouter moves it here itself, and only this one, because it is the side that knows it has finished sending, which is also why this state is the authoritative answer to whether the set arrived: an endpoint cannot tell an orderly close from a dropped connection. Moving first is what makes reading it once, as the response ends, enough. The endpoint is now working through whatever conflicts reconciling surfaced, which may take as long as a user takes.
 	//
@@ -667,7 +667,7 @@ type MappingConflictError struct {
 type MasterdataConfig struct {
 	Capabilities []EntityTypeToggle `json:"capabilities"`
 
-	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the participant's own `external_id`.
+	// EndpointId The agrirouter identifier of the endpoint this resource belongs to. The path addresses it by the application's own `external_id`.
 	EndpointId *openapi_types.UUID `json:"endpoint_id,omitempty"`
 
 	// ResolutionUrl Where the user resolves initial-load conflicts in the endpoint's own software. Optional, opaque to agrirouter, and not per conflict: it is rendered as a link while the endpoint has `awaiting_user` set.
@@ -739,7 +739,7 @@ type Party struct {
 
 // PartyContent Based on the ADAPT `Party`. The party type is the `partyTypeCode` of `_agmasync_details`, not a `partyTypeCode` on the party itself.
 type PartyContent struct {
-	// UnderscoreAgmasyncDetails Whether the party is a person or an organization, with the attributes specific to that party type. Absent means the party type is unknown. Whatever a write sends here is stated to every participant.
+	// UnderscoreAgmasyncDetails Whether the party is a person or an organization, with the attributes specific to that party type. Absent means the party type is unknown. Whatever a write sends here is stated to every application.
 	UnderscoreAgmasyncDetails nullable.Nullable[PartyDetails] `json:"_agmasync_details,omitempty"`
 
 	// UnderscoreAgmasyncTaxId Numerical identifier assigned by tax authorities.

@@ -5,7 +5,7 @@
 
 ## Context
 
-[ADR 01](./01-reference-architecture.md) and [ADR 07](./07-sync-streaming.md) describe steady-state synchronization: once every participant is in step, a change made in one system propagates through the canonical store to the others. But the *first* time an endpoint joins master-data exchange - when the user gives it a [masterdata route](./04-routing.md) - there is a bootstrap problem that steady-state sync does not cover.
+[ADR 01](./01-reference-architecture.md) and [ADR 07](./07-sync-streaming.md) describe steady-state synchronization: once every application is in step, a change made in one system propagates through the canonical store to the others. But the *first* time an endpoint joins master-data exchange - when the user gives it a [masterdata route](./04-routing.md) - there is a bootstrap problem that steady-state sync does not cover.
 
 Note on the naming: the initial load process to fix this is also known as "seeding". This term is not used in the specification to avoid conflating with "seeding" as in "planting seeds", which might be introduced later when we cover other types of data. For exmaple workplans and field operations might refer to _seeding_ in that context. Hence only "initial load" is used in the specs.
 
@@ -61,7 +61,7 @@ covering every opted-in type, from whichever state the endpoint was in. The
 second time the endpoint's identifier mapping is still there, so step 2 delivers
 objects the endpoint recognises and steps 4 and 5 have little to do
 ([Disconnection and re-connection](../specification.md#disconnection-and-re-connection)).
-A participant that removed the endpoint and onboarded it again gets no such
+An application that removed the endpoint and onboarded it again gets no such
 discount from agrirouter: the mapping was discarded with the endpoint it deleted
 ([ADR 15](./15-endpoint-scope-of-mappings.md)), so the new endpoint runs a first
 load in full, with no repeat marker. It can however save a

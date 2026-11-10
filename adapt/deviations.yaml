@@ -137,7 +137,7 @@ schemas:
           Whether the party is a person or an organization, with the
           attributes specific to that party type. Absent means the party
           type is unknown. Whatever a write sends here is stated to every
-          participant.
+          application.
       _agmasync_taxNumber:
         type: string
         description: Identifier assigned by tax authorities.
@@ -210,7 +210,7 @@ schemas:
       _agmasync_metadata:
         type: object
         description: >
-          Additional key/value metadata. A participant leaves the keys it
+          Additional key/value metadata. An application leaves the keys it
           does not understand out of its writes, which keeps them.
         additionalProperties: true
 
@@ -264,6 +264,6 @@ schemas:
       _agmasync_metadata:
         type: object
         description: >
-          Additional key/value metadata. A participant leaves the keys it
+          Additional key/value metadata. An application leaves the keys it
           does not understand out of its writes, which keeps them.
         additionalProperties: true

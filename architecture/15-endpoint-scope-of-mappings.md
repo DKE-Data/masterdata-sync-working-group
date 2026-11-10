@@ -53,7 +53,7 @@ serves exactly one endpoint and names it in `recipient_endpoint_id`. An object
 entitled to two of an application's endpoints arrives twice, once rendered for
 each. The stream stays one per application with one position
 ([ADR 07](./07-sync-streaming.md)), and fan-out happens at render time. All
-frames of one object carry the same `id`, so a participant that resumes after
+frames of one object carry the same `id`, so an application that resumes after
 applying only some of them is sent all of them again.
 
 ### The mapping does not survive the endpoint
@@ -65,9 +65,9 @@ initial-load state and routes, and an endpoint onboarded later under the same
 and needs no rules for when an orphaned one expires. Opting types out and
 removing the masterdata route keep it, as before.
 
-A participant SHOULD keep its own correspondence table for a removed endpoint's
+An application SHOULD keep its own correspondence table for a removed endpoint's
 `external_id`. On re-onboarding the canonical set arrives with no `local_id`s
-and no repeat marker; a participant that kept the table matches it by
+and no repeat marker; an application that kept the table matches it by
 `agrirouter_id` and re-binds in bulk on the initial-load confirmation, so the
 re-onboarding reconciles without its user. Only what diverged while the
 endpoint was absent can need one. The user still creates the masterdata route
@@ -84,8 +84,8 @@ the tables it kept, which would otherwise name objects that no longer exist.
 | Alternative | Why not |
 |---|---|
 | Keep `(application, tenant, local_id)` | Every integrator with one store per endpoint keeps a second mapping of its own, which is the burden the identifier mapping exists to take away. One store per organization or account is common, not exotic. |
-| Key by the agrirouter endpoint id | Equivalent while the endpoint lives. The `external_id` is what the participant's own table and the initial-load paths already use, and it is what a re-onboarded endpoint shares with the removed one. |
-| Mapping survives endpoint removal | Matches a re-onboarded endpoint without the participant's help, but leaves mappings with no endpoint to own them, and with them the question of how long agrirouter keeps them for an endpoint that may never return. Every other piece of an endpoint's state ends with it. |
+| Key by the agrirouter endpoint id | Equivalent while the endpoint lives. The `external_id` is what the application's own table and the initial-load paths already use, and it is what a re-onboarded endpoint shares with the removed one. |
+| Mapping survives endpoint removal | Matches a re-onboarded endpoint without the application's help, but leaves mappings with no endpoint to own them, and with them the question of how long agrirouter keeps them for an endpoint that may never return. Every other piece of an endpoint's state ends with it. |
 
 
 ## Consequences
@@ -94,7 +94,7 @@ the tables it kept, which would otherwise name objects that no longer exist.
   per endpoint sends that store's ids as `local_id`s and keeps no mapping of its
   own; within a tenant, agrirouter's per-endpoint frames say which store a change
   is for.
-- **Every endpoint binds for itself.** A participant with one store behind
+- **Every endpoint binds for itself.** An application with one store behind
   several endpoints holds one binding per (endpoint, object). A sibling that
   sends before binding creates a duplicate, and no safeguard in agrirouter can
   tell that from a new entity ([Loop prevention](../specification.md#loop-prevention)).
@@ -102,6 +102,6 @@ the tables it kept, which would otherwise name objects that no longer exist.
 - **More frames, same position.** Only applications with several entitled
   endpoints in one tenant receive more than one frame per change; delivery state
   stays per application.
-- **A participant that keeps its table re-onboards without user intervention.** agrirouter
+- **An application that keeps its table re-onboards without user intervention.** agrirouter
   discards a removed endpoint's mapping, so the re-onboarded endpoint's set
-  arrives unmatched; the participant's own table is what matches it.
+  arrives unmatched; the application's own table is what matches it.
