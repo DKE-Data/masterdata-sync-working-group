@@ -24,7 +24,8 @@ import (
 // ignored, no new revision is produced, and nothing is forwarded — which is
 // what makes it safe to retry a call whose outcome was never observed.
 //
-// Reactivation is an ordinary Put with active set to true.
+// [Reactivate] is the way back. A Put never changes the state: it must carry
+// the object's current `active`.
 //
 // The result is the canonical object as it now stands, decoded as a delivery
 // of type t is.

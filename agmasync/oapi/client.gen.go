@@ -238,6 +238,8 @@ type ClientInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id} (the `PutFarm` operationId).
@@ -248,6 +250,8 @@ type ClientInterface interface {
 	// Submits a farm from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -269,6 +273,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 	BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReactivateFarm Reactivate a farm
+	//
+	// Signals that the endpoint reactivated the farm locally after a deactivation. The canonical object is set active again with its content unchanged. A new farm never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a farm that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Corresponds with POST /masterdata/farms/{local_id}/reactivation (the `ReactivateFarm` operationId).
+	ReactivateFarm(ctx context.Context, localId LocalId, params *ReactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CorrectFieldBoundaryMappingsWithBody Correct this endpoint's bindings of field boundaries
 	//
@@ -316,6 +327,8 @@ type ClientInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id} (the `PutFieldBoundary` operationId).
@@ -326,6 +339,8 @@ type ClientInterface interface {
 	// Submits a field boundary from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -347,6 +362,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReactivateFieldBoundary Reactivate a field boundary
+	//
+	// Signals that the endpoint reactivated the field boundary locally after a deactivation. The canonical object is set active again with its content unchanged. A new field boundary never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field boundary that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Corresponds with POST /masterdata/field-boundaries/{local_id}/reactivation (the `ReactivateFieldBoundary` operationId).
+	ReactivateFieldBoundary(ctx context.Context, localId LocalId, params *ReactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CorrectFieldMappingsWithBody Correct this endpoint's bindings of fields
 	//
@@ -394,6 +416,8 @@ type ClientInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id} (the `PutField` operationId).
@@ -404,6 +428,8 @@ type ClientInterface interface {
 	// Submits a field from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -425,6 +451,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReactivateField Reactivate a field
+	//
+	// Signals that the endpoint reactivated the field locally after a deactivation. The canonical object is set active again with its content unchanged. A new field never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Corresponds with POST /masterdata/fields/{local_id}/reactivation (the `ReactivateField` operationId).
+	ReactivateField(ctx context.Context, localId LocalId, params *ReactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CorrectPartyMappingsWithBody Correct this endpoint's bindings of parties
 	//
@@ -472,6 +505,8 @@ type ClientInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
 	// Takes any type of body and a specified content type.
@@ -484,6 +519,8 @@ type ClientInterface interface {
 	// Submits a party from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
@@ -507,6 +544,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 	BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReactivateParty Reactivate a party
+	//
+	// Signals that the endpoint reactivated the party locally after a deactivation. The canonical object is set active again with its content unchanged. A new party never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a party that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Corresponds with POST /masterdata/parties/{local_id}/reactivation (the `ReactivateParty` operationId).
+	ReactivateParty(ctx context.Context, localId LocalId, params *ReactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // PutEndpointWithBody Create or update endpoint
@@ -777,6 +821,8 @@ func (c *Client) RequestFarm(ctx context.Context, params *RequestFarmParams, bod
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with PUT /masterdata/farms/{local_id} (the `PutFarm` operationId).
@@ -797,6 +843,8 @@ func (c *Client) PutFarmWithBody(ctx context.Context, localId LocalId, params *P
 // Submits a farm from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -839,6 +887,23 @@ func (c *Client) DeactivateFarm(ctx context.Context, localId LocalId, params *De
 // Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 func (c *Client) BindFarmMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBindFarmMappingRequest(c.Server, localId, agrirouterId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReactivateFarm Reactivate a farm
+//
+// Signals that the endpoint reactivated the farm locally after a deactivation. The canonical object is set active again with its content unchanged. A new farm never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a farm that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Corresponds with POST /masterdata/farms/{local_id}/reactivation (the `ReactivateFarm` operationId).
+func (c *Client) ReactivateFarm(ctx context.Context, localId LocalId, params *ReactivateFarmParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReactivateFarmRequest(c.Server, localId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -935,6 +1000,8 @@ func (c *Client) RequestFieldBoundary(ctx context.Context, params *RequestFieldB
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with PUT /masterdata/field-boundaries/{local_id} (the `PutFieldBoundary` operationId).
@@ -955,6 +1022,8 @@ func (c *Client) PutFieldBoundaryWithBody(ctx context.Context, localId LocalId, 
 // Submits a field boundary from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -997,6 +1066,23 @@ func (c *Client) DeactivateFieldBoundary(ctx context.Context, localId LocalId, p
 // Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 func (c *Client) BindFieldBoundaryMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBindFieldBoundaryMappingRequest(c.Server, localId, agrirouterId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReactivateFieldBoundary Reactivate a field boundary
+//
+// Signals that the endpoint reactivated the field boundary locally after a deactivation. The canonical object is set active again with its content unchanged. A new field boundary never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field boundary that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Corresponds with POST /masterdata/field-boundaries/{local_id}/reactivation (the `ReactivateFieldBoundary` operationId).
+func (c *Client) ReactivateFieldBoundary(ctx context.Context, localId LocalId, params *ReactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReactivateFieldBoundaryRequest(c.Server, localId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1093,6 +1179,8 @@ func (c *Client) RequestField(ctx context.Context, params *RequestFieldParams, b
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with PUT /masterdata/fields/{local_id} (the `PutField` operationId).
@@ -1113,6 +1201,8 @@ func (c *Client) PutFieldWithBody(ctx context.Context, localId LocalId, params *
 // Submits a field from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1155,6 +1245,23 @@ func (c *Client) DeactivateField(ctx context.Context, localId LocalId, params *D
 // Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 func (c *Client) BindFieldMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBindFieldMappingRequest(c.Server, localId, agrirouterId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReactivateField Reactivate a field
+//
+// Signals that the endpoint reactivated the field locally after a deactivation. The canonical object is set active again with its content unchanged. A new field never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Corresponds with POST /masterdata/fields/{local_id}/reactivation (the `ReactivateField` operationId).
+func (c *Client) ReactivateField(ctx context.Context, localId LocalId, params *ReactivateFieldParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReactivateFieldRequest(c.Server, localId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1251,6 +1358,8 @@ func (c *Client) RequestParty(ctx context.Context, params *RequestPartyParams, b
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
 // Takes any type of body and a specified content type.
@@ -1273,6 +1382,8 @@ func (c *Client) PutPartyWithBody(ctx context.Context, localId LocalId, params *
 // Submits a party from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
@@ -1317,6 +1428,23 @@ func (c *Client) DeactivateParty(ctx context.Context, localId LocalId, params *D
 // Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 func (c *Client) BindPartyMapping(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewBindPartyMappingRequest(c.Server, localId, agrirouterId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReactivateParty Reactivate a party
+//
+// Signals that the endpoint reactivated the party locally after a deactivation. The canonical object is set active again with its content unchanged. A new party never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a party that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Corresponds with POST /masterdata/parties/{local_id}/reactivation (the `ReactivateParty` operationId).
+func (c *Client) ReactivateParty(ctx context.Context, localId LocalId, params *ReactivatePartyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReactivatePartyRequest(c.Server, localId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1964,6 +2092,73 @@ func NewBindFarmMappingRequest(server string, localId LocalId, agrirouterId IdMa
 	return req, nil
 }
 
+// NewReactivateFarmRequest constructs an http.Request for the ReactivateFarm method
+func NewReactivateFarmRequest(server string, localId LocalId, params *ReactivateFarmParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/farms/%s/reactivation", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+		if params.XAgrirouterBaseRevision != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewCorrectFieldBoundaryMappingsRequest calls the generic CorrectFieldBoundaryMappings builder with application/json body
 func NewCorrectFieldBoundaryMappingsRequest(server string, params *CorrectFieldBoundaryMappingsParams, body CorrectFieldBoundaryMappingsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2292,6 +2487,73 @@ func NewBindFieldBoundaryMappingRequest(server string, localId LocalId, agrirout
 		}
 
 		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewReactivateFieldBoundaryRequest constructs an http.Request for the ReactivateFieldBoundary method
+func NewReactivateFieldBoundaryRequest(server string, localId LocalId, params *ReactivateFieldBoundaryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/field-boundaries/%s/reactivation", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+		if params.XAgrirouterBaseRevision != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
+		}
 
 	}
 
@@ -2632,6 +2894,73 @@ func NewBindFieldMappingRequest(server string, localId LocalId, agrirouterId IdM
 	return req, nil
 }
 
+// NewReactivateFieldRequest constructs an http.Request for the ReactivateField method
+func NewReactivateFieldRequest(server string, localId LocalId, params *ReactivateFieldParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/fields/%s/reactivation", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+		if params.XAgrirouterBaseRevision != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewCorrectPartyMappingsRequest calls the generic CorrectPartyMappings builder with application/json body
 func NewCorrectPartyMappingsRequest(server string, params *CorrectPartyMappingsParams, body CorrectPartyMappingsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2966,6 +3295,73 @@ func NewBindPartyMappingRequest(server string, localId LocalId, agrirouterId IdM
 	return req, nil
 }
 
+// NewReactivatePartyRequest constructs an http.Request for the ReactivateParty method
+func NewReactivatePartyRequest(server string, localId LocalId, params *ReactivatePartyParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "local_id", localId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/masterdata/parties/%s/reactivation", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-endpoint-id", params.XAgrirouterEndpointId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-endpoint-id", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-tenant-id", params.XAgrirouterTenantId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uuid"})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("x-agrirouter-tenant-id", headerParam1)
+
+		if params.XAgrirouterBaseRevision != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "x-agrirouter-base-revision", *params.XAgrirouterBaseRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "integer", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("x-agrirouter-base-revision", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -3166,6 +3562,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id} (the `PutFarm` operationId).
@@ -3176,6 +3574,8 @@ type ClientWithResponsesInterface interface {
 	// Submits a farm from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3201,6 +3601,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id} (the `BindFarmMapping` operationId).
 	BindFarmMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFarmMappingParams, reqEditors ...RequestEditorFn) (*BindFarmMappingResponse, error)
+
+	// ReactivateFarmWithResponse Reactivate a farm
+	//
+	// Signals that the endpoint reactivated the farm locally after a deactivation. The canonical object is set active again with its content unchanged. A new farm never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a farm that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/farms/{local_id}/reactivation (the `ReactivateFarm` operationId).
+	ReactivateFarmWithResponse(ctx context.Context, localId LocalId, params *ReactivateFarmParams, reqEditors ...RequestEditorFn) (*ReactivateFarmResponse, error)
 
 	// CorrectFieldBoundaryMappingsWithBodyWithResponse Correct this endpoint's bindings of field boundaries
 	//
@@ -3248,6 +3657,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id} (the `PutFieldBoundary` operationId).
@@ -3258,6 +3669,8 @@ type ClientWithResponsesInterface interface {
 	// Submits a field boundary from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3283,6 +3696,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldBoundaryMapping` operationId).
 	BindFieldBoundaryMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldBoundaryMappingParams, reqEditors ...RequestEditorFn) (*BindFieldBoundaryMappingResponse, error)
+
+	// ReactivateFieldBoundaryWithResponse Reactivate a field boundary
+	//
+	// Signals that the endpoint reactivated the field boundary locally after a deactivation. The canonical object is set active again with its content unchanged. A new field boundary never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field boundary that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/field-boundaries/{local_id}/reactivation (the `ReactivateFieldBoundary` operationId).
+	ReactivateFieldBoundaryWithResponse(ctx context.Context, localId LocalId, params *ReactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*ReactivateFieldBoundaryResponse, error)
 
 	// CorrectFieldMappingsWithBodyWithResponse Correct this endpoint's bindings of fields
 	//
@@ -3330,6 +3752,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id} (the `PutField` operationId).
@@ -3340,6 +3764,8 @@ type ClientWithResponsesInterface interface {
 	// Submits a field from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -3365,6 +3791,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id} (the `BindFieldMapping` operationId).
 	BindFieldMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindFieldMappingParams, reqEditors ...RequestEditorFn) (*BindFieldMappingResponse, error)
+
+	// ReactivateFieldWithResponse Reactivate a field
+	//
+	// Signals that the endpoint reactivated the field locally after a deactivation. The canonical object is set active again with its content unchanged. A new field never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/fields/{local_id}/reactivation (the `ReactivateField` operationId).
+	ReactivateFieldWithResponse(ctx context.Context, localId LocalId, params *ReactivateFieldParams, reqEditors ...RequestEditorFn) (*ReactivateFieldResponse, error)
 
 	// CorrectPartyMappingsWithBodyWithResponse Correct this endpoint's bindings of parties
 	//
@@ -3412,6 +3847,8 @@ type ClientWithResponsesInterface interface {
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+	//
 	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -3424,6 +3861,8 @@ type ClientWithResponsesInterface interface {
 	// Submits a party from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 	//
 	// `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+	//
+	// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 	//
 	// `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 	//
@@ -3451,6 +3890,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id} (the `BindPartyMapping` operationId).
 	BindPartyMappingWithResponse(ctx context.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params *BindPartyMappingParams, reqEditors ...RequestEditorFn) (*BindPartyMappingResponse, error)
+
+	// ReactivatePartyWithResponse Reactivate a party
+	//
+	// Signals that the endpoint reactivated the party locally after a deactivation. The canonical object is set active again with its content unchanged. A new party never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a party that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /masterdata/parties/{local_id}/reactivation (the `ReactivateParty` operationId).
+	ReactivatePartyWithResponse(ctx context.Context, localId LocalId, params *ReactivatePartyParams, reqEditors ...RequestEditorFn) (*ReactivatePartyResponse, error)
 }
 
 type PutEndpointResponse struct {
@@ -3919,7 +4367,7 @@ type PutFarmResponse struct {
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *MappingConflict
+	JSON409 *PutConflict
 	// JSON412 the response for an HTTP 412 `application/json` response
 	JSON412 *RevisionConflict
 	// JSON428 the response for an HTTP 428 `application/json` response
@@ -3947,7 +4395,7 @@ func (r PutFarmResponse) GetJSON403() *Forbidden {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutFarmResponse) GetJSON409() *MappingConflict {
+func (r PutFarmResponse) GetJSON409() *PutConflict {
 	return r.JSON409
 }
 
@@ -4114,6 +4562,75 @@ func (r BindFarmMappingResponse) ContentType() string {
 	return ""
 }
 
+type ReactivateFarmResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Farm
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *RevisionConflict
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *BaseRevisionRequired
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReactivateFarmResponse) GetJSON200() *Farm {
+	return r.JSON200
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReactivateFarmResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReactivateFarmResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ReactivateFarmResponse) GetJSON412() *RevisionConflict {
+	return r.JSON412
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ReactivateFarmResponse) GetJSON428() *BaseRevisionRequired {
+	return r.JSON428
+}
+
+// GetBody returns the raw response body bytes
+func (r ReactivateFarmResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReactivateFarmResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReactivateFarmResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReactivateFarmResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type CorrectFieldBoundaryMappingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4236,7 +4753,7 @@ type PutFieldBoundaryResponse struct {
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *MappingConflict
+	JSON409 *PutConflict
 	// JSON412 the response for an HTTP 412 `application/json` response
 	JSON412 *RevisionConflict
 	// JSON428 the response for an HTTP 428 `application/json` response
@@ -4264,7 +4781,7 @@ func (r PutFieldBoundaryResponse) GetJSON403() *Forbidden {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutFieldBoundaryResponse) GetJSON409() *MappingConflict {
+func (r PutFieldBoundaryResponse) GetJSON409() *PutConflict {
 	return r.JSON409
 }
 
@@ -4431,6 +4948,75 @@ func (r BindFieldBoundaryMappingResponse) ContentType() string {
 	return ""
 }
 
+type ReactivateFieldBoundaryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FieldBoundary
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *RevisionConflict
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *BaseRevisionRequired
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReactivateFieldBoundaryResponse) GetJSON200() *FieldBoundary {
+	return r.JSON200
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReactivateFieldBoundaryResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReactivateFieldBoundaryResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ReactivateFieldBoundaryResponse) GetJSON412() *RevisionConflict {
+	return r.JSON412
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ReactivateFieldBoundaryResponse) GetJSON428() *BaseRevisionRequired {
+	return r.JSON428
+}
+
+// GetBody returns the raw response body bytes
+func (r ReactivateFieldBoundaryResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReactivateFieldBoundaryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReactivateFieldBoundaryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReactivateFieldBoundaryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type CorrectFieldMappingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4553,7 +5139,7 @@ type PutFieldResponse struct {
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *MappingConflict
+	JSON409 *PutConflict
 	// JSON412 the response for an HTTP 412 `application/json` response
 	JSON412 *RevisionConflict
 	// JSON428 the response for an HTTP 428 `application/json` response
@@ -4581,7 +5167,7 @@ func (r PutFieldResponse) GetJSON403() *Forbidden {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutFieldResponse) GetJSON409() *MappingConflict {
+func (r PutFieldResponse) GetJSON409() *PutConflict {
 	return r.JSON409
 }
 
@@ -4748,6 +5334,75 @@ func (r BindFieldMappingResponse) ContentType() string {
 	return ""
 }
 
+type ReactivateFieldResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Field
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *RevisionConflict
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *BaseRevisionRequired
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReactivateFieldResponse) GetJSON200() *Field {
+	return r.JSON200
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReactivateFieldResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReactivateFieldResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ReactivateFieldResponse) GetJSON412() *RevisionConflict {
+	return r.JSON412
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ReactivateFieldResponse) GetJSON428() *BaseRevisionRequired {
+	return r.JSON428
+}
+
+// GetBody returns the raw response body bytes
+func (r ReactivateFieldResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReactivateFieldResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReactivateFieldResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReactivateFieldResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type CorrectPartyMappingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4870,7 +5525,7 @@ type PutPartyResponse struct {
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *MappingConflict
+	JSON409 *PutConflict
 	// JSON412 the response for an HTTP 412 `application/json` response
 	JSON412 *RevisionConflict
 	// JSON428 the response for an HTTP 428 `application/json` response
@@ -4898,7 +5553,7 @@ func (r PutPartyResponse) GetJSON403() *Forbidden {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutPartyResponse) GetJSON409() *MappingConflict {
+func (r PutPartyResponse) GetJSON409() *PutConflict {
 	return r.JSON409
 }
 
@@ -5059,6 +5714,75 @@ func (r BindPartyMappingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r BindPartyMappingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReactivatePartyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Party
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *RevisionConflict
+	// JSON428 the response for an HTTP 428 `application/json` response
+	JSON428 *BaseRevisionRequired
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReactivatePartyResponse) GetJSON200() *Party {
+	return r.JSON200
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ReactivatePartyResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ReactivatePartyResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r ReactivatePartyResponse) GetJSON412() *RevisionConflict {
+	return r.JSON412
+}
+
+// GetJSON428 returns the response for an HTTP 428 `application/json` response
+func (r ReactivatePartyResponse) GetJSON428() *BaseRevisionRequired {
+	return r.JSON428
+}
+
+// GetBody returns the raw response body bytes
+func (r ReactivatePartyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReactivatePartyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReactivatePartyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReactivatePartyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5293,6 +6017,8 @@ func (c *ClientWithResponses) RequestFarmWithResponse(ctx context.Context, param
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /masterdata/farms/{local_id} (the `PutFarm` operationId).
@@ -5309,6 +6035,8 @@ func (c *ClientWithResponses) PutFarmWithBodyWithResponse(ctx context.Context, l
 // Submits a farm from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5351,6 +6079,21 @@ func (c *ClientWithResponses) BindFarmMappingWithResponse(ctx context.Context, l
 		return nil, err
 	}
 	return ParseBindFarmMappingResponse(rsp)
+}
+
+// ReactivateFarmWithResponse Reactivate a farm
+//
+// Signals that the endpoint reactivated the farm locally after a deactivation. The canonical object is set active again with its content unchanged. A new farm never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a farm that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/farms/{local_id}/reactivation (the `ReactivateFarm` operationId).
+func (c *ClientWithResponses) ReactivateFarmWithResponse(ctx context.Context, localId LocalId, params *ReactivateFarmParams, reqEditors ...RequestEditorFn) (*ReactivateFarmResponse, error) {
+	rsp, err := c.ReactivateFarm(ctx, localId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReactivateFarmResponse(rsp)
 }
 
 // CorrectFieldBoundaryMappingsWithBodyWithResponse Correct this endpoint's bindings of field boundaries
@@ -5423,6 +6166,8 @@ func (c *ClientWithResponses) RequestFieldBoundaryWithResponse(ctx context.Conte
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /masterdata/field-boundaries/{local_id} (the `PutFieldBoundary` operationId).
@@ -5439,6 +6184,8 @@ func (c *ClientWithResponses) PutFieldBoundaryWithBodyWithResponse(ctx context.C
 // Submits a field boundary from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5481,6 +6228,21 @@ func (c *ClientWithResponses) BindFieldBoundaryMappingWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseBindFieldBoundaryMappingResponse(rsp)
+}
+
+// ReactivateFieldBoundaryWithResponse Reactivate a field boundary
+//
+// Signals that the endpoint reactivated the field boundary locally after a deactivation. The canonical object is set active again with its content unchanged. A new field boundary never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field boundary that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/field-boundaries/{local_id}/reactivation (the `ReactivateFieldBoundary` operationId).
+func (c *ClientWithResponses) ReactivateFieldBoundaryWithResponse(ctx context.Context, localId LocalId, params *ReactivateFieldBoundaryParams, reqEditors ...RequestEditorFn) (*ReactivateFieldBoundaryResponse, error) {
+	rsp, err := c.ReactivateFieldBoundary(ctx, localId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReactivateFieldBoundaryResponse(rsp)
 }
 
 // CorrectFieldMappingsWithBodyWithResponse Correct this endpoint's bindings of fields
@@ -5553,6 +6315,8 @@ func (c *ClientWithResponses) RequestFieldWithResponse(ctx context.Context, para
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with PUT /masterdata/fields/{local_id} (the `PutField` operationId).
@@ -5569,6 +6333,8 @@ func (c *ClientWithResponses) PutFieldWithBodyWithResponse(ctx context.Context, 
 // Submits a field from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -5611,6 +6377,21 @@ func (c *ClientWithResponses) BindFieldMappingWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseBindFieldMappingResponse(rsp)
+}
+
+// ReactivateFieldWithResponse Reactivate a field
+//
+// Signals that the endpoint reactivated the field locally after a deactivation. The canonical object is set active again with its content unchanged. A new field never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a field that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/fields/{local_id}/reactivation (the `ReactivateField` operationId).
+func (c *ClientWithResponses) ReactivateFieldWithResponse(ctx context.Context, localId LocalId, params *ReactivateFieldParams, reqEditors ...RequestEditorFn) (*ReactivateFieldResponse, error) {
+	rsp, err := c.ReactivateField(ctx, localId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReactivateFieldResponse(rsp)
 }
 
 // CorrectPartyMappingsWithBodyWithResponse Correct this endpoint's bindings of parties
@@ -5683,6 +6464,8 @@ func (c *ClientWithResponses) RequestPartyWithResponse(ctx context.Context, para
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
 //
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
+//
 // `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -5701,6 +6484,8 @@ func (c *ClientWithResponses) PutPartyWithBodyWithResponse(ctx context.Context, 
 // Submits a party from the calling endpoint. If the (endpoint, local_id) pair is already mapped to a canonical object, that object is updated; otherwise a new canonical object is created in the endpoint's tenant and an `agrirouter_id` is assigned. The mapping is keyed by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a record only in that endpoint's namespace, and the same string sent by a sibling endpoint of the same application is a different record. An update carries the revision it was edited from in `x-agrirouter-base-revision`; agrirouter merges a stale base where the changes do not overlap and rejects with `412` where they do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical revision as it is) do not create a new revision and are not forwarded.
 //
 // `content` is applied as a JSON Merge Patch (RFC 7396): an attribute with a value replaces the current one, `null` removes it, and an attribute left out is unchanged. Nested objects merge the same way; arrays and references are replaced whole. Required attributes are required on every write and are never `null`. The response is always the whole resulting object.
+//
+// `active` is required. On a create it sets the initial state: `false` creates the object inactive in one write, which is how a record held as archived is sent. On an update it must equal the object's current state, or the write is rejected with `409` and `current_active`: a write never changes the state, which only deactivation and reactivation do. A missing `active` is a `400`. Edits to an inactive object are accepted and keep it inactive.
 //
 // `_agmasync_details` carries its `partyTypeCode` on every write that includes it. It merges like any nested object while that `partyTypeCode` is unchanged; a write that changes it replaces `_agmasync_details` whole, so no attribute of the other party type survives. An application that does not record whether a party is a person or an organization leaves `_agmasync_details` out, which keeps what another application stated.
 //
@@ -5745,6 +6530,21 @@ func (c *ClientWithResponses) BindPartyMappingWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseBindPartyMappingResponse(rsp)
+}
+
+// ReactivatePartyWithResponse Reactivate a party
+//
+// Signals that the endpoint reactivated the party locally after a deactivation. The canonical object is set active again with its content unchanged. A new party never needs this: the write that creates it sets its state. The operation is idempotent: reactivating a party that is already active succeeds without creating a new revision or notification. The first reactivation of an inactive object is a write like any other and carries the revision it was made from in `x-agrirouter-base-revision`; a concurrent edit to the object is a conflict, and only one of the two succeeds. On an object that is already active the header is ignored.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /masterdata/parties/{local_id}/reactivation (the `ReactivateParty` operationId).
+func (c *ClientWithResponses) ReactivatePartyWithResponse(ctx context.Context, localId LocalId, params *ReactivatePartyParams, reqEditors ...RequestEditorFn) (*ReactivatePartyResponse, error) {
+	rsp, err := c.ReactivateParty(ctx, localId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReactivatePartyResponse(rsp)
 }
 
 // ParsePutEndpointResponse parses an HTTP response from a PutEndpointWithResponse call
@@ -6139,7 +6939,7 @@ func ParsePutFarmResponse(rsp *http.Response) (*PutFarmResponse, error) {
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest MappingConflict
+		var dest PutConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6255,6 +7055,60 @@ func ParseBindFarmMappingResponse(rsp *http.Response) (*BindFarmMappingResponse,
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReactivateFarmResponse parses an HTTP response from a ReactivateFarmWithResponse call
+func ParseReactivateFarmResponse(rsp *http.Response) (*ReactivateFarmResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReactivateFarmResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Farm
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest RevisionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest BaseRevisionRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
 
 	}
 
@@ -6390,7 +7244,7 @@ func ParsePutFieldBoundaryResponse(rsp *http.Response) (*PutFieldBoundaryRespons
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest MappingConflict
+		var dest PutConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6506,6 +7360,60 @@ func ParseBindFieldBoundaryMappingResponse(rsp *http.Response) (*BindFieldBounda
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReactivateFieldBoundaryResponse parses an HTTP response from a ReactivateFieldBoundaryWithResponse call
+func ParseReactivateFieldBoundaryResponse(rsp *http.Response) (*ReactivateFieldBoundaryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReactivateFieldBoundaryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FieldBoundary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest RevisionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest BaseRevisionRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
 
 	}
 
@@ -6641,7 +7549,7 @@ func ParsePutFieldResponse(rsp *http.Response) (*PutFieldResponse, error) {
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest MappingConflict
+		var dest PutConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6757,6 +7665,60 @@ func ParseBindFieldMappingResponse(rsp *http.Response) (*BindFieldMappingRespons
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReactivateFieldResponse parses an HTTP response from a ReactivateFieldWithResponse call
+func ParseReactivateFieldResponse(rsp *http.Response) (*ReactivateFieldResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReactivateFieldResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Field
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest RevisionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest BaseRevisionRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
 
 	}
 
@@ -6892,7 +7854,7 @@ func ParsePutPartyResponse(rsp *http.Response) (*PutPartyResponse, error) {
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest MappingConflict
+		var dest PutConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7008,6 +7970,60 @@ func ParseBindPartyMappingResponse(rsp *http.Response) (*BindPartyMappingRespons
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReactivatePartyResponse parses an HTTP response from a ReactivatePartyWithResponse call
+func ParseReactivatePartyResponse(rsp *http.Response) (*ReactivatePartyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReactivatePartyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Party
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest RevisionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest BaseRevisionRequired
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
 
 	}
 

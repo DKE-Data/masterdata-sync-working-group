@@ -30,6 +30,7 @@ func All() []Scenario {
 		optionalReferences(),
 		oneRecordTwoEndpoints(),
 		customerFarm(),
+		reactivated(),
 	}
 }
 

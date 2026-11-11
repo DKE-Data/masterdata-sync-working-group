@@ -293,11 +293,12 @@ type EntityTypeToggle struct {
 
 // Envelope Sync state common to every master-data entity. The master data itself, identity included, is in `content`. The concrete entity type is determined by the path; each entity schema pins the `type` discriminator so that objects remain self-describing on the event stream.
 //
-// agrirouter assigns `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, `recipient_endpoint_id`, and `type`. An object may be sent back as it was delivered, these included: `revision`, `modified_at`, `source_endpoint_id`, and `recipient_endpoint_id` are ignored on send; `tenant_id` and `type` must match the object written, or the write is a 400.
+// agrirouter assigns `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, `recipient_endpoint_id`, and `type`. An object may be sent back as it was delivered, these included: `revision`, `modified_at`, `source_endpoint_id`, and `recipient_endpoint_id` are read-only, ignored on send and always present on delivery; `tenant_id` and `type` are optional on send and must match the object written, or the write is a 400. `active` is required on send: it sets the state of a new object and must equal the state of an existing one (see `active`).
 //
 // `content` is based on the corresponding ADAPT 2.0.2 type. Properties ADAPT has no slot for are prefixed `_agmasync_`, and unknown properties are rejected. See "Relation to ADAPT" in specification.md for every deviation from ADAPT. An optional attribute declared nullable accepts `null` on a write, where it removes the attribute. agrirouter never delivers `null`: an attribute absent from a delivered object is unset.
 type Envelope struct {
-	Active *bool `json:"active,omitempty"`
+	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Active bool `json:"active"`
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
@@ -330,7 +331,8 @@ type ErrorResponse struct {
 
 // Farm A grouping of fields that the farmer considers part of the same management group.
 type Farm struct {
-	Active *bool `json:"active,omitempty"`
+	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Active bool `json:"active"`
 
 	// Content Based on the ADAPT `Farm`.
 	Content FarmContent `json:"content"`
@@ -383,7 +385,8 @@ type FarmContent struct {
 
 // Field A named physical space where production agriculture takes place, used to partition and identify data.
 type Field struct {
-	Active *bool `json:"active,omitempty"`
+	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Active bool `json:"active"`
 
 	// Content Based on the ADAPT `Field`.
 	Content FieldContent `json:"content"`
@@ -411,7 +414,8 @@ type Field struct {
 
 // FieldBoundary A geometry identifying the geo-spatial coordinates of a field, including its outer boundary and the holes of areas left out. A field may have several boundaries that differ in geometry by intended use.
 type FieldBoundary struct {
-	Active *bool `json:"active,omitempty"`
+	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Active bool `json:"active"`
 
 	// Content Based on the ADAPT `FieldBoundary`.
 	Content FieldBoundaryContent `json:"content"`
@@ -649,6 +653,13 @@ type InitialLoadStatus struct {
 	UpdatedAt *time.Time       `json:"updated_at,omitempty"`
 }
 
+// LifecycleConflictError The `409` of a write whose `active` differs from the object's current state: an `Error` carrying that state. The state changes only through deactivation and reactivation; the client decides which, if either, it means, and writes again. The `message` of the `Error` is diagnostic and MUST NOT be branched on.
+type LifecycleConflictError struct {
+	// CurrentActive The canonical object's current `active`.
+	CurrentActive bool   `json:"current_active"`
+	Message       string `json:"message"`
+}
+
 // MappingConflictError The `409` of a binding: an `Error` carrying the rejection that caused it. The same shape the bulk path returns per pair, so an endpoint resolves a conflict identically whichever path raised it. As there, the outcome is carried by `rejection.reason`; the `message` of the `Error` is diagnostic and MUST NOT be branched on.
 type MappingConflictError struct {
 	Message string `json:"message"`
@@ -705,7 +716,8 @@ type OrganizationDetails struct {
 
 // Party A legal or natural actor: a person, an organization, or a party whose party type its sender does not record. It plays no fixed role: whether it acts as a contractor or as a client follows from the relations it stands in, not from an attribute.
 type Party struct {
-	Active *bool `json:"active,omitempty"`
+	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Active bool `json:"active"`
 
 	// Content Based on the ADAPT `Party`. The party type is the `partyTypeCode` of `_agmasync_details`, not a `partyTypeCode` on the party itself.
 	Content PartyContent `json:"content"`
@@ -774,6 +786,11 @@ type PersonDetails struct {
 	ParentOrganizationRef nullable.Nullable[Ref]    `json:"parentOrganizationRef,omitempty"`
 	PartyTypeCode         interface{}               `json:"partyTypeCode"`
 	Title                 nullable.Nullable[string] `json:"title,omitempty"`
+}
+
+// PutConflictError The `409` of a PUT: a `MappingConflictError` or a `LifecycleConflictError`, told apart by their required field, `rejection` or `current_active`.
+type PutConflictError struct {
+	union json.RawMessage
 }
 
 // PutEndpointRequest defines model for PutEndpointRequest.
@@ -980,6 +997,9 @@ type MappingConflict = MappingConflictError
 // NotFound defines model for NotFound.
 type NotFound = Error
 
+// PutConflict The `409` of a PUT: a `MappingConflictError` or a `LifecycleConflictError`, told apart by their required field, `rejection` or `current_active`.
+type PutConflict = PutConflictError
+
 // RevisionConflict The `412` or `428` of a write: an `Error` carrying the revision the object is currently at, so that the client has the answer a rejected write would otherwise have to fetch separately.
 type RevisionConflict = RevisionConflictError
 
@@ -1098,6 +1118,24 @@ type BindFarmMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
+// ReactivateFarmParams defines parameters for ReactivateFarm.
+type ReactivateFarmParams struct {
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
+	//
+	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
+	//
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
+	//
+	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+}
+
 // CorrectFieldBoundaryMappingsParams defines parameters for CorrectFieldBoundaryMappings.
 type CorrectFieldBoundaryMappingsParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
@@ -1165,6 +1203,24 @@ type BindFieldBoundaryMappingParams struct {
 
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// ReactivateFieldBoundaryParams defines parameters for ReactivateFieldBoundary.
+type ReactivateFieldBoundaryParams struct {
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
+	//
+	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
+	//
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
+	//
+	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // CorrectFieldMappingsParams defines parameters for CorrectFieldMappings.
@@ -1236,6 +1292,24 @@ type BindFieldMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
+// ReactivateFieldParams defines parameters for ReactivateField.
+type ReactivateFieldParams struct {
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
+	//
+	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
+	//
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
+	//
+	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
+}
+
 // CorrectPartyMappingsParams defines parameters for CorrectPartyMappings.
 type CorrectPartyMappingsParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
@@ -1303,6 +1377,24 @@ type BindPartyMappingParams struct {
 
 	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+}
+
+// ReactivatePartyParams defines parameters for ReactivateParty.
+type ReactivatePartyParams struct {
+	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
+	//
+	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
+	XAgrirouterEndpointId AgrirouterEndpointId `json:"x-agrirouter-endpoint-id"`
+
+	// XAgrirouterTenantId The farmer's tenant ID in relation to which communication is done.
+	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
+
+	// XAgrirouterBaseRevision The `revision` the client edited from — the base of this write. It is a precondition on the request, not part of the entity, which is why it travels as a header: `revision` in the body stays server-assigned and is ignored on send, and a client-supplied revision is compared, never assigned.
+	//
+	// Required on a write to an object that already exists; absent there is `428`, since omitting it would opt the client out of concurrency control. Absent on a create is normal, there being no base. Present on a request that does not resolve to an existing object it is `412`: the client believes it is updating something agrirouter does not know under that `local_id`.
+	//
+	// A base behind the current revision is not necessarily a failure. agrirouter three-way merges where the client's change and the intervening ones do not overlap and answers `200` with the merged object, whose `revision` is then not base + 1; where they overlap it answers `412` with the current revision. A write whose payload equals the current canonical value succeeds as a no-op whatever the base. See "Concurrency control" in specification.md.
+	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
 // PutEndpointJSONRequestBody defines body for PutEndpoint for application/json ContentType.
@@ -1617,6 +1709,68 @@ func (t PartyDetails) MarshalJSON() ([]byte, error) {
 }
 
 func (t *PartyDetails) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsMappingConflictError returns the union data inside the PutConflictError as a MappingConflictError
+func (t PutConflictError) AsMappingConflictError() (MappingConflictError, error) {
+	var body MappingConflictError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMappingConflictError overwrites any union data inside the PutConflictError as the provided MappingConflictError
+func (t *PutConflictError) FromMappingConflictError(v MappingConflictError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMappingConflictError performs a merge with any union data inside the PutConflictError, using the provided MappingConflictError
+func (t *PutConflictError) MergeMappingConflictError(v MappingConflictError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLifecycleConflictError returns the union data inside the PutConflictError as a LifecycleConflictError
+func (t PutConflictError) AsLifecycleConflictError() (LifecycleConflictError, error) {
+	var body LifecycleConflictError
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLifecycleConflictError overwrites any union data inside the PutConflictError as the provided LifecycleConflictError
+func (t *PutConflictError) FromLifecycleConflictError(v LifecycleConflictError) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLifecycleConflictError performs a merge with any union data inside the PutConflictError, using the provided LifecycleConflictError
+func (t *PutConflictError) MergeLifecycleConflictError(v LifecycleConflictError) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PutConflictError) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PutConflictError) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

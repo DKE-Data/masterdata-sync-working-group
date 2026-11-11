@@ -17,13 +17,12 @@ import (
 
 // Event types carried on the streams.
 const (
-	// EventMasterdataChanged carries a canonical object.
+	// EventMasterdataChanged carries a canonical object: its state at that
+	// revision, active or inactive as its `active` says. It is the only frame
+	// that carries one, on either stream; an inactive object is not a removal,
+	// and a receiver applies it as "Receiving an inactive object" in
+	// specification.md describes.
 	EventMasterdataChanged = "MASTERDATA_CHANGED"
-
-	// EventMasterdataDeactivated carries a canonical object that has become
-	// inactive. It is a lifecycle transition, not a removal: the object and
-	// its identifier mapping are retained.
-	EventMasterdataDeactivated = "MASTERDATA_DEACTIVATED"
 
 	// EventCaughtUp marks the end of catch-up on the live stream. It carries
 	// no entity and names no entity type: it covers the catch-up as a whole.
@@ -149,7 +148,7 @@ func (s *Stream) Events() iter.Seq2[Event, error] {
 			switch {
 			case raw.Data == "":
 
-			case raw.Type == EventMasterdataChanged || raw.Type == EventMasterdataDeactivated:
+			case raw.Type == EventMasterdataChanged:
 				obj, err := ObjectOf([]byte(raw.Data))
 				if err != nil {
 					yield(Event{}, fmt.Errorf("agmasync: decoding %s frame: %w", raw.Type, err))

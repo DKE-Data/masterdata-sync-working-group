@@ -51,7 +51,7 @@ func TestEntityCallsNameTheEndpointAndTheTenant(t *testing.T) {
 	ctx := context.Background()
 	calls := map[string]func() error{
 		"Put": func() error {
-			_, err := agmasync.PutParty(ctx, api, endpointID, tenant, party, nil)
+			_, err := agmasync.PutParty(ctx, api, endpointID, tenant, party, true, nil)
 			return err
 		},
 		"Bind": func() error {

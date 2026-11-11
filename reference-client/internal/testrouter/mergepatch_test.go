@@ -22,7 +22,7 @@ func body(typ, localID, members string) string {
 	if members != "" {
 		members = "," + members
 	}
-	return `{"type":"` + typ + `","content":{"id":{"referenceId":"` + localID + `"}` + members + `}}`
+	return `{"type":"` + typ + `","active":true,"content":{"id":{"referenceId":"` + localID + `"}` + members + `}}`
 }
 
 // entityOf builds an entity from the JSON a participant sends, which is the
@@ -247,19 +247,3 @@ func TestAStaleWriteNeitherConflictsWithNorRevertsWhatItLeavesOut(t *testing.T) 
 	}
 }
 
-func TestAWriteWithoutActiveLeavesTheStateAlone(t *testing.T) {
-	f := newFixture(t)
-	p := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
-	base := revisionOf(t, putFarm(t, p, richFarm, nil))
-
-	deactivated, err := p.endpoint.Deactivate(context.Background(), agmasync.TypeFarm, "FRM-1", &base)
-	if err != nil {
-		t.Fatalf("deactivate: %v", err)
-	}
-	base = revisionOf(t, deactivated)
-
-	renamed := putFarm(t, p, body("farm", "FRM-1", `"name":"Hof Süd"`), &base)
-	if active := fieldsOf(t, renamed)["active"]; string(active) != "false" {
-		t.Errorf("active = %s, want the object to stay inactive", active)
-	}
-}

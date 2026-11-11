@@ -244,6 +244,41 @@ func (a *Applier) Deactivate(
 	return a.Apply(result, "")
 }
 
+// Reactivate tells agrirouter that a record deactivated earlier is active again
+// locally, and applies the result, which marks the local copy active again.
+// It is the only way back: a send never changes the state.
+func (a *Applier) Reactivate(
+	ctx context.Context, typ agmasync.EntityType, localID string,
+) (Outcome, error) {
+	var row store.SyncRow
+	if err := a.Store.Tx(a.Tenant, func(tx *store.Tx) error {
+		var err error
+		row, err = tx.SyncRow(a.Namespace(), typ, localID)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		return err
+	}); err != nil {
+		return Outcome{}, err
+	}
+	if !row.Bound() && !row.Unbound {
+		var err error
+		if row, _, err = a.bindAsSibling(ctx, typ, localID); err != nil {
+			return Outcome{}, err
+		}
+	}
+	if !row.Bound() {
+		return Outcome{}, fmt.Errorf(
+			"sync: %s %q was never sent, so there is nothing to reactivate", typ, localID)
+	}
+
+	result, err := a.Endpoint.Reactivate(ctx, typ, localID, row.Revision)
+	if err != nil {
+		return Outcome{}, err
+	}
+	return a.Apply(result, "")
+}
+
 // Correct replaces bindings the platform's user found wrong, and fetches the
 // objects now bound so the records take their content and revision.
 //

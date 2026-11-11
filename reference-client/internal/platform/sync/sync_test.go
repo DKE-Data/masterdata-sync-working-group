@@ -228,6 +228,7 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 	id := agmasync.CanonicalRef(*row.AgrirouterID).Id
 	id.ReferenceId = strptr("FRM-1")
 	old, err := agrirouter.FromFarm(oapi.Farm{
+		Active:   true,
 		TenantId: &h.tenant,
 		Content:  oapi.FarmContent{Id: id, Name: "Hof Nord"},
 		Revision: &stale,
@@ -354,7 +355,7 @@ func body(typ, localID, members string) string {
 	if members != "" {
 		members = "," + members
 	}
-	return fmt.Sprintf(`{"type":%q,"content":{"id":{"referenceId":%q}%s}}`, typ, localID, members)
+	return fmt.Sprintf(`{"type":%q,"active":true,"content":{"id":{"referenceId":%q}%s}}`, typ, localID, members)
 }
 
 // contentOf reads the content attributes of an entity putRaw answered with.
@@ -522,7 +523,7 @@ func TestUnrecognisedInactiveObjectCreatesNothing(t *testing.T) {
 	entity, err := agrirouter.FromFarm(oapi.Farm{
 		TenantId: &h.tenant,
 		Content:  oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Vergangen"},
-		Active:   &inactive,
+		Active:   inactive,
 		Revision: &revision,
 	})
 	if err != nil {
@@ -551,6 +552,7 @@ func TestObjectNamingNoTenantIsDiscarded(t *testing.T) {
 
 	id := uuid.New()
 	entity, err := agrirouter.FromFarm(oapi.Farm{
+		Active:  true,
 		Content: oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Ohne"},
 	})
 	if err != nil {

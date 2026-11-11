@@ -61,6 +61,8 @@ type fault struct {
 	message   string
 	current   int
 	rejection *oapiRejection
+	// currentActive is set on a lifecycle conflict: the object's state.
+	currentActive *bool
 }
 
 func (f fault) error() oapi.Error { return oapi.Error{Message: f.message} }
@@ -77,11 +79,31 @@ func (f fault) mappingConflict() oapi.MappingConflictError {
 	return out
 }
 
+// putConflict is the 409 body of a put: a lifecycle conflict where the fault
+// carries the object's state, a mapping conflict otherwise.
+func (f fault) putConflict() oapi.PutConflictError {
+	var out oapi.PutConflictError
+	if f.currentActive != nil {
+		_ = out.FromLifecycleConflictError(oapi.LifecycleConflictError{
+			CurrentActive: *f.currentActive, Message: f.message,
+		})
+		return out
+	}
+	_ = out.FromMappingConflictError(f.mappingConflict())
+	return out
+}
+
 // faultOf maps a store failure onto the status the specification names for it.
 func faultOf(err error) fault {
 	var rev *revisionConflict
 	if errors.As(err, &rev) {
 		return fault{status: http.StatusPreconditionFailed, message: rev.Error(), current: rev.current}
+	}
+
+	var lc *lifecycleConflict
+	if errors.As(err, &lc) {
+		current := lc.current
+		return fault{status: http.StatusConflict, message: lc.Error(), currentActive: &current}
 	}
 
 	var mc *mappingConflict
@@ -200,6 +222,33 @@ func (r *Router) doDeactivate(
 	})
 
 	obj, err := r.store.deactivate(ep, typ, localID, base)
+	if err != nil {
+		return nil, err
+	}
+
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+	return r.store.renderLocked(obj, ep), nil
+}
+
+// doReactivate is the shared body of the five Reactivate handlers.
+func (r *Router) doReactivate(
+	ctx context.Context, typ agmasync.EntityType, localID string,
+	endpointID uuid.UUID, base *int,
+) (json.RawMessage, error) {
+	ep, err := r.endpointFrom(ctx, endpointID)
+	if err != nil {
+		return nil, err
+	}
+
+	r.observer.record("reactivate", map[string]any{
+		"externalEndpointId": ep.externalID,
+		"entityType":         string(typ),
+		"localId":            localID,
+		"baseRevision":       base,
+	})
+
+	obj, err := r.store.reactivate(ep, typ, localID, base)
 	if err != nil {
 		return nil, err
 	}

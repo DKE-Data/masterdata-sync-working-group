@@ -185,7 +185,7 @@ func (a *Applier) applyIn(
 	selected []agmasync.EntityType,
 ) (Outcome, error) {
 	typ := envelope.Type
-	active := envelope.Active == nil || *envelope.Active
+	active := envelope.Active
 
 	ns := a.Namespace()
 

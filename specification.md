@@ -137,7 +137,8 @@ the collection of one supported entity type (`parties`, `farms`,
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `PUT /masterdata/<types>/{local_id}`                | Sends the entity (creation or update) as a merge patch: an attribute left out is unchanged, `null` removes one, see [Writing an entity](#writing-an-entity). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
 | `POST /masterdata/<types>/requests`                | Actively requests an entity ("lazy loading"), see [Requesting objects](#requesting-objects-lazy-loading). |
-| `POST /masterdata/<types>/{local_id}/deactivation`  | Signals that the endpoint deactivated the entity locally (archival, deletion, or similar). |
+| `POST /masterdata/<types>/{local_id}/deactivation`  | Signals that the endpoint deactivated the entity locally (archival, deletion, or similar), see [Deactivation](#deactivation). |
+| `POST /masterdata/<types>/{local_id}/reactivation`  | Signals that the endpoint reactivated a deactivated entity locally, see [Reactivation](#reactivation). |
 | `PUT /masterdata/<types>/{local_id}/id-mapping/{agrirouter_id}` | Binds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
 | `POST /masterdata/<types>/id-mapping-corrections` | Replaces bindings the user found wrong, see [Correcting a binding](#correcting-a-binding). |
 
@@ -146,8 +147,16 @@ purposes and are independent of each other:
 
 | Stream | Scoped to | Carries |
 | --- | --- | --- |
-| `GET /masterdata/events` | the application | live changes: canonical objects and deactivations, for every tenant the application is routed to. One frame per recipient endpoint, named by `recipient_endpoint_id` (see [Common envelope](#common-envelope)) |
+| `GET /masterdata/events` | the application | live changes: canonical objects, active or inactive, for every tenant the application is routed to. One frame per recipient endpoint, named by `recipient_endpoint_id` (see [Common envelope](#common-envelope)) |
 | `GET /endpoints/{external_id}/masterdata-initial-load/events` | one endpoint | the canonical set of every opted-in entity type for that endpoint's [initial load](#initial-load), ending when the response closes |
+
+Both streams deliver every canonical object as a `MASTERDATA_CHANGED` frame: the
+canonical state of that object at that revision, not a report of what just
+happened to it. An inactive object is a `MASTERDATA_CHANGED` frame carrying
+`active: false`, whether it was just deactivated, was edited while inactive, or is
+part of an initial load; `active` is the only signal of an object's lifecycle
+state, and a receiver applies it as described in
+[Receiving an inactive object](#receiving-an-inactive-object).
 
 Only `/masterdata/events` carries a position, as `Last-Event-ID` (see
 [Downtime and resume](#downtime-and-resume)). An initial-load stream delivers a fixed limited set rather
@@ -207,7 +216,7 @@ Every entity is an envelope carrying sync state, with the master data in
 Envelope fields:
 
 - `type` (string): the entity type; one of `party`, `farm`, `field`, `fieldBoundary`. Always present on delivery. Optional on send, where the path implies it.
-- `active` (boolean): whether the entity is currently active. Deactivation is expressed through the deactivation operation (see [Deactivation](#deactivation)); `active` on a delivered object reflects the current SSOT state.
+- `active` (boolean): whether the entity is currently active. Always present on delivery, where it reflects the current SSOT state and is the only signal of the object's lifecycle state. **Required on send**: on a write that creates the canonical object it sets the initial state, and on any other write it MUST equal the object's current state (see [Lifecycle](#lifecycle)). The state of an existing object changes only through [deactivation](#deactivation) and [reactivation](#reactivation).
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)). It is never taken from a sent object: the revision an application edited from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded (see [Concurrency control](#concurrency-control)).
 - `modified_at` (string): the [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) timestamp of the last accepted change.
 - `tenant_id` (string): the tenant the object belongs to ([RFC 4122](https://www.rfc-editor.org/rfc/rfc4122)). It is set by agrirouter; on send the tenant follows from the acting endpoint, and a value a sender supplies MUST be that tenant. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
@@ -217,9 +226,21 @@ Envelope fields:
 
 `type`, `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, and
 `recipient_endpoint_id` are assigned by agrirouter, and an application MAY send an
-object back exactly as it was delivered. `revision`, `modified_at`,
-`source_endpoint_id`, and `recipient_endpoint_id` are ignored on send. `type` and `tenant_id` MUST match the object written — the path's entity
-type and the acting endpoint's tenant — or the write is rejected with `400`.
+object back exactly as it was delivered. On send the envelope fields fall into
+three groups:
+
+- **Read-only:** `revision`, `modified_at`, `source_endpoint_id`, and
+  `recipient_endpoint_id` are ignored on send, not rejected, so that a delivered
+  object can be sent back as it is, also through another endpoint of the
+  application.
+- **Identity the request already decides:** `type` and `tenant_id` are optional.
+  If sent, they MUST match the object written — the path's entity type and the
+  acting endpoint's tenant — or the write is rejected with `400`.
+- **Lifecycle state:** `active` is required, because leaving it out would decide
+  something: a write cannot always know whether it creates or updates, and no
+  default is safe. A write without `active` is rejected with `400`; one whose
+  `active` contradicts the object's current state with `409` (see
+  [Lifecycle](#lifecycle)).
 
 ### Identity
 
@@ -989,11 +1010,8 @@ resurrection of something their user archived. The risk is highest exactly where
 seeding matters most: an endpoint whose identifier mapping is gone, which no
 longer recognises the entity by any identifier it holds.
 
-An endpoint that receives an inactive object MUST NOT treat it as an ordinary
-delivery of an object it does not hold:
-
-- if it recognises the object in its own store, it [binds](#identifier-mapping) its identifier and marks its own copy inactive. Binding a dead object is worth doing: an unbound local copy is precisely what gets sent back as new later.
-- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `local_id` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is inactive.
+An endpoint applies an inactive object in the set as it does on any stream: see
+[Receiving an inactive object](#receiving-an-inactive-object).
 
 ### Asymmetric and non-unique mappings
 
@@ -1266,7 +1284,7 @@ whole, so no attribute of the other party type survives (see [Party details](#pa
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every application supports, so an application always holds them.
-- `null` for a required attribute, an envelope field, or `content.id` is rejected with `400`. An absent `active` leaves the object's state unchanged.
+- `null` for a required attribute, an envelope field, or `content.id` is rejected with `400`, as is a write without `active` (see [Lifecycle](#lifecycle)).
 - Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
 
 This is what relaying amounts to. An application does not store, and does not send,
@@ -1392,7 +1410,62 @@ from, and a concurrent edit to the entity is a conflict of which only one side
 succeeds. On an entity that is already inactive the base revision is ignored,
 which is what the idempotency above requires.
 
-Reactivation is possible by simply sending `PUT /masterdata/<types>/{local_id}` with the entity's `active` property set to `true`.
+### Lifecycle
+
+A canonical object is active or inactive. The write that creates it sets its
+initial state from `active`; after that, only deactivation and
+[reactivation](#reactivation) change it, and no `PUT` does.
+
+- **Creating an object** with `active: false` creates it inactive in one write.
+  An application that sends agrirouter a record it holds as archived MUST send it
+  this way. Creating it active and deactivating it afterwards would deliver it
+  as active in between, and leave it active if the second call never happens.
+- **Every other write** MUST carry the object's current `active`. A write whose
+  `active` differs is rejected with `409` and a `LifecycleConflictError` carrying
+  `current_active`. agrirouter checks this before deciding whether the write is
+  a no-op and before [concurrency control](#concurrency-control), so the same body
+  always gets the same answer. The application decides whether it meant to
+  deactivate or reactivate the object, or re-reads it, and writes again.
+- **Writes to an inactive object** are accepted under the ordinary rules and
+  keep it inactive: an application may correct an archived entity without
+  reviving it.
+
+### Reactivation
+
+`POST /masterdata/<types>/{local_id}/reactivation` signals that the acting
+endpoint made a deactivated entity active again locally. It is the mirror image of
+deactivation, and the only way back from it: the canonical object becomes active
+again with its content unchanged. A new object never needs it, since the write
+that creates it sets its state.
+
+Reactivation MUST be **idempotent**. Reactivating an entity that is already active
+MUST succeed without error and MUST NOT produce a new revision or a new outgoing
+notification. The first reactivation of an inactive entity is a write like any
+other and is subject to [concurrency control](#concurrency-control); on an entity
+that is already active the base revision is ignored.
+
+## Receiving an inactive object
+
+An inactive object reaches an endpoint as a `MASTERDATA_CHANGED` frame carrying
+`active: false`, on the live stream as in an [initial load](#initial-load), and in
+a write response. A receiver MUST read it and MUST NOT skip it on account of its
+state, and MUST NOT treat it as an ordinary delivery of an object it does not
+hold:
+
+- if it recognises the object in its own store, it [binds](#identifier-mapping) its identifier and marks its own copy inactive. Binding a dead object is worth doing: an unbound local copy is precisely what gets sent back as new later.
+- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `local_id` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is inactive.
+
+An endpoint that does not keep inactive records MAY drop its copy instead of
+marking it inactive. It MUST NOT give that record's `local_id` to another record:
+agrirouter keeps the binding, so a later write under that `local_id` would reach
+the deactivated object, not create a new one. Keeping the identifier pair as a
+tombstone (see [Identifier mapping](#identifier-mapping)) is the simplest way to
+ensure that. Later frames for the object still carry its `local_id`: an inactive
+one the endpoint ignores, and a [reactivated](#reactivation) one it may recreate
+under the same identifier.
+
+An object it holds that arrives with `active: true` after being inactive was
+[reactivated](#reactivation), and the receiver marks its own copy active again.
 
 ## Split and merge
 

@@ -90,6 +90,15 @@ paths:
         response is always the whole resulting object.
 
 
+        `active` is required. On a create it sets the initial state: `false`
+        creates the object inactive in one write, which is how a record held as
+        archived is sent. On an update it must equal the object's current state,
+        or the write is rejected with `409` and `current_active`: a write never
+        changes the state, which only deactivation and reactivation do. A missing
+        `active` is a `400`. Edits to an inactive object are accepted and keep it
+        inactive.
+
+
         `_agmasync_details` carries its `partyTypeCode` on every write that includes
         it. It merges like any nested object while that `partyTypeCode` is
         unchanged; a write that changes it replaces `_agmasync_details` whole,
@@ -121,7 +130,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/MappingConflict'
+          $ref: '#/components/responses/PutConflict'
         '412':
           $ref: '#/components/responses/RevisionConflict'
         '428':
@@ -231,6 +240,42 @@ paths:
         '428':
           $ref: '#/components/responses/BaseRevisionRequired'
 
+  /masterdata/parties/{local_id}/reactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+      - $ref: '#/components/parameters/BaseRevision'
+    post:
+      tags: [Parties]
+      summary: Reactivate a party
+      description: >
+        Signals that the endpoint reactivated the party locally after a
+        deactivation. The canonical object is set active again with its content
+        unchanged. A new party never needs this: the write that creates it sets
+        its state. The operation is idempotent: reactivating a party that is
+        already active succeeds without creating a new revision or notification.
+        The first reactivation of an inactive object is a write like any other
+        and carries the revision it was made from in `x-agrirouter-base-revision`;
+        a concurrent edit to the object is a conflict, and only one of the two
+        succeeds. On an object that is already active the header is ignored.
+      operationId: reactivateParty
+      responses:
+        '200':
+          description: Party is active (either newly reactivated or already active).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Party'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
+
   /masterdata/parties/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
@@ -292,6 +337,15 @@ paths:
         arrays and references are replaced whole. Required
         attributes are required on every write and are never `null`. The
         response is always the whole resulting object.
+
+
+        `active` is required. On a create it sets the initial state: `false`
+        creates the object inactive in one write, which is how a record held as
+        archived is sent. On an update it must equal the object's current state,
+        or the write is rejected with `409` and `current_active`: a write never
+        changes the state, which only deactivation and reactivation do. A missing
+        `active` is a `400`. Edits to an inactive object are accepted and keep it
+        inactive.
       operationId: putFarm
       requestBody:
         required: true
@@ -317,7 +371,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/MappingConflict'
+          $ref: '#/components/responses/PutConflict'
         '412':
           $ref: '#/components/responses/RevisionConflict'
         '428':
@@ -427,6 +481,42 @@ paths:
         '428':
           $ref: '#/components/responses/BaseRevisionRequired'
 
+  /masterdata/farms/{local_id}/reactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+      - $ref: '#/components/parameters/BaseRevision'
+    post:
+      tags: [Farms]
+      summary: Reactivate a farm
+      description: >
+        Signals that the endpoint reactivated the farm locally after a
+        deactivation. The canonical object is set active again with its content
+        unchanged. A new farm never needs this: the write that creates it sets
+        its state. The operation is idempotent: reactivating a farm that is
+        already active succeeds without creating a new revision or notification.
+        The first reactivation of an inactive object is a write like any other
+        and carries the revision it was made from in `x-agrirouter-base-revision`;
+        a concurrent edit to the object is a conflict, and only one of the two
+        succeeds. On an object that is already active the header is ignored.
+      operationId: reactivateFarm
+      responses:
+        '200':
+          description: Farm is active (either newly reactivated or already active).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Farm'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
+
   /masterdata/farms/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
@@ -488,6 +578,15 @@ paths:
         arrays and references are replaced whole. Required
         attributes are required on every write and are never `null`. The
         response is always the whole resulting object.
+
+
+        `active` is required. On a create it sets the initial state: `false`
+        creates the object inactive in one write, which is how a record held as
+        archived is sent. On an update it must equal the object's current state,
+        or the write is rejected with `409` and `current_active`: a write never
+        changes the state, which only deactivation and reactivation do. A missing
+        `active` is a `400`. Edits to an inactive object are accepted and keep it
+        inactive.
       operationId: putField
       requestBody:
         required: true
@@ -513,7 +612,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/MappingConflict'
+          $ref: '#/components/responses/PutConflict'
         '412':
           $ref: '#/components/responses/RevisionConflict'
         '428':
@@ -623,6 +722,42 @@ paths:
         '428':
           $ref: '#/components/responses/BaseRevisionRequired'
 
+  /masterdata/fields/{local_id}/reactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+      - $ref: '#/components/parameters/BaseRevision'
+    post:
+      tags: [Fields]
+      summary: Reactivate a field
+      description: >
+        Signals that the endpoint reactivated the field locally after a
+        deactivation. The canonical object is set active again with its content
+        unchanged. A new field never needs this: the write that creates it sets
+        its state. The operation is idempotent: reactivating a field that is
+        already active succeeds without creating a new revision or notification.
+        The first reactivation of an inactive object is a write like any other
+        and carries the revision it was made from in `x-agrirouter-base-revision`;
+        a concurrent edit to the object is a conflict, and only one of the two
+        succeeds. On an object that is already active the header is ignored.
+      operationId: reactivateField
+      responses:
+        '200':
+          description: Field is active (either newly reactivated or already active).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
+
   /masterdata/fields/requests:
     parameters:
       - $ref: '#/components/parameters/AgrirouterEndpointId'
@@ -684,6 +819,15 @@ paths:
         arrays and references are replaced whole. Required
         attributes are required on every write and are never `null`. The
         response is always the whole resulting object.
+
+
+        `active` is required. On a create it sets the initial state: `false`
+        creates the object inactive in one write, which is how a record held as
+        archived is sent. On an update it must equal the object's current state,
+        or the write is rejected with `409` and `current_active`: a write never
+        changes the state, which only deactivation and reactivation do. A missing
+        `active` is a `400`. Edits to an inactive object are accepted and keep it
+        inactive.
       operationId: putFieldBoundary
       requestBody:
         required: true
@@ -693,7 +837,7 @@ paths:
               $ref: '#/components/schemas/FieldBoundary'
       responses:
         '200':
-          description: FieldBoundarie accepted; the resulting canonical object is returned.
+          description: Field boundary accepted; the resulting canonical object is returned.
           content:
             application/json:
               schema:
@@ -709,7 +853,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/MappingConflict'
+          $ref: '#/components/responses/PutConflict'
         '412':
           $ref: '#/components/responses/RevisionConflict'
         '428':
@@ -805,7 +949,44 @@ paths:
       operationId: deactivateFieldBoundary
       responses:
         '200':
-          description: FieldBoundarie is inactive (either newly deactivated or already inactive).
+          description: Field boundary is inactive (either newly deactivated or already inactive).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldBoundary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/RevisionConflict'
+        '428':
+          $ref: '#/components/responses/BaseRevisionRequired'
+
+  /masterdata/field-boundaries/{local_id}/reactivation:
+    parameters:
+      - $ref: '#/components/parameters/LocalId'
+      - $ref: '#/components/parameters/AgrirouterEndpointId'
+      - $ref: '#/components/parameters/AgrirouterTenantId'
+      - $ref: '#/components/parameters/BaseRevision'
+    post:
+      tags: [FieldBoundaries]
+      summary: Reactivate a field boundary
+      description: >
+        Signals that the endpoint reactivated the field boundary locally after a
+        deactivation. The canonical object is set active again with its content
+        unchanged. A new field boundary never needs this: the write that creates
+        it sets its state. The operation is idempotent: reactivating a field
+        boundary that is already active succeeds without creating a new revision
+        or notification. The first reactivation of an inactive object is a write
+        like any other and carries the revision it was made from in
+        `x-agrirouter-base-revision`; a concurrent edit to the object is a
+        conflict, and only one of the two succeeds. On an object that is already
+        active the header is ignored.
+      operationId: reactivateFieldBoundary
+      responses:
+        '200':
+          description: Field boundary is active (either newly reactivated or already active).
           content:
             application/json:
               schema:
@@ -922,9 +1103,11 @@ paths:
                   SSE event would carry three parts: "id:", "event:" and "data:".
 
                   The `data:` is a payload of each SSE frame. Frames carry an `event:`
-                  of `MASTERDATA_CHANGED`, `MASTERDATA_DEACTIVATED`,
-                  `CAUGHT_UP`, `ROUTE_CHANGED` or `RESET_MASTERDATA_SYNC`; the
-                  first two carry an `Entity`, `CAUGHT_UP` has no data, and
+                  of `MASTERDATA_CHANGED`, `CAUGHT_UP`, `ROUTE_CHANGED` or
+                  `RESET_MASTERDATA_SYNC`. `MASTERDATA_CHANGED` carries an
+                  `Entity`: the canonical state of the object at that revision,
+                  active or inactive as its `active` says, which is the only
+                  signal of its lifecycle state. `CAUGHT_UP` has no data, and
                   `ROUTE_CHANGED` and `RESET_MASTERDATA_SYNC` carry an event payload.
                   Every frame also carries an `id:`, which is the
                   delivery position as of that frame — what the application
@@ -1508,6 +1691,18 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/MappingConflictError'
+    PutConflict:
+      description: >
+        The write conflicts with what agrirouter holds. Either the supplied
+        local identifier is already mapped to a different canonical object
+        (`MappingConflictError`, as described for `MappingConflict`), or the
+        write's `active` differs from the object's current state
+        (`LifecycleConflictError`). The two are told apart by their required
+        field: `rejection` or `current_active`.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PutConflictError'
     InitialLoadConflict:
       description: >
         The requested transition is not valid from the endpoint's current
@@ -1554,6 +1749,31 @@ components:
             rejection:
               $ref: '#/components/schemas/IdMappingRejection'
           required: [rejection]
+
+    PutConflictError:
+      description: >
+        The `409` of a PUT: a `MappingConflictError` or a
+        `LifecycleConflictError`, told apart by their required field,
+        `rejection` or `current_active`.
+      oneOf:
+        - $ref: '#/components/schemas/MappingConflictError'
+        - $ref: '#/components/schemas/LifecycleConflictError'
+
+    LifecycleConflictError:
+      description: >
+        The `409` of a write whose `active` differs from the object's current
+        state: an `Error` carrying that state. The state changes only through
+        deactivation and reactivation; the client decides which, if either, it
+        means, and writes again. The `message` of the `Error` is diagnostic and
+        MUST NOT be branched on.
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            current_active:
+              type: boolean
+              description: The canonical object's current `active`.
+          required: [current_active]
 
     IdMappingRejectionReason:
       type: string
@@ -1788,8 +2008,11 @@ components:
         `source_endpoint_id`, `recipient_endpoint_id`, and `type`. An object may
         be sent back as it was delivered, these included: `revision`,
         `modified_at`, `source_endpoint_id`, and `recipient_endpoint_id` are
-        ignored on send; `tenant_id` and `type` must
-        match the object written, or the write is a 400.
+        read-only, ignored on send and always present on delivery; `tenant_id`
+        and `type` are optional on
+        send and must match the object written, or the write is a 400.
+        `active` is required on send: it sets the state of a new object and
+        must equal the state of an existing one (see `active`).
 
 
         `content` is based on the corresponding ADAPT 2.0.2 type. Properties
@@ -1802,9 +2025,16 @@ components:
       properties:
         active:
           type: boolean
-          default: true
+          description: >
+            Whether the object is active. Required on send. On a create it sets
+            the initial state; on an update it must equal the current state, or
+            the write is rejected with `409` and a `LifecycleConflictError`.
+            The state of an existing object changes only through deactivation
+            and reactivation. Always present on delivery, where it is the only
+            signal of the object's lifecycle state.
         revision:
           type: integer
+          readOnly: true
           description: >
             Monotonic per-object counter maintained by agrirouter. Never taken
             from the body: the revision a write was made from travels in the
@@ -1812,6 +2042,7 @@ components:
             discarded. Ignored on send.
         modified_at:
           type: string
+          readOnly: true
           format: date-time
           description: Assigned by agrirouter. Ignored on send.
         tenant_id:
@@ -1829,12 +2060,14 @@ components:
             partitions on it rather than on the connection.
         source_endpoint_id:
           type: string
+          readOnly: true
           format: uuid
           description: >
             The agrirouter identifier of the endpoint whose change produced this
             revision. It always belongs to `tenant_id`. Ignored on send.
         recipient_endpoint_id:
           type: string
+          readOnly: true
           format: uuid
           description: >
             The agrirouter identifier of the endpoint this copy is for: the
@@ -1843,6 +2076,7 @@ components:
             endpoint, so an object entitled to several of an application's
             endpoints is delivered once for each. On a write response it is the
             calling endpoint. Ignored on send.
+      required: [active]
 
     AddressContactMethod:
       # Generated by tools/adapt from adapt/deviations.yaml. Do not edit.

@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	eventMasterdataChanged     = "MASTERDATA_CHANGED"
-	eventMasterdataDeactivated = "MASTERDATA_DEACTIVATED"
-	eventCaughtUp              = "CAUGHT_UP"
+	eventMasterdataChanged = "MASTERDATA_CHANGED"
+	eventCaughtUp          = "CAUGHT_UP"
 
 	// eventRouteChanged states which entity types the user has selected on one
 	// endpoint. One frame covers every way the selection moves: routed to the
@@ -275,12 +274,8 @@ func (r *Router) catchUp(appID, lastEventID string) []frame {
 			if ep.appID != appID {
 				continue
 			}
-			event := eventMasterdataChanged
-			if !obj.active {
-				event = eventMasterdataDeactivated
-			}
 			frames = append(frames, frame{
-				event:  event,
+				event:  eventMasterdataChanged,
 				id:     encodePosition(obj.seq),
 				entity: r.store.renderLocked(obj, ep),
 			})

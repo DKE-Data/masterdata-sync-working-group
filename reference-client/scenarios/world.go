@@ -653,6 +653,14 @@ func (p *Platform) Deactivate(
 	return p.Applier.Deactivate(ctx, typ, localID)
 }
 
+// Reactivate tells agrirouter a record deactivated earlier is active again in
+// this platform.
+func (p *Platform) Reactivate(
+	ctx context.Context, typ agmasync.EntityType, localID string,
+) (psync.Outcome, error) {
+	return p.Applier.Reactivate(ctx, typ, localID)
+}
+
 // Correct replaces bindings the platform's user found wrong, and returns once
 // the objects now bound have been delivered and applied. See
 // [psync.Applier.Correct].

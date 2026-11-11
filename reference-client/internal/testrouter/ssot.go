@@ -34,6 +34,21 @@ func (e *revisionConflict) Error() string {
 }
 func (e *revisionConflict) Is(target error) bool { return target == errRevisionConflict }
 
+// lifecycleConflict is a write whose `active` contradicts the object's current
+// state. A write never changes the state; deactivation and reactivation do.
+type lifecycleConflict struct{ current bool }
+
+func (e *lifecycleConflict) Error() string {
+	return fmt.Sprintf("active contradicts the object's current state (active=%t): "+
+		"the state changes only through deactivation and reactivation", e.current)
+}
+
+// errActiveRequired refuses a write without `active`: leaving it out would
+// decide something, since a write cannot always know whether it creates or
+// updates. See "Lifecycle" in specification.md.
+var errActiveRequired = errors.New("active is required on send: it sets the state of " +
+	"a new object and must equal the state of an existing one")
+
 // mappingConflict names which identifier is taken and the mapping that holds
 // it. Both ends belong to the rejected participant, so naming it discloses
 // nothing it does not already hold.
@@ -164,6 +179,9 @@ func (s *store) put(
 		return nil, false, err
 	}
 	active := activeOf(body)
+	if active == nil {
+		return nil, false, errActiveRequired
+	}
 
 	objID, known := s.local[localKeyOf(ep, typ, localID)]
 	if err := sent.checkBinding(localID, objID, known); err != nil {
@@ -184,13 +202,19 @@ func (s *store) put(
 				content[k] = value
 			}
 		}
-		obj := s.create(ep, typ, localID, content, active == nil || *active)
+		obj := s.create(ep, typ, localID, content, *active)
 		s.recordLocalEntry(ep.id, obj.id, sent.local)
-		s.deliver(obj, ep.id, false)
+		s.deliver(obj, ep.id)
 		return obj, true, nil
 	}
 
 	obj := s.objects[objID]
+	// The lifecycle check comes before anything else the write could be: a
+	// no-op, a conflict, a merge. The same body then always gets the same
+	// answer, and a write never revives or retires an object as a side effect.
+	if *active != obj.active {
+		return nil, false, &lifecycleConflict{current: obj.active}
+	}
 	// What the write says about its local entry is kept whatever else it
 	// changes: it is not content, and no other participant sees it.
 	s.recordLocalEntry(ep.id, obj.id, sent.local)
@@ -204,12 +228,10 @@ func (s *store) put(
 	if err := s.checkKindChange(obj, patched); err != nil {
 		return nil, false, err
 	}
-	activeChanged := active != nil && *active != obj.active
-
 	// A write that changes nothing succeeds as a no-op whatever the base: no
 	// new revision, nothing forwarded. This is what makes a write whose
 	// outcome was never observed safe to retry.
-	changesSomething := activeChanged
+	changesSomething := false
 	for k, v := range patched {
 		if !bytes.Equal(v, obj.content[k]) {
 			changesSomething = true
@@ -249,7 +271,7 @@ func (s *store) put(
 		changed[k] = patched[k]
 	}
 
-	if len(changed) == 0 && !activeChanged {
+	if len(changed) == 0 {
 		return obj, false, nil
 	}
 
@@ -263,15 +285,12 @@ func (s *store) put(
 		obj.stamps[k] = obj.revision
 		obj.history[k] = append(obj.history[k], attributeValue{revision: obj.revision, value: v})
 	}
-	if active != nil {
-		obj.active = *active
-	}
 	obj.modifiedAt = s.now().UTC()
 	obj.sourceEndpointID = ep.id
 	s.seq++
 	obj.seq = s.seq
 
-	s.deliver(obj, ep.id, false)
+	s.deliver(obj, ep.id)
 	return obj, false, nil
 }
 
@@ -340,7 +359,47 @@ func (s *store) deactivate(
 	s.seq++
 	obj.seq = s.seq
 
-	s.deliver(obj, ep.id, true)
+	s.deliver(obj, ep.id)
+	return obj, nil
+}
+
+// reactivate signals that an entity deactivated earlier is active again in its
+// source system. It mirrors deactivate: the first reactivation honours the
+// base, and on an object that is already active the base is ignored and no
+// revision is produced.
+func (s *store) reactivate(
+	ep *endpoint, typ agmasync.EntityType, localID string, base *int,
+) (*object, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !ep.optedInto(typ) {
+		return nil, errForbidden
+	}
+	objID, known := s.local[localKeyOf(ep, typ, localID)]
+	if !known {
+		return nil, errNotFound
+	}
+	obj := s.objects[objID]
+
+	if obj.active {
+		return obj, nil
+	}
+	if base == nil {
+		return nil, errBaseRequired
+	}
+	if *base != obj.revision {
+		return nil, &revisionConflict{current: obj.revision}
+	}
+
+	obj.revision++
+	obj.active = true
+	obj.modifiedAt = s.now().UTC()
+	obj.sourceEndpointID = ep.id
+	s.seq++
+	obj.seq = s.seq
+
+	s.deliver(obj, ep.id)
 	return obj, nil
 }
 
@@ -491,15 +550,13 @@ func (s *store) recipients(obj *object, exclude uuid.UUID) []*endpoint {
 
 // deliver fans a change out to every entitled endpoint, suppressing the one it
 // originated from. Every frame of the change carries the same position: the
-// stream is the application's, and fan-out happens at render time.
-func (s *store) deliver(obj *object, source uuid.UUID, deactivated bool) {
-	event := eventMasterdataChanged
-	if deactivated {
-		event = eventMasterdataDeactivated
-	}
+// stream is the application's, and fan-out happens at render time. Every
+// object frame is MASTERDATA_CHANGED, inactive objects included: `active` is the
+// only lifecycle signal.
+func (s *store) deliver(obj *object, source uuid.UUID) {
 	for _, ep := range s.recipients(obj, source) {
 		s.hub.publish(ep.appID, frame{
-			event:  event,
+			event:  eventMasterdataChanged,
 			id:     encodePosition(obj.seq),
 			entity: s.renderLocked(obj, ep),
 		})
@@ -571,8 +628,8 @@ func contentOf(body []byte) (map[string]json.RawMessage, error) {
 	return all.Content, nil
 }
 
-// activeOf reads `active` from a write, nil when the write leaves it out:
-// absent on an update leaves the object's state as it is.
+// activeOf reads `active` from a write, nil when the write leaves it out, which
+// is refused: `active` is required on send.
 func activeOf(body []byte) *bool {
 	var probe struct {
 		Active *bool `json:"active"`

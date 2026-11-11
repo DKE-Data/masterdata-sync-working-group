@@ -72,7 +72,7 @@ func (f *fixture) joinIn(
 }
 
 func farm(localID, name string) oapi.Entity {
-	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{Id: agmasync.LocalID(localID), Name: name}})
+	ent, err := agrirouter.FromFarm(oapi.Farm{Active: true, Content: oapi.FarmContent{Id: agmasync.LocalID(localID), Name: name}})
 	if err != nil {
 		panic(err)
 	}
@@ -377,7 +377,7 @@ func TestDeactivationIsIdempotentAndIgnoresBaseOnceInactive(t *testing.T) {
 		t.Fatalf("deactivate: %v", err)
 	}
 	firstEnv, _ := agrirouter.EnvelopeOf(first)
-	if firstEnv.Active == nil || *firstEnv.Active {
+	if firstEnv.Active {
 		t.Error("the object should be inactive after deactivation")
 	}
 
@@ -400,7 +400,7 @@ func TestUnresolvableReferenceIsRejected(t *testing.T) {
 	f := newFixture(t)
 	p := f.join("fmis-a", "ep-a", agmasync.TypeField)
 
-	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
+	field, err := agrirouter.FromField(oapi.Field{Active: true, Content: oapi.FieldContent{
 		Id:                        agmasync.LocalID("PFD-1"),
 		Name:                      "North 40",
 		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.LocalRef("FRM-NOT-SENT-YET")),
@@ -573,7 +573,7 @@ func strptr(s string) *string { return &s }
 
 // farmIn is a farm with an address in a city.
 func farmIn(localID, name, city string) oapi.Entity {
-	ent, err := agrirouter.FromFarm(oapi.Farm{Content: oapi.FarmContent{
+	ent, err := agrirouter.FromFarm(oapi.Farm{Active: true, Content: oapi.FarmContent{
 		Id: agmasync.LocalID(localID), Name: name,
 		UnderscoreAgmasyncAddress: nullable.NewNullableWithValue(oapi.AddressContactMethod{
 			AddressContactTypeCode: "PHYSICAL", City: &city,
@@ -842,7 +842,7 @@ func TestAReferenceToAnotherTenantsObjectIsRejected(t *testing.T) {
 	}
 	env, _ := agrirouter.EnvelopeOf(created)
 
-	field, err := agrirouter.FromField(oapi.Field{Content: oapi.FieldContent{
+	field, err := agrirouter.FromField(oapi.Field{Active: true, Content: oapi.FieldContent{
 		Id:                        agmasync.LocalID("PFD-1"),
 		Name:                      "North 40",
 		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.CanonicalRef(*env.AgrirouterID)),
