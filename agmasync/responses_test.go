@@ -32,17 +32,17 @@ func answer(t *testing.T, status int, contentType, body string) *oapi.ClientWith
 	return api
 }
 
-// deactivate deactivates as an arbitrary endpoint of an arbitrary tenant.
-func deactivate(api *oapi.ClientWithResponses, t agmasync.EntityType, localID string) (agmasync.Object, error) {
-	return agmasync.Deactivate(context.Background(), api, uuid.New(), uuid.New(), t, localID, nil)
+// archive archives as an arbitrary endpoint of an arbitrary tenant.
+func archive(api *oapi.ClientWithResponses, t agmasync.EntityType, localID string) (agmasync.Object, error) {
+	return agmasync.Archive(context.Background(), api, uuid.New(), uuid.New(), t, localID, nil)
 }
 
-func TestDeactivateDecodesByTheRequestedType(t *testing.T) {
+func TestArchiveDecodesByTheRequestedType(t *testing.T) {
 	t.Run("body without type", func(t *testing.T) {
-		api := answer(t, http.StatusOK, "application/json", `{"content":{"id":{"referenceId":"a-1"},"name":"Acker"},"active":false}`)
-		obj, err := deactivate(api, agmasync.TypeField, "field-1")
+		api := answer(t, http.StatusOK, "application/json", `{"content":{"id":{"referenceId":"a-1"},"name":"Acker"},"archived":true}`)
+		obj, err := archive(api, agmasync.TypeField, "field-1")
 		if err != nil {
-			t.Fatalf("Deactivate: %v", err)
+			t.Fatalf("Archive: %v", err)
 		}
 		if obj.Envelope.Type != agmasync.TypeField {
 			t.Errorf("Type = %q, want %q", obj.Envelope.Type, agmasync.TypeField)
@@ -53,9 +53,9 @@ func TestDeactivateDecodesByTheRequestedType(t *testing.T) {
 	})
 
 	t.Run("body of another type", func(t *testing.T) {
-		api := answer(t, http.StatusOK, "application/json", `{"type":"farm","content":{"id":{"referenceId":"h-1"},"name":"Hof"},"active":false}`)
-		if _, err := deactivate(api, agmasync.TypeField, "field-1"); !errors.Is(err, agmasync.ErrEntityTypeMismatch) {
-			t.Errorf("Deactivate error = %v, want ErrEntityTypeMismatch", err)
+		api := answer(t, http.StatusOK, "application/json", `{"type":"farm","content":{"id":{"referenceId":"h-1"},"name":"Hof"},"archived":true}`)
+		if _, err := archive(api, agmasync.TypeField, "field-1"); !errors.Is(err, agmasync.ErrEntityTypeMismatch) {
+			t.Errorf("Archive error = %v, want ErrEntityTypeMismatch", err)
 		}
 	})
 }
@@ -77,10 +77,10 @@ func TestErrorsCarryTheServersMessage(t *testing.T) {
 
 	t.Run("400 on an operation that declares none", func(t *testing.T) {
 		api := answer(t, http.StatusBadRequest, "application/json", `{"message":"invalid base revision"}`)
-		_, err := deactivate(api, agmasync.TypeFarm, "farm-1")
+		_, err := archive(api, agmasync.TypeFarm, "farm-1")
 		var apiErr *agmasync.APIError
 		if !errors.As(err, &apiErr) || !errors.Is(err, agmasync.ErrValidation) {
-			t.Fatalf("Deactivate error = %v, want an APIError matching ErrValidation", err)
+			t.Fatalf("Archive error = %v, want an APIError matching ErrValidation", err)
 		}
 		if apiErr.Message != "invalid base revision" {
 			t.Errorf("Message = %q", apiErr.Message)
@@ -159,7 +159,7 @@ func TestStreamMaxEventSizeBoundsFrames(t *testing.T) {
 func TestBaseRevisionRequiredCarriesTheCurrentRevision(t *testing.T) {
 	api := answer(t, http.StatusPreconditionRequired, "application/json",
 		`{"message":"base revision required","current_revision":4}`)
-	_, err := deactivate(api, agmasync.TypeFarm, "farm-1")
+	_, err := archive(api, agmasync.TypeFarm, "farm-1")
 	var conflict *agmasync.RevisionConflict
 	if !errors.As(err, &conflict) || !errors.Is(err, agmasync.ErrBaseRevisionRequired) {
 		t.Fatalf("error = %v, want a RevisionConflict matching ErrBaseRevisionRequired", err)

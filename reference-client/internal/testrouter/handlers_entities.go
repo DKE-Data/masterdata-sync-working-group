@@ -50,23 +50,23 @@ func (r *Router) PutParty(
 	return oapi.PutParty200JSONResponse(entity), nil
 }
 
-// DeactivateParty implements oapi.StrictServerInterface.
-func (r *Router) DeactivateParty(
-	ctx context.Context, req oapi.DeactivatePartyRequestObject,
-) (oapi.DeactivatePartyResponseObject, error) {
-	raw, err := r.doDeactivate(ctx, agmasync.TypeParty, req.LocalId,
+// ArchiveParty implements oapi.StrictServerInterface.
+func (r *Router) ArchiveParty(
+	ctx context.Context, req oapi.ArchivePartyRequestObject,
+) (oapi.ArchivePartyResponseObject, error) {
+	raw, err := r.doArchive(ctx, agmasync.TypeParty, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.DeactivateParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.ArchiveParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.DeactivateParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.ArchiveParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.DeactivateParty428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveParty428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.DeactivateParty412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveParty412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -74,26 +74,26 @@ func (r *Router) DeactivateParty(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.DeactivateParty200JSONResponse(entity), nil
+	return oapi.ArchiveParty200JSONResponse(entity), nil
 }
 
-// ReactivateParty implements oapi.StrictServerInterface.
-func (r *Router) ReactivateParty(
-	ctx context.Context, req oapi.ReactivatePartyRequestObject,
-) (oapi.ReactivatePartyResponseObject, error) {
-	raw, err := r.doReactivate(ctx, agmasync.TypeParty, req.LocalId,
+// UnarchiveParty implements oapi.StrictServerInterface.
+func (r *Router) UnarchiveParty(
+	ctx context.Context, req oapi.UnarchivePartyRequestObject,
+) (oapi.UnarchivePartyResponseObject, error) {
+	raw, err := r.doUnarchive(ctx, agmasync.TypeParty, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.ReactivateParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.UnarchiveParty403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.ReactivateParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.UnarchiveParty404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.ReactivateParty428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveParty428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.ReactivateParty412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveParty412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -101,7 +101,7 @@ func (r *Router) ReactivateParty(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.ReactivateParty200JSONResponse(entity), nil
+	return oapi.UnarchiveParty200JSONResponse(entity), nil
 }
 
 // BindPartyMapping implements oapi.StrictServerInterface.
@@ -196,23 +196,23 @@ func (r *Router) PutFarm(
 	return oapi.PutFarm200JSONResponse(entity), nil
 }
 
-// DeactivateFarm implements oapi.StrictServerInterface.
-func (r *Router) DeactivateFarm(
-	ctx context.Context, req oapi.DeactivateFarmRequestObject,
-) (oapi.DeactivateFarmResponseObject, error) {
-	raw, err := r.doDeactivate(ctx, agmasync.TypeFarm, req.LocalId,
+// ArchiveFarm implements oapi.StrictServerInterface.
+func (r *Router) ArchiveFarm(
+	ctx context.Context, req oapi.ArchiveFarmRequestObject,
+) (oapi.ArchiveFarmResponseObject, error) {
+	raw, err := r.doArchive(ctx, agmasync.TypeFarm, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.DeactivateFarm403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.ArchiveFarm403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.DeactivateFarm404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.ArchiveFarm404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.DeactivateFarm428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveFarm428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.DeactivateFarm412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveFarm412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -220,26 +220,26 @@ func (r *Router) DeactivateFarm(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.DeactivateFarm200JSONResponse(entity), nil
+	return oapi.ArchiveFarm200JSONResponse(entity), nil
 }
 
-// ReactivateFarm implements oapi.StrictServerInterface.
-func (r *Router) ReactivateFarm(
-	ctx context.Context, req oapi.ReactivateFarmRequestObject,
-) (oapi.ReactivateFarmResponseObject, error) {
-	raw, err := r.doReactivate(ctx, agmasync.TypeFarm, req.LocalId,
+// UnarchiveFarm implements oapi.StrictServerInterface.
+func (r *Router) UnarchiveFarm(
+	ctx context.Context, req oapi.UnarchiveFarmRequestObject,
+) (oapi.UnarchiveFarmResponseObject, error) {
+	raw, err := r.doUnarchive(ctx, agmasync.TypeFarm, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.ReactivateFarm403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.UnarchiveFarm403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.ReactivateFarm404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.UnarchiveFarm404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.ReactivateFarm428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveFarm428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.ReactivateFarm412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveFarm412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -247,7 +247,7 @@ func (r *Router) ReactivateFarm(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.ReactivateFarm200JSONResponse(entity), nil
+	return oapi.UnarchiveFarm200JSONResponse(entity), nil
 }
 
 // BindFarmMapping implements oapi.StrictServerInterface.
@@ -342,23 +342,23 @@ func (r *Router) PutField(
 	return oapi.PutField200JSONResponse(entity), nil
 }
 
-// DeactivateField implements oapi.StrictServerInterface.
-func (r *Router) DeactivateField(
-	ctx context.Context, req oapi.DeactivateFieldRequestObject,
-) (oapi.DeactivateFieldResponseObject, error) {
-	raw, err := r.doDeactivate(ctx, agmasync.TypeField, req.LocalId,
+// ArchiveField implements oapi.StrictServerInterface.
+func (r *Router) ArchiveField(
+	ctx context.Context, req oapi.ArchiveFieldRequestObject,
+) (oapi.ArchiveFieldResponseObject, error) {
+	raw, err := r.doArchive(ctx, agmasync.TypeField, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.DeactivateField403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.ArchiveField403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.DeactivateField404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.ArchiveField404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.DeactivateField428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveField428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.DeactivateField412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveField412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -366,26 +366,26 @@ func (r *Router) DeactivateField(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.DeactivateField200JSONResponse(entity), nil
+	return oapi.ArchiveField200JSONResponse(entity), nil
 }
 
-// ReactivateField implements oapi.StrictServerInterface.
-func (r *Router) ReactivateField(
-	ctx context.Context, req oapi.ReactivateFieldRequestObject,
-) (oapi.ReactivateFieldResponseObject, error) {
-	raw, err := r.doReactivate(ctx, agmasync.TypeField, req.LocalId,
+// UnarchiveField implements oapi.StrictServerInterface.
+func (r *Router) UnarchiveField(
+	ctx context.Context, req oapi.UnarchiveFieldRequestObject,
+) (oapi.UnarchiveFieldResponseObject, error) {
+	raw, err := r.doUnarchive(ctx, agmasync.TypeField, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.ReactivateField403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.UnarchiveField403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.ReactivateField404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.UnarchiveField404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.ReactivateField428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveField428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.ReactivateField412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveField412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -393,7 +393,7 @@ func (r *Router) ReactivateField(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.ReactivateField200JSONResponse(entity), nil
+	return oapi.UnarchiveField200JSONResponse(entity), nil
 }
 
 // BindFieldMapping implements oapi.StrictServerInterface.
@@ -488,23 +488,23 @@ func (r *Router) PutFieldBoundary(
 	return oapi.PutFieldBoundary200JSONResponse(entity), nil
 }
 
-// DeactivateFieldBoundary implements oapi.StrictServerInterface.
-func (r *Router) DeactivateFieldBoundary(
-	ctx context.Context, req oapi.DeactivateFieldBoundaryRequestObject,
-) (oapi.DeactivateFieldBoundaryResponseObject, error) {
-	raw, err := r.doDeactivate(ctx, agmasync.TypeFieldBoundary, req.LocalId,
+// ArchiveFieldBoundary implements oapi.StrictServerInterface.
+func (r *Router) ArchiveFieldBoundary(
+	ctx context.Context, req oapi.ArchiveFieldBoundaryRequestObject,
+) (oapi.ArchiveFieldBoundaryResponseObject, error) {
+	raw, err := r.doArchive(ctx, agmasync.TypeFieldBoundary, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.DeactivateFieldBoundary403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.ArchiveFieldBoundary403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.DeactivateFieldBoundary404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.ArchiveFieldBoundary404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.DeactivateFieldBoundary428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveFieldBoundary428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.DeactivateFieldBoundary412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.ArchiveFieldBoundary412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -512,26 +512,26 @@ func (r *Router) DeactivateFieldBoundary(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.DeactivateFieldBoundary200JSONResponse(entity), nil
+	return oapi.ArchiveFieldBoundary200JSONResponse(entity), nil
 }
 
-// ReactivateFieldBoundary implements oapi.StrictServerInterface.
-func (r *Router) ReactivateFieldBoundary(
-	ctx context.Context, req oapi.ReactivateFieldBoundaryRequestObject,
-) (oapi.ReactivateFieldBoundaryResponseObject, error) {
-	raw, err := r.doReactivate(ctx, agmasync.TypeFieldBoundary, req.LocalId,
+// UnarchiveFieldBoundary implements oapi.StrictServerInterface.
+func (r *Router) UnarchiveFieldBoundary(
+	ctx context.Context, req oapi.UnarchiveFieldBoundaryRequestObject,
+) (oapi.UnarchiveFieldBoundaryResponseObject, error) {
+	raw, err := r.doUnarchive(ctx, agmasync.TypeFieldBoundary, req.LocalId,
 		req.Params.XAgrirouterEndpointId, req.Params.XAgrirouterBaseRevision)
 	if err != nil {
 		f := faultOf(err)
 		switch f.status {
 		case 403:
-			return oapi.ReactivateFieldBoundary403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
+			return oapi.UnarchiveFieldBoundary403JSONResponse{ForbiddenJSONResponse: oapi.ForbiddenJSONResponse(f.error())}, nil
 		case 404:
-			return oapi.ReactivateFieldBoundary404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
+			return oapi.UnarchiveFieldBoundary404JSONResponse{NotFoundJSONResponse: oapi.NotFoundJSONResponse(f.error())}, nil
 		case 428:
-			return oapi.ReactivateFieldBoundary428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveFieldBoundary428JSONResponse{BaseRevisionRequiredJSONResponse: oapi.BaseRevisionRequiredJSONResponse(f.revisionConflict())}, nil
 		default:
-			return oapi.ReactivateFieldBoundary412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
+			return oapi.UnarchiveFieldBoundary412JSONResponse{RevisionConflictJSONResponse: oapi.RevisionConflictJSONResponse(f.revisionConflict())}, nil
 		}
 	}
 
@@ -539,7 +539,7 @@ func (r *Router) ReactivateFieldBoundary(
 	if err := json.Unmarshal(raw, &entity); err != nil {
 		return nil, err
 	}
-	return oapi.ReactivateFieldBoundary200JSONResponse(entity), nil
+	return oapi.UnarchiveFieldBoundary200JSONResponse(entity), nil
 }
 
 // BindFieldBoundaryMapping implements oapi.StrictServerInterface.

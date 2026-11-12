@@ -646,19 +646,19 @@ func (p *Platform) Send(
 	return p.Applier.Send(ctx, typ, localID)
 }
 
-// Deactivate tells agrirouter the record was deactivated in this platform.
-func (p *Platform) Deactivate(
+// Archive tells agrirouter the record was archived in this platform.
+func (p *Platform) Archive(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) (psync.Outcome, error) {
-	return p.Applier.Deactivate(ctx, typ, localID)
+	return p.Applier.Archive(ctx, typ, localID)
 }
 
-// Reactivate tells agrirouter a record deactivated earlier is active again in
-// this platform.
-func (p *Platform) Reactivate(
+// Unarchive tells agrirouter a record archived earlier is no longer archived
+// in this platform.
+func (p *Platform) Unarchive(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) (psync.Outcome, error) {
-	return p.Applier.Reactivate(ctx, typ, localID)
+	return p.Applier.Unarchive(ctx, typ, localID)
 }
 
 // Correct replaces bindings the platform's user found wrong, and returns once

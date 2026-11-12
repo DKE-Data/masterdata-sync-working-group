@@ -7,21 +7,21 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 )
 
-func reactivated() Scenario {
+func unarchived() Scenario {
 	return Scenario{
 		Number: 20,
-		Title:  "An archived farm is corrected, then reactivated",
+		Title:  "An archived farm is corrected, then unarchived",
 		Spec: []string{
-			"Lifecycle", "Reactivation", "Receiving an inactive object", "Deactivation",
+			"Lifecycle", "Unarchiving", "Receiving an archived object", "Archiving",
 		},
-		Run: runReactivated,
+		Run: runUnarchived,
 	}
 }
 
-// runReactivated is the lifecycle after deactivation: an archived entity can
+// runUnarchived is the lifecycle after archiving: an archived entity can
 // still be corrected without being revived, and coming back is an operation of
 // its own rather than a side effect of a write.
-func runReactivated(ctx context.Context, w *World) error {
+func runUnarchived(ctx context.Context, w *World) error {
 	say := w.Say
 
 	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeFarm)
@@ -57,7 +57,7 @@ func runReactivated(ctx context.Context, w *World) error {
 	betaFarm := held[0]
 
 	say.Step("Alpha archives Hof Alt.")
-	if _, err := alpha.Deactivate(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
+	if _, err := alpha.Archive(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
 		return err
 	}
 	if _, err := beta.CatchUp(ctx); err != nil {
@@ -68,7 +68,7 @@ func runReactivated(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(record.Archived,
-		"Beta receives it as an ordinary change carrying active false, and archives its copy"); err != nil {
+		"Beta receives it as an ordinary change carrying archived true, and archives its copy"); err != nil {
 		return err
 	}
 
@@ -79,8 +79,8 @@ func runReactivated(ctx context.Context, w *World) error {
 	if _, err := alpha.Send(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
 		return err
 	}
-	say.Detail("the write states the state the farm is in, inactive; a write that")
-	say.Detail("said active would be refused, since only reactivation revives")
+	say.Detail("the write states the state the farm is in, archived; a write that")
+	say.Detail("said not archived would be refused, since only unarchiving revives")
 	if _, err := beta.CatchUp(ctx); err != nil {
 		return err
 	}
@@ -97,8 +97,8 @@ func runReactivated(ctx context.Context, w *World) error {
 		return err
 	}
 
-	say.Step("Alpha reactivates Hof Alt.")
-	if _, err := alpha.Reactivate(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
+	say.Step("Alpha unarchives Hof Alt.")
+	if _, err := alpha.Unarchive(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
 		return err
 	}
 	if _, err := beta.CatchUp(ctx); err != nil {
@@ -109,5 +109,5 @@ func runReactivated(ctx context.Context, w *World) error {
 		return err
 	}
 	return say.Check(!record.Archived,
-		"Beta receives it active again and restores its copy")
+		"Beta receives it no longer archived and restores its copy")
 }

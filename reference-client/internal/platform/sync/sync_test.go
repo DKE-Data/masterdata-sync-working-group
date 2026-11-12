@@ -228,7 +228,7 @@ func TestApplyIsGuardedByRevision(t *testing.T) {
 	id := agmasync.CanonicalRef(*row.AgrirouterID).Id
 	id.ReferenceId = strptr("FRM-1")
 	old, err := agrirouter.FromFarm(oapi.Farm{
-		Active:   true,
+		Archived: false,
 		TenantId: &h.tenant,
 		Content:  oapi.FarmContent{Id: id, Name: "Hof Nord"},
 		Revision: &stale,
@@ -355,7 +355,7 @@ func body(typ, localID, members string) string {
 	if members != "" {
 		members = "," + members
 	}
-	return fmt.Sprintf(`{"type":%q,"active":true,"content":{"id":{"referenceId":%q}%s}}`, typ, localID, members)
+	return fmt.Sprintf(`{"type":%q,"archived":false,"content":{"id":{"referenceId":%q}%s}}`, typ, localID, members)
 }
 
 // contentOf reads the content attributes of an entity putRaw answered with.
@@ -510,20 +510,20 @@ func TestAnAttributeRemovedElsewhereIsClearedLocally(t *testing.T) {
 	}
 }
 
-func TestUnrecognisedInactiveObjectCreatesNothing(t *testing.T) {
-	// An inactive object the platform does not hold is ignored. Creating a
+func TestUnrecognisedArchivedObjectCreatesNothing(t *testing.T) {
+	// An archived object the platform does not hold is ignored. Creating a
 	// record for an entity the world considers gone would be inventing data,
 	// and the "absent localId means create and bind" rule does not reach it.
 	h := newHarness(t)
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
 
-	inactive := false
+	archived := true
 	revision := 4
 	id := uuid.New()
 	entity, err := agrirouter.FromFarm(oapi.Farm{
 		TenantId: &h.tenant,
 		Content:  oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Vergangen"},
-		Active:   inactive,
+		Archived: archived,
 		Revision: &revision,
 	})
 	if err != nil {
@@ -538,7 +538,7 @@ func TestUnrecognisedInactiveObjectCreatesNothing(t *testing.T) {
 		t.Errorf("outcome = %+v, want the object ignored", outcome)
 	}
 	if outcome.LocalID != "" {
-		t.Errorf("a record was created under %q for an unrecognised inactive object",
+		t.Errorf("a record was created under %q for an unrecognised archived object",
 			outcome.LocalID)
 	}
 }
@@ -552,8 +552,8 @@ func TestObjectNamingNoTenantIsDiscarded(t *testing.T) {
 
 	id := uuid.New()
 	entity, err := agrirouter.FromFarm(oapi.Farm{
-		Active:  true,
-		Content: oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Ohne"},
+		Archived: false,
+		Content:  oapi.FarmContent{Id: agmasync.CanonicalRef(id).Id, Name: "Hof Ohne"},
 	})
 	if err != nil {
 		t.Fatalf("building entity: %v", err)

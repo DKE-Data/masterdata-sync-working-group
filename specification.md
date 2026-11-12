@@ -137,8 +137,8 @@ the collection of one supported entity type (`parties`, `farms`,
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `PUT /masterdata/<types>/{local_id}`                | Sends the entity (creation or update) as a merge patch: an attribute left out is unchanged, `null` removes one, see [Writing an entity](#writing-an-entity). An update carries the revision it was edited from, see [Concurrency control](#concurrency-control). |
 | `POST /masterdata/<types>/requests`                | Actively requests an entity ("lazy loading"), see [Requesting objects](#requesting-objects-lazy-loading). |
-| `POST /masterdata/<types>/{local_id}/deactivation`  | Signals that the endpoint deactivated the entity locally (archival, deletion, or similar), see [Deactivation](#deactivation). |
-| `POST /masterdata/<types>/{local_id}/reactivation`  | Signals that the endpoint reactivated a deactivated entity locally, see [Reactivation](#reactivation). |
+| `POST /masterdata/<types>/{local_id}/archiving`  | Signals that the entity was archived, deleted or similar in the source system, see [Archiving](#archiving). |
+| `POST /masterdata/<types>/{local_id}/unarchiving`  | Signals that the entity is no longer archived in the source system, see [Unarchiving](#unarchiving). |
 | `PUT /masterdata/<types>/{local_id}/id-mapping/{agrirouter_id}` | Binds the endpoint's own identifier, see [Identifier mapping](#identifier-mapping). |
 | `POST /masterdata/<types>/id-mapping-corrections` | Replaces bindings the user found wrong, see [Correcting a binding](#correcting-a-binding). |
 
@@ -147,16 +147,16 @@ purposes and are independent of each other:
 
 | Stream | Scoped to | Carries |
 | --- | --- | --- |
-| `GET /masterdata/events` | the application | live changes: canonical objects, active or inactive, for every tenant the application is routed to. One frame per recipient endpoint, named by `recipient_endpoint_id` (see [Common envelope](#common-envelope)) |
+| `GET /masterdata/events` | the application | live changes: canonical objects, archived or not, for every tenant the application is routed to. One frame per recipient endpoint, named by `recipient_endpoint_id` (see [Common envelope](#common-envelope)) |
 | `GET /endpoints/{external_id}/masterdata-initial-load/events` | one endpoint | the canonical set of every opted-in entity type for that endpoint's [initial load](#initial-load), ending when the response closes |
 
 Both streams deliver every canonical object as a `MASTERDATA_CHANGED` frame: the
 canonical state of that object at that revision, not a report of what just
-happened to it. An inactive object is a `MASTERDATA_CHANGED` frame carrying
-`active: false`, whether it was just deactivated, was edited while inactive, or is
-part of an initial load; `active` is the only signal of an object's lifecycle
+happened to it. An archived object is a `MASTERDATA_CHANGED` frame carrying
+`archived: true`, whether it was just archived, was edited while archived, or is
+part of an initial load; `archived` is the only signal of an object's lifecycle
 state, and a receiver applies it as described in
-[Receiving an inactive object](#receiving-an-inactive-object).
+[Receiving an archived object](#receiving-an-archived-object).
 
 Only `/masterdata/events` carries a position, as `Last-Event-ID` (see
 [Downtime and resume](#downtime-and-resume)). An initial-load stream delivers a fixed limited set rather
@@ -194,7 +194,7 @@ Every entity is an envelope carrying sync state, with the master data in
 ~~~ json
 {
   "type": "field",
-  "active": true,
+  "archived": false,
   "revision": 7,
   "modified_at": "2026-07-14T09:20:00Z",
   "tenant_id": "3a4b5c6d-7e8f-9012-3456-789abcdef012",
@@ -216,7 +216,7 @@ Every entity is an envelope carrying sync state, with the master data in
 Envelope fields:
 
 - `type` (string): the entity type; one of `party`, `farm`, `field`, `fieldBoundary`. Always present on delivery. Optional on send, where the path implies it.
-- `active` (boolean): whether the entity is currently active. Always present on delivery, where it reflects the current SSOT state and is the only signal of the object's lifecycle state. **Required on send**: on a write that creates the canonical object it sets the initial state, and on any other write it MUST equal the object's current state (see [Lifecycle](#lifecycle)). The state of an existing object changes only through [deactivation](#deactivation) and [reactivation](#reactivation).
+- `archived` (boolean): whether the entity is currently archived. Always present on delivery, where it reflects the current SSOT state and is the only signal of the object's lifecycle state. **Required on send**: on a write that creates the canonical object it sets the initial state, and on any other write it MUST equal the object's current state (see [Lifecycle](#lifecycle)). The state of an existing object changes only through [archiving](#archiving) and [unarchiving](#unarchiving).
 - `revision` (integer): a monotonically increasing counter maintained by agrirouter for the canonical object. It is central to loop prevention and conflict detection (see [Loop prevention](#loop-prevention)). It is never taken from a sent object: the revision an application edited from travels in the `x-agrirouter-base-revision` header, where it is compared and discarded (see [Concurrency control](#concurrency-control)).
 - `modified_at` (string): the [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) timestamp of the last accepted change.
 - `tenant_id` (string): the tenant the object belongs to ([RFC 4122](https://www.rfc-editor.org/rfc/rfc4122)). It is set by agrirouter; on send the tenant follows from the acting endpoint, and a value a sender supplies MUST be that tenant. A single application stream carries every tenant the application is routed to (see [Routing and opt-in](#routing-and-opt-in)), so on delivery this is the field that says which of them an object belongs to, and a receiver holding data for several tenants MUST partition on it rather than on the connection.
@@ -236,10 +236,10 @@ three groups:
 - **Identity the request already decides:** `type` and `tenant_id` are optional.
   If sent, they MUST match the object written — the path's entity type and the
   acting endpoint's tenant — or the write is rejected with `400`.
-- **Lifecycle state:** `active` is required, because leaving it out would decide
+- **Lifecycle state:** `archived` is required, because leaving it out would decide
   something: a write cannot always know whether it creates or updates, and no
-  default is safe. A write without `active` is rejected with `400`; one whose
-  `active` contradicts the object's current state with `409` (see
+  default is safe. A write without `archived` is rejected with `400`; one whose
+  `archived` contradicts the object's current state with `409` (see
   [Lifecycle](#lifecycle)).
 
 ### Identity
@@ -345,7 +345,7 @@ delivery only:
 - **It is not part of opt-in.** It adds nothing to the dependency closure. An
   endpoint that does not select the target's entity type ignores the reference,
   as for any reference (see [Entity dependencies](#entity-dependencies)).
-- **Its target may no longer meet the attribute's rule.** Moving or deactivating
+- **Its target may no longer meet the attribute's rule.** Moving or archiving
   the target does not change the reference. The attribute says how a receiver
   treats that.
 
@@ -432,7 +432,7 @@ Canonical attributes (subset):
 - `description` (string, optional): free text about the field.
 - `arableArea` (object, optional): nominal area, `numericValue` with `unitOfMeasureCode` `ha`.
 - `_agmasync_farmRef` (reference, optional): the farm this field belongs to. The field's grower is its farm's `_agmasync_growerRef`.
-- `_agmasync_activeBoundaryRef` ([weak reference](#weak-references), optional): the field's active boundary, one per field. A receiver treats a deactivated boundary, or one whose `_agmasync_fieldRef` names another field, as no active boundary. An application that moves or deactivates a field's active boundary SHOULD also write the field, naming another boundary or `null`.
+- `_agmasync_activeBoundaryRef` ([weak reference](#weak-references), optional): the field's active boundary, one per field. A receiver treats an archived boundary, or one whose `_agmasync_fieldRef` names another field, as no active boundary. An application that moves or archives a field's active boundary SHOULD also write the field, naming another boundary or `null`.
 - `timeZone` (string, optional): the field's time zone, an IANA identifier such as `Europe/Berlin`.
 - `_agmasync_soil` (object, optional):
   - `type` (Enum value like: `SAND`, `LOAMY_SAND`, `HEAVY_LOAMY_SAND`, `SANDY_TO_SILTY_LOAM`, `CLAYEY_LOAM`, `CLAY`),
@@ -496,12 +496,7 @@ Canonical attributes:
   - `WATER_PROTECTION_AREA`: Including a water protection area
 - `_agmasync_metadata` (object, optional): additional key/value metadata that does not fit a defined attribute. An application leaves the keys it does not understand out of its writes, which keeps them (see [Writing an entity](#writing-an-entity)).
 
-A boundary's `active` and its field's active boundary are different things:
-
-- `active` is the boundary's lifecycle, as for every entity (see [Deactivation](#deactivation)). A field may have any number of active boundaries, one for each use.
-- The field's [`_agmasync_activeBoundaryRef`](#field) picks one of them as the field's active boundary.
-
-Neither changes the other: naming a boundary does not activate it, and deactivating it does not clear the field's reference. A system whose boundaries carry a flag marking one per field as active maps that flag to `_agmasync_activeBoundaryRef`, not to `active`.
+A boundary's `archived` state ([Archiving](#archiving)) and its field's [`_agmasync_activeBoundaryRef`](#field) are independent: a field may have any number of boundaries that are not archived, one for each use, and a system that flags one boundary per field as active maps that flag to `_agmasync_activeBoundaryRef`, not to `archived`.
 
 ### Entity dependencies
 
@@ -695,8 +690,8 @@ An endpoint's `local_id` for an object outlives its local record. An application
 whose own keys change — a record re-created on edit, local duplicates merged, a
 store migrated — keeps the `local_id` in its correspondence table and goes on
 using it: `local_id` need not be a primary key. A record its user deleted is
-[deactivated](#deactivation). An application that drops an object from its own
-store without deactivating it keeps the pair as a tombstone: the object is still
+[archived](#archiving). An application that drops an object from its own
+store without archiving it keeps the pair as a tombstone: the object is still
 delivered under that `local_id`, and the application may ignore it or recreate
 it under the same identifier. No operation detaches an endpoint from an object
 the network keeps — opt-in is the only filter on what it receives (see
@@ -866,7 +861,7 @@ state, held by agrirouter on the initial-load resource and read there by the
 endpoint. It covers every entity type the endpoint is opted into; there is no
 state, and no stream, per entity type. The defined progression is:
 
-1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; an application adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. An application MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The application is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{external_id}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [deactivated](#deactivation): see [Deactivated objects are part of the set](#deactivated-objects-are-part-of-the-set).
+1. **`LOADING_FROM_AGRIROUTER`.** Entered when the user selects master data for the endpoint, or selects a further entity type (see [Selection](#selection-what-an-endpoint-does-exchange)), and by no other means. Every one of those is a user's instruction, carried out by agrirouter; an application adding an entity type to its [declaration](#declaration-what-an-endpoint-can-exchange) does not enter it. An application MUST NOT set this state, and an attempt to do so is rejected as an out-of-order transition. The application is pointed at the endpoint by [`ROUTE_CHANGED`](#learning-what-an-endpoint-exchanges), reads the selection to see that it grew, and reads this state to find the set waiting. The endpoint collects the set by connecting to its initial-load stream, `GET /endpoints/{external_id}/masterdata-initial-load/events`, over which agrirouter sends every canonical object of every opted-in entity type it is entitled to receive. The set may include objects that are [archived](#archiving): see [Archived objects are part of the set](#archived-objects-are-part-of-the-set).
 
    Order is agrirouter's, not the endpoint's. agrirouter MUST deliver the set so that a referenced object precedes the objects that reference it, as it does for catch-up on the live stream (see [Downtime and resume](#downtime-and-resume)); opt-in is dependency-closed (see [Routing and opt-in](#routing-and-opt-in)), so the target of every reference to a selected entity type is in the set, and an endpoint can apply each object as it arrives. A [weak reference](#weak-references) is the exception: its target may come later. That references resolve is the only property of the order an endpoint may rely on. The order itself is unspecified beyond that and may change in a later version of this document, so an endpoint MUST NOT depend on the position of one entity type relative to another, and SHOULD NOT read completeness of an entity type out of the order it receives objects in. An object arriving on the live stream may reference one the set has not delivered yet (see [A live change may reference what the set has not delivered](#a-live-change-may-reference-what-the-set-has-not-delivered)).
 2. **`RECONCILING`.** agrirouter advances the state once it has sent the whole set, and closes the stream's HTTP response after it. The endpoint now reconciles the set against its own data, which includes resolving conflicts with its user and this might take some time.
@@ -977,7 +972,7 @@ An endpoint therefore:
 - **[Requests](#requesting-objects-lazy-loading) the target** if it is still absent when inital load moves to `RECONCILING`. The set is complete there, so the referenced entity is genuinely not held.
 
 One reference resolves neither by waiting nor by requesting: a target that is
-[deactivated](#deactivated-objects-are-part-of-the-set) and that the endpoint
+[archived](#archived-objects-are-part-of-the-set) and that the endpoint
 declined to create, both channels answering with the object it ignored. The
 application leaves the reference unresolved and applies what it can of the
 referencing object (see
@@ -994,24 +989,24 @@ application reporting them in **loading to agrirouter** as absent from the SSOT,
 and agrirouter would mint a second canonical object for each — the failure the
 next rule exists to prevent, arrived at by another route.
 
-### Deactivated objects are part of the set
+### Archived objects are part of the set
 
-The canonical set an endpoint receives includes objects that are inactive, each
-carrying `active: false`. They are current state — the present truth about the
-entity is that it was deactivated — not the history this protocol
+The canonical set an endpoint receives includes objects that are archived, each
+carrying `archived: true`. They are current state — the present truth about the
+entity is that it was archived — not the history this protocol
 [does not keep](#what-this-protocol-is-and-is-not).
 
 Omitting them would corrupt data rather than merely withhold it. A seeding
 endpoint usually holds its own copy of the entity; receiving no canonical object
 for it, the endpoint reports it in **loading to agrirouter** as one not yet in
-the SSOT, and agrirouter creates a *second*, active canonical object for an
+the SSOT, and agrirouter creates a *second*, live canonical object for an
 entity that already exists. Every other application then receives the
 resurrection of something their user archived. The risk is highest exactly where
 seeding matters most: an endpoint whose identifier mapping is gone, which no
 longer recognises the entity by any identifier it holds.
 
-An endpoint applies an inactive object in the set as it does on any stream: see
-[Receiving an inactive object](#receiving-an-inactive-object).
+An endpoint applies an archived object in the set as it does on any stream: see
+[Receiving an archived object](#receiving-an-archived-object).
 
 ### Asymmetric and non-unique mappings
 
@@ -1150,7 +1145,7 @@ are the tenant's data, held on the tenant's behalf, and other endpoints are
 synchronizing against them.
 
 The identifier mapping survives the first two for the same reason it survives
-[deactivation](#deactivation) — it is agrirouter's record of what each endpoint
+[archiving](#archiving) — it is agrirouter's record of what each endpoint
 holds, not a property of the connection, and neither event ends the endpoint it
 is keyed by (see
 [Identifier mapping](#identifier-mapping)). Discarding it there would withhold
@@ -1190,8 +1185,8 @@ the initial-load resource rather than on the stream because it is read once, whe
 a set starts arriving, and the delivery channel carries entities.
 
 On return an application may assume only that it receives the **current** value of
-each canonical object it is entitled to. Objects deactivated while it was away
-arrive inactive. Changes made by others while it was away are not enumerable: as
+each canonical object it is entitled to. Objects archived while it was away
+arrive archived. Changes made by others while it was away are not enumerable: as
 in [Downtime and resume](#downtime-and-resume), agrirouter keeps no log, so a
 application that wants to show its user what changed in its absence must diff
 against its own retained copy.
@@ -1249,7 +1244,7 @@ On receiving it, an application:
 
 - MUST discard every binding it holds in the tenant, with the `revision` it keeps per object, and every correspondence table it retained for a removed endpoint there: none of them names anything in agrirouter any longer;
 - MUST treat its endpoints in the tenant as opted into nothing, and discard its initial-load bookkeeping for them;
-- MUST NOT delete or deactivate its local records. They are its user's data, and the reset ends the exchange, not the data validity.
+- MUST NOT delete or archive its local records. They are its user's data, and the reset ends the exchange, not the data validity.
 
 Writes in the tenant are refused afterwards, since there is no route. A route the
 user creates again runs an ordinary first [initial load](#initial-load): no
@@ -1284,7 +1279,7 @@ whole, so no attribute of the other party type survives (see [Party details](#pa
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every application supports, so an application always holds them.
-- `null` for a required attribute, an envelope field, or `content.id` is rejected with `400`, as is a write without `active` (see [Lifecycle](#lifecycle)).
+- `null` for a required attribute, an envelope field, or `content.id` is rejected with `400`, as is a write without `archived` (see [Lifecycle](#lifecycle)).
 - Canonical objects are always whole. What agrirouter delivers, on either stream and in the response to a write, carries every attribute the object has and never `null`. An attribute absent from a delivered object is unset.
 
 This is what relaying amounts to. An application does not store, and does not send,
@@ -1389,90 +1384,90 @@ Two rules follow:
 - **Apply is guarded by `revision`.** Within one stream, order suffices: a later frame supersedes an earlier one. Across channels it does not, because a write response may be processed after a later stream frame has already been applied, and because the initial-load stream is ordered independently of the live stream — a canonical set frame may carry an older revision of an object than a live change already applied. An application MUST NOT apply an object whose `revision` is lower than the one it already holds for that object.
 - **An unobserved outcome means the object is unknown.** An application whose write neither succeeded nor failed visibly — typically a connection lost after agrirouter had committed — MUST NOT assume the value it sent is the canonical one. It retries the write or [requests the object](#requesting-objects-lazy-loading); both answer with the current canonical state.
 
-## Deactivation
+## Archiving
 
-`POST /masterdata/<types>/{local_id}/deactivation` signals that the acting endpoint
-deactivated an entity locally. "Deactivation" is intentionally generic: it covers archival, deletion, or
-any state in which that endpoint no longer considers the entity active. It is a
-lifecycle transition of the canonical object (`active` becomes `false`), **not** a
+`POST /masterdata/<types>/{local_id}/archiving` signals that the acting endpoint
+archived an entity locally. "Archiving" is intentionally generic: it covers archiving, deletion, or
+any state in which that endpoint no longer considers the entity live. It is a
+lifecycle transition of the canonical object (`archived` becomes `true`), **not** a
 hard removal from the SSOT — the canonical object and its identifier mapping are
 retained so that synchronization and references remain intact. The only hard
 removal is a [masterdata reset](#masterdata-reset).
 
-Deactivation MUST be **idempotent**. The same entity may be deactivated more than
+Archiving MUST be **idempotent**. The same entity may be archived more than
 once (for example because several systems independently archive it, or a request
-is retried). Deactivating an entity that is already inactive MUST succeed without
+is retried). Archiving an entity that is already archived MUST succeed without
 error and MUST NOT produce a new revision or a new outgoing notification.
 
-The first deactivation of an entity is a write like any other and is subject to
+The first archiving of an entity is a write like any other and is subject to
 [concurrency control](#concurrency-control): it carries the revision it was made
 from, and a concurrent edit to the entity is a conflict of which only one side
-succeeds. On an entity that is already inactive the base revision is ignored,
+succeeds. On an entity that is already archived the base revision is ignored,
 which is what the idempotency above requires.
 
 ### Lifecycle
 
-A canonical object is active or inactive. The write that creates it sets its
-initial state from `active`; after that, only deactivation and
-[reactivation](#reactivation) change it, and no `PUT` does.
+A canonical object is archived or not. The write that creates it sets its
+initial state from `archived`; after that, only archiving and
+[unarchiving](#unarchiving) change it, and no `PUT` does.
 
-- **Creating an object** with `active: false` creates it inactive in one write.
+- **Creating an object** with `archived: true` creates it archived in one write.
   An application that sends agrirouter a record it holds as archived MUST send it
-  this way. Creating it active and deactivating it afterwards would deliver it
-  as active in between, and leave it active if the second call never happens.
-- **Every other write** MUST carry the object's current `active`. A write whose
-  `active` differs is rejected with `409` and a `LifecycleConflictError` carrying
-  `current_active`. agrirouter checks this before deciding whether the write is
+  this way. Creating it not archived and archiving it afterwards would deliver it
+  as not archived in between, and leave it so if the second call never happens.
+- **Every other write** MUST carry the object's current `archived`. A write whose
+  `archived` differs is rejected with `409` and a `LifecycleConflictError` carrying
+  `current_archived`. agrirouter checks this before deciding whether the write is
   a no-op and before [concurrency control](#concurrency-control), so the same body
   always gets the same answer. The application decides whether it meant to
-  deactivate or reactivate the object, or re-reads it, and writes again.
-- **Writes to an inactive object** are accepted under the ordinary rules and
-  keep it inactive: an application may correct an archived entity without
+  archive or unarchive the object, or re-reads it, and writes again.
+- **Writes to an archived object** are accepted under the ordinary rules and
+  keep it archived: an application may correct an archived entity without
   reviving it.
 
-### Reactivation
+### Unarchiving
 
-`POST /masterdata/<types>/{local_id}/reactivation` signals that the acting
-endpoint made a deactivated entity active again locally. It is the mirror image of
-deactivation, and the only way back from it: the canonical object becomes active
-again with its content unchanged. A new object never needs it, since the write
-that creates it sets its state.
+`POST /masterdata/<types>/{local_id}/unarchiving` signals that the acting
+endpoint unarchived an archived entity locally. It is the mirror image of
+archiving, and the only way back from it: the canonical object is no longer
+archived, and its content is unchanged. A new object never needs it, since
+the write that creates it sets its state.
 
-Reactivation MUST be **idempotent**. Reactivating an entity that is already active
+Unarchiving MUST be **idempotent**. Unarchiving an entity that is not archived
 MUST succeed without error and MUST NOT produce a new revision or a new outgoing
-notification. The first reactivation of an inactive entity is a write like any
+notification. The first unarchiving of an archived entity is a write like any
 other and is subject to [concurrency control](#concurrency-control); on an entity
-that is already active the base revision is ignored.
+that is not archived the base revision is ignored.
 
-## Receiving an inactive object
+## Receiving an archived object
 
-An inactive object reaches an endpoint as a `MASTERDATA_CHANGED` frame carrying
-`active: false`, on the live stream as in an [initial load](#initial-load), and in
+An archived object reaches an endpoint as a `MASTERDATA_CHANGED` frame carrying
+`archived: true`, on the live stream as in an [initial load](#initial-load), and in
 a write response. A receiver MUST read it and MUST NOT skip it on account of its
 state, and MUST NOT treat it as an ordinary delivery of an object it does not
 hold:
 
-- if it recognises the object in its own store, it [binds](#identifier-mapping) its identifier and marks its own copy inactive. Binding a dead object is worth doing: an unbound local copy is precisely what gets sent back as new later.
-- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `local_id` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is inactive.
+- if it recognises the object in its own store, it [binds](#identifier-mapping) its identifier and marks its own copy archived. Binding a dead object is worth doing: an unbound local copy is precisely what gets sent back as new later.
+- if it does not recognise it, it ignores it and creates nothing. The rule that an absent `local_id` means "create it locally and bind" (see [Identifier mapping](#identifier-mapping)) is about objects the endpoint is expected to hold, and does not extend to one that is archived.
 
-An endpoint that does not keep inactive records MAY drop its copy instead of
-marking it inactive. It MUST NOT give that record's `local_id` to another record:
+An endpoint that does not keep archived records MAY drop its copy instead of
+marking it archived. It MUST NOT give that record's `local_id` to another record:
 agrirouter keeps the binding, so a later write under that `local_id` would reach
-the deactivated object, not create a new one. Keeping the identifier pair as a
+the archived object, not create a new one. Keeping the identifier pair as a
 tombstone (see [Identifier mapping](#identifier-mapping)) is the simplest way to
-ensure that. Later frames for the object still carry its `local_id`: an inactive
-one the endpoint ignores, and a [reactivated](#reactivation) one it may recreate
+ensure that. Later frames for the object still carry its `local_id`: an archived
+one the endpoint ignores, and an [unarchived](#unarchiving) one it may recreate
 under the same identifier.
 
-An object it holds that arrives with `active: true` after being inactive was
-[reactivated](#reactivation), and the receiver marks its own copy active again.
+An object it holds that arrives with `archived: false` after being archived was
+[unarchived](#unarchiving), and the receiver marks its own copy not archived again.
 
 ## Split and merge
 
 Splitting a field into several, and merging several back into one, is a common
 process — more so in Europe than in North America, and dependent on crop type.
 This version carries no representation of it. A split is exchanged as a
-[deactivation](#deactivation) of the original and the creation of the new
+[archiving](#archiving) of the original and the creation of the new
 entities, a merge as the reverse, and applications converge on the correct
 current set from those alone.
 
@@ -1487,7 +1482,7 @@ version already settles elsewhere:
 
 - **Operation-agnostic.** References to the entities a given entity supersedes, with nothing on the wire distinguishing a split from a merge — a split names one predecessor on each successor, a merge names several on one, and neither needs an operation of its own. An application that does not model the distinction is unaffected by it.
 - **Held by agrirouter, read-only to applications.** Lineage is a property of the canonical object, kept by agrirouter as the [identifier mapping](#identifier-mapping) is, not an attribute a sender restates on every write. Carried as an attribute, any application could overwrite or `null` it, and that change would be a new revision like any other, delivered to everyone.
-- **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — inactive, if it was deactivated by the split — because current state is the only thing agrirouter serves.
+- **Dereferenced on request.** A recipient receives the predecessors' identifiers, and [requests](#requesting-objects-lazy-loading) an entity it wants the content of. What comes back is that entity's *current* state — archived, if the split archived it — because current state is the only thing agrirouter serves.
 
 ## Requesting objects (lazy loading)
 
@@ -1572,6 +1567,6 @@ receiving endpoint's own local identifiers and no other endpoint's**, in its own
 
 Field boundaries and party contact details are personal and commercially
 sensitive data. Applications SHOULD expose only the data necessary for
-synchronization and SHOULD honour deactivation promptly.
+synchronization and SHOULD honour archiving promptly.
 
 

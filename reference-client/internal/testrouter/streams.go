@@ -305,7 +305,7 @@ func (r *Router) initialLoadStream(ctx context.Context, ep *endpoint) io.Reader 
 			continue
 		}
 		// The set is complete in two ways participants get wrong. Objects
-		// that are inactive are part of it, and so are objects whose
+		// that are archived are part of it, and so are objects whose
 		// current revision this participant itself wrote: origin
 		// suppression does not apply here, since an endpoint taking the set
 		// has declared that it does not know what it holds.

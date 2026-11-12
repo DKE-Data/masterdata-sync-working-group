@@ -16,12 +16,12 @@ import (
 // a missing base is rejected with [ErrBaseRevisionRequired], because omitting
 // it would opt the participant out of concurrency control.
 //
-// active is the lifecycle state the write states, and is sent on every write:
-// on a create it sets the object's initial state — false creates it inactive,
-// which is how a record the participant holds as archived is sent — and on an
-// update it must equal the object's current state, or the write is rejected
-// with a [LifecycleConflict]. A write never changes the state of an existing
-// object; [Deactivate] and [Reactivate] do. It is an argument rather than a
+// archived is the lifecycle state the write states, and is sent on every
+// write: on a create it sets the object's initial state — true creates it
+// archived, which is how a record the participant holds as archived is sent —
+// and on an update it must equal the object's current state, or the write is
+// rejected with a [LifecycleConflict]. A write never changes the state of an
+// existing object; [Archive] and [Unarchive] do. It is an argument rather than a
 // field left to the model so that every call states it. See "Lifecycle" in
 // specification.md.
 //
@@ -43,14 +43,14 @@ import (
 func PutParty(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
-	v oapi.Party, active bool, base *int,
+	v oapi.Party, archived bool, base *int,
 ) (oapi.Party, error) {
 	localID := v.Content.Id.ReferenceId
 	if localID == nil || *localID == "" {
 		return oapi.Party{}, localIDRequired(TypeParty)
 	}
 	v.Type = string(TypeParty)
-	v.Active = active
+	v.Archived = archived
 	r, err := api.PutPartyWithResponse(ctx, *localID, &oapi.PutPartyParams{
 		XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 	}, v)
@@ -78,14 +78,14 @@ func PutParty(
 func PutFarm(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
-	v oapi.Farm, active bool, base *int,
+	v oapi.Farm, archived bool, base *int,
 ) (oapi.Farm, error) {
 	localID := v.Content.Id.ReferenceId
 	if localID == nil || *localID == "" {
 		return oapi.Farm{}, localIDRequired(TypeFarm)
 	}
 	v.Type = string(TypeFarm)
-	v.Active = active
+	v.Archived = archived
 	r, err := api.PutFarmWithResponse(ctx, *localID, &oapi.PutFarmParams{
 		XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 	}, v)
@@ -113,14 +113,14 @@ func PutFarm(
 func PutField(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
-	v oapi.Field, active bool, base *int,
+	v oapi.Field, archived bool, base *int,
 ) (oapi.Field, error) {
 	localID := v.Content.Id.ReferenceId
 	if localID == nil || *localID == "" {
 		return oapi.Field{}, localIDRequired(TypeField)
 	}
 	v.Type = string(TypeField)
-	v.Active = active
+	v.Archived = archived
 	r, err := api.PutFieldWithResponse(ctx, *localID, &oapi.PutFieldParams{
 		XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 	}, v)
@@ -148,14 +148,14 @@ func PutField(
 func PutFieldBoundary(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
-	v oapi.FieldBoundary, active bool, base *int,
+	v oapi.FieldBoundary, archived bool, base *int,
 ) (oapi.FieldBoundary, error) {
 	localID := v.Content.Id.ReferenceId
 	if localID == nil || *localID == "" {
 		return oapi.FieldBoundary{}, localIDRequired(TypeFieldBoundary)
 	}
 	v.Type = string(TypeFieldBoundary)
-	v.Active = active
+	v.Archived = archived
 	r, err := api.PutFieldBoundaryWithResponse(ctx, *localID, &oapi.PutFieldBoundaryParams{
 		XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 	}, v)

@@ -81,7 +81,7 @@ type Outcome struct {
 	// already held and was therefore not applied.
 	Superseded bool
 
-	// Ignored is true where the object was inactive and unrecognised, and the
+	// Ignored is true where the object was archived and unrecognised, and the
 	// platform correctly created nothing.
 	Ignored bool
 
@@ -185,7 +185,7 @@ func (a *Applier) applyIn(
 	selected []agmasync.EntityType,
 ) (Outcome, error) {
 	typ := envelope.Type
-	active := envelope.Active
+	archived := envelope.Archived
 
 	ns := a.Namespace()
 
@@ -220,7 +220,7 @@ func (a *Applier) applyIn(
 	}
 
 	if localID == "" {
-		return a.applyUnheldObject(tx, envelope, entity, active, recognise, selected)
+		return a.applyUnheldObject(tx, envelope, entity, archived, recognise, selected)
 	}
 
 	// Apply is guarded by revision. Within the stream, order suffices: a later
@@ -241,7 +241,7 @@ func (a *Applier) applyIn(
 		return Outcome{}, err
 	}
 
-	if err := a.write(tx, typ, localID, entity, envelope, active, selected); err != nil {
+	if err := a.write(tx, typ, localID, entity, envelope, archived, selected); err != nil {
 		return Outcome{}, err
 	}
 	return Outcome{LocalID: localID, Joined: joined, NeedsBinding: joined}, nil
@@ -258,9 +258,9 @@ func (a *Applier) Namespace() store.Endpoint {
 // Whether the platform holds it anyway is a different question, and only
 // reconciliation asks it: during an initial load the recogniser is consulted
 // first, and what it answers decides between matching the object to an existing
-// record, creating one, and — for an inactive object — doing neither.
+// record, creating one, and — for an archived object — doing neither.
 func (a *Applier) applyUnheldObject(
-	tx *store.Tx, env agmasync.Envelope, entity oapi.Entity, active bool,
+	tx *store.Tx, env agmasync.Envelope, entity oapi.Entity, archived bool,
 	recognise Reconciler, selected []agmasync.EntityType,
 ) (Outcome, error) {
 	var known Recognition
@@ -285,11 +285,11 @@ func (a *Applier) applyUnheldObject(
 		// outstanding, and the object is asked for again once they have answered.
 		return Outcome{Blocked: true, AwaitingUser: known.AwaitingUser}, nil
 
-	case known.LocalID != "" && !active:
-		// A deactivated object the platform does recognise is bound and its own
-		// copy marked inactive. Binding a dead object is worth doing: an unbound
+	case known.LocalID != "" && archived:
+		// An archived object the platform does recognise is bound and its own
+		// copy marked archived. Binding a dead object is worth doing: an unbound
 		// local copy is precisely what gets offered back as new later, and
-		// agrirouter would then mint a second, active canonical object for an
+		// agrirouter would then mint a second, live canonical object for an
 		// entity a user archived. The canonical content is not applied over the
 		// record — what the set says about the entity is that it is gone.
 		if err := tx.SetArchived(env.Type, known.LocalID, true); err != nil {
@@ -315,7 +315,7 @@ func (a *Applier) applyUnheldObject(
 		// attribute by attribute with its user — which is what AwaitingUser is
 		// for — but the direction is not in doubt, agrirouter being the source of
 		// truth for what it holds.
-		if err := a.write(tx, env.Type, known.LocalID, entity, env, active, selected); err != nil {
+		if err := a.write(tx, env.Type, known.LocalID, entity, env, archived, selected); err != nil {
 			return Outcome{}, err
 		}
 		return Outcome{
@@ -323,17 +323,17 @@ func (a *Applier) applyUnheldObject(
 			AwaitingUser: known.AwaitingUser,
 		}, nil
 
-	case !active:
-		// Unrecognised and inactive: ignored, and nothing is created. The rule
+	case archived:
+		// Unrecognised and archived: ignored, and nothing is created. The rule
 		// that an absent localId means "create it locally and bind" is about
 		// objects the platform is expected to hold, and does not extend to one
-		// that is already deactivated: creating a record for an entity the world
+		// that is already archived: creating a record for an entity the world
 		// considers gone would be inventing data.
 		return Outcome{Ignored: true, AwaitingUser: known.AwaitingUser}, nil
 	}
 
 	localID := a.IDs.New(env.Type)
-	if err := a.write(tx, env.Type, localID, entity, env, active, selected); err != nil {
+	if err := a.write(tx, env.Type, localID, entity, env, archived, selected); err != nil {
 		return Outcome{}, err
 	}
 	return Outcome{
@@ -344,13 +344,13 @@ func (a *Applier) applyUnheldObject(
 
 func (a *Applier) write(
 	tx *store.Tx, typ agmasync.EntityType, localID string,
-	entity oapi.Entity, envelope agmasync.Envelope, active bool, selected []agmasync.EntityType,
+	entity oapi.Entity, envelope agmasync.Envelope, archived bool, selected []agmasync.EntityType,
 ) error {
 	record, err := store.FromEntity(typ, entity)
 	if err != nil {
 		return err
 	}
-	record.Archived = !active
+	record.Archived = archived
 	if record.Ignored, err = a.unselectedRefs(tx, typ, selected); err != nil {
 		return err
 	}

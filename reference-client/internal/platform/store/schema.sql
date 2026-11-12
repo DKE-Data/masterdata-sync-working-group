@@ -64,8 +64,8 @@ CREATE TABLE IF NOT EXISTS organization (
     -- list is replaced whole on write, so a platform that kept only a city
     -- would erase everything else in every address it sent.
     addresses                   TEXT,
-    -- archived is the platform's own word for what the protocol calls inactive.
-    -- The two are mapped at the edge rather than conflated: deactivation is a
+    -- archived is the platform's own flag for what the protocol calls archived.
+    -- The two are mapped at the edge rather than conflated: archiving is a
     -- lifecycle transition of the canonical object, and how a product expresses
     -- it locally is its own business.
     archived                    INTEGER NOT NULL DEFAULT 0

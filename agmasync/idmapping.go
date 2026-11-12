@@ -89,7 +89,7 @@ func Correction(localID string, agrirouterID *uuid.UUID) oapi.IdMappingCorrectio
 // It corrects identity, not content: no revision, delivered to nobody, and
 // revisions written through the wrong binding stand. Repair them with ordinary
 // writes, and the local records with [Request]. It is not for a local deletion,
-// which is a deactivation. See "Correcting a binding" in specification.md.
+// for which use [Archive]. See "Correcting a binding" in specification.md.
 func CorrectMappings(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,

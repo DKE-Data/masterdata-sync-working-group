@@ -1,7 +1,7 @@
 [
   {
     "type": "party",
-    "active": true,
+    "archived": false,
     "revision": 7,
     "modified_at": "2026-09-14T08:12:45Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
@@ -50,7 +50,7 @@
   },
   {
     "type": "party",
-    "active": true,
+    "archived": false,
     "revision": 4,
     "modified_at": "2026-08-30T10:05:12Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
@@ -90,7 +90,7 @@
   },
   {
     "type": "farm",
-    "active": true,
+    "archived": false,
     "revision": 12,
     "modified_at": "2026-09-14T08:15:02Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
@@ -127,7 +127,7 @@
   },
   {
     "type": "field",
-    "active": true,
+    "archived": false,
     "revision": 5,
     "modified_at": "2026-04-11T06:30:00Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",
@@ -166,7 +166,7 @@
   },
   {
     "type": "fieldBoundary",
-    "active": true,
+    "archived": false,
     "revision": 4,
     "modified_at": "2026-09-20T14:02:10Z",
     "tenant_id": "3f2b8c1e-6a4d-4e2f-9b1a-7c5d8e9f0a12",

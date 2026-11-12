@@ -83,15 +83,15 @@ func (e *Endpoint) Client() *Client { return e.api }
 
 // Put sends an entity through the write for its type. See [agmasync.PutParty].
 //
-// The lifecycle state the write states is the entity's own `active`, which the
-// platform sets from whether it holds the record as archived (see
+// The lifecycle state the write states is the entity's own `archived`, which
+// the platform sets from whether it holds the record as archived (see
 // [store.Record.ToEntity]).
 func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.Entity, error) {
 	env, err := EnvelopeOf(ent)
 	if err != nil {
 		return oapi.Entity{}, err
 	}
-	active := env.Active
+	archived := env.Archived
 	var out oapi.Entity
 	switch env.Type {
 	case agmasync.TypeParty:
@@ -99,7 +99,7 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 		if err != nil {
 			return oapi.Entity{}, err
 		}
-		if v, err = agmasync.PutParty(ctx, e.api, e.id, e.tenantID, v, active, base); err != nil {
+		if v, err = agmasync.PutParty(ctx, e.api, e.id, e.tenantID, v, archived, base); err != nil {
 			return oapi.Entity{}, err
 		}
 		err = out.FromParty(v)
@@ -109,7 +109,7 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 		if err != nil {
 			return oapi.Entity{}, err
 		}
-		if v, err = agmasync.PutFarm(ctx, e.api, e.id, e.tenantID, v, active, base); err != nil {
+		if v, err = agmasync.PutFarm(ctx, e.api, e.id, e.tenantID, v, archived, base); err != nil {
 			return oapi.Entity{}, err
 		}
 		err = out.FromFarm(v)
@@ -119,7 +119,7 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 		if err != nil {
 			return oapi.Entity{}, err
 		}
-		if v, err = agmasync.PutField(ctx, e.api, e.id, e.tenantID, v, active, base); err != nil {
+		if v, err = agmasync.PutField(ctx, e.api, e.id, e.tenantID, v, archived, base); err != nil {
 			return oapi.Entity{}, err
 		}
 		err = out.FromField(v)
@@ -129,7 +129,7 @@ func (e *Endpoint) Put(ctx context.Context, ent oapi.Entity, base *int) (oapi.En
 		if err != nil {
 			return oapi.Entity{}, err
 		}
-		if v, err = agmasync.PutFieldBoundary(ctx, e.api, e.id, e.tenantID, v, active, base); err != nil {
+		if v, err = agmasync.PutFieldBoundary(ctx, e.api, e.id, e.tenantID, v, archived, base); err != nil {
 			return oapi.Entity{}, err
 		}
 		err = out.FromFieldBoundary(v)
@@ -215,23 +215,23 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("agrirouter: HTTP %d: %s", e.StatusCode, e.Body)
 }
 
-// Deactivate signals that an entity was deactivated. See [agmasync.Deactivate].
-func (e *Endpoint) Deactivate(
+// Archive signals that an entity was archived. See [agmasync.Archive].
+func (e *Endpoint) Archive(
 	ctx context.Context, t agmasync.EntityType, localID string, base *int,
 ) (oapi.Entity, error) {
-	obj, err := agmasync.Deactivate(ctx, e.api, e.id, e.tenantID, t, localID, base)
+	obj, err := agmasync.Archive(ctx, e.api, e.id, e.tenantID, t, localID, base)
 	if err != nil {
 		return oapi.Entity{}, err
 	}
 	return EntityOf(obj)
 }
 
-// Reactivate signals that an entity deactivated earlier is active again. See
-// [agmasync.Reactivate].
-func (e *Endpoint) Reactivate(
+// Unarchive signals that an entity archived earlier is no longer archived. See
+// [agmasync.Unarchive].
+func (e *Endpoint) Unarchive(
 	ctx context.Context, t agmasync.EntityType, localID string, base *int,
 ) (oapi.Entity, error) {
-	obj, err := agmasync.Reactivate(ctx, e.api, e.id, e.tenantID, t, localID, base)
+	obj, err := agmasync.Unarchive(ctx, e.api, e.id, e.tenantID, t, localID, base)
 	if err != nil {
 		return oapi.Entity{}, err
 	}
@@ -293,7 +293,7 @@ func (e *Endpoint) ReportUserAttention(ctx context.Context) (oapi.InitialLoadSta
 }
 
 // EntityOf wraps a decoded object as the union, as an [agmasync.Event] or
-// [agmasync.Deactivate] returns it.
+// [agmasync.Archive] returns it.
 func EntityOf(o agmasync.Object) (oapi.Entity, error) {
 	var out oapi.Entity
 	var err error

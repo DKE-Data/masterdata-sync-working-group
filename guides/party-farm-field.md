@@ -44,8 +44,8 @@ Placing a field:
   works, but adds a farm named after the customer next to the real ones.
 - A field your user moves to another customer moves to a farm of that
   customer, chosen the same way.
-- Do not deactivate a farm you created once it is empty. Others may maintain
-  it. A system that shows farms can deactivate it.
+- Do not archive a farm you created once it is empty. Others may maintain
+  it. A system that shows farms can archive it.
 
 ## Farms and fields, no parties
 

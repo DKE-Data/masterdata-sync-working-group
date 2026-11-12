@@ -53,7 +53,7 @@ func (in *instance) handler() http.Handler {
 	mux.HandleFunc("GET /objects", in.showObjects)
 	mux.HandleFunc("GET /objects/{type}/{localId}", in.showObject)
 	mux.HandleFunc("POST /objects", in.postObject)
-	mux.HandleFunc("POST /objects/deactivate", in.postDeactivate)
+	mux.HandleFunc("POST /objects/archive", in.postArchive)
 	mux.HandleFunc("POST /objects/delete", in.postDelete)
 	mux.HandleFunc("GET /decisions", in.showDecisions)
 	mux.HandleFunc("POST /decisions", in.postDecision)
@@ -281,7 +281,7 @@ func (row *objectRow) deletability(routed bool) {
 		// Never sent, or its binding refused: no mapping to keep.
 		row.Deletable, row.Tombstone = true, false
 	case routed:
-		// Deactivation is available and is the operation that fits.
+		// Archiving is available and is the operation that fits.
 		row.Deletable, row.Tombstone = false, false
 	default:
 		row.Deletable, row.Tombstone = true, true
@@ -574,7 +574,7 @@ func refTarget(raw json.RawMessage) string {
 	return *ref.Id.ReferenceId
 }
 
-func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {
+func (in *instance) postArchive(w http.ResponseWriter, r *http.Request) {
 	typ, err := parseRecordType(r.FormValue("type"))
 	if err != nil {
 		redirect(w, r, "/objects", "", err.Error())
@@ -582,11 +582,11 @@ func (in *instance) postDeactivate(w http.ResponseWriter, r *http.Request) {
 	}
 	localID := r.FormValue("local_id")
 
-	if err := in.deactivate(r.Context(), typ.entityType(), localID); err != nil {
+	if err := in.archive(r.Context(), typ.entityType(), localID); err != nil {
 		redirect(w, r, "/objects", "", err.Error())
 		return
 	}
-	redirect(w, r, "/objects", fmt.Sprintf("%s %s deactivated", typ, localID), "")
+	redirect(w, r, "/objects", fmt.Sprintf("%s %s archived", typ, localID), "")
 }
 
 func (in *instance) postDelete(w http.ResponseWriter, r *http.Request) {

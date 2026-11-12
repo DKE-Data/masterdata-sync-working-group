@@ -26,7 +26,7 @@ in process.
 2. Repeat load after opt-out and opt-in, matched through the surviving mapping
 3. A concurrent edit merged, and the overlapping one rejected
 4. Two farms matched crosswise, corrected as one set
-5. A deactivated object in the canonical set, recognised and not
+5. An archived object in the canonical set, recognised and not
 6. Resume after downtime, and a crash between applying and saving the position
 7. Non-unique mapping rejected, both causes, singly and in bulk
 8. Reconciliation that needs a person stops the load until it has an answer
@@ -41,7 +41,7 @@ in process.
 17. A reference to a type not exchanged, ignored on delivery and left out of writes
 18. One record in two tenancies, onboarded as two endpoints into one tenant
 19. A system without farms links fields to a customer through a farm per customer
-20. An archived farm is corrected, then reactivated
+20. An archived farm is corrected, then unarchived
 
 They assert as they narrate. Every `ok` line is a claim checked at the moment it
 is printed, so a scenario that would teach something untrue fails instead —

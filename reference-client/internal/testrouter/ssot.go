@@ -34,19 +34,19 @@ func (e *revisionConflict) Error() string {
 }
 func (e *revisionConflict) Is(target error) bool { return target == errRevisionConflict }
 
-// lifecycleConflict is a write whose `active` contradicts the object's current
-// state. A write never changes the state; deactivation and reactivation do.
+// lifecycleConflict is a write whose `archived` contradicts the object's
+// current state. A write never changes the state; archiving and unarchiving do.
 type lifecycleConflict struct{ current bool }
 
 func (e *lifecycleConflict) Error() string {
-	return fmt.Sprintf("active contradicts the object's current state (active=%t): "+
-		"the state changes only through deactivation and reactivation", e.current)
+	return fmt.Sprintf("archived contradicts the object's current state (archived=%t): "+
+		"the state changes only through /archiving and /unarchiving", e.current)
 }
 
-// errActiveRequired refuses a write without `active`: leaving it out would
+// errArchivedRequired refuses a write without `archived`: leaving it out would
 // decide something, since a write cannot always know whether it creates or
 // updates. See "Lifecycle" in specification.md.
-var errActiveRequired = errors.New("active is required on send: it sets the state of " +
+var errArchivedRequired = errors.New("archived is required on send: it sets the state of " +
 	"a new object and must equal the state of an existing one")
 
 // mappingConflict names which identifier is taken and the mapping that holds
@@ -178,9 +178,9 @@ func (s *store) put(
 	if err := s.resolveRefs(ep, typ, incoming); err != nil {
 		return nil, false, err
 	}
-	active := activeOf(body)
-	if active == nil {
-		return nil, false, errActiveRequired
+	archived := archivedOf(body)
+	if archived == nil {
+		return nil, false, errArchivedRequired
 	}
 
 	objID, known := s.local[localKeyOf(ep, typ, localID)]
@@ -202,7 +202,7 @@ func (s *store) put(
 				content[k] = value
 			}
 		}
-		obj := s.create(ep, typ, localID, content, *active)
+		obj := s.create(ep, typ, localID, content, *archived)
 		s.recordLocalEntry(ep.id, obj.id, sent.local)
 		s.deliver(obj, ep.id)
 		return obj, true, nil
@@ -212,8 +212,8 @@ func (s *store) put(
 	// The lifecycle check comes before anything else the write could be: a
 	// no-op, a conflict, a merge. The same body then always gets the same
 	// answer, and a write never revives or retires an object as a side effect.
-	if *active != obj.active {
-		return nil, false, &lifecycleConflict{current: obj.active}
+	if *archived != obj.archived {
+		return nil, false, &lifecycleConflict{current: obj.archived}
 	}
 	// What the write says about its local entry is kept whatever else it
 	// changes: it is not content, and no other participant sees it.
@@ -296,7 +296,7 @@ func (s *store) put(
 
 func (s *store) create(
 	ep *endpoint, typ agmasync.EntityType, localID string,
-	content map[string]json.RawMessage, active bool,
+	content map[string]json.RawMessage, archived bool,
 ) *object {
 	s.seq++
 	obj := &object{
@@ -304,7 +304,7 @@ func (s *store) create(
 		typ:              typ,
 		tenantID:         ep.tenantID,
 		revision:         1,
-		active:           active,
+		archived:         archived,
 		modifiedAt:       s.now().UTC(),
 		sourceEndpointID: ep.id,
 		seq:              s.seq,
@@ -322,12 +322,12 @@ func (s *store) create(
 	return obj
 }
 
-// deactivate signals that an entity was deactivated in its source system.
+// archive signals that an entity was archived in its source system.
 //
-// The first deactivation is a write like any other and honours the base. On an
-// object that is already inactive the base is ignored and no revision is
+// The first archiving is a write like any other and honours the base. On an
+// object that is already archived the base is ignored and no revision is
 // produced, which is what the required idempotency amounts to.
-func (s *store) deactivate(
+func (s *store) archive(
 	ep *endpoint, typ agmasync.EntityType, localID string, base *int,
 ) (*object, error) {
 	s.mu.Lock()
@@ -342,7 +342,7 @@ func (s *store) deactivate(
 	}
 	obj := s.objects[objID]
 
-	if !obj.active {
+	if obj.archived {
 		return obj, nil
 	}
 	if base == nil {
@@ -353,7 +353,7 @@ func (s *store) deactivate(
 	}
 
 	obj.revision++
-	obj.active = false
+	obj.archived = true
 	obj.modifiedAt = s.now().UTC()
 	obj.sourceEndpointID = ep.id
 	s.seq++
@@ -363,11 +363,11 @@ func (s *store) deactivate(
 	return obj, nil
 }
 
-// reactivate signals that an entity deactivated earlier is active again in its
-// source system. It mirrors deactivate: the first reactivation honours the
-// base, and on an object that is already active the base is ignored and no
-// revision is produced.
-func (s *store) reactivate(
+// unarchive signals that an entity archived earlier is no longer archived in its
+// source system. It mirrors archive: the first unarchiving honours the base,
+// and on an object that is not archived the base is ignored and no revision is
+// produced.
+func (s *store) unarchive(
 	ep *endpoint, typ agmasync.EntityType, localID string, base *int,
 ) (*object, error) {
 	s.mu.Lock()
@@ -382,7 +382,7 @@ func (s *store) reactivate(
 	}
 	obj := s.objects[objID]
 
-	if obj.active {
+	if !obj.archived {
 		return obj, nil
 	}
 	if base == nil {
@@ -393,7 +393,7 @@ func (s *store) reactivate(
 	}
 
 	obj.revision++
-	obj.active = true
+	obj.archived = false
 	obj.modifiedAt = s.now().UTC()
 	obj.sourceEndpointID = ep.id
 	s.seq++
@@ -551,8 +551,8 @@ func (s *store) recipients(obj *object, exclude uuid.UUID) []*endpoint {
 // deliver fans a change out to every entitled endpoint, suppressing the one it
 // originated from. Every frame of the change carries the same position: the
 // stream is the application's, and fan-out happens at render time. Every
-// object frame is MASTERDATA_CHANGED, inactive objects included: `active` is the
-// only lifecycle signal.
+// object frame is MASTERDATA_CHANGED, archived objects included: `archived` is
+// the only lifecycle signal.
 func (s *store) deliver(obj *object, source uuid.UUID) {
 	for _, ep := range s.recipients(obj, source) {
 		s.hub.publish(ep.appID, frame{
@@ -597,7 +597,7 @@ func (s *store) renderLocked(obj *object, ep *endpoint) json.RawMessage {
 		}
 	}
 	put("type", string(obj.typ))
-	put("active", obj.active)
+	put("archived", obj.archived)
 	put("revision", obj.revision)
 	put("modified_at", obj.modifiedAt)
 	put("tenant_id", obj.tenantID)
@@ -628,16 +628,16 @@ func contentOf(body []byte) (map[string]json.RawMessage, error) {
 	return all.Content, nil
 }
 
-// activeOf reads `active` from a write, nil when the write leaves it out, which
-// is refused: `active` is required on send.
-func activeOf(body []byte) *bool {
+// archivedOf reads `archived` from a write, nil when the write leaves it out,
+// which is refused: `archived` is required on send.
+func archivedOf(body []byte) *bool {
 	var probe struct {
-		Active *bool `json:"active"`
+		Archived *bool `json:"archived"`
 	}
 	if err := json.Unmarshal(body, &probe); err != nil {
 		return nil
 	}
-	return probe.Active
+	return probe.Archived
 }
 
 // rejectNull refuses null where removing is not an option: an attribute the

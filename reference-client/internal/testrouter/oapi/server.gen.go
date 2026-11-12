@@ -299,12 +299,12 @@ type EntityTypeToggle struct {
 
 // Envelope Sync state common to every master-data entity. The master data itself, identity included, is in `content`. The concrete entity type is determined by the path; each entity schema pins the `type` discriminator so that objects remain self-describing on the event stream.
 //
-// agrirouter assigns `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, `recipient_endpoint_id`, and `type`. An object may be sent back as it was delivered, these included: `revision`, `modified_at`, `source_endpoint_id`, and `recipient_endpoint_id` are read-only, ignored on send and always present on delivery; `tenant_id` and `type` are optional on send and must match the object written, or the write is a 400. `active` is required on send: it sets the state of a new object and must equal the state of an existing one (see `active`).
+// agrirouter assigns `revision`, `modified_at`, `tenant_id`, `source_endpoint_id`, `recipient_endpoint_id`, and `type`. An object may be sent back as it was delivered, these included: `revision`, `modified_at`, `source_endpoint_id`, and `recipient_endpoint_id` are read-only, ignored on send and always present on delivery; `tenant_id` and `type` are optional on send and must match the object written, or the write is a 400. `archived` is required on send: it sets the state of a new object and must equal the state of an existing one (see `archived`).
 //
 // `content` is based on the corresponding ADAPT 2.0.2 type. Properties ADAPT has no slot for are prefixed `_agmasync_`, and unknown properties are rejected. See "Relation to ADAPT" in specification.md for every deviation from ADAPT. An optional attribute declared nullable accepts `null` on a write, where it removes the attribute. agrirouter never delivers `null`: an attribute absent from a delivered object is unset.
 type Envelope struct {
-	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
-	Active bool `json:"active"`
+	// Archived Whether the object is archived. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through archiving and unarchiving. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Archived bool `json:"archived"`
 
 	// ModifiedAt Assigned by agrirouter. Ignored on send.
 	ModifiedAt *time.Time `json:"modified_at,omitempty"`
@@ -337,8 +337,8 @@ type ErrorResponse struct {
 
 // Farm A grouping of fields that the farmer considers part of the same management group.
 type Farm struct {
-	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
-	Active bool `json:"active"`
+	// Archived Whether the object is archived. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through archiving and unarchiving. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Archived bool `json:"archived"`
 
 	// Content Based on the ADAPT `Farm`.
 	Content FarmContent `json:"content"`
@@ -391,8 +391,8 @@ type FarmContent struct {
 
 // Field A named physical space where production agriculture takes place, used to partition and identify data.
 type Field struct {
-	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
-	Active bool `json:"active"`
+	// Archived Whether the object is archived. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through archiving and unarchiving. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Archived bool `json:"archived"`
 
 	// Content Based on the ADAPT `Field`.
 	Content FieldContent `json:"content"`
@@ -420,8 +420,8 @@ type Field struct {
 
 // FieldBoundary A geometry identifying the geo-spatial coordinates of a field, including its outer boundary and the holes of areas left out. A field may have several boundaries that differ in geometry by intended use.
 type FieldBoundary struct {
-	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
-	Active bool `json:"active"`
+	// Archived Whether the object is archived. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through archiving and unarchiving. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Archived bool `json:"archived"`
 
 	// Content Based on the ADAPT `FieldBoundary`.
 	Content FieldBoundaryContent `json:"content"`
@@ -485,7 +485,7 @@ type FieldBoundaryContent struct {
 
 // FieldContent Based on the ADAPT `Field`.
 type FieldContent struct {
-	// UnderscoreAgmasyncActiveBoundaryRef The field's active boundary, in place of ADAPT's `activeBoundaryId`. A weak reference: the boundary may arrive after the field. A receiver treats a deactivated boundary, or one naming another field, as no active boundary.
+	// UnderscoreAgmasyncActiveBoundaryRef The field's active boundary, in place of ADAPT's `activeBoundaryId`. A weak reference: the boundary may arrive after the field. A receiver treats an archived boundary, or one naming another field, as no active boundary.
 	UnderscoreAgmasyncActiveBoundaryRef nullable.Nullable[WeakRef] `json:"_agmasync_activeBoundaryRef,omitempty"`
 
 	// UnderscoreAgmasyncFarmRef The farm this field belongs to. The field's grower is its farm's `_agmasync_growerRef`.
@@ -659,11 +659,11 @@ type InitialLoadStatus struct {
 	UpdatedAt *time.Time       `json:"updated_at,omitempty"`
 }
 
-// LifecycleConflictError The `409` of a write whose `active` differs from the object's current state: an `Error` carrying that state. The state changes only through deactivation and reactivation; the client decides which, if either, it means, and writes again. The `message` of the `Error` is diagnostic and MUST NOT be branched on.
+// LifecycleConflictError The `409` of a write whose `archived` differs from the object's current state: an `Error` carrying that state. The state changes only through archiving and unarchiving; the client decides which, if either, it means, and writes again. The `message` of the `Error` is diagnostic and MUST NOT be branched on.
 type LifecycleConflictError struct {
-	// CurrentActive The canonical object's current `active`.
-	CurrentActive bool   `json:"current_active"`
-	Message       string `json:"message"`
+	// CurrentArchived The canonical object's current `archived`.
+	CurrentArchived bool   `json:"current_archived"`
+	Message         string `json:"message"`
 }
 
 // MappingConflictError The `409` of a binding: an `Error` carrying the rejection that caused it. The same shape the bulk path returns per pair, so an endpoint resolves a conflict identically whichever path raised it. As there, the outcome is carried by `rejection.reason`; the `message` of the `Error` is diagnostic and MUST NOT be branched on.
@@ -690,7 +690,7 @@ type MasterdataConfig struct {
 
 // MasterdataResetEventData Data structure for `RESET_MASTERDATA_SYNC` events on `/masterdata/events`. It states that the user wiped the tenant's master data in agrirouter: every canonical object, every identifier mapping, every masterdata route and every initial-load state of the tenant is discarded. Only a user can do this; no operation of this API does.
 //
-// Sent to every application that has had an endpoint in the tenant take part at some point, whether or not that endpoint still exists. The application MUST discard every binding and stored revision it holds in the tenant, and every correspondence table it retained for a removed endpoint there, and treat the listed endpoints as opted into nothing. It MUST NOT delete or deactivate its local records. No `ROUTE_CHANGED` is issued for the listed endpoints.
+// Sent to every application that has had an endpoint in the tenant take part at some point, whether or not that endpoint still exists. The application MUST discard every binding and stored revision it holds in the tenant, and every correspondence table it retained for a removed endpoint there, and treat the listed endpoints as opted into nothing. It MUST NOT delete or archive its local records. No `ROUTE_CHANGED` is issued for the listed endpoints.
 //
 // agrirouter delivers it before any later event of the tenant. The application MUST durably store a position at or past it before taking part in that tenant's initial load again, so that a repeat can only arrive while nothing is bound and handling it again changes nothing.
 type MasterdataResetEventData struct {
@@ -722,8 +722,8 @@ type OrganizationDetails struct {
 
 // Party A legal or natural actor: a person, an organization, or a party whose party type its sender does not record. It plays no fixed role: whether it acts as a contractor or as a client follows from the relations it stands in, not from an attribute.
 type Party struct {
-	// Active Whether the object is active. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through deactivation and reactivation. Always present on delivery, where it is the only signal of the object's lifecycle state.
-	Active bool `json:"active"`
+	// Archived Whether the object is archived. Required on send. On a create it sets the initial state; on an update it must equal the current state, or the write is rejected with `409` and a `LifecycleConflictError`. The state of an existing object changes only through archiving and unarchiving. Always present on delivery, where it is the only signal of the object's lifecycle state.
+	Archived bool `json:"archived"`
 
 	// Content Based on the ADAPT `Party`. The party type is the `partyTypeCode` of `_agmasync_details`, not a `partyTypeCode` on the party itself.
 	Content PartyContent `json:"content"`
@@ -794,7 +794,7 @@ type PersonDetails struct {
 	Title                 nullable.Nullable[string] `json:"title,omitempty"`
 }
 
-// PutConflictError The `409` of a PUT: a `MappingConflictError` or a `LifecycleConflictError`, told apart by their required field, `rejection` or `current_active`.
+// PutConflictError The `409` of a PUT: a `MappingConflictError` or a `LifecycleConflictError`, told apart by their required field, `rejection` or `current_archived`.
 type PutConflictError struct {
 	union json.RawMessage
 }
@@ -1003,7 +1003,7 @@ type MappingConflict = MappingConflictError
 // NotFound defines model for NotFound.
 type NotFound = Error
 
-// PutConflict The `409` of a PUT: a `MappingConflictError` or a `LifecycleConflictError`, told apart by their required field, `rejection` or `current_active`.
+// PutConflict The `409` of a PUT: a `MappingConflictError` or a `LifecycleConflictError`, told apart by their required field, `rejection` or `current_archived`.
 type PutConflict = PutConflictError
 
 // RevisionConflict The `412` or `428` of a write: an `Error` carrying the revision the object is currently at, so that the client has the answer a rejected write would otherwise have to fetch separately.
@@ -1095,8 +1095,8 @@ type PutFarmParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// DeactivateFarmParams defines parameters for DeactivateFarm.
-type DeactivateFarmParams struct {
+// ArchiveFarmParams defines parameters for ArchiveFarm.
+type ArchiveFarmParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1124,8 +1124,8 @@ type BindFarmMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// ReactivateFarmParams defines parameters for ReactivateFarm.
-type ReactivateFarmParams struct {
+// UnarchiveFarmParams defines parameters for UnarchiveFarm.
+type UnarchiveFarmParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1182,8 +1182,8 @@ type PutFieldBoundaryParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// DeactivateFieldBoundaryParams defines parameters for DeactivateFieldBoundary.
-type DeactivateFieldBoundaryParams struct {
+// ArchiveFieldBoundaryParams defines parameters for ArchiveFieldBoundary.
+type ArchiveFieldBoundaryParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1211,8 +1211,8 @@ type BindFieldBoundaryMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// ReactivateFieldBoundaryParams defines parameters for ReactivateFieldBoundary.
-type ReactivateFieldBoundaryParams struct {
+// UnarchiveFieldBoundaryParams defines parameters for UnarchiveFieldBoundary.
+type UnarchiveFieldBoundaryParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1269,8 +1269,8 @@ type PutFieldParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// DeactivateFieldParams defines parameters for DeactivateField.
-type DeactivateFieldParams struct {
+// ArchiveFieldParams defines parameters for ArchiveField.
+type ArchiveFieldParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1298,8 +1298,8 @@ type BindFieldMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// ReactivateFieldParams defines parameters for ReactivateField.
-type ReactivateFieldParams struct {
+// UnarchiveFieldParams defines parameters for UnarchiveField.
+type UnarchiveFieldParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1356,8 +1356,8 @@ type PutPartyParams struct {
 	XAgrirouterBaseRevision *BaseRevision `json:"x-agrirouter-base-revision,omitempty"`
 }
 
-// DeactivatePartyParams defines parameters for DeactivateParty.
-type DeactivatePartyParams struct {
+// ArchivePartyParams defines parameters for ArchiveParty.
+type ArchivePartyParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1385,8 +1385,8 @@ type BindPartyMappingParams struct {
 	XAgrirouterTenantId AgrirouterTenantId `json:"x-agrirouter-tenant-id"`
 }
 
-// ReactivatePartyParams defines parameters for ReactivateParty.
-type ReactivatePartyParams struct {
+// UnarchivePartyParams defines parameters for UnarchiveParty.
+type UnarchivePartyParams struct {
 	// XAgrirouterEndpointId The endpoint acting — the sender of an entity, the caller of a request, the holder of a binding. The token authorizes an *application*, which holds many endpoints across many tenants, so the acting one is named per request rather than derived. It decides entitlement and the tenant, and it becomes the `source_endpoint_id` of any revision produced. It scopes `local_id`: the identifier resolves in this endpoint's own namespace, never in a sibling endpoint's.
 	//
 	// This is the agrirouter endpoint ID — the `id` of the endpoint, not the `external_id` the application chose for it. An application already holds it: it is returned when the endpoint is created or updated, listed with the tenant's endpoints, and carried on the endpoint events. The same header identifies the sending endpoint on every master-data write.
@@ -1810,15 +1810,15 @@ type ServerInterface interface {
 	// PutFarm Send (create or update) a farm
 	// (PUT /masterdata/farms/{local_id})
 	PutFarm(ctx echo.Context, localId LocalId, params PutFarmParams) error
-	// DeactivateFarm Deactivate a farm
-	// (POST /masterdata/farms/{local_id}/deactivation)
-	DeactivateFarm(ctx echo.Context, localId LocalId, params DeactivateFarmParams) error
+	// ArchiveFarm Archive a farm
+	// (POST /masterdata/farms/{local_id}/archiving)
+	ArchiveFarm(ctx echo.Context, localId LocalId, params ArchiveFarmParams) error
 	// BindFarmMapping Bind a local identifier to an existing farm
 	// (PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id})
 	BindFarmMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFarmMappingParams) error
-	// ReactivateFarm Reactivate a farm
-	// (POST /masterdata/farms/{local_id}/reactivation)
-	ReactivateFarm(ctx echo.Context, localId LocalId, params ReactivateFarmParams) error
+	// UnarchiveFarm Unarchive a farm
+	// (POST /masterdata/farms/{local_id}/unarchiving)
+	UnarchiveFarm(ctx echo.Context, localId LocalId, params UnarchiveFarmParams) error
 	// CorrectFieldBoundaryMappings Correct this endpoint's bindings of field boundaries
 	// (POST /masterdata/field-boundaries/id-mapping-corrections)
 	CorrectFieldBoundaryMappings(ctx echo.Context, params CorrectFieldBoundaryMappingsParams) error
@@ -1828,15 +1828,15 @@ type ServerInterface interface {
 	// PutFieldBoundary Send (create or update) a field boundary
 	// (PUT /masterdata/field-boundaries/{local_id})
 	PutFieldBoundary(ctx echo.Context, localId LocalId, params PutFieldBoundaryParams) error
-	// DeactivateFieldBoundary Deactivate a field boundary
-	// (POST /masterdata/field-boundaries/{local_id}/deactivation)
-	DeactivateFieldBoundary(ctx echo.Context, localId LocalId, params DeactivateFieldBoundaryParams) error
+	// ArchiveFieldBoundary Archive a field boundary
+	// (POST /masterdata/field-boundaries/{local_id}/archiving)
+	ArchiveFieldBoundary(ctx echo.Context, localId LocalId, params ArchiveFieldBoundaryParams) error
 	// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
 	// (PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldBoundaryMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldBoundaryMappingParams) error
-	// ReactivateFieldBoundary Reactivate a field boundary
-	// (POST /masterdata/field-boundaries/{local_id}/reactivation)
-	ReactivateFieldBoundary(ctx echo.Context, localId LocalId, params ReactivateFieldBoundaryParams) error
+	// UnarchiveFieldBoundary Unarchive a field boundary
+	// (POST /masterdata/field-boundaries/{local_id}/unarchiving)
+	UnarchiveFieldBoundary(ctx echo.Context, localId LocalId, params UnarchiveFieldBoundaryParams) error
 	// CorrectFieldMappings Correct this endpoint's bindings of fields
 	// (POST /masterdata/fields/id-mapping-corrections)
 	CorrectFieldMappings(ctx echo.Context, params CorrectFieldMappingsParams) error
@@ -1846,15 +1846,15 @@ type ServerInterface interface {
 	// PutField Send (create or update) a field
 	// (PUT /masterdata/fields/{local_id})
 	PutField(ctx echo.Context, localId LocalId, params PutFieldParams) error
-	// DeactivateField Deactivate a field
-	// (POST /masterdata/fields/{local_id}/deactivation)
-	DeactivateField(ctx echo.Context, localId LocalId, params DeactivateFieldParams) error
+	// ArchiveField Archive a field
+	// (POST /masterdata/fields/{local_id}/archiving)
+	ArchiveField(ctx echo.Context, localId LocalId, params ArchiveFieldParams) error
 	// BindFieldMapping Bind a local identifier to an existing field
 	// (PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindFieldMappingParams) error
-	// ReactivateField Reactivate a field
-	// (POST /masterdata/fields/{local_id}/reactivation)
-	ReactivateField(ctx echo.Context, localId LocalId, params ReactivateFieldParams) error
+	// UnarchiveField Unarchive a field
+	// (POST /masterdata/fields/{local_id}/unarchiving)
+	UnarchiveField(ctx echo.Context, localId LocalId, params UnarchiveFieldParams) error
 	// CorrectPartyMappings Correct this endpoint's bindings of parties
 	// (POST /masterdata/parties/id-mapping-corrections)
 	CorrectPartyMappings(ctx echo.Context, params CorrectPartyMappingsParams) error
@@ -1864,15 +1864,15 @@ type ServerInterface interface {
 	// PutParty Send (create or update) a party
 	// (PUT /masterdata/parties/{local_id})
 	PutParty(ctx echo.Context, localId LocalId, params PutPartyParams) error
-	// DeactivateParty Deactivate a party
-	// (POST /masterdata/parties/{local_id}/deactivation)
-	DeactivateParty(ctx echo.Context, localId LocalId, params DeactivatePartyParams) error
+	// ArchiveParty Archive a party
+	// (POST /masterdata/parties/{local_id}/archiving)
+	ArchiveParty(ctx echo.Context, localId LocalId, params ArchivePartyParams) error
 	// BindPartyMapping Bind a local identifier to an existing party
 	// (PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
 	BindPartyMapping(ctx echo.Context, localId LocalId, agrirouterId IdMappingAgrirouterId, params BindPartyMappingParams) error
-	// ReactivateParty Reactivate a party
-	// (POST /masterdata/parties/{local_id}/reactivation)
-	ReactivateParty(ctx echo.Context, localId LocalId, params ReactivatePartyParams) error
+	// UnarchiveParty Unarchive a party
+	// (POST /masterdata/parties/{local_id}/unarchiving)
+	UnarchiveParty(ctx echo.Context, localId LocalId, params UnarchivePartyParams) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -2265,8 +2265,8 @@ func (w *ServerInterfaceWrapper) PutFarm(ctx echo.Context) error {
 	return err
 }
 
-// DeactivateFarm converts echo context to params.
-func (w *ServerInterfaceWrapper) DeactivateFarm(ctx echo.Context) error {
+// ArchiveFarm converts echo context to params.
+func (w *ServerInterfaceWrapper) ArchiveFarm(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -2277,7 +2277,7 @@ func (w *ServerInterfaceWrapper) DeactivateFarm(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params DeactivateFarmParams
+	var params ArchiveFarmParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -2331,7 +2331,7 @@ func (w *ServerInterfaceWrapper) DeactivateFarm(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeactivateFarm(ctx, localId, params)
+	err = w.Handler.ArchiveFarm(ctx, localId, params)
 	return err
 }
 
@@ -2398,8 +2398,8 @@ func (w *ServerInterfaceWrapper) BindFarmMapping(ctx echo.Context) error {
 	return err
 }
 
-// ReactivateFarm converts echo context to params.
-func (w *ServerInterfaceWrapper) ReactivateFarm(ctx echo.Context) error {
+// UnarchiveFarm converts echo context to params.
+func (w *ServerInterfaceWrapper) UnarchiveFarm(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -2410,7 +2410,7 @@ func (w *ServerInterfaceWrapper) ReactivateFarm(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params ReactivateFarmParams
+	var params UnarchiveFarmParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -2464,7 +2464,7 @@ func (w *ServerInterfaceWrapper) ReactivateFarm(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ReactivateFarm(ctx, localId, params)
+	err = w.Handler.UnarchiveFarm(ctx, localId, params)
 	return err
 }
 
@@ -2634,8 +2634,8 @@ func (w *ServerInterfaceWrapper) PutFieldBoundary(ctx echo.Context) error {
 	return err
 }
 
-// DeactivateFieldBoundary converts echo context to params.
-func (w *ServerInterfaceWrapper) DeactivateFieldBoundary(ctx echo.Context) error {
+// ArchiveFieldBoundary converts echo context to params.
+func (w *ServerInterfaceWrapper) ArchiveFieldBoundary(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -2646,7 +2646,7 @@ func (w *ServerInterfaceWrapper) DeactivateFieldBoundary(ctx echo.Context) error
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params DeactivateFieldBoundaryParams
+	var params ArchiveFieldBoundaryParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -2700,7 +2700,7 @@ func (w *ServerInterfaceWrapper) DeactivateFieldBoundary(ctx echo.Context) error
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeactivateFieldBoundary(ctx, localId, params)
+	err = w.Handler.ArchiveFieldBoundary(ctx, localId, params)
 	return err
 }
 
@@ -2767,8 +2767,8 @@ func (w *ServerInterfaceWrapper) BindFieldBoundaryMapping(ctx echo.Context) erro
 	return err
 }
 
-// ReactivateFieldBoundary converts echo context to params.
-func (w *ServerInterfaceWrapper) ReactivateFieldBoundary(ctx echo.Context) error {
+// UnarchiveFieldBoundary converts echo context to params.
+func (w *ServerInterfaceWrapper) UnarchiveFieldBoundary(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -2779,7 +2779,7 @@ func (w *ServerInterfaceWrapper) ReactivateFieldBoundary(ctx echo.Context) error
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params ReactivateFieldBoundaryParams
+	var params UnarchiveFieldBoundaryParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -2833,7 +2833,7 @@ func (w *ServerInterfaceWrapper) ReactivateFieldBoundary(ctx echo.Context) error
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ReactivateFieldBoundary(ctx, localId, params)
+	err = w.Handler.UnarchiveFieldBoundary(ctx, localId, params)
 	return err
 }
 
@@ -3003,8 +3003,8 @@ func (w *ServerInterfaceWrapper) PutField(ctx echo.Context) error {
 	return err
 }
 
-// DeactivateField converts echo context to params.
-func (w *ServerInterfaceWrapper) DeactivateField(ctx echo.Context) error {
+// ArchiveField converts echo context to params.
+func (w *ServerInterfaceWrapper) ArchiveField(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3015,7 +3015,7 @@ func (w *ServerInterfaceWrapper) DeactivateField(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params DeactivateFieldParams
+	var params ArchiveFieldParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3069,7 +3069,7 @@ func (w *ServerInterfaceWrapper) DeactivateField(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeactivateField(ctx, localId, params)
+	err = w.Handler.ArchiveField(ctx, localId, params)
 	return err
 }
 
@@ -3136,8 +3136,8 @@ func (w *ServerInterfaceWrapper) BindFieldMapping(ctx echo.Context) error {
 	return err
 }
 
-// ReactivateField converts echo context to params.
-func (w *ServerInterfaceWrapper) ReactivateField(ctx echo.Context) error {
+// UnarchiveField converts echo context to params.
+func (w *ServerInterfaceWrapper) UnarchiveField(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3148,7 +3148,7 @@ func (w *ServerInterfaceWrapper) ReactivateField(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params ReactivateFieldParams
+	var params UnarchiveFieldParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3202,7 +3202,7 @@ func (w *ServerInterfaceWrapper) ReactivateField(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ReactivateField(ctx, localId, params)
+	err = w.Handler.UnarchiveField(ctx, localId, params)
 	return err
 }
 
@@ -3372,8 +3372,8 @@ func (w *ServerInterfaceWrapper) PutParty(ctx echo.Context) error {
 	return err
 }
 
-// DeactivateParty converts echo context to params.
-func (w *ServerInterfaceWrapper) DeactivateParty(ctx echo.Context) error {
+// ArchiveParty converts echo context to params.
+func (w *ServerInterfaceWrapper) ArchiveParty(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3384,7 +3384,7 @@ func (w *ServerInterfaceWrapper) DeactivateParty(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params DeactivatePartyParams
+	var params ArchivePartyParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3438,7 +3438,7 @@ func (w *ServerInterfaceWrapper) DeactivateParty(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.DeactivateParty(ctx, localId, params)
+	err = w.Handler.ArchiveParty(ctx, localId, params)
 	return err
 }
 
@@ -3505,8 +3505,8 @@ func (w *ServerInterfaceWrapper) BindPartyMapping(ctx echo.Context) error {
 	return err
 }
 
-// ReactivateParty converts echo context to params.
-func (w *ServerInterfaceWrapper) ReactivateParty(ctx echo.Context) error {
+// UnarchiveParty converts echo context to params.
+func (w *ServerInterfaceWrapper) UnarchiveParty(ctx echo.Context) error {
 	var err error
 	// ------------- Path parameter "local_id" -------------
 	var localId LocalId
@@ -3517,7 +3517,7 @@ func (w *ServerInterfaceWrapper) ReactivateParty(ctx echo.Context) error {
 	}
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params ReactivatePartyParams
+	var params UnarchivePartyParams
 
 	headers := ctx.Request().Header
 	// ------------- Required header parameter "x-agrirouter-endpoint-id" -------------
@@ -3571,7 +3571,7 @@ func (w *ServerInterfaceWrapper) ReactivateParty(ctx echo.Context) error {
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.ReactivateParty(ctx, localId, params)
+	err = w.Handler.UnarchiveParty(ctx, localId, params)
 	return err
 }
 
@@ -3625,26 +3625,26 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 	router.PUT(options.BaseURL+"/masterdata/parties/:local_id", wrapper.PutParty, options.OperationMiddlewares["putParty"]...)
 	router.PUT(options.BaseURL+"/masterdata/parties/:local_id/id-mapping/:agrirouter_id", wrapper.BindPartyMapping, options.OperationMiddlewares["bindPartyMapping"]...)
 	router.POST(options.BaseURL+"/masterdata/parties/id-mapping-corrections", wrapper.CorrectPartyMappings, options.OperationMiddlewares["correctPartyMappings"]...)
-	router.POST(options.BaseURL+"/masterdata/parties/:local_id/deactivation", wrapper.DeactivateParty, options.OperationMiddlewares["deactivateParty"]...)
-	router.POST(options.BaseURL+"/masterdata/parties/:local_id/reactivation", wrapper.ReactivateParty, options.OperationMiddlewares["reactivateParty"]...)
+	router.POST(options.BaseURL+"/masterdata/parties/:local_id/archiving", wrapper.ArchiveParty, options.OperationMiddlewares["archiveParty"]...)
+	router.POST(options.BaseURL+"/masterdata/parties/:local_id/unarchiving", wrapper.UnarchiveParty, options.OperationMiddlewares["unarchiveParty"]...)
 	router.POST(options.BaseURL+"/masterdata/parties/requests", wrapper.RequestParty, options.OperationMiddlewares["requestParty"]...)
 	router.PUT(options.BaseURL+"/masterdata/farms/:local_id", wrapper.PutFarm, options.OperationMiddlewares["putFarm"]...)
 	router.PUT(options.BaseURL+"/masterdata/farms/:local_id/id-mapping/:agrirouter_id", wrapper.BindFarmMapping, options.OperationMiddlewares["bindFarmMapping"]...)
 	router.POST(options.BaseURL+"/masterdata/farms/id-mapping-corrections", wrapper.CorrectFarmMappings, options.OperationMiddlewares["correctFarmMappings"]...)
-	router.POST(options.BaseURL+"/masterdata/farms/:local_id/deactivation", wrapper.DeactivateFarm, options.OperationMiddlewares["deactivateFarm"]...)
-	router.POST(options.BaseURL+"/masterdata/farms/:local_id/reactivation", wrapper.ReactivateFarm, options.OperationMiddlewares["reactivateFarm"]...)
+	router.POST(options.BaseURL+"/masterdata/farms/:local_id/archiving", wrapper.ArchiveFarm, options.OperationMiddlewares["archiveFarm"]...)
+	router.POST(options.BaseURL+"/masterdata/farms/:local_id/unarchiving", wrapper.UnarchiveFarm, options.OperationMiddlewares["unarchiveFarm"]...)
 	router.POST(options.BaseURL+"/masterdata/farms/requests", wrapper.RequestFarm, options.OperationMiddlewares["requestFarm"]...)
 	router.PUT(options.BaseURL+"/masterdata/fields/:local_id", wrapper.PutField, options.OperationMiddlewares["putField"]...)
 	router.PUT(options.BaseURL+"/masterdata/fields/:local_id/id-mapping/:agrirouter_id", wrapper.BindFieldMapping, options.OperationMiddlewares["bindFieldMapping"]...)
 	router.POST(options.BaseURL+"/masterdata/fields/id-mapping-corrections", wrapper.CorrectFieldMappings, options.OperationMiddlewares["correctFieldMappings"]...)
-	router.POST(options.BaseURL+"/masterdata/fields/:local_id/deactivation", wrapper.DeactivateField, options.OperationMiddlewares["deactivateField"]...)
-	router.POST(options.BaseURL+"/masterdata/fields/:local_id/reactivation", wrapper.ReactivateField, options.OperationMiddlewares["reactivateField"]...)
+	router.POST(options.BaseURL+"/masterdata/fields/:local_id/archiving", wrapper.ArchiveField, options.OperationMiddlewares["archiveField"]...)
+	router.POST(options.BaseURL+"/masterdata/fields/:local_id/unarchiving", wrapper.UnarchiveField, options.OperationMiddlewares["unarchiveField"]...)
 	router.POST(options.BaseURL+"/masterdata/fields/requests", wrapper.RequestField, options.OperationMiddlewares["requestField"]...)
 	router.PUT(options.BaseURL+"/masterdata/field-boundaries/:local_id", wrapper.PutFieldBoundary, options.OperationMiddlewares["putFieldBoundary"]...)
 	router.PUT(options.BaseURL+"/masterdata/field-boundaries/:local_id/id-mapping/:agrirouter_id", wrapper.BindFieldBoundaryMapping, options.OperationMiddlewares["bindFieldBoundaryMapping"]...)
 	router.POST(options.BaseURL+"/masterdata/field-boundaries/id-mapping-corrections", wrapper.CorrectFieldBoundaryMappings, options.OperationMiddlewares["correctFieldBoundaryMappings"]...)
-	router.POST(options.BaseURL+"/masterdata/field-boundaries/:local_id/deactivation", wrapper.DeactivateFieldBoundary, options.OperationMiddlewares["deactivateFieldBoundary"]...)
-	router.POST(options.BaseURL+"/masterdata/field-boundaries/:local_id/reactivation", wrapper.ReactivateFieldBoundary, options.OperationMiddlewares["reactivateFieldBoundary"]...)
+	router.POST(options.BaseURL+"/masterdata/field-boundaries/:local_id/archiving", wrapper.ArchiveFieldBoundary, options.OperationMiddlewares["archiveFieldBoundary"]...)
+	router.POST(options.BaseURL+"/masterdata/field-boundaries/:local_id/unarchiving", wrapper.UnarchiveFieldBoundary, options.OperationMiddlewares["unarchiveFieldBoundary"]...)
 	router.POST(options.BaseURL+"/masterdata/field-boundaries/requests", wrapper.RequestFieldBoundary, options.OperationMiddlewares["requestFieldBoundary"]...)
 	router.GET(options.BaseURL+"/masterdata/events", wrapper.StreamMasterdataEvents, options.OperationMiddlewares["streamMasterdataEvents"]...)
 	router.PUT(options.BaseURL+"/endpoints/:external_id", wrapper.PutEndpoint, options.OperationMiddlewares["putEndpoint"]...)
@@ -4364,18 +4364,18 @@ func (response PutFarm428JSONResponse) VisitPutFarmResponse(w http.ResponseWrite
 	return err
 }
 
-type DeactivateFarmRequestObject struct {
+type ArchiveFarmRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  DeactivateFarmParams
+	Params  ArchiveFarmParams
 }
 
-type DeactivateFarmResponseObject interface {
-	VisitDeactivateFarmResponse(w http.ResponseWriter) error
+type ArchiveFarmResponseObject interface {
+	VisitArchiveFarmResponse(w http.ResponseWriter) error
 }
 
-type DeactivateFarm200JSONResponse Farm
+type ArchiveFarm200JSONResponse Farm
 
-func (response DeactivateFarm200JSONResponse) VisitDeactivateFarmResponse(w http.ResponseWriter) error {
+func (response ArchiveFarm200JSONResponse) VisitArchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4387,9 +4387,9 @@ func (response DeactivateFarm200JSONResponse) VisitDeactivateFarmResponse(w http
 	return err
 }
 
-type DeactivateFarm403JSONResponse struct{ ForbiddenJSONResponse }
+type ArchiveFarm403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response DeactivateFarm403JSONResponse) VisitDeactivateFarmResponse(w http.ResponseWriter) error {
+func (response ArchiveFarm403JSONResponse) VisitArchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4401,9 +4401,9 @@ func (response DeactivateFarm403JSONResponse) VisitDeactivateFarmResponse(w http
 	return err
 }
 
-type DeactivateFarm404JSONResponse struct{ NotFoundJSONResponse }
+type ArchiveFarm404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response DeactivateFarm404JSONResponse) VisitDeactivateFarmResponse(w http.ResponseWriter) error {
+func (response ArchiveFarm404JSONResponse) VisitArchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4415,9 +4415,9 @@ func (response DeactivateFarm404JSONResponse) VisitDeactivateFarmResponse(w http
 	return err
 }
 
-type DeactivateFarm412JSONResponse struct{ RevisionConflictJSONResponse }
+type ArchiveFarm412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response DeactivateFarm412JSONResponse) VisitDeactivateFarmResponse(w http.ResponseWriter) error {
+func (response ArchiveFarm412JSONResponse) VisitArchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4429,11 +4429,11 @@ func (response DeactivateFarm412JSONResponse) VisitDeactivateFarmResponse(w http
 	return err
 }
 
-type DeactivateFarm428JSONResponse struct {
+type ArchiveFarm428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response DeactivateFarm428JSONResponse) VisitDeactivateFarmResponse(w http.ResponseWriter) error {
+func (response ArchiveFarm428JSONResponse) VisitArchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4505,18 +4505,18 @@ func (response BindFarmMapping409JSONResponse) VisitBindFarmMappingResponse(w ht
 	return err
 }
 
-type ReactivateFarmRequestObject struct {
+type UnarchiveFarmRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  ReactivateFarmParams
+	Params  UnarchiveFarmParams
 }
 
-type ReactivateFarmResponseObject interface {
-	VisitReactivateFarmResponse(w http.ResponseWriter) error
+type UnarchiveFarmResponseObject interface {
+	VisitUnarchiveFarmResponse(w http.ResponseWriter) error
 }
 
-type ReactivateFarm200JSONResponse Farm
+type UnarchiveFarm200JSONResponse Farm
 
-func (response ReactivateFarm200JSONResponse) VisitReactivateFarmResponse(w http.ResponseWriter) error {
+func (response UnarchiveFarm200JSONResponse) VisitUnarchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4528,9 +4528,9 @@ func (response ReactivateFarm200JSONResponse) VisitReactivateFarmResponse(w http
 	return err
 }
 
-type ReactivateFarm403JSONResponse struct{ ForbiddenJSONResponse }
+type UnarchiveFarm403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response ReactivateFarm403JSONResponse) VisitReactivateFarmResponse(w http.ResponseWriter) error {
+func (response UnarchiveFarm403JSONResponse) VisitUnarchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4542,9 +4542,9 @@ func (response ReactivateFarm403JSONResponse) VisitReactivateFarmResponse(w http
 	return err
 }
 
-type ReactivateFarm404JSONResponse struct{ NotFoundJSONResponse }
+type UnarchiveFarm404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response ReactivateFarm404JSONResponse) VisitReactivateFarmResponse(w http.ResponseWriter) error {
+func (response UnarchiveFarm404JSONResponse) VisitUnarchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4556,9 +4556,9 @@ func (response ReactivateFarm404JSONResponse) VisitReactivateFarmResponse(w http
 	return err
 }
 
-type ReactivateFarm412JSONResponse struct{ RevisionConflictJSONResponse }
+type UnarchiveFarm412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response ReactivateFarm412JSONResponse) VisitReactivateFarmResponse(w http.ResponseWriter) error {
+func (response UnarchiveFarm412JSONResponse) VisitUnarchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4570,11 +4570,11 @@ func (response ReactivateFarm412JSONResponse) VisitReactivateFarmResponse(w http
 	return err
 }
 
-type ReactivateFarm428JSONResponse struct {
+type UnarchiveFarm428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response ReactivateFarm428JSONResponse) VisitReactivateFarmResponse(w http.ResponseWriter) error {
+func (response UnarchiveFarm428JSONResponse) VisitUnarchiveFarmResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4813,18 +4813,18 @@ func (response PutFieldBoundary428JSONResponse) VisitPutFieldBoundaryResponse(w 
 	return err
 }
 
-type DeactivateFieldBoundaryRequestObject struct {
+type ArchiveFieldBoundaryRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  DeactivateFieldBoundaryParams
+	Params  ArchiveFieldBoundaryParams
 }
 
-type DeactivateFieldBoundaryResponseObject interface {
-	VisitDeactivateFieldBoundaryResponse(w http.ResponseWriter) error
+type ArchiveFieldBoundaryResponseObject interface {
+	VisitArchiveFieldBoundaryResponse(w http.ResponseWriter) error
 }
 
-type DeactivateFieldBoundary200JSONResponse FieldBoundary
+type ArchiveFieldBoundary200JSONResponse FieldBoundary
 
-func (response DeactivateFieldBoundary200JSONResponse) VisitDeactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response ArchiveFieldBoundary200JSONResponse) VisitArchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4836,9 +4836,9 @@ func (response DeactivateFieldBoundary200JSONResponse) VisitDeactivateFieldBound
 	return err
 }
 
-type DeactivateFieldBoundary403JSONResponse struct{ ForbiddenJSONResponse }
+type ArchiveFieldBoundary403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response DeactivateFieldBoundary403JSONResponse) VisitDeactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response ArchiveFieldBoundary403JSONResponse) VisitArchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4850,9 +4850,9 @@ func (response DeactivateFieldBoundary403JSONResponse) VisitDeactivateFieldBound
 	return err
 }
 
-type DeactivateFieldBoundary404JSONResponse struct{ NotFoundJSONResponse }
+type ArchiveFieldBoundary404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response DeactivateFieldBoundary404JSONResponse) VisitDeactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response ArchiveFieldBoundary404JSONResponse) VisitArchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4864,9 +4864,9 @@ func (response DeactivateFieldBoundary404JSONResponse) VisitDeactivateFieldBound
 	return err
 }
 
-type DeactivateFieldBoundary412JSONResponse struct{ RevisionConflictJSONResponse }
+type ArchiveFieldBoundary412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response DeactivateFieldBoundary412JSONResponse) VisitDeactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response ArchiveFieldBoundary412JSONResponse) VisitArchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4878,11 +4878,11 @@ func (response DeactivateFieldBoundary412JSONResponse) VisitDeactivateFieldBound
 	return err
 }
 
-type DeactivateFieldBoundary428JSONResponse struct {
+type ArchiveFieldBoundary428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response DeactivateFieldBoundary428JSONResponse) VisitDeactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response ArchiveFieldBoundary428JSONResponse) VisitArchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4954,18 +4954,18 @@ func (response BindFieldBoundaryMapping409JSONResponse) VisitBindFieldBoundaryMa
 	return err
 }
 
-type ReactivateFieldBoundaryRequestObject struct {
+type UnarchiveFieldBoundaryRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  ReactivateFieldBoundaryParams
+	Params  UnarchiveFieldBoundaryParams
 }
 
-type ReactivateFieldBoundaryResponseObject interface {
-	VisitReactivateFieldBoundaryResponse(w http.ResponseWriter) error
+type UnarchiveFieldBoundaryResponseObject interface {
+	VisitUnarchiveFieldBoundaryResponse(w http.ResponseWriter) error
 }
 
-type ReactivateFieldBoundary200JSONResponse FieldBoundary
+type UnarchiveFieldBoundary200JSONResponse FieldBoundary
 
-func (response ReactivateFieldBoundary200JSONResponse) VisitReactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response UnarchiveFieldBoundary200JSONResponse) VisitUnarchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4977,9 +4977,9 @@ func (response ReactivateFieldBoundary200JSONResponse) VisitReactivateFieldBound
 	return err
 }
 
-type ReactivateFieldBoundary403JSONResponse struct{ ForbiddenJSONResponse }
+type UnarchiveFieldBoundary403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response ReactivateFieldBoundary403JSONResponse) VisitReactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response UnarchiveFieldBoundary403JSONResponse) VisitUnarchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -4991,9 +4991,9 @@ func (response ReactivateFieldBoundary403JSONResponse) VisitReactivateFieldBound
 	return err
 }
 
-type ReactivateFieldBoundary404JSONResponse struct{ NotFoundJSONResponse }
+type UnarchiveFieldBoundary404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response ReactivateFieldBoundary404JSONResponse) VisitReactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response UnarchiveFieldBoundary404JSONResponse) VisitUnarchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5005,9 +5005,9 @@ func (response ReactivateFieldBoundary404JSONResponse) VisitReactivateFieldBound
 	return err
 }
 
-type ReactivateFieldBoundary412JSONResponse struct{ RevisionConflictJSONResponse }
+type UnarchiveFieldBoundary412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response ReactivateFieldBoundary412JSONResponse) VisitReactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response UnarchiveFieldBoundary412JSONResponse) VisitUnarchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5019,11 +5019,11 @@ func (response ReactivateFieldBoundary412JSONResponse) VisitReactivateFieldBound
 	return err
 }
 
-type ReactivateFieldBoundary428JSONResponse struct {
+type UnarchiveFieldBoundary428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response ReactivateFieldBoundary428JSONResponse) VisitReactivateFieldBoundaryResponse(w http.ResponseWriter) error {
+func (response UnarchiveFieldBoundary428JSONResponse) VisitUnarchiveFieldBoundaryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5262,18 +5262,18 @@ func (response PutField428JSONResponse) VisitPutFieldResponse(w http.ResponseWri
 	return err
 }
 
-type DeactivateFieldRequestObject struct {
+type ArchiveFieldRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  DeactivateFieldParams
+	Params  ArchiveFieldParams
 }
 
-type DeactivateFieldResponseObject interface {
-	VisitDeactivateFieldResponse(w http.ResponseWriter) error
+type ArchiveFieldResponseObject interface {
+	VisitArchiveFieldResponse(w http.ResponseWriter) error
 }
 
-type DeactivateField200JSONResponse Field
+type ArchiveField200JSONResponse Field
 
-func (response DeactivateField200JSONResponse) VisitDeactivateFieldResponse(w http.ResponseWriter) error {
+func (response ArchiveField200JSONResponse) VisitArchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5285,9 +5285,9 @@ func (response DeactivateField200JSONResponse) VisitDeactivateFieldResponse(w ht
 	return err
 }
 
-type DeactivateField403JSONResponse struct{ ForbiddenJSONResponse }
+type ArchiveField403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response DeactivateField403JSONResponse) VisitDeactivateFieldResponse(w http.ResponseWriter) error {
+func (response ArchiveField403JSONResponse) VisitArchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5299,9 +5299,9 @@ func (response DeactivateField403JSONResponse) VisitDeactivateFieldResponse(w ht
 	return err
 }
 
-type DeactivateField404JSONResponse struct{ NotFoundJSONResponse }
+type ArchiveField404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response DeactivateField404JSONResponse) VisitDeactivateFieldResponse(w http.ResponseWriter) error {
+func (response ArchiveField404JSONResponse) VisitArchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5313,9 +5313,9 @@ func (response DeactivateField404JSONResponse) VisitDeactivateFieldResponse(w ht
 	return err
 }
 
-type DeactivateField412JSONResponse struct{ RevisionConflictJSONResponse }
+type ArchiveField412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response DeactivateField412JSONResponse) VisitDeactivateFieldResponse(w http.ResponseWriter) error {
+func (response ArchiveField412JSONResponse) VisitArchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5327,11 +5327,11 @@ func (response DeactivateField412JSONResponse) VisitDeactivateFieldResponse(w ht
 	return err
 }
 
-type DeactivateField428JSONResponse struct {
+type ArchiveField428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response DeactivateField428JSONResponse) VisitDeactivateFieldResponse(w http.ResponseWriter) error {
+func (response ArchiveField428JSONResponse) VisitArchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5403,18 +5403,18 @@ func (response BindFieldMapping409JSONResponse) VisitBindFieldMappingResponse(w 
 	return err
 }
 
-type ReactivateFieldRequestObject struct {
+type UnarchiveFieldRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  ReactivateFieldParams
+	Params  UnarchiveFieldParams
 }
 
-type ReactivateFieldResponseObject interface {
-	VisitReactivateFieldResponse(w http.ResponseWriter) error
+type UnarchiveFieldResponseObject interface {
+	VisitUnarchiveFieldResponse(w http.ResponseWriter) error
 }
 
-type ReactivateField200JSONResponse Field
+type UnarchiveField200JSONResponse Field
 
-func (response ReactivateField200JSONResponse) VisitReactivateFieldResponse(w http.ResponseWriter) error {
+func (response UnarchiveField200JSONResponse) VisitUnarchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5426,9 +5426,9 @@ func (response ReactivateField200JSONResponse) VisitReactivateFieldResponse(w ht
 	return err
 }
 
-type ReactivateField403JSONResponse struct{ ForbiddenJSONResponse }
+type UnarchiveField403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response ReactivateField403JSONResponse) VisitReactivateFieldResponse(w http.ResponseWriter) error {
+func (response UnarchiveField403JSONResponse) VisitUnarchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5440,9 +5440,9 @@ func (response ReactivateField403JSONResponse) VisitReactivateFieldResponse(w ht
 	return err
 }
 
-type ReactivateField404JSONResponse struct{ NotFoundJSONResponse }
+type UnarchiveField404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response ReactivateField404JSONResponse) VisitReactivateFieldResponse(w http.ResponseWriter) error {
+func (response UnarchiveField404JSONResponse) VisitUnarchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5454,9 +5454,9 @@ func (response ReactivateField404JSONResponse) VisitReactivateFieldResponse(w ht
 	return err
 }
 
-type ReactivateField412JSONResponse struct{ RevisionConflictJSONResponse }
+type UnarchiveField412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response ReactivateField412JSONResponse) VisitReactivateFieldResponse(w http.ResponseWriter) error {
+func (response UnarchiveField412JSONResponse) VisitUnarchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5468,11 +5468,11 @@ func (response ReactivateField412JSONResponse) VisitReactivateFieldResponse(w ht
 	return err
 }
 
-type ReactivateField428JSONResponse struct {
+type UnarchiveField428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response ReactivateField428JSONResponse) VisitReactivateFieldResponse(w http.ResponseWriter) error {
+func (response UnarchiveField428JSONResponse) VisitUnarchiveFieldResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5711,18 +5711,18 @@ func (response PutParty428JSONResponse) VisitPutPartyResponse(w http.ResponseWri
 	return err
 }
 
-type DeactivatePartyRequestObject struct {
+type ArchivePartyRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  DeactivatePartyParams
+	Params  ArchivePartyParams
 }
 
-type DeactivatePartyResponseObject interface {
-	VisitDeactivatePartyResponse(w http.ResponseWriter) error
+type ArchivePartyResponseObject interface {
+	VisitArchivePartyResponse(w http.ResponseWriter) error
 }
 
-type DeactivateParty200JSONResponse Party
+type ArchiveParty200JSONResponse Party
 
-func (response DeactivateParty200JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
+func (response ArchiveParty200JSONResponse) VisitArchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5734,9 +5734,9 @@ func (response DeactivateParty200JSONResponse) VisitDeactivatePartyResponse(w ht
 	return err
 }
 
-type DeactivateParty403JSONResponse struct{ ForbiddenJSONResponse }
+type ArchiveParty403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response DeactivateParty403JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
+func (response ArchiveParty403JSONResponse) VisitArchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5748,9 +5748,9 @@ func (response DeactivateParty403JSONResponse) VisitDeactivatePartyResponse(w ht
 	return err
 }
 
-type DeactivateParty404JSONResponse struct{ NotFoundJSONResponse }
+type ArchiveParty404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response DeactivateParty404JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
+func (response ArchiveParty404JSONResponse) VisitArchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5762,9 +5762,9 @@ func (response DeactivateParty404JSONResponse) VisitDeactivatePartyResponse(w ht
 	return err
 }
 
-type DeactivateParty412JSONResponse struct{ RevisionConflictJSONResponse }
+type ArchiveParty412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response DeactivateParty412JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
+func (response ArchiveParty412JSONResponse) VisitArchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5776,11 +5776,11 @@ func (response DeactivateParty412JSONResponse) VisitDeactivatePartyResponse(w ht
 	return err
 }
 
-type DeactivateParty428JSONResponse struct {
+type ArchiveParty428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response DeactivateParty428JSONResponse) VisitDeactivatePartyResponse(w http.ResponseWriter) error {
+func (response ArchiveParty428JSONResponse) VisitArchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5852,18 +5852,18 @@ func (response BindPartyMapping409JSONResponse) VisitBindPartyMappingResponse(w 
 	return err
 }
 
-type ReactivatePartyRequestObject struct {
+type UnarchivePartyRequestObject struct {
 	LocalId LocalId `json:"local_id"`
-	Params  ReactivatePartyParams
+	Params  UnarchivePartyParams
 }
 
-type ReactivatePartyResponseObject interface {
-	VisitReactivatePartyResponse(w http.ResponseWriter) error
+type UnarchivePartyResponseObject interface {
+	VisitUnarchivePartyResponse(w http.ResponseWriter) error
 }
 
-type ReactivateParty200JSONResponse Party
+type UnarchiveParty200JSONResponse Party
 
-func (response ReactivateParty200JSONResponse) VisitReactivatePartyResponse(w http.ResponseWriter) error {
+func (response UnarchiveParty200JSONResponse) VisitUnarchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5875,9 +5875,9 @@ func (response ReactivateParty200JSONResponse) VisitReactivatePartyResponse(w ht
 	return err
 }
 
-type ReactivateParty403JSONResponse struct{ ForbiddenJSONResponse }
+type UnarchiveParty403JSONResponse struct{ ForbiddenJSONResponse }
 
-func (response ReactivateParty403JSONResponse) VisitReactivatePartyResponse(w http.ResponseWriter) error {
+func (response UnarchiveParty403JSONResponse) VisitUnarchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5889,9 +5889,9 @@ func (response ReactivateParty403JSONResponse) VisitReactivatePartyResponse(w ht
 	return err
 }
 
-type ReactivateParty404JSONResponse struct{ NotFoundJSONResponse }
+type UnarchiveParty404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response ReactivateParty404JSONResponse) VisitReactivatePartyResponse(w http.ResponseWriter) error {
+func (response UnarchiveParty404JSONResponse) VisitUnarchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5903,9 +5903,9 @@ func (response ReactivateParty404JSONResponse) VisitReactivatePartyResponse(w ht
 	return err
 }
 
-type ReactivateParty412JSONResponse struct{ RevisionConflictJSONResponse }
+type UnarchiveParty412JSONResponse struct{ RevisionConflictJSONResponse }
 
-func (response ReactivateParty412JSONResponse) VisitReactivatePartyResponse(w http.ResponseWriter) error {
+func (response UnarchiveParty412JSONResponse) VisitUnarchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5917,11 +5917,11 @@ func (response ReactivateParty412JSONResponse) VisitReactivatePartyResponse(w ht
 	return err
 }
 
-type ReactivateParty428JSONResponse struct {
+type UnarchiveParty428JSONResponse struct {
 	BaseRevisionRequiredJSONResponse
 }
 
-func (response ReactivateParty428JSONResponse) VisitReactivatePartyResponse(w http.ResponseWriter) error {
+func (response UnarchiveParty428JSONResponse) VisitUnarchivePartyResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -5962,15 +5962,15 @@ type StrictServerInterface interface {
 	// PutFarm Send (create or update) a farm
 	// (PUT /masterdata/farms/{local_id})
 	PutFarm(ctx context.Context, request PutFarmRequestObject) (PutFarmResponseObject, error)
-	// DeactivateFarm Deactivate a farm
-	// (POST /masterdata/farms/{local_id}/deactivation)
-	DeactivateFarm(ctx context.Context, request DeactivateFarmRequestObject) (DeactivateFarmResponseObject, error)
+	// ArchiveFarm Archive a farm
+	// (POST /masterdata/farms/{local_id}/archiving)
+	ArchiveFarm(ctx context.Context, request ArchiveFarmRequestObject) (ArchiveFarmResponseObject, error)
 	// BindFarmMapping Bind a local identifier to an existing farm
 	// (PUT /masterdata/farms/{local_id}/id-mapping/{agrirouter_id})
 	BindFarmMapping(ctx context.Context, request BindFarmMappingRequestObject) (BindFarmMappingResponseObject, error)
-	// ReactivateFarm Reactivate a farm
-	// (POST /masterdata/farms/{local_id}/reactivation)
-	ReactivateFarm(ctx context.Context, request ReactivateFarmRequestObject) (ReactivateFarmResponseObject, error)
+	// UnarchiveFarm Unarchive a farm
+	// (POST /masterdata/farms/{local_id}/unarchiving)
+	UnarchiveFarm(ctx context.Context, request UnarchiveFarmRequestObject) (UnarchiveFarmResponseObject, error)
 	// CorrectFieldBoundaryMappings Correct this endpoint's bindings of field boundaries
 	// (POST /masterdata/field-boundaries/id-mapping-corrections)
 	CorrectFieldBoundaryMappings(ctx context.Context, request CorrectFieldBoundaryMappingsRequestObject) (CorrectFieldBoundaryMappingsResponseObject, error)
@@ -5980,15 +5980,15 @@ type StrictServerInterface interface {
 	// PutFieldBoundary Send (create or update) a field boundary
 	// (PUT /masterdata/field-boundaries/{local_id})
 	PutFieldBoundary(ctx context.Context, request PutFieldBoundaryRequestObject) (PutFieldBoundaryResponseObject, error)
-	// DeactivateFieldBoundary Deactivate a field boundary
-	// (POST /masterdata/field-boundaries/{local_id}/deactivation)
-	DeactivateFieldBoundary(ctx context.Context, request DeactivateFieldBoundaryRequestObject) (DeactivateFieldBoundaryResponseObject, error)
+	// ArchiveFieldBoundary Archive a field boundary
+	// (POST /masterdata/field-boundaries/{local_id}/archiving)
+	ArchiveFieldBoundary(ctx context.Context, request ArchiveFieldBoundaryRequestObject) (ArchiveFieldBoundaryResponseObject, error)
 	// BindFieldBoundaryMapping Bind a local identifier to an existing field boundary
 	// (PUT /masterdata/field-boundaries/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldBoundaryMapping(ctx context.Context, request BindFieldBoundaryMappingRequestObject) (BindFieldBoundaryMappingResponseObject, error)
-	// ReactivateFieldBoundary Reactivate a field boundary
-	// (POST /masterdata/field-boundaries/{local_id}/reactivation)
-	ReactivateFieldBoundary(ctx context.Context, request ReactivateFieldBoundaryRequestObject) (ReactivateFieldBoundaryResponseObject, error)
+	// UnarchiveFieldBoundary Unarchive a field boundary
+	// (POST /masterdata/field-boundaries/{local_id}/unarchiving)
+	UnarchiveFieldBoundary(ctx context.Context, request UnarchiveFieldBoundaryRequestObject) (UnarchiveFieldBoundaryResponseObject, error)
 	// CorrectFieldMappings Correct this endpoint's bindings of fields
 	// (POST /masterdata/fields/id-mapping-corrections)
 	CorrectFieldMappings(ctx context.Context, request CorrectFieldMappingsRequestObject) (CorrectFieldMappingsResponseObject, error)
@@ -5998,15 +5998,15 @@ type StrictServerInterface interface {
 	// PutField Send (create or update) a field
 	// (PUT /masterdata/fields/{local_id})
 	PutField(ctx context.Context, request PutFieldRequestObject) (PutFieldResponseObject, error)
-	// DeactivateField Deactivate a field
-	// (POST /masterdata/fields/{local_id}/deactivation)
-	DeactivateField(ctx context.Context, request DeactivateFieldRequestObject) (DeactivateFieldResponseObject, error)
+	// ArchiveField Archive a field
+	// (POST /masterdata/fields/{local_id}/archiving)
+	ArchiveField(ctx context.Context, request ArchiveFieldRequestObject) (ArchiveFieldResponseObject, error)
 	// BindFieldMapping Bind a local identifier to an existing field
 	// (PUT /masterdata/fields/{local_id}/id-mapping/{agrirouter_id})
 	BindFieldMapping(ctx context.Context, request BindFieldMappingRequestObject) (BindFieldMappingResponseObject, error)
-	// ReactivateField Reactivate a field
-	// (POST /masterdata/fields/{local_id}/reactivation)
-	ReactivateField(ctx context.Context, request ReactivateFieldRequestObject) (ReactivateFieldResponseObject, error)
+	// UnarchiveField Unarchive a field
+	// (POST /masterdata/fields/{local_id}/unarchiving)
+	UnarchiveField(ctx context.Context, request UnarchiveFieldRequestObject) (UnarchiveFieldResponseObject, error)
 	// CorrectPartyMappings Correct this endpoint's bindings of parties
 	// (POST /masterdata/parties/id-mapping-corrections)
 	CorrectPartyMappings(ctx context.Context, request CorrectPartyMappingsRequestObject) (CorrectPartyMappingsResponseObject, error)
@@ -6016,15 +6016,15 @@ type StrictServerInterface interface {
 	// PutParty Send (create or update) a party
 	// (PUT /masterdata/parties/{local_id})
 	PutParty(ctx context.Context, request PutPartyRequestObject) (PutPartyResponseObject, error)
-	// DeactivateParty Deactivate a party
-	// (POST /masterdata/parties/{local_id}/deactivation)
-	DeactivateParty(ctx context.Context, request DeactivatePartyRequestObject) (DeactivatePartyResponseObject, error)
+	// ArchiveParty Archive a party
+	// (POST /masterdata/parties/{local_id}/archiving)
+	ArchiveParty(ctx context.Context, request ArchivePartyRequestObject) (ArchivePartyResponseObject, error)
 	// BindPartyMapping Bind a local identifier to an existing party
 	// (PUT /masterdata/parties/{local_id}/id-mapping/{agrirouter_id})
 	BindPartyMapping(ctx context.Context, request BindPartyMappingRequestObject) (BindPartyMappingResponseObject, error)
-	// ReactivateParty Reactivate a party
-	// (POST /masterdata/parties/{local_id}/reactivation)
-	ReactivateParty(ctx context.Context, request ReactivatePartyRequestObject) (ReactivatePartyResponseObject, error)
+	// UnarchiveParty Unarchive a party
+	// (POST /masterdata/parties/{local_id}/unarchiving)
+	UnarchiveParty(ctx context.Context, request UnarchivePartyRequestObject) (UnarchivePartyResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx echo.Context, request any) (any, error)
@@ -6350,26 +6350,26 @@ func (sh *strictHandler) PutFarm(ctx echo.Context, localId LocalId, params PutFa
 	return nil
 }
 
-// DeactivateFarm operation middleware
-func (sh *strictHandler) DeactivateFarm(ctx echo.Context, localId LocalId, params DeactivateFarmParams) error {
-	var request DeactivateFarmRequestObject
+// ArchiveFarm operation middleware
+func (sh *strictHandler) ArchiveFarm(ctx echo.Context, localId LocalId, params ArchiveFarmParams) error {
+	var request ArchiveFarmRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeactivateFarm(ctx.Request().Context(), request.(DeactivateFarmRequestObject))
+		return sh.ssi.ArchiveFarm(ctx.Request().Context(), request.(ArchiveFarmRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeactivateFarm")
+		handler = middleware(handler, "ArchiveFarm")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(DeactivateFarmResponseObject); ok {
-		return validResponse.VisitDeactivateFarmResponse(ctx.Response())
+	} else if validResponse, ok := response.(ArchiveFarmResponseObject); ok {
+		return validResponse.VisitArchiveFarmResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -6403,26 +6403,26 @@ func (sh *strictHandler) BindFarmMapping(ctx echo.Context, localId LocalId, agri
 	return nil
 }
 
-// ReactivateFarm operation middleware
-func (sh *strictHandler) ReactivateFarm(ctx echo.Context, localId LocalId, params ReactivateFarmParams) error {
-	var request ReactivateFarmRequestObject
+// UnarchiveFarm operation middleware
+func (sh *strictHandler) UnarchiveFarm(ctx echo.Context, localId LocalId, params UnarchiveFarmParams) error {
+	var request UnarchiveFarmRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.ReactivateFarm(ctx.Request().Context(), request.(ReactivateFarmRequestObject))
+		return sh.ssi.UnarchiveFarm(ctx.Request().Context(), request.(UnarchiveFarmRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ReactivateFarm")
+		handler = middleware(handler, "UnarchiveFarm")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(ReactivateFarmResponseObject); ok {
-		return validResponse.VisitReactivateFarmResponse(ctx.Response())
+	} else if validResponse, ok := response.(UnarchiveFarmResponseObject); ok {
+		return validResponse.VisitUnarchiveFarmResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -6553,26 +6553,26 @@ func (sh *strictHandler) PutFieldBoundary(ctx echo.Context, localId LocalId, par
 	return nil
 }
 
-// DeactivateFieldBoundary operation middleware
-func (sh *strictHandler) DeactivateFieldBoundary(ctx echo.Context, localId LocalId, params DeactivateFieldBoundaryParams) error {
-	var request DeactivateFieldBoundaryRequestObject
+// ArchiveFieldBoundary operation middleware
+func (sh *strictHandler) ArchiveFieldBoundary(ctx echo.Context, localId LocalId, params ArchiveFieldBoundaryParams) error {
+	var request ArchiveFieldBoundaryRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeactivateFieldBoundary(ctx.Request().Context(), request.(DeactivateFieldBoundaryRequestObject))
+		return sh.ssi.ArchiveFieldBoundary(ctx.Request().Context(), request.(ArchiveFieldBoundaryRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeactivateFieldBoundary")
+		handler = middleware(handler, "ArchiveFieldBoundary")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(DeactivateFieldBoundaryResponseObject); ok {
-		return validResponse.VisitDeactivateFieldBoundaryResponse(ctx.Response())
+	} else if validResponse, ok := response.(ArchiveFieldBoundaryResponseObject); ok {
+		return validResponse.VisitArchiveFieldBoundaryResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -6606,26 +6606,26 @@ func (sh *strictHandler) BindFieldBoundaryMapping(ctx echo.Context, localId Loca
 	return nil
 }
 
-// ReactivateFieldBoundary operation middleware
-func (sh *strictHandler) ReactivateFieldBoundary(ctx echo.Context, localId LocalId, params ReactivateFieldBoundaryParams) error {
-	var request ReactivateFieldBoundaryRequestObject
+// UnarchiveFieldBoundary operation middleware
+func (sh *strictHandler) UnarchiveFieldBoundary(ctx echo.Context, localId LocalId, params UnarchiveFieldBoundaryParams) error {
+	var request UnarchiveFieldBoundaryRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.ReactivateFieldBoundary(ctx.Request().Context(), request.(ReactivateFieldBoundaryRequestObject))
+		return sh.ssi.UnarchiveFieldBoundary(ctx.Request().Context(), request.(UnarchiveFieldBoundaryRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ReactivateFieldBoundary")
+		handler = middleware(handler, "UnarchiveFieldBoundary")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(ReactivateFieldBoundaryResponseObject); ok {
-		return validResponse.VisitReactivateFieldBoundaryResponse(ctx.Response())
+	} else if validResponse, ok := response.(UnarchiveFieldBoundaryResponseObject); ok {
+		return validResponse.VisitUnarchiveFieldBoundaryResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -6756,26 +6756,26 @@ func (sh *strictHandler) PutField(ctx echo.Context, localId LocalId, params PutF
 	return nil
 }
 
-// DeactivateField operation middleware
-func (sh *strictHandler) DeactivateField(ctx echo.Context, localId LocalId, params DeactivateFieldParams) error {
-	var request DeactivateFieldRequestObject
+// ArchiveField operation middleware
+func (sh *strictHandler) ArchiveField(ctx echo.Context, localId LocalId, params ArchiveFieldParams) error {
+	var request ArchiveFieldRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeactivateField(ctx.Request().Context(), request.(DeactivateFieldRequestObject))
+		return sh.ssi.ArchiveField(ctx.Request().Context(), request.(ArchiveFieldRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeactivateField")
+		handler = middleware(handler, "ArchiveField")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(DeactivateFieldResponseObject); ok {
-		return validResponse.VisitDeactivateFieldResponse(ctx.Response())
+	} else if validResponse, ok := response.(ArchiveFieldResponseObject); ok {
+		return validResponse.VisitArchiveFieldResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -6809,26 +6809,26 @@ func (sh *strictHandler) BindFieldMapping(ctx echo.Context, localId LocalId, agr
 	return nil
 }
 
-// ReactivateField operation middleware
-func (sh *strictHandler) ReactivateField(ctx echo.Context, localId LocalId, params ReactivateFieldParams) error {
-	var request ReactivateFieldRequestObject
+// UnarchiveField operation middleware
+func (sh *strictHandler) UnarchiveField(ctx echo.Context, localId LocalId, params UnarchiveFieldParams) error {
+	var request UnarchiveFieldRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.ReactivateField(ctx.Request().Context(), request.(ReactivateFieldRequestObject))
+		return sh.ssi.UnarchiveField(ctx.Request().Context(), request.(UnarchiveFieldRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ReactivateField")
+		handler = middleware(handler, "UnarchiveField")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(ReactivateFieldResponseObject); ok {
-		return validResponse.VisitReactivateFieldResponse(ctx.Response())
+	} else if validResponse, ok := response.(UnarchiveFieldResponseObject); ok {
+		return validResponse.VisitUnarchiveFieldResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -6959,26 +6959,26 @@ func (sh *strictHandler) PutParty(ctx echo.Context, localId LocalId, params PutP
 	return nil
 }
 
-// DeactivateParty operation middleware
-func (sh *strictHandler) DeactivateParty(ctx echo.Context, localId LocalId, params DeactivatePartyParams) error {
-	var request DeactivatePartyRequestObject
+// ArchiveParty operation middleware
+func (sh *strictHandler) ArchiveParty(ctx echo.Context, localId LocalId, params ArchivePartyParams) error {
+	var request ArchivePartyRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeactivateParty(ctx.Request().Context(), request.(DeactivatePartyRequestObject))
+		return sh.ssi.ArchiveParty(ctx.Request().Context(), request.(ArchivePartyRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeactivateParty")
+		handler = middleware(handler, "ArchiveParty")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(DeactivatePartyResponseObject); ok {
-		return validResponse.VisitDeactivatePartyResponse(ctx.Response())
+	} else if validResponse, ok := response.(ArchivePartyResponseObject); ok {
+		return validResponse.VisitArchivePartyResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -7012,26 +7012,26 @@ func (sh *strictHandler) BindPartyMapping(ctx echo.Context, localId LocalId, agr
 	return nil
 }
 
-// ReactivateParty operation middleware
-func (sh *strictHandler) ReactivateParty(ctx echo.Context, localId LocalId, params ReactivatePartyParams) error {
-	var request ReactivatePartyRequestObject
+// UnarchiveParty operation middleware
+func (sh *strictHandler) UnarchiveParty(ctx echo.Context, localId LocalId, params UnarchivePartyParams) error {
+	var request UnarchivePartyRequestObject
 
 	request.LocalId = localId
 	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.ReactivateParty(ctx.Request().Context(), request.(ReactivatePartyRequestObject))
+		return sh.ssi.UnarchiveParty(ctx.Request().Context(), request.(UnarchivePartyRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ReactivateParty")
+		handler = middleware(handler, "UnarchiveParty")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(ReactivatePartyResponseObject); ok {
-		return validResponse.VisitReactivatePartyResponse(ctx.Response())
+	} else if validResponse, ok := response.(UnarchivePartyResponseObject); ok {
+		return validResponse.VisitUnarchivePartyResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}

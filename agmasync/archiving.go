@@ -8,28 +8,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// Deactivate signals that an entity was deactivated in its source system.
+// Archive signals that an entity was archived in its source system.
 //
-// The word covers archival, deletion, or any state in which the source no
-// longer considers the entity active. It is a lifecycle transition of the
+// The word covers archiving, deletion, or any state in which the source no
+// longer considers the entity live. It is a lifecycle transition of the
 // canonical object rather than a removal: the object and its identifier
 // mapping are retained, so references and synchronization stay intact.
 //
 // The operation is idempotent, and base means different things on either side
-// of that. Deactivating an entity that is still active is an ordinary write
-// and is subject to concurrency control: agrirouter compares base against the
+// of that. Archiving an entity that is not archived is an ordinary write and
+// is subject to concurrency control: agrirouter compares base against the
 // object's current revision and rejects the call where the two cannot be
-// reconciled, so a deactivation racing a concurrent edit is a conflict of
-// which only one side succeeds. Once the object is already inactive, base is
+// reconciled, so an archiving racing a concurrent edit is a conflict of which
+// only one side succeeds. Once the object is already archived, base is
 // ignored, no new revision is produced, and nothing is forwarded — which is
 // what makes it safe to retry a call whose outcome was never observed.
 //
-// [Reactivate] is the way back. A Put never changes the state: it must carry
-// the object's current `active`.
+// [Unarchive] is the way back. A Put never changes the state: it must carry
+// the object's current `archived`.
 //
 // The result is the canonical object as it now stands, decoded as a delivery
 // of type t is.
-func Deactivate(
+func Archive(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
 	t EntityType, localID string, base *int,
@@ -37,7 +37,7 @@ func Deactivate(
 	var res writeResult
 	switch t {
 	case TypeParty:
-		r, err := api.DeactivatePartyWithResponse(ctx, localID, &oapi.DeactivatePartyParams{
+		r, err := api.ArchivePartyWithResponse(ctx, localID, &oapi.ArchivePartyParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {
@@ -48,7 +48,7 @@ func Deactivate(
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeFarm:
-		r, err := api.DeactivateFarmWithResponse(ctx, localID, &oapi.DeactivateFarmParams{
+		r, err := api.ArchiveFarmWithResponse(ctx, localID, &oapi.ArchiveFarmParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {
@@ -59,7 +59,7 @@ func Deactivate(
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeField:
-		r, err := api.DeactivateFieldWithResponse(ctx, localID, &oapi.DeactivateFieldParams{
+		r, err := api.ArchiveFieldWithResponse(ctx, localID, &oapi.ArchiveFieldParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {
@@ -70,7 +70,7 @@ func Deactivate(
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeFieldBoundary:
-		r, err := api.DeactivateFieldBoundaryWithResponse(ctx, localID, &oapi.DeactivateFieldBoundaryParams{
+		r, err := api.ArchiveFieldBoundaryWithResponse(ctx, localID, &oapi.ArchiveFieldBoundaryParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {

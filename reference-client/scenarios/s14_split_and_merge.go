@@ -15,7 +15,7 @@ func splitAndMerge() Scenario {
 		Number: 14,
 		Title:  "A field split in two, and the two merged back, with no lineage on the wire",
 		Spec: []string{
-			"Split and merge", "Deactivation", "Loop prevention",
+			"Split and merge", "Archiving", "Loop prevention",
 		},
 		Run: runSplitAndMerge,
 	}
@@ -25,7 +25,7 @@ func splitAndMerge() Scenario {
 // know nothing about it.
 //
 // This version has no representation of a split or a merge. One is exchanged as
-// a deactivation and two creates, the other as two deactivations and a create,
+// an archiving and two creates, the other as two archivings and a create,
 // and participants converge on the right current set from those alone — which
 // works because the protocol keeps current state and not history.
 //
@@ -72,7 +72,7 @@ func runSplitAndMerge(ctx context.Context, w *World) error {
 	}
 
 	say.Step("The farmer splits the field in Alpha: Nordacker West and Ost.")
-	if _, err := alpha.Deactivate(ctx, agmasync.TypeField, "alpha-field-1"); err != nil {
+	if _, err := alpha.Archive(ctx, agmasync.TypeField, "alpha-field-1"); err != nil {
 		return err
 	}
 	for _, part := range []struct {
@@ -89,7 +89,7 @@ func runSplitAndMerge(ctx context.Context, w *World) error {
 			return err
 		}
 	}
-	say.Detail("three writes: one deactivation and two creates")
+	say.Detail("three writes: one archiving and two creates")
 
 	frames = nil
 	split, err := beta.CatchUp(ctx)
@@ -113,19 +113,19 @@ func runSplitAndMerge(ctx context.Context, w *World) error {
 		"and the one it does hold is marked archived"); err != nil {
 		return err
 	}
-	active, err := activeFields(beta)
+	current, err := currentFields(beta)
 	if err != nil {
 		return err
 	}
-	if err := say.Check(len(active) == 2,
-		"leaving Beta with the same current set as Alpha: %d active fields",
-		len(active)); err != nil {
+	if err := say.Check(len(current) == 2,
+		"leaving Beta with the same current set as Alpha: %d current fields",
+		len(current)); err != nil {
 		return err
 	}
 
 	say.Step("Later the two fields are merged back in Alpha.")
 	for _, part := range []string{"alpha-field-2", "alpha-field-3"} {
-		if _, err := alpha.Deactivate(ctx, agmasync.TypeField, part); err != nil {
+		if _, err := alpha.Archive(ctx, agmasync.TypeField, part); err != nil {
 			return err
 		}
 	}
@@ -142,23 +142,23 @@ func runSplitAndMerge(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(merge.Received == 3 && merge.Created == 1,
-		"the same three writes in the other direction: two deactivations and a "+
+		"the same three writes in the other direction: two archivings and a "+
 			"create"); err != nil {
 		return err
 	}
-	after, err := activeFields(beta)
+	after, err := currentFields(beta)
 	if err != nil {
 		return err
 	}
 	if err := say.Check(len(after) == 1,
-		"and Beta is back to one active field"); err != nil {
+		"and Beta is back to one current field"); err != nil {
 		return err
 	}
 	return nil
 }
 
-// activeFields lists the fields a platform still considers current.
-func activeFields(p *Platform) ([]string, error) {
+// currentFields lists the fields a platform still considers current.
+func currentFields(p *Platform) ([]string, error) {
 	ids, err := p.LocalIDs(agmasync.TypeField)
 	if err != nil {
 		return nil, err

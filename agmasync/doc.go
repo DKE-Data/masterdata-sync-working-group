@@ -33,7 +33,7 @@
 // Entities are the typed models. A write is per-type ([PutParty], [PutFarm],
 // ...), as the model says which entity it is; the operations that carry only
 // identifiers take an [EntityType]. A canonical object of any type, as an
-// [Event], [Deactivate] or [Reactivate] returns it, is an [Object] holding the model its
+// [Event], [Archive] or [Unarchive] returns it, is an [Object] holding the model its
 // type names. Attributes a model does not name are dropped, as a participant
 // that does not model them would drop them anyway ("Writing an entity" in
 // specification.md).

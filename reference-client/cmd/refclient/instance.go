@@ -561,7 +561,7 @@ func (in *instance) create(
 	return localID, false, nil
 }
 
-func (in *instance) deactivate(
+func (in *instance) archive(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) error {
 	if err := in.store.Tx(in.cfg.tenantID.String(), func(tx *store.Tx) error {
@@ -569,33 +569,33 @@ func (in *instance) deactivate(
 	}); err != nil {
 		return err
 	}
-	if _, err := in.applier.Deactivate(ctx, typ, localID); err != nil {
+	if _, err := in.applier.Archive(ctx, typ, localID); err != nil {
 		return err
 	}
-	in.log.say("send", fmt.Sprintf("%s %s deactivated", typ, localID))
+	in.log.say("send", fmt.Sprintf("%s %s archived", typ, localID))
 	return nil
 }
 
 // deleteRecord drops a record this platform holds.
 //
 // Deleting a record is the platform's own act and the protocol models nothing
-// of it: agrirouter never removes a canonical object, and deactivation — which
-// does travel — says the entity is inactive in the world, which is a different
+// of it: agrirouter never removes a canonical object, and archiving — which
+// does travel — says the entity is archived in the world, which is a different
 // claim and not one to make on the platform's behalf just because its user
 // tidied up.
 //
 // What matters is the mapping, which no operation detaches: the platform's
 // localId for an object outlives its record. So the three cases differ by
-// whether a mapping exists and whether deactivation is available instead:
+// whether a mapping exists and whether archiving is available instead:
 //
 //   - Nothing bound — never sent, or its binding refused. Delete and tell
 //     nobody: there is no mapping to leave behind.
 //   - Bound, type not routed. Drop the record and keep the pair as a
 //     tombstone. Nothing arrives for the type while it is not routed; once it
 //     is, the object is delivered under the kept localId and recreated under
-//     it. Deactivation is not an option here — the endpoint cannot send about
+//     it. Archiving is not an option here — the endpoint cannot send about
 //     a type it is not routed to.
-//   - Bound, type routed. Refused. Deactivation is available and is what a
+//   - Bound, type routed. Refused. Archiving is available and is what a
 //     platform means by a record its user deleted.
 func (in *instance) deleteRecord(
 	ctx context.Context, typ agmasync.EntityType, localID string,
@@ -622,7 +622,7 @@ func (in *instance) deleteRecord(
 		}
 		if slices.Contains(routed, typ) {
 			return fmt.Errorf(
-				"%s %q is bound and %s is routed: deactivate it instead",
+				"%s %q is bound and %s is routed: archive it instead",
 				typ, localID, typ)
 		}
 	}

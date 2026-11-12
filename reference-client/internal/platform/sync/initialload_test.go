@@ -292,14 +292,14 @@ func TestRepeatLoadIsRecognisedAndMatchesRatherThanReconciles(t *testing.T) {
 	}
 }
 
-func TestRecognisedDeactivatedObjectIsBoundAndMarkedInactive(t *testing.T) {
-	// A deactivated object is part of the set, and binding it is what keeps the
+func TestRecognisedArchivedObjectIsBoundAndMarkedArchived(t *testing.T) {
+	// An archived object is part of the set, and binding it is what keeps the
 	// endpoint from offering its own copy back as new — which would resurrect,
 	// for every other participant, something a user archived.
 	h := newHarness(t)
 	a := contributed(t, h, "Hof Nord")
-	if _, err := a.Deactivate(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
-		t.Fatalf("deactivating: %v", err)
+	if _, err := a.Archive(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
+		t.Fatalf("archiving: %v", err)
 	}
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
@@ -310,15 +310,15 @@ func TestRecognisedDeactivatedObjectIsBoundAndMarkedInactive(t *testing.T) {
 		t.Fatalf("initial load: %v", err)
 	}
 	if res.Matched != 1 {
-		t.Errorf("matched %d, want the deactivated object recognised", res.Matched)
+		t.Errorf("matched %d, want the archived object recognised", res.Matched)
 	}
 	if res.Sent != 0 {
-		t.Error("a recognised deactivated object must not be offered back as new")
+		t.Error("a recognised archived object must not be offered back as new")
 	}
 
 	row := syncRow(t, b, agmasync.TypeFarm, "B-77")
 	if !row.Bound() {
-		t.Fatal("a recognised deactivated object is bound like any other")
+		t.Fatal("a recognised archived object is bound like any other")
 	}
 
 	var record store.Record
@@ -330,9 +330,9 @@ func TestRecognisedDeactivatedObjectIsBoundAndMarkedInactive(t *testing.T) {
 		t.Fatalf("loading the record: %v", err)
 	}
 	if !record.Archived {
-		t.Error("the endpoint's own copy must be marked inactive")
+		t.Error("the endpoint's own copy must be marked archived")
 	}
-	// Marked inactive, not replaced. What the set says about a deactivated
+	// Marked archived, not replaced. What the set says about an archived
 	// entity is that it is gone; overwriting the user's own archived record with
 	// the canonical attributes would be churn with nothing behind it.
 	if string(record.Modelled["name"]) != `"hof nord"` {
@@ -341,14 +341,14 @@ func TestRecognisedDeactivatedObjectIsBoundAndMarkedInactive(t *testing.T) {
 	}
 }
 
-func TestUnrecognisedDeactivatedObjectIsIgnored(t *testing.T) {
-	// The other half of the rule: nothing is created for an inactive object the
+func TestUnrecognisedArchivedObjectIsIgnored(t *testing.T) {
+	// The other half of the rule: nothing is created for an archived object the
 	// endpoint does not hold. "Absent localId means create it locally and bind"
 	// is about objects the endpoint is expected to hold.
 	h := newHarness(t)
 	a := contributed(t, h, "Hof Nord")
-	if _, err := a.Deactivate(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
-		t.Fatalf("deactivating: %v", err)
+	if _, err := a.Archive(context.Background(), agmasync.TypeFarm, "FRM-1"); err != nil {
+		t.Fatalf("archiving: %v", err)
 	}
 
 	b := h.join("fmis-b", "ep-b", agmasync.TypeFarm)
@@ -370,7 +370,7 @@ func TestUnrecognisedDeactivatedObjectIsIgnored(t *testing.T) {
 		t.Fatalf("listing farms: %v", err)
 	}
 	if len(ids) != 0 {
-		t.Errorf("records were created for an unrecognised deactivated object: %v", ids)
+		t.Errorf("records were created for an unrecognised archived object: %v", ids)
 	}
 }
 

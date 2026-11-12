@@ -151,8 +151,8 @@ const physicalAddress = "contactInfo.addressContactMethods[PHYSICAL]"
 // fillChoices lists what each reference field may point at.
 //
 // Archived records are offered too: a field may well belong to a farm the
-// platform has deactivated, and leaving it unpointed would be a worse lie than
-// pointing at something inactive.
+// platform has archived, and leaving it unpointed would be a worse lie than
+// pointing at something archived.
 func fillChoices(tx *store.Tx, fields []formField) ([]formField, error) {
 	out := make([]formField, 0, len(fields))
 	for _, field := range fields {

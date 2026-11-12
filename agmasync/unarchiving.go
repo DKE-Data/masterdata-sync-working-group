@@ -8,21 +8,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// Reactivate signals that an entity deactivated earlier is active again in its
-// source system. It is the mirror image of [Deactivate] and the only way back
-// from it: the canonical object becomes active again with its content
-// unchanged. A new object never needs it, since the write that creates it sets
-// its state.
+// Unarchive signals that an entity archived earlier is no longer archived in
+// its source system. It is the mirror image of [Archive] and the only way back
+// from it: the canonical object is no longer marked archived, and its content
+// is unchanged. A new object never needs it, since the write that creates it
+// sets its state.
 //
-// The operation is idempotent. Reactivating an entity that is still inactive is
-// an ordinary write and is subject to concurrency control, so a reactivation
+// The operation is idempotent. Unarchiving an entity that is still archived is
+// an ordinary write and is subject to concurrency control, so an unarchiving
 // racing a concurrent edit is a conflict of which only one side succeeds. Once
-// the object is already active, base is ignored, no new revision is produced,
+// the object is not archived, base is ignored, no new revision is produced,
 // and nothing is forwarded.
 //
 // The result is the canonical object as it now stands, decoded as a delivery
 // of type t is.
-func Reactivate(
+func Unarchive(
 	ctx context.Context, api *oapi.ClientWithResponses,
 	endpointID, tenantID uuid.UUID,
 	t EntityType, localID string, base *int,
@@ -30,7 +30,7 @@ func Reactivate(
 	var res writeResult
 	switch t {
 	case TypeParty:
-		r, err := api.ReactivatePartyWithResponse(ctx, localID, &oapi.ReactivatePartyParams{
+		r, err := api.UnarchivePartyWithResponse(ctx, localID, &oapi.UnarchivePartyParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {
@@ -41,7 +41,7 @@ func Reactivate(
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeFarm:
-		r, err := api.ReactivateFarmWithResponse(ctx, localID, &oapi.ReactivateFarmParams{
+		r, err := api.UnarchiveFarmWithResponse(ctx, localID, &oapi.UnarchiveFarmParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {
@@ -52,7 +52,7 @@ func Reactivate(
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeField:
-		r, err := api.ReactivateFieldWithResponse(ctx, localID, &oapi.ReactivateFieldParams{
+		r, err := api.UnarchiveFieldWithResponse(ctx, localID, &oapi.UnarchiveFieldParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {
@@ -63,7 +63,7 @@ func Reactivate(
 			precond: r.JSON412, required: r.JSON428, body: r.Body,
 		}
 	case TypeFieldBoundary:
-		r, err := api.ReactivateFieldBoundaryWithResponse(ctx, localID, &oapi.ReactivateFieldBoundaryParams{
+		r, err := api.UnarchiveFieldBoundaryWithResponse(ctx, localID, &oapi.UnarchiveFieldBoundaryParams{
 			XAgrirouterEndpointId: endpointID, XAgrirouterTenantId: tenantID, XAgrirouterBaseRevision: base,
 		})
 		if err != nil {

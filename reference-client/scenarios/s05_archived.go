@@ -7,24 +7,24 @@ import (
 	"github.com/DKE-Data/masterdata-sync-working-group/agmasync"
 )
 
-func deactivatedInTheSet() Scenario {
+func archivedInTheSet() Scenario {
 	return Scenario{
 		Number: 5,
-		Title:  "A deactivated object in the canonical set, recognised and not",
+		Title:  "An archived object in the canonical set, recognised and not",
 		Spec: []string{
-			"Deactivated objects are part of the set", "Deactivation", "Initial load",
+			"Archived objects are part of the set", "Archiving", "Initial load",
 		},
-		Run: runDeactivatedInTheSet,
+		Run: runArchivedInTheSet,
 	}
 }
 
-// runDeactivatedInTheSet is why inactive objects are part of a canonical set at
+// runArchivedInTheSet is why archived objects are part of a canonical set at
 // all.
 //
 // Leaving them out would be tidier and wrong in both directions: an endpoint
 // holding its own copy of an archived entity would find it missing from the set,
 // offer it back as new, and resurrect for everybody something a user archived.
-func runDeactivatedInTheSet(ctx context.Context, w *World) error {
+func runArchivedInTheSet(ctx context.Context, w *World) error {
 	say := w.Say
 
 	alpha, err := w.Contributor(ctx, "Alpha FMIS", "fmis-alpha", "alpha", agmasync.TypeFarm)
@@ -46,11 +46,11 @@ func runDeactivatedInTheSet(ctx context.Context, w *World) error {
 
 	say.Step("Alpha archives both of its farms.")
 	for _, id := range []string{"alpha-farm-1", "alpha-farm-2"} {
-		if _, err := alpha.Deactivate(ctx, agmasync.TypeFarm, id); err != nil {
+		if _, err := alpha.Archive(ctx, agmasync.TypeFarm, id); err != nil {
 			return err
 		}
 	}
-	say.Detail("deactivation is a lifecycle transition, not a removal: the objects and")
+	say.Detail("archiving is a lifecycle transition, not a removal: the objects and")
 	say.Detail("their identifier mappings are kept, so references stay intact")
 
 	say.Step("Beta onboards, holding its own record of one of them.")
@@ -70,7 +70,7 @@ func runDeactivatedInTheSet(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(load.Received == 2,
-		"both inactive objects are part of the set it is sent"); err != nil {
+		"both archived objects are part of the set it is sent"); err != nil {
 		return err
 	}
 	if err := say.Check(load.Matched == 1,
@@ -104,7 +104,7 @@ func runDeactivatedInTheSet(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(record.Archived,
-		"Beta marks its own copy inactive, in whatever way its schema expresses that",
+		"Beta marks its own copy archived, in whatever way its schema expresses that",
 	); err != nil {
 		return err
 	}

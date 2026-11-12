@@ -71,12 +71,12 @@ func TestStreamReadsOneFramePerRecipientEndpoint(t *testing.T) {
 func TestWriteResponseNamesTheActingEndpoint(t *testing.T) {
 	acting := uuid.MustParse("2b3c4d5e-6f70-8192-a3b4-c5d6e7f80912")
 	api := answer(t, http.StatusOK, "application/json", fmt.Sprintf(
-		`{"type":"field","active":false,"recipient_endpoint_id":%q,`+
+		`{"type":"field","archived":true,"recipient_endpoint_id":%q,`+
 			`"content":{"id":{"referenceId":"field-1"},"name":"Acker"}}`, acting))
 
-	obj, err := deactivate(api, agmasync.TypeField, "field-1")
+	obj, err := archive(api, agmasync.TypeField, "field-1")
 	if err != nil {
-		t.Fatalf("Deactivate: %v", err)
+		t.Fatalf("Archive: %v", err)
 	}
 	if got := obj.Envelope.RecipientEndpointId; got == nil || *got != acting {
 		t.Errorf("RecipientEndpointId = %v, want %s", got, acting)

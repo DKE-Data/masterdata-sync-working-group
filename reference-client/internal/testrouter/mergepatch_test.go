@@ -22,7 +22,7 @@ func body(typ, localID, members string) string {
 	if members != "" {
 		members = "," + members
 	}
-	return `{"type":"` + typ + `","active":true,"content":{"id":{"referenceId":"` + localID + `"}` + members + `}}`
+	return `{"type":"` + typ + `","archived":false,"content":{"id":{"referenceId":"` + localID + `"}` + members + `}}`
 }
 
 // entityOf builds an entity from the JSON a participant sends, which is the

@@ -53,17 +53,17 @@
     {{else}}Local only.{{end}}
   </span>
   {{else if not .Row.Archived}}
-  <form class="inline" method="post" action="/objects/deactivate">
+  <form class="inline" method="post" action="/objects/archive">
     <input type="hidden" name="type" value="{{.Row.Type}}">
     <input type="hidden" name="local_id" value="{{.Row.LocalID}}">
-    <button type="submit">Deactivate</button>
+    <button type="submit">Archive</button>
   </form>
   <span class="muted hint">Travels to every routed participant.</span>
   {{else}}
-  {{/* Bound, routed and already archived: deactivation is idempotent and
+  {{/* Bound, routed and already archived: archiving is idempotent and
        repeating it produces no revision and tells nobody, so there is nothing
        left to offer. */}}
-  <span class="muted">Already deactivated.</span>
+  <span class="muted">Already archived.</span>
   {{end}}
 </div>
 

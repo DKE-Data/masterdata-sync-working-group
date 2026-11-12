@@ -15,7 +15,7 @@ func All() []Scenario {
 		repeatLoad(),
 		concurrentEdit(),
 		correctCrosswise(),
-		deactivatedInTheSet(),
+		archivedInTheSet(),
 		resumeAfterDowntime(),
 		mappingRejections(),
 		blockedReconciliation(),
@@ -30,7 +30,7 @@ func All() []Scenario {
 		optionalReferences(),
 		oneRecordTwoEndpoints(),
 		customerFarm(),
-		reactivated(),
+		unarchived(),
 	}
 }
 

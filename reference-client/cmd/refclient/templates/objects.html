@@ -92,7 +92,7 @@
     <td class="mono">{{.Revision}}</td>
     <td>
       {{if .Deletable}}
-      {{/* Not Deactivate: that states the entity is inactive in the world and
+      {{/* Not Archive: that states the entity is archived in the world and
            travels to everyone, which is not what a local tidy-up means. Where
            the record is bound, deleting keeps the binding as a tombstone. */}}
       <form class="inline" method="post" action="/objects/delete">
@@ -101,10 +101,10 @@
         <button type="submit">Delete{{if .Tombstone}} (keeps binding){{end}}</button>
       </form>
       {{else if not .Archived}}
-      <form class="inline" method="post" action="/objects/deactivate">
+      <form class="inline" method="post" action="/objects/archive">
         <input type="hidden" name="type" value="{{$group.Type}}">
         <input type="hidden" name="local_id" value="{{.LocalID}}">
-        <button type="submit">Deactivate</button>
+        <button type="submit">Archive</button>
       </form>
       {{end}}
     </td>

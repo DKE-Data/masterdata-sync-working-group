@@ -109,18 +109,18 @@ func TestAWeakReferenceIsCheckedLikeAnyOther(t *testing.T) {
 	}
 }
 
-func TestADeactivatedActiveBoundaryStaysNamed(t *testing.T) {
+func TestAnArchivedActiveBoundaryStaysNamed(t *testing.T) {
 	f := newFixture(t)
 	p := fieldAndBoundaries(t, f)
 	boundary := threeWrites(t, p)
 
-	if _, err := p.endpoint.Deactivate(context.Background(), agmasync.TypeFieldBoundary, "FB-1", intptr(1)); err != nil {
-		t.Fatalf("deactivating FB-1: %v", err)
+	if _, err := p.endpoint.Archive(context.Background(), agmasync.TypeFieldBoundary, "FB-1", intptr(1)); err != nil {
+		t.Fatalf("archiving FB-1: %v", err)
 	}
 	// Nothing cascades: the field still names it, and a write naming it is accepted.
 	got := put(t, p, fieldWithActive("North 41", byAgrirouter(boundary)), intptr(2))
 	if id, _ := activeBoundaryOf(t, got); id != boundary {
-		t.Errorf("active boundary after deactivation = %s, want %s", id, boundary)
+		t.Errorf("active boundary after archiving = %s, want %s", id, boundary)
 	}
 }
 

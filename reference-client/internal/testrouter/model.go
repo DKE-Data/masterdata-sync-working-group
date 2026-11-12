@@ -28,7 +28,7 @@ import (
 // discarded, never assigned.
 var envelopeAttributes = map[string]bool{
 	"type":               true,
-	"active":             true,
+	"archived":           true,
 	"revision":           true,
 	"modified_at":        true,
 	"tenant_id":          true,
@@ -119,7 +119,7 @@ type object struct {
 	tenantID uuid.UUID
 
 	revision   int
-	active     bool
+	archived   bool
 	modifiedAt time.Time
 
 	// sourceEndpointID is the endpoint whose change produced the current

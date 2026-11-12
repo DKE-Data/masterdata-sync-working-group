@@ -363,14 +363,14 @@ func runPut(ctx context.Context, e *env, args []string) error {
 	return printEntity(result)
 }
 
-// runDeactivate reports that an entity was deactivated in its source system.
-func runDeactivate(ctx context.Context, e *env, args []string) error {
-	fs := flag.NewFlagSet("deactivate", flag.ContinueOnError)
-	base := fs.Int("base", -1, "the revision held; ignored once the object is inactive")
+// runArchive reports that an entity was archived in its source system.
+func runArchive(ctx context.Context, e *env, args []string) error {
+	fs := flag.NewFlagSet("archive", flag.ContinueOnError)
+	base := fs.Int("base", -1, "the revision held; ignored once the object is archived")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if err := wantArgs(fs.Args(), 2, "deactivate [-base <n>] <type> <localId>"); err != nil {
+	if err := wantArgs(fs.Args(), 2, "archive [-base <n>] <type> <localId>"); err != nil {
 		return err
 	}
 	typ, err := parseType(fs.Arg(0))
@@ -386,7 +386,7 @@ func runDeactivate(ctx context.Context, e *env, args []string) error {
 	if *base >= 0 {
 		from = base
 	}
-	result, err := endpoint.Deactivate(ctx, typ, fs.Arg(1), from)
+	result, err := endpoint.Archive(ctx, typ, fs.Arg(1), from)
 	if err != nil {
 		return err
 	}

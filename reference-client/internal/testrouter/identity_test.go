@@ -47,9 +47,9 @@ func TestAWriteIsAddressedByItsReferenceId(t *testing.T) {
 
 	for name, write := range map[string]string{
 		"another referenceId": body("farm", "FRM-2", `"name":"Hof Nord"`),
-		"no id":               `{"type":"farm","active":true,"content":{"name":"Hof Nord"}}`,
-		"no content":          `{"type":"farm","active":true}`,
-		"a local entry from agrirouter's source": `{"type":"farm","active":true,"content":{"id":{"referenceId":"FRM-1",` +
+		"no id":               `{"type":"farm","archived":false,"content":{"name":"Hof Nord"}}`,
+		"no content":          `{"type":"farm","archived":false}`,
+		"a local entry from agrirouter's source": `{"type":"farm","archived":false,"content":{"id":{"referenceId":"FRM-1",` +
 			`"uniqueIds":[{"idText":"FRM-1","idTypeCode":"STRING","idSource":"https://agrirouter.com"}]},` +
 			`"name":"Hof Nord"}}`,
 	} {
@@ -76,13 +76,13 @@ func TestASentIdHoldsOnlyTheLocalAndTheAgrirouterEntry(t *testing.T) {
 		"a non-UUID agrirouter entry": `{"idText":"FRM-9","idTypeCode":"UUID",` +
 			`"idSource":"https://agrirouter.com"}`,
 	} {
-		write := `{"type":"farm","active":true,"content":{"id":{"referenceId":"FRM-1","uniqueIds":[` + uniqueIDs + `]},` +
+		write := `{"type":"farm","archived":false,"content":{"id":{"referenceId":"FRM-1","uniqueIds":[` + uniqueIDs + `]},` +
 			`"name":"Hof Nord"}}`
 		if status := putRaw(t, f, "fmis-a", p, "FRM-1", write); status != http.StatusBadRequest {
 			t.Errorf("%s: status = %d, want 400", name, status)
 		}
 	}
-	write := `{"type":"farm","active":true,"content":{"id":{"referenceId":"FRM-1","uniqueIds":[` + local + `]},` +
+	write := `{"type":"farm","archived":false,"content":{"id":{"referenceId":"FRM-1","uniqueIds":[` + local + `]},` +
 		`"name":"Hof Nord"}}`
 	if status := putRaw(t, f, "fmis-a", p, "FRM-1", write); status != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", status)
@@ -110,7 +110,7 @@ func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 	ownID := oapi.Id{ReferenceId: strptr("4711"), UniqueIds: &[]oapi.UniqueId{
 		{IdText: "4711", IdTypeCode: "LONGINT", IdSource: &source},
 	}}
-	written, err := agrirouter.FromFarm(oapi.Farm{Active: true, Content: oapi.FarmContent{Id: ownID, Name: "Hof Nord"}})
+	written, err := agrirouter.FromFarm(oapi.Farm{Archived: false, Content: oapi.FarmContent{Id: ownID, Name: "Hof Nord"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestTheLocalEntryIsRelayedToItsWriterAlone(t *testing.T) {
 		t.Errorf("id = %s, want %s", got, relayed)
 	}
 
-	field, err := agrirouter.FromField(oapi.Field{Active: true, Content: oapi.FieldContent{
+	field, err := agrirouter.FromField(oapi.Field{Archived: false, Content: oapi.FieldContent{
 		Id: agmasync.LocalID("PFD-1"), Name: "North 40",
 		UnderscoreAgmasyncFarmRef: nullable.NewNullableWithValue(agmasync.LocalRef("4711")),
 	}})

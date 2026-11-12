@@ -28,9 +28,9 @@ var (
 	// non-unique mappings" in specification.md.
 	ErrMappingConflict = errors.New("identifier mapping conflict")
 
-	// ErrLifecycleConflict is a 409 on a write whose `active` differs from the
-	// object's current state. A write never changes the state: only
-	// [Deactivate] and [Reactivate] do. See [LifecycleConflict] and
+	// ErrLifecycleConflict is a 409 on a write whose `archived` differs from
+	// the object's current state. A write never changes the state: only
+	// [Archive] and [Unarchive] do. See [LifecycleConflict] and
 	// "Lifecycle" in specification.md.
 	ErrLifecycleConflict = errors.New("lifecycle state conflict")
 
@@ -129,20 +129,20 @@ func (e *MappingConflict) Error() string {
 // Is makes [errors.Is] match [ErrMappingConflict].
 func (e *MappingConflict) Is(target error) bool { return errors.Is(target, ErrMappingConflict) }
 
-// LifecycleConflict reports a write whose `active` contradicts the object's
+// LifecycleConflict reports a write whose `archived` contradicts the object's
 // current state.
 //
-// The participant decides what it meant: to deactivate or reactivate the
-// object, which are operations of their own, or to edit it in its current
-// state, for which it writes again with CurrentActive.
+// The participant decides what it meant: to archive or unarchive the object,
+// which are operations of their own, or to edit it in its current state, for
+// which it writes again with CurrentArchived.
 type LifecycleConflict struct {
-	// CurrentActive is the canonical object's state now.
-	CurrentActive bool
-	Message       string
+	// CurrentArchived is the canonical object's state now.
+	CurrentArchived bool
+	Message         string
 }
 
 func (e *LifecycleConflict) Error() string {
-	return fmt.Sprintf("agmasync: lifecycle conflict, object is active=%t: %s", e.CurrentActive, e.Message)
+	return fmt.Sprintf("agmasync: lifecycle conflict, object is archived=%t: %s", e.CurrentArchived, e.Message)
 }
 
 // Is makes [errors.Is] match [ErrLifecycleConflict].
@@ -286,7 +286,7 @@ func (r writeResult) message(e *oapi.Error, fallback string) string {
 }
 
 // putConflictErr tells the two 409 bodies of a put apart by their required
-// field: `current_active` for a lifecycle conflict, `rejection` for a mapping
+// field: `current_archived` for a lifecycle conflict, `rejection` for a mapping
 // conflict.
 func putConflictErr(c *oapi.PutConflictError) error {
 	raw, err := c.MarshalJSON()
@@ -297,9 +297,9 @@ func putConflictErr(c *oapi.PutConflictError) error {
 	if json.Unmarshal(raw, &probe) != nil {
 		return &APIError{http.StatusConflict, "conflict", nil}
 	}
-	if _, ok := probe["current_active"]; ok {
+	if _, ok := probe["current_archived"]; ok {
 		if l, err := c.AsLifecycleConflictError(); err == nil {
-			return &LifecycleConflict{CurrentActive: l.CurrentActive, Message: l.Message}
+			return &LifecycleConflict{CurrentArchived: l.CurrentArchived, Message: l.Message}
 		}
 	}
 	if _, ok := probe["rejection"]; ok {

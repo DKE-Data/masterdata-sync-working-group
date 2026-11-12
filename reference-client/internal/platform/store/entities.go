@@ -217,9 +217,9 @@ func (r Record) ToEntity(localID string) (oapi.Entity, error) {
 		return oapi.Entity{}, err
 	}
 	raw, err := json.Marshal(map[string]any{
-		"type":    string(r.EntityType),
-		"active":  !r.Archived,
-		"content": json.RawMessage(content),
+		"type":     string(r.EntityType),
+		"archived": r.Archived,
+		"content":  json.RawMessage(content),
 	})
 	if err != nil {
 		return oapi.Entity{}, err
@@ -908,7 +908,7 @@ func rebuildModelled(r *Record, table string, values map[string]sql.NullString) 
 //
 // It is a local deletion and nothing else, and it takes the pair with it, so it
 // is for a record that was never bound. A bound record's localId outlives it:
-// the user's deletion is [Applier.Deactivate], and a drop that keeps the pair as
+// the user's deletion is [Applier.Archive], and a drop that keeps the pair as
 // a tombstone is [Tx.ForgetRecord].
 func (t *Tx) DeleteRecord(typ agmasync.EntityType, localID string) error {
 	tables, err := tablesOf(typ)
@@ -1001,10 +1001,10 @@ func (t *Tx) heldByAny(typ agmasync.EntityType, localID string) (bool, error) {
 	return true, nil
 }
 
-// SetArchived marks a record archived, which is how this platform expresses a
-// deactivation it has been told about.
+// SetArchived marks a record archived, which is how this platform expresses an
+// archiving it has been told about.
 //
-// It archives the record rather than one tenant's view of it: deactivation is a
+// It archives the record rather than one tenant's view of it: archiving is a
 // statement about the entity in the world, delivered to every participant, so
 // showing it as current in the product's other tenants would be a local fiction.
 func (t *Tx) SetArchived(typ agmasync.EntityType, localID string, archived bool) error {

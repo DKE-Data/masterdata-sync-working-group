@@ -198,7 +198,7 @@ schemas:
         description: >
           The field's active boundary, in place of ADAPT's `activeBoundaryId`.
           A weak reference: the boundary may arrive after the field. A
-          receiver treats a deactivated boundary, or one naming another
+          receiver treats an archived boundary, or one naming another
           field, as no active boundary.
       _agmasync_soil:
         ref: SoilInfo

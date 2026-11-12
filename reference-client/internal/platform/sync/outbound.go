@@ -210,9 +210,9 @@ func (a *Applier) sendWeakReferrers(
 	return nil
 }
 
-// Deactivate tells agrirouter that a record has been deactivated locally, and
+// Archive tells agrirouter that a record has been archived locally, and
 // applies the result.
-func (a *Applier) Deactivate(
+func (a *Applier) Archive(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) (Outcome, error) {
 	var row store.SyncRow
@@ -234,20 +234,21 @@ func (a *Applier) Deactivate(
 	}
 	if !row.Bound() {
 		return Outcome{}, fmt.Errorf(
-			"sync: %s %q was never sent, so there is nothing to deactivate", typ, localID)
+			"sync: %s %q was never sent, so there is nothing to archive", typ, localID)
 	}
 
-	result, err := a.Endpoint.Deactivate(ctx, typ, localID, row.Revision)
+	result, err := a.Endpoint.Archive(ctx, typ, localID, row.Revision)
 	if err != nil {
 		return Outcome{}, err
 	}
 	return a.Apply(result, "")
 }
 
-// Reactivate tells agrirouter that a record deactivated earlier is active again
-// locally, and applies the result, which marks the local copy active again.
+// Unarchive tells agrirouter that a record archived earlier is no longer
+// archived locally, and applies the result, which marks the local copy not
+// archived again.
 // It is the only way back: a send never changes the state.
-func (a *Applier) Reactivate(
+func (a *Applier) Unarchive(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) (Outcome, error) {
 	var row store.SyncRow
@@ -269,10 +270,10 @@ func (a *Applier) Reactivate(
 	}
 	if !row.Bound() {
 		return Outcome{}, fmt.Errorf(
-			"sync: %s %q was never sent, so there is nothing to reactivate", typ, localID)
+			"sync: %s %q was never sent, so there is nothing to unarchive", typ, localID)
 	}
 
-	result, err := a.Endpoint.Reactivate(ctx, typ, localID, row.Revision)
+	result, err := a.Endpoint.Unarchive(ctx, typ, localID, row.Revision)
 	if err != nil {
 		return Outcome{}, err
 	}
