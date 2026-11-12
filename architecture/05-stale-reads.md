@@ -23,7 +23,7 @@ A write from a base behind the current revision is rejected even where it change
 
 We would use revision number as the CAS value, since it is already a monotonically increasing positive integer assigned solely by agrirouter and has the properties of total order and uniqueness within the object.
 
-The revision which agrirouter determined to be the current one for the object will be returned to the client in the response of every write operation. Note that in situations when there was a mismatch on previous revision (see exceptions above), but the write operation is still considered successful - a no-op, or a deactivation of an object that is already inactive - the response might contain a revision that is NOT simply the previous revision + 1, which means clients MUST always use the revision that is returned in the response.
+The revision which agrirouter determined to be the current one for the object will be returned to the client in the response of every write operation. Note that in situations when there was a mismatch on previous revision (see exceptions above), but the write operation is still considered successful - a no-op, or archiving an object that is already archived - the response might contain a revision that is NOT simply the previous revision + 1, which means clients MUST always use the revision that is returned in the response.
 
 A partner's primary store often has nowhere to put the agrirouter revision - this is typical of outbound integrations, where the revision cannot be propagated down to the actual data store. Such clients are still expected to keep the last known revision per object, alongside their primary store rather than inside it.
 

@@ -1655,9 +1655,9 @@ components:
     RevisionConflict:
       description: >
         The write could not be applied against its `x-agrirouter-base-revision`:
-        the base is behind the current revision and the changes since overlap
-        with the client's, so no merge is possible; or the base is one
-        agrirouter never issued for this object; or a base was given for a
+        the base is behind the current revision (agrirouter does not merge
+        concurrent edits); or the base is one agrirouter never issued for this
+        object; or a base was given for a
         `local_id` that does not resolve to an existing object. The body carries
         the current revision. The client refetches the object — through the
         stream or `POST /masterdata/<types>/requests` — rebases its change, and

@@ -357,8 +357,8 @@ func runPut(ctx context.Context, e *env, args []string) error {
 	}
 
 	// Printed in full because it is not an acknowledgement: it carries the
-	// assigned agrirouterId, the revision that resulted, and — where agrirouter
-	// merged this write against a concurrent one — content that was never sent.
+	// assigned agrirouterId, the revision that resulted, and the attributes the
+	// write left out, which were never sent.
 	// A participant applies it exactly as it applies a delivered object.
 	return printEntity(result)
 }

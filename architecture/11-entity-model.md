@@ -423,19 +423,22 @@ the schema, so implementations diverge in how strictly they apply it.
   keep consistent. ADR 08 keeps FarmSPT's single object for that reason.
 - **Write semantics.** Writes are JSON Merge Patch (RFC 7396): objects merge
   key by key, arrays are replaced whole. Under B, most attributes sit in the
-  `contextItems` array, so plain RFC 7396 loses partial updates and turns
-  unrelated edits into conflicts. Merging `contextItems` by `definitionCode`, as
-  if the array were an object keyed by code, restores both.
+  `contextItems` array, so plain RFC 7396 loses partial updates: a write
+  carrying one item wipes the others. Merging `contextItems` by
+  `definitionCode`, as if the array were an object keyed by code, restores
+  them.
 
-  Example: from revision 7, one endpoint corrects the tax number and another
-  the trade id. In AgmaSync these are different keys, so agrirouter merges both:
+  Example: from revision 7, one endpoint corrects the tax number, making
+  revision 8; another, rebased on revision 8, corrects the trade id. In
+  AgmaSync these are different keys, so each partial write keeps the other
+  attributes:
 
   ```json
   { "tax_number": "DE287654322" }
   { "trade_id": "DE287654321-00002" }
   ```
 
-  Under B, with the keyed merge, the same two writes also merge:
+  Under B, with the keyed merge, the same two writes also keep them:
 
   ```json
   { "contextItems": [ { "definitionCode": "AgmaSync-TaxNumber", "valueText": "DE287654322" } ] }
@@ -443,8 +446,8 @@ the schema, so implementations diverge in how strictly they apply it.
   ```
 
   With plain RFC 7396, each write would replace the whole array: the first
-  would wipe everything but the tax number, and the second would conflict with
-  it.
+  would wipe everything but the tax number, and the second would wipe the tax
+  number again.
 
   The keyed merge is a custom rule, not RFC 7396, and it needs more rules to
   be complete:

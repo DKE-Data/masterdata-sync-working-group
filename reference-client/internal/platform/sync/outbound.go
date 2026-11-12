@@ -20,9 +20,9 @@ import (
 // a missing base on an update is refused outright.
 //
 // The response is applied exactly as a delivered object is. That is not
-// ceremony: on a create it carries the assigned agrirouterId, and where
-// agrirouter merged the write against a concurrent change it carries content
-// the platform never sent and a revision that is not base + 1.
+// ceremony: on a create it carries the assigned agrirouterId, and on a partial
+// write the attributes it left out; on a no-op the revision is the current one,
+// which need not be base + 1.
 func (a *Applier) Send(
 	ctx context.Context, typ agmasync.EntityType, localID string,
 ) (Outcome, error) {

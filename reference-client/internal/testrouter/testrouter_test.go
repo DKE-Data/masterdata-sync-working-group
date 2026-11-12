@@ -583,15 +583,6 @@ func farmIn(localID, name, city string) oapi.Entity {
 	return ent
 }
 
-// cityOf reads a farm's address city, empty when either is unset.
-func cityOf(farm oapi.Farm) string {
-	address, err := farm.Content.UnderscoreAgmasyncAddress.Get()
-	if err != nil || address.City == nil {
-		return ""
-	}
-	return *address.City
-}
-
 func TestTwoEndpointsOfOneApplicationHaveTheirOwnNamespaces(t *testing.T) {
 	// The mapping is keyed by the endpoint, not by the application. A product
 	// that onboards each of two organizations as its own endpoint keeps one

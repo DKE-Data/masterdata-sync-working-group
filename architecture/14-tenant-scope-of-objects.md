@@ -221,7 +221,7 @@ flowchart TD
 | Case | Outcome |
 | --- | --- |
 | App links f1 into tenant B where App Y already has its own copy y5 of the same field | Two objects again, now in one tenant. Merging f1 and y5 needs yet another operation. |
-| Concurrent edits to f1 through A and B | One wins, the other merges or conflicts. Each tenant's users see the other tenant's change. |
+| Concurrent edits to f1 through A and B | One wins, the other conflicts. Each tenant's users see the other tenant's change. |
 | Tenant A resets while tenant B is mid initial load of f1 | f1 survives; the load in B is unaffected. A's applications must keep their binding to f1. |
 | Last link removed by a reset of B, while A unlinked earlier | f1 is deleted with the reset of B. Applications in A never hear about it, because A's link was gone. |
 | Contractor's tenant B is reset | The farmer's fields in A survive, unlinked from B. The contractor's applications keep bindings they can no longer use in B. |
