@@ -11,7 +11,7 @@ import (
 func concurrentEdit() Scenario {
 	return Scenario{
 		Number: 3,
-		Title:  "A concurrent edit merged, and the overlapping one rejected",
+		Title:  "A concurrent edit rejected, rebased, and accepted",
 		Spec: []string{
 			"Concurrency control", "Applying what agrirouter returns", "Loop prevention",
 		},
@@ -20,8 +20,8 @@ func concurrentEdit() Scenario {
 }
 
 // runConcurrentEdit is what base revisions buy: two participants editing the
-// same object at the same time, one merge and one refusal, and the difference
-// between them decided by whether they touched the same attribute.
+// same object at the same time, and the one that wrote from a stale base is
+// refused - even though the two touched different attributes - and rebases.
 func runConcurrentEdit(ctx context.Context, w *World) error {
 	say := w.Say
 
@@ -70,8 +70,41 @@ func runConcurrentEdit(ctx context.Context, w *World) error {
 	}); err != nil {
 		return err
 	}
+	_, err = beta.Send(ctx, agmasync.TypeFarm, betaFarm)
+
+	var conflict *agmasync.RevisionConflict
+	if !errors.As(err, &conflict) {
+		return fmt.Errorf("a write from a stale base must be refused, got %v", err)
+	}
+	if err := say.Check(errors.Is(err, agmasync.ErrRevisionConflict),
+		"Beta writes from base 1 and is refused with 412"); err != nil {
+		return err
+	}
+	if err := say.Check(conflict.CurrentRevision == 2,
+		"the refusal names the revision that stands, %d, so Beta can rebase.",
+		conflict.CurrentRevision); err != nil {
+		return err
+	}
+	say.Detail("the two changes touch different attributes, and agrirouter still does not")
+	say.Detail("merge them: attributes are not independent. A first name changed on one")
+	say.Detail("side and a last name on the other would merge into a name neither sent")
+
+	say.Step("Beta takes the current object, reapplies its change, and writes again.")
+	caught, err := beta.CatchUp(ctx)
+	if err != nil {
+		return err
+	}
+	if err := say.Check(caught.Received == 1,
+		"Alpha's revision was waiting on Beta's stream all along"); err != nil {
+		return err
+	}
+	if err := beta.Edit(agmasync.TypeFarm, betaFarm, map[string]any{
+		"name": "Hof Nord Betrieb",
+	}); err != nil {
+		return err
+	}
 	if _, err := beta.Send(ctx, agmasync.TypeFarm, betaFarm); err != nil {
-		return fmt.Errorf("a non-overlapping edit should merge, not fail: %w", err)
+		return fmt.Errorf("a rebased write should succeed: %w", err)
 	}
 
 	betaRow, err := beta.Row(agmasync.TypeFarm, betaFarm)
@@ -79,76 +112,19 @@ func runConcurrentEdit(ctx context.Context, w *World) error {
 		return err
 	}
 	if err := say.Check(*betaRow.Revision == 3,
-		"Beta writes from base 1 and is merged, landing at revision %d",
-		*betaRow.Revision); err != nil {
+		"the rebased write is accepted at revision %d", *betaRow.Revision); err != nil {
 		return err
 	}
-	say.Detail("not base + 1: another participant wrote in between. A participant that")
-	say.Detail("assumed base + 1 would now hold a revision agrirouter never issued")
-
 	if err := say.Check(beta.Attr(agmasync.TypeFarm, betaFarm, "name") == "Hof Nord Betrieb",
-		"the response carries Beta's own change"); err != nil {
+		"Beta holds its own change"); err != nil {
 		return err
 	}
 	record, err := beta.Record(agmasync.TypeFarm, betaFarm)
 	if err != nil {
 		return err
 	}
-	if err := say.Check(
+	return say.Check(
 		string(record.Modelled["_agmasync_address"]) == `{"addressContactTypeCode":"PHYSICAL","city":"Lübeck"}`,
-		"and Alpha's, which Beta had never seen: %s", record.Modelled["_agmasync_address"]); err != nil {
-		return err
-	}
-	say.Detail("which is why a write response is applied rather than acknowledged. Origin")
-	say.Detail("suppression keeps this revision off Beta's own stream, so there is no")
-	say.Detail("second chance to learn what the merge produced")
-
-	say.Step("Now both of them rename the farm, from a base each believes is current.")
-	if err := alpha.Edit(agmasync.TypeFarm, "alpha-farm-1", map[string]any{
-		"name": "Hof Nord GbR",
-	}); err != nil {
-		return err
-	}
-	_, err = alpha.Send(ctx, agmasync.TypeFarm, "alpha-farm-1")
-
-	var conflict *agmasync.RevisionConflict
-	if !errors.As(err, &conflict) {
-		return fmt.Errorf("an overlapping edit must be refused, got %v", err)
-	}
-	if err := say.Check(errors.Is(err, agmasync.ErrRevisionConflict),
-		"Alpha is refused with 412: both changed `name`, and differently"); err != nil {
-		return err
-	}
-	if err := say.Check(conflict.CurrentRevision == 3,
-		"the refusal names the revision that stands, %d, so the loser can rebase.",
-		conflict.CurrentRevision); err != nil {
-		return err
-	}
-	say.Detail("a merge is only possible where the two changes do not overlap. Nothing")
-	say.Detail("here can decide between two values for one attribute, so it does not try")
-
-	say.Step("Alpha takes the current object, reapplies its change, and writes again.")
-	caught, err := alpha.CatchUp(ctx)
-	if err != nil {
-		return err
-	}
-	if err := say.Check(caught.Received == 1,
-		"the merged revision was waiting on its stream all along"); err != nil {
-		return err
-	}
-	if err := alpha.Edit(agmasync.TypeFarm, "alpha-farm-1", map[string]any{
-		"name": "Hof Nord GbR",
-	}); err != nil {
-		return err
-	}
-	if _, err := alpha.Send(ctx, agmasync.TypeFarm, "alpha-farm-1"); err != nil {
-		return fmt.Errorf("a rebased write should succeed: %w", err)
-	}
-
-	alphaRow, err = alpha.Row(agmasync.TypeFarm, "alpha-farm-1")
-	if err != nil {
-		return err
-	}
-	return say.Check(*alphaRow.Revision == 4,
-		"the rebased write is accepted at revision %d", *alphaRow.Revision)
+		"and Alpha's address, which it rebased on rather than overwrote: %s",
+		record.Modelled["_agmasync_address"])
 }

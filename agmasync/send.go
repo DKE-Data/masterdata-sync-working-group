@@ -35,9 +35,8 @@ import (
 // exactly as an object delivered on the stream is. It is not an
 // acknowledgement: origin suppression keeps this revision off the sender's own
 // stream, so this response is the only place the sender learns the
-// agrirouterId assigned to a newly created object, or sees the merged result
-// where agrirouter reconciled the write against a concurrent change instead of
-// rejecting it. See "Applying what agrirouter returns" in specification.md.
+// agrirouterId assigned to a newly created object, or the attributes the write
+// left out. See "Applying what agrirouter returns" in specification.md.
 //
 //nolint:dupl // One readable function per entity type is preferred over a generic helper.
 func PutParty(

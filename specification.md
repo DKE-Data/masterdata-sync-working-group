@@ -1307,7 +1307,7 @@ edit an entity it read some time ago. Without a check, the later write silently
 overwrites the earlier one. Every write to an existing canonical object is
 therefore a **compare-and-swap** on `revision`: the application states the
 revision it edited from — its **base revision** — and agrirouter applies the write
-only if that base is reconcilable with the current revision.
+only if that base is the current revision.
 
 The base travels in the `x-agrirouter-base-revision` request header, alongside the
 `x-agrirouter-endpoint-id` header that names the acting endpoint. It is a header
@@ -1320,28 +1320,9 @@ On a write that resolves to an existing object, agrirouter MUST proceed as follo
 
 - **Write that changes nothing.** Applied to the current canonical value, the write leaves it as it is. It succeeds as a no-op, whatever the base: no new revision, nothing forwarded (see [Loop prevention](#loop-prevention)). This is what makes it safe to retry a write whose outcome was not observed.
 - **Base equal to the current revision.** The write is applied and produces the next revision.
-- **Base behind the current revision.** agrirouter MUST attempt a **three-way merge**: it compares the changes from the base to the current revision with the changes the write makes to the base. Only the attributes a write carries are changes: a stale write neither conflicts with nor reverts a change to an attribute it leaves out. Where the two do not overlap, it applies the application's changes on top of the current revision and answers with the merged object — a success whose `revision` is *not* base + 1, and whose content the application did not send. Where they overlap, the write is rejected with `412 Precondition Failed`.
+- **Base behind the current revision.** The write is rejected with `412 Precondition Failed`, even where it changes only attributes that nobody else changed since the base (see [Not in MVP: automatic merge](#not-in-mvp-automatic-merge)).
 - **Base absent.** The write is rejected with `428 Precondition Required`. Omitting the header would opt an application out of concurrency control, and the integrations least able to surface a conflict to a user are the ones most likely to omit it.
 - **Base that agrirouter never issued for the object.** Rejected with `412`.
-
-Merging is what obliges agrirouter to keep anything at all beyond current state.
-Both sides of the comparison are changes measured *from the base*, so the base has
-to be reconstructable for any revision agrirouter has issued and an application may
-still be holding. agrirouter therefore retains whatever lets it reconstruct one.
-How is not constrained here: prior states, per-attribute deltas, and anything else
-that answers "what did this object look like at revision N" are equivalent for
-this purpose, and the choice belongs to an implementation rather than to the
-protocol.
-
-**That retention is unbounded.** agrirouter keeps every base it has issued for as
-long as it holds the object, and MUST NOT age one out: an application returning
-after an arbitrary absence, writing from the revision it last saw, is merged
-against rather than rejected for having waited.
-
-This is internal to conflict resolution and is not history in the sense this
-document [disclaims](#what-this-protocol-is-and-is-not). It is never served: no
-operation returns a past version and `revision` addresses no version but the current
-one.
 
 A create carries no base, there being no revision to compare against. A base on a
 request that does not resolve to an existing object is rejected with `412`: the
@@ -1352,8 +1333,8 @@ Every outcome answers with the resulting revision: a success carries the canonic
 object, a rejection carries the current revision. An application MUST take the
 revision from the response rather than assume base + 1, and MUST apply a success
 response as it applies a delivered object (see
-[Applying what agrirouter returns](#applying-what-agrirouter-returns)), since
-after a merge the response holds content it did not send. An application whose write was rejected
+[Applying what agrirouter returns](#applying-what-agrirouter-returns)). A no-op
+answers with the current revision, which need not be base + 1. An application whose write was rejected
 obtains the current object — from its stream, or by
 [requesting it](#requesting-objects-lazy-loading) — rebases its change, and
 writes again. Where the change cannot be rebased mechanically, the conflict is
@@ -1365,6 +1346,35 @@ Where its primary store has nowhere to put it — typical of an integration that
 cannot propagate a foreign counter into its own data model — it keeps the revision
 alongside the store rather than inside it.
 
+agrirouter does not need any prior revision to decide a write: the current
+revision and its content are enough. It may keep prior revisions for its own
+operation, but no rule in this protocol depends on them, and no operation serves
+one (see [What this protocol is, and is not](#what-this-protocol-is-and-is-not)).
+
+### Not in MVP: automatic merge
+
+agrirouter could reconcile a stale write instead of rejecting it, by a
+**three-way merge**: compare the changes from the base to the current revision
+with the changes the write makes to the base, and where they touch different
+attributes, apply the write on top of the current revision.
+**This is out of scope for the MVP: a stale base is always a `412`.**
+
+A merge at attribute level can produce an incorrect object. That two writes
+touch different attributes does not make their changes independent: if one
+application changes a person's first name and another, concurrently, the last
+name, the merge yields a name neither application sent and that may belong to
+nobody. The same holds for any attributes that only make sense together.
+Merging correctly needs rules, per entity type, for which attributes belong
+together, and that is not specified here. Rejecting a stale write is always
+correct, and the application that receives the `412` rebases or asks its user.
+
+The rules for applications already allow a merge to be added later without
+breaking them: an application applies a write response as a delivered object,
+guards apply by `revision`, and takes the revision from the response. A merged
+response would be one more case of a response carrying content the application
+did not send. The design considered for it is recorded in
+[ADR 05](architecture/05-stale-reads.md#not-in-mvp-automatic-conflict-resolution).
+
 ## Applying what agrirouter returns
 
 Canonical objects reach an application on three channels: the live event stream, an
@@ -1375,8 +1385,7 @@ write response is not merely an acknowledgement. It is the only channel on which
 the writing endpoint learns anything about the revision it just produced, since
 [origin suppression](#loop-prevention) keeps that revision off its own stream,
 and it carries state the application did not send: the attributes the write left
-out, the agrirouter identifier assigned to a newly created object, and the resulting object where agrirouter reconciled the
-write against a concurrent change rather than rejecting it (see
+out and the agrirouter identifier assigned to a newly created object (see
 [Concurrency control](#concurrency-control)).
 
 Two rules follow:

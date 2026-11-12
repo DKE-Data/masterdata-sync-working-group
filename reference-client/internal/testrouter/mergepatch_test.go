@@ -218,7 +218,7 @@ func TestAPartialWriteThatChangesNothingIsANoOp(t *testing.T) {
 	}
 }
 
-func TestAStaleWriteNeitherConflictsWithNorRevertsWhatItLeavesOut(t *testing.T) {
+func TestARebasedWriteDoesNotRevertWhatItLeavesOut(t *testing.T) {
 	f := newFixture(t)
 	a := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	b := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
@@ -233,11 +233,12 @@ func TestAStaleWriteNeitherConflictsWithNorRevertsWhatItLeavesOut(t *testing.T) 
 	}
 
 	// A changes the usage type.
-	putFarm(t, a, body("farm", "FRM-1", `"name":"Hof Nord","_agmasync_specialisedUsageType":"arable"`), &base)
+	changed := putFarm(t, a, body("farm", "FRM-1", `"name":"Hof Nord","_agmasync_specialisedUsageType":"arable"`), &base)
+	current := revisionOf(t, changed)
 
-	// B, from the old base and not modelling the usage type, renames.
+	// B, from the current base and not modelling the usage type, renames.
 	got := attributesOf(t, putFarm(t, b,
-		body("farm", "B-FARM-9", `"name":"Hof West"`), &base))
+		body("farm", "B-FARM-9", `"name":"Hof West"`), &current))
 
 	if string(got["name"]) != `"Hof West"` {
 		t.Errorf("name = %s, want B's rename", got["name"])

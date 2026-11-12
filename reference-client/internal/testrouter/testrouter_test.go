@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -219,11 +218,11 @@ func TestAssignedFieldsNamingAnotherObjectAreRejected(t *testing.T) {
 	}
 }
 
-func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
-	// Two participants editing different attributes of one entity both succeed,
-	// and the second gets back content it did not send — which is why a write
-	// response has to be applied like a delivered object rather than treated as
-	// an acknowledgement.
+func TestStaleBaseIsRejectedEvenWhereChangesDoNotOverlap(t *testing.T) {
+	// Concurrency control is a plain compare-and-swap: a write from a stale base
+	// is refused even where it touches an attribute nobody else changed.
+	// Attributes are not independent, so merging them could produce an object
+	// neither participant sent.
 	f := newFixture(t)
 	a := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
 	b := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
@@ -243,30 +242,29 @@ func TestStaleBaseMergesWhereChangesDoNotOverlap(t *testing.T) {
 	}
 
 	// A renames it, moving the canonical revision on.
-	entity := farm("FRM-1", "Hof Süd")
-	if _, err := a.endpoint.Put(context.Background(), entity, &base); err != nil {
+	if _, err := a.endpoint.Put(context.Background(), farm("FRM-1", "Hof Süd"), &base); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
 	// B, still on the old base, changes a different attribute.
-	withAddress := farmIn("B-FARM-9", "Hof Nord", "Rostock")
-	merged, err := b.endpoint.Put(context.Background(), withAddress, &base)
-	if err != nil {
-		t.Fatalf("non-overlapping write should merge, got: %v", err)
+	_, err = b.endpoint.Put(context.Background(), farmIn("B-FARM-9", "Hof Süd", "Rostock"), &base)
+	var conflict *agmasync.RevisionConflict
+	if !errors.As(err, &conflict) {
+		t.Fatalf("error = %v, want a RevisionConflict", err)
+	}
+	if conflict.CurrentRevision != base+1 {
+		t.Errorf("CurrentRevision = %d, want %d so the participant can rebase",
+			conflict.CurrentRevision, base+1)
 	}
 
-	mergedFarm, err := merged.AsFarm()
+	// Rebased on the current revision, the same change is accepted.
+	current := conflict.CurrentRevision
+	accepted, err := b.endpoint.Put(context.Background(), farmIn("B-FARM-9", "Hof Süd", "Rostock"), &current)
 	if err != nil {
-		t.Fatalf("reading merged farm: %v", err)
+		t.Fatalf("rebased write: %v", err)
 	}
-	if mergedFarm.Content.Name != "Hof Süd" {
-		t.Errorf("name = %q, want A's rename carried into the merged result", mergedFarm.Content.Name)
-	}
-	if city := cityOf(mergedFarm); city != "Rostock" {
-		t.Error("B's own change is missing from the merged result")
-	}
-	if rev := revisionOf(t, merged); rev != base+2 {
-		t.Errorf("revision = %d, want %d — a merge is not base + 1", rev, base+2)
+	if rev := revisionOf(t, accepted); rev != current+1 {
+		t.Errorf("revision = %d, want %d", rev, current+1)
 	}
 }
 
@@ -592,60 +590,6 @@ func cityOf(farm oapi.Farm) string {
 		return ""
 	}
 	return *address.City
-}
-
-func TestAnOldBaseStillMergesRatherThanAgeingOut(t *testing.T) {
-	// Merge bases are retained without a horizon, so a participant that has been
-	// away across many revisions is merged against rather than refused. A `412`
-	// therefore always means the changes genuinely overlapped, never that
-	// agrirouter has forgotten what the base was.
-	f := newFixture(t)
-	a := f.join("fmis-a", "ep-a", agmasync.TypeFarm)
-	b := f.join("fmis-b", "ep-b", agmasync.TypeFarm)
-
-	created, err := a.endpoint.Put(context.Background(), farm("FRM-1", "Hof 0"), nil)
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	env, _ := agrirouter.EnvelopeOf(created)
-	longAgo := *env.Revision
-
-	if err := b.endpoint.Bind(
-		context.Background(), agmasync.TypeFarm, "B-1", *env.AgrirouterID,
-	); err != nil {
-		t.Fatalf("bind: %v", err)
-	}
-
-	// A renames the farm many times over, moving the canonical revision far
-	// beyond the base B is holding.
-	base := longAgo
-	for i := 1; i <= 50; i++ {
-		name := fmt.Sprintf("Hof %d", i)
-		updated, err := a.endpoint.Put(context.Background(), farm("FRM-1", name), &base)
-		if err != nil {
-			t.Fatalf("rename %d: %v", i, err)
-		}
-		base = revisionOf(t, updated)
-	}
-
-	// B writes from the revision it saw at the very beginning, touching an
-	// attribute nobody else has.
-	entity := farmIn("B-1", "Hof 0", "Rostock")
-	merged, err := b.endpoint.Put(context.Background(), entity, &longAgo)
-	if err != nil {
-		t.Fatalf("a base 50 revisions old must still merge, got: %v", err)
-	}
-
-	mergedFarm, err := merged.AsFarm()
-	if err != nil {
-		t.Fatalf("reading merged farm: %v", err)
-	}
-	if mergedFarm.Content.Name != "Hof 50" {
-		t.Errorf("name = %q, want the intervening renames preserved", mergedFarm.Content.Name)
-	}
-	if cityOf(mergedFarm) == "" {
-		t.Error("B's own change is missing from the merged result")
-	}
 }
 
 func TestTwoEndpointsOfOneApplicationHaveTheirOwnNamespaces(t *testing.T) {

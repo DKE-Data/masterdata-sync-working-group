@@ -102,8 +102,8 @@ sequenceDiagram
 
 - Every object, revision and delivery row carries one tenant. Isolation follows
   from the key.
-- Revisions, conflicts and three-way merges are per tenant. A write in A never
-  races a write in B.
+- Revisions and conflicts are per tenant. A write in A never races a write
+  in B.
 - A reset deletes the tenant's objects, its id mappings to them, its routes and
   its initial-load state. Nothing outside the tenant changes.
 
@@ -190,7 +190,7 @@ sequenceDiagram
 - Delivery fans out: a change to f1 produces one delivery row per linked tenant,
   each entitled and ordered on its own.
 - Revisions and conflicts become global for the object. A write in A can
-  conflict with a write in B, and the merge base may come from either tenant.
+  conflict with a write in B.
 - Reset removes the tenant's links, then deletes objects with no link left,
   together with their mappings and revisions.
 

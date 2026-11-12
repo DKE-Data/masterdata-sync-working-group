@@ -18,11 +18,12 @@ We shall require CAS for write operations except following cases:
 - object does not exist yet (_create_ operation)
 - object is being or is already deactivated (for deactivation idempotency)
 - requested value for the object is exactly the same as the current value (there is no need to force client to resolve any conflicts, as the resulting value is expected to be the same)
-- agrirouter was able to resolve the conflict automatically via three-way merge [see Automatic conflict resolution](#automatic-conflict-resolution)
+
+A write from a base behind the current revision is rejected even where it changes only attributes nobody else changed since. agrirouter does not merge concurrent edits in the MVP, see [Not in MVP: automatic conflict resolution](#not-in-mvp-automatic-conflict-resolution).
 
 We would use revision number as the CAS value, since it is already a monotonically increasing positive integer assigned solely by agrirouter and has the properties of total order and uniqueness within the object.
 
-The revision which agrirouter determined to be the current one for the object will be returned to the client in the response of every write operation. Note that in situations when there was a mismatch on previous revision (see exceptions above), but the write operation is still considered successful, the response might contain a revision that is NOT simply the previous revision + 1, which means clients MUST always use the revision that is returned in the response.
+The revision which agrirouter determined to be the current one for the object will be returned to the client in the response of every write operation. Note that in situations when there was a mismatch on previous revision (see exceptions above), but the write operation is still considered successful - a no-op, or a deactivation of an object that is already inactive - the response might contain a revision that is NOT simply the previous revision + 1, which means clients MUST always use the revision that is returned in the response.
 
 A partner's primary store often has nowhere to put the agrirouter revision - this is typical of outbound integrations, where the revision cannot be propagated down to the actual data store. Such clients are still expected to keep the last known revision per object, alongside their primary store rather than inside it.
 
@@ -40,7 +41,24 @@ sequenceDiagram
     AR->>B: pushes revision 9
 ```
 
-### Automatic conflict Resolution
+### Not in MVP: automatic conflict resolution
+
+**This is out of scope for the MVP: a write from a stale base is always rejected.**
+
+agrirouter could reconcile some stale writes instead, by a three-way merge of the
+attributes each side changed. We do not, because a merge at attribute level can
+produce an incorrect object. That two writes touch different attributes does not
+make their changes independent: if one client changes a person's first name and
+another, concurrently, the last name, the merge yields a name neither client sent
+and that may belong to nobody. The same holds for any attributes that only make
+sense together. Merging correctly would need merge rules, per entity type, for
+which attributes belong together - complex to specify, to implement, and to keep in
+step with the model. Rejecting is always correct: the client rebases on the current
+object, or surfaces the conflict to its user.
+
+The rest of this section is the design considered for a later addition. Its
+example below is a case where the merge happens to be safe; the paragraph above is
+why that cannot be assumed in general.
 
 
 Example - two writes are done at approximately same time:
@@ -135,6 +153,8 @@ merged revision back to its source - is
 
 ### Streaming the merged revision to its source
 
+This alternative concerns the later merge design above, not the MVP.
+
 Keep the local store a pure projection of the event stream: a write response
 carries only the revision, and agrirouter marks a revision it synthesised and
 exempts it from origin suppression so the merged content arrives on the stream.
@@ -176,10 +196,13 @@ Special cases:
 - when two clients attempt to create the same object concurrently, only one of them will succeed, and the other will receive a conflict error. The client that received the conflict error will have to fetch the latest version of the object and apply their changes or decide to discard the update. Even though this is not a CAS operation per se, it still constitutes a conflict.
 - when a client attempts to deactivate an object simultaneously with another client attempting to modify it, this is considered a conflict and only one of the clients will succeed. Even though further deactivations are idempotent and their prior revision is ignored when the object is already deactivated, for the first deactivation attempt, CAS mechanism must be applied.
 
-Consequences of automatic merge:
-- a revision can exist that no client sent, which means `source_endpoint_id` stops being a complete answer to "who wrote this". Whether agrirouter records that a revision was merged is an internal matter: it does not affect what is delivered to whom.
-- **a write response is a delivery, not an acknowledgement.** The merging client gets back content it did not send, so adopting the returned revision is not enough - the response body goes through the same apply path a stream frame does. That is a second entrance to apply, and the reason for the two rules below.
+Consequences for applications, which hold in the MVP and keep a later merge from breaking them:
+- **a write response is a delivery, not an acknowledgement.** It carries content the client did not send - the attributes a partial write left out, the `agrirouter_id` of a newly created object - so adopting the returned revision is not enough: the response body goes through the same apply path a stream frame does. That is a second entrance to apply, and the reason for the two rules below. A merged response would be one more case of the same.
 - **apply MUST be revision-guarded.** With a second channel, "later in the stream" stops meaning "newer": a response carrying revision 10 can land after the stream consumer has applied 11. An application MUST NOT apply an object whose `revision` is lower than the one it holds. The comparison is what [ADR 03](./03-revision-model.md) built a totally ordered integer for.
-- **an unobserved outcome means the object is unknown.** An application whose write neither succeeds nor fails visibly - a dropped connection after agrirouter committed - MUST NOT assume its own value stands. It re-requests the object ([lazy loading](../specification.md#requesting-objects-lazy-loading)) or retries the write, which returns the current revision either way. Under a merge-and-stream design the stream covered this silently.
+- **an unobserved outcome means the object is unknown.** An application whose write neither succeeds nor fails visibly - a dropped connection after agrirouter committed - MUST NOT assume its own value stands. It re-requests the object ([lazy loading](../specification.md#requesting-objects-lazy-loading)) or retries the write, which returns the current revision either way.
+
+Consequences once automatic merge is added:
+- a revision can exist that no client sent, which means `source_endpoint_id` stops being a complete answer to "who wrote this". Whether agrirouter records that a revision was merged is an internal matter: it does not affect what is delivered to whom.
 - origin suppression stays unconditional, so [ADR 07](./07-sync-streaming.md) needs no exception and the delivery record needs no marker.
+- agrirouter has to be able to reconstruct the base a stale write names, which the MVP does not require (see [ADR 03](./03-revision-model.md)).
 

@@ -76,9 +76,9 @@ paths:
         by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a
         record only in that endpoint's namespace, and the same string sent by a
         sibling endpoint of the same application is a different record. An update carries the revision it was
-        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
-        base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        edited from in `x-agrirouter-base-revision`; agrirouter rejects an
+        update from a stale base with `412`, and an update without a base with
+        `428`. No-op updates (leaving the current canonical
         revision as it is) do not create a new revision and are not forwarded.
 
 
@@ -325,9 +325,9 @@ paths:
         by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a
         record only in that endpoint's namespace, and the same string sent by a
         sibling endpoint of the same application is a different record. An update carries the revision it was
-        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
-        base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        edited from in `x-agrirouter-base-revision`; agrirouter rejects an
+        update from a stale base with `412`, and an update without a base with
+        `428`. No-op updates (leaving the current canonical
         revision as it is) do not create a new revision and are not forwarded.
 
 
@@ -566,9 +566,9 @@ paths:
         by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a
         record only in that endpoint's namespace, and the same string sent by a
         sibling endpoint of the same application is a different record. An update carries the revision it was
-        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
-        base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        edited from in `x-agrirouter-base-revision`; agrirouter rejects an
+        update from a stale base with `412`, and an update without a base with
+        `428`. No-op updates (leaving the current canonical
         revision as it is) do not create a new revision and are not forwarded.
 
 
@@ -807,9 +807,9 @@ paths:
         by the external ID of the endpoint named in `x-agrirouter-endpoint-id`: a `local_id` names a
         record only in that endpoint's namespace, and the same string sent by a
         sibling endpoint of the same application is a different record. An update carries the revision it was
-        edited from in `x-agrirouter-base-revision`; agrirouter merges a stale
-        base where the changes do not overlap and rejects with `412` where they
-        do, and rejects an update without a base with `428`. No-op updates (leaving the current canonical
+        edited from in `x-agrirouter-base-revision`; agrirouter rejects an
+        update from a stale base with `412`, and an update without a base with
+        `428`. No-op updates (leaving the current canonical
         revision as it is) do not create a new revision and are not forwarded.
 
 
@@ -1551,13 +1551,12 @@ components:
         that `local_id`.
 
 
-        A base behind the current revision is not necessarily a failure.
-        agrirouter three-way merges where the client's change and the
-        intervening ones do not overlap and answers `200` with the merged
-        object, whose `revision` is then not base + 1; where they overlap it
-        answers `412` with the current revision. A write whose payload equals
-        the current canonical value succeeds as a no-op whatever the base. See
-        "Concurrency control" in specification.md.
+        A base behind the current revision is `412` with the current
+        revision, even where the client's change and the intervening ones
+        touch different attributes: agrirouter does not merge them. The client
+        rebases on the current object and writes again. A write whose payload
+        equals the current canonical value succeeds as a no-op whatever the
+        base. See "Concurrency control" in specification.md.
       schema:
         type: integer
         minimum: 1

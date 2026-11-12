@@ -4,8 +4,8 @@
 // It exists because nothing implements the protocol yet, so without it the
 // reference client has nothing to talk to and the scenarios cannot be executed.
 // It is a second reading of the specification rather than a stub: the rules that
-// a participant can get wrong — revision counters, origin suppression, the
-// three-way merge, the initial-load state machine, per-pair binding rejections —
+// a participant can get wrong — revision counters, origin suppression,
+// compare-and-swap, the initial-load state machine, per-pair binding rejections —
 // are implemented here, so a client that gets them wrong fails against it.
 //
 // It is not agrirouter. It holds everything in memory, authenticates by treating
@@ -135,38 +135,6 @@ type object struct {
 	// own and rendered per recipient, with references already resolved to
 	// canonical identifiers.
 	content map[string]json.RawMessage
-
-	// stamps records, per content attribute, the revision at which that
-	// attribute last changed. An attribute whose stamp is above the base
-	// revision is one that changed under the participant's feet.
-	stamps map[string]int
-
-	// history records, per content attribute, the value it took at each
-	// revision that changed it.
-	//
-	// A three-way merge compares the changes from the base to the current
-	// revision with the changes from the base to the sent object, and both of
-	// those need the attribute's value *at the base* — which the stamp alone
-	// does not give. Without it a participant sending a whole object cannot be
-	// told apart from one changing every attribute in it, and every merge
-	// degrades into a conflict.
-	//
-	// Per attribute rather than whole prior states, which is a choice this
-	// router makes rather than one the specification imposes: the two are
-	// equivalent for the merge, since either reconstructs the base, and
-	// per-attribute is simply the cheaper encoding when one attribute of
-	// twenty changes at a time.
-	//
-	// It is not history in the sense the specification disclaims — it is never
-	// served, and no operation here returns a past version.
-	history map[string][]attributeValue
-}
-
-// attributeValue is one attribute's value from a given revision onwards. A nil
-// value records that the attribute was absent.
-type attributeValue struct {
-	revision int
-	value    json.RawMessage
 }
 
 // endpoint is one participant endpoint in one tenant.

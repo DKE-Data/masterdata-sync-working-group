@@ -83,18 +83,17 @@ copy newer than mine" for one object, the delivery sequence answers "what have I
 not seen yet" across all of them. [ADR 07](./07-sync-streaming.md) defines the
 latter.
 
-### Merge bases are kept without a horizon
+### Prior revisions are not part of the protocol
 
-The three-way merge compares both sides of a change against the base, so
-agrirouter has to be able to reconstruct what an object looked like at any
-revision a partner may still be holding. It keeps them all, for as long as it
-holds the object, and ages none of them out.
+Compare-and-swap needs only the current revision: a write is applied when its base
+is the current one and rejected otherwise ([ADR 05](./05-stale-reads.md)). The
+protocol therefore requires agrirouter to keep no prior revision of an object.
+agrirouter may keep them for its own operation, for example for debugging, and may
+purge them; no rule here depends on them and no operation serves one.
 
-The cost is agrirouter's: retention grows with the number of
-changes rather than with the number of entities, and no operation in the protocol
-removes an entity, deactivation included. What it buys is that a `412` has one
-meaning. How the bases are stored - prior states, per-attribute deltas, anything
-that reconstructs one - is left to the implementation.
+An automatic three-way merge of stale writes would change this, since it needs the
+content at the base a write names. It is not in the MVP
+([ADR 05](./05-stale-reads.md#not-in-mvp-automatic-conflict-resolution)).
 
 ## Summary
 
@@ -104,6 +103,6 @@ that reconstructs one - is left to the implementation.
   resume actually need.
 - The correctness invariant is: **agrirouter serializes writes per canonical
   object.** State it; preserve it.
-- **Merge bases are retained without a horizon**, so a `412` always means a real
-  overlap and never a forgotten base.
+- **Only the current revision is needed.** A `412` means the base is not the
+  current revision; prior revisions are not a protocol requirement.
 

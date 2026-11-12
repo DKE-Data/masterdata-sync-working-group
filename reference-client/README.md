@@ -24,7 +24,7 @@ in process.
 
 1. Onboarding and first initial load
 2. Repeat load after opt-out and opt-in, matched through the surviving mapping
-3. A concurrent edit merged, and the overlapping one rejected
+3. A concurrent edit rejected, rebased, and accepted
 4. Two farms matched crosswise, corrected as one set
 5. An archived object in the canonical set, recognised and not
 6. Resume after downtime, and a crash between applying and saving the position
@@ -82,7 +82,7 @@ routing it was last told about.
 ### The test router is not a stub
 
 It is a second reading of the specification: revision counters, origin
-suppression, the three-way merge, catch-up ordered parents-before-children, the
+suppression, compare-and-swap, catch-up ordered parents-before-children, the
 initial-load state machine with its out-of-order transitions, and per-pair
 binding rejections are all implemented. A client that gets those wrong fails
 against it. It holds everything in memory, treats the bearer token as the

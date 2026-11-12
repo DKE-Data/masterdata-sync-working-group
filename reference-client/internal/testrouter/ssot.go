@@ -210,7 +210,7 @@ func (s *store) put(
 
 	obj := s.objects[objID]
 	// The lifecycle check comes before anything else the write could be: a
-	// no-op, a conflict, a merge. The same body then always gets the same
+	// no-op or a conflict. The same body then always gets the same
 	// answer, and a write never revives or retires an object as a side effect.
 	if *archived != obj.archived {
 		return nil, false, &lifecycleConflict{current: obj.archived}
@@ -243,36 +243,20 @@ func (s *store) put(
 	if base == nil {
 		return nil, false, errBaseRequired
 	}
-	if *base > obj.revision || *base < 1 {
+	// Concurrency control is a plain compare-and-swap: a base behind the
+	// current revision is a conflict even where the two changes touch
+	// different attributes. Attributes are not independent - a first name and a
+	// last name changed by two participants would merge into a name neither
+	// sent - so the participant rebases on the current object instead.
+	if *base != obj.revision {
 		return nil, false, &revisionConflict{current: obj.revision}
 	}
 
-	// A base behind the current revision is not necessarily a failure. The
-	// merge compares two sets of changes against the base: the write's, and
-	// everyone else's since. Only an attribute both of them touched, and
-	// touched differently, is a conflict.
 	changed := map[string]json.RawMessage{}
-	for k, v := range incoming {
-		atBase := obj.valueAt(k, *base)
-		intended := patchAttribute(typ, k, atBase, v)
-		current := obj.content[k]
-
-		if bytes.Equal(intended, atBase) {
-			continue // the write leaves this attribute as the participant saw it
+	for k, v := range patched {
+		if !bytes.Equal(v, obj.content[k]) {
+			changed[k] = v
 		}
-		// Both changed it, and not to the same thing. Nothing here can decide
-		// between them, so the write is rejected and the participant rebases.
-		if !bytes.Equal(current, atBase) && !bytes.Equal(intended, current) {
-			return nil, false, &revisionConflict{current: obj.revision}
-		}
-		if bytes.Equal(patched[k], current) {
-			continue
-		}
-		changed[k] = patched[k]
-	}
-
-	if len(changed) == 0 {
-		return obj, false, nil
 	}
 
 	obj.revision++
@@ -282,8 +266,6 @@ func (s *store) put(
 		} else {
 			obj.content[k] = v
 		}
-		obj.stamps[k] = obj.revision
-		obj.history[k] = append(obj.history[k], attributeValue{revision: obj.revision, value: v})
 	}
 	obj.modifiedAt = s.now().UTC()
 	obj.sourceEndpointID = ep.id
@@ -309,12 +291,6 @@ func (s *store) create(
 		sourceEndpointID: ep.id,
 		seq:              s.seq,
 		content:          content,
-		stamps:           map[string]int{},
-		history:          map[string][]attributeValue{},
-	}
-	for k, v := range content {
-		obj.stamps[k] = 1
-		obj.history[k] = []attributeValue{{revision: 1, value: v}}
 	}
 	s.objects[obj.id] = obj
 	s.local[localKeyOf(ep, typ, localID)] = obj.id
@@ -690,18 +666,4 @@ func (s *store) checkKindChange(obj *object, patched map[string]json.RawMessage)
 		return errors.New("the party is an organization persons still name as their parentOrganizationRef")
 	}
 	return nil
-}
-
-// valueAt returns an attribute's value as of a revision, which is what a
-// three-way merge diffs both sides against. A nil result means the attribute
-// was absent then.
-func (o *object) valueAt(attribute string, revision int) json.RawMessage {
-	var at json.RawMessage
-	for _, entry := range o.history[attribute] {
-		if entry.revision > revision {
-			break
-		}
-		at = entry.value
-	}
-	return at
 }
