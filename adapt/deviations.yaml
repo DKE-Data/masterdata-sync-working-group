@@ -214,6 +214,16 @@ schemas:
           does not understand out of its writes, which keeps them.
         additionalProperties: true
 
+  GNSSDataQualityMetric:
+    adapt: gNSSDataQualityMetric
+    replacedWhole: true
+    description: >
+      A metric documenting the quality of the GNSS data a boundary was
+      recorded with, the ADAPT `GNSSDataQualityMetric` unchanged. Its
+      `definitionCode` is a Data Type Definition of the ADAPT
+      `GNSS_DATA_QUALITY_METRICS` scope, which also defines how to read
+      `valueText`.
+
   Boundary:
     adapt: boundary
     description: The geometry of a field boundary, based on the ADAPT `Boundary`.
@@ -221,11 +231,12 @@ schemas:
       - highDefinitionSourceLayerId
       - gNSSReceiverMetadata
       - gNSSMobileBaseStationMetadata
-      - gNSSDataQualityMetrics
       - partyRoles
     properties:
       geometry:
         ref: WktArea
+      gNSSDataQualityMetrics:
+        ref: GNSSDataQualityMetric
 
   FieldBoundaryContent:
     adapt: fieldBoundary

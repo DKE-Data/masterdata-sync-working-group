@@ -483,6 +483,9 @@ Canonical attributes:
     - `ADMINISTRATIVE`:	Boundary is provided by some third party authority (generally governmental) and actual creation method is unknown
   - `gNSSBaseStationTypeCode`, `gNSSBaseSurveyTypeCode` (string, optional): from the ADAPT GNSSBaseStationType and GNSSBaseSurveyType lists.
   - `gNSSCorrectionNetworkName`, `gNSSCorrectionNetworkBrand` (string, optional): the GNSS correction network the geometry was recorded with, and its provider.
+  - `gNSSDataQualityMetrics` (array, optional): metrics documenting the quality of the GNSS data the geometry was recorded with, as in ADAPT. Each entry has a `definitionCode` from the ADAPT Data Type Definitions of the `GNSS_DATA_QUALITY_METRICS` scope and a `valueText`, read as that definition says. For example, `MinimumGNSSQualityIndicatorCode` with `4` states RTK fixed.
+
+  Everything in `boundary` other than `geometry` describes how the geometry was recorded, so a new geometry replaces it (see [Writing an entity](#writing-an-entity)).
 - `_agmasync_boundaryType` (string): the boundary classification. Enum value like:
 
   - `CONCEPTUAL`: Used to define fields at the highest level, e.g. for communication with service providers.
@@ -1276,6 +1279,14 @@ Arrays, [references](#references), and a farm's `_agmasync_address` are replaced
 plain nested object while its `partyTypeCode` is unchanged, and every write that includes
 `_agmasync_details` carries its `partyTypeCode`. A write that changes the `partyTypeCode` replaces `_agmasync_details`
 whole, so no attribute of the other party type survives (see [Party details](#party-details)).
+
+A field boundary's `boundary` merges like a plain nested object while its
+`geometry` is unchanged, and a write whose `geometry` differs from the current
+one replaces `boundary` whole. Geometries are compared in their canonical form
+(see [Encoding](#encoding)). The creation method, the GNSS fields and
+`gNSSDataQualityMetrics` describe how the previous geometry was recorded, so a
+writer that changes the geometry without restating them removes them rather
+than leaving them attached to a geometry they do not describe.
 
 - On a write that creates the canonical object (see [Identifier mapping](#identifier-mapping)), `null` means the same as absent.
 - A required attribute MUST be present, with a value, on every write, create or update. The required attributes are the subset every application supports, so an application always holds them.
