@@ -471,7 +471,7 @@ Canonical attributes:
 - `name` (string, optional): the name the boundary is known by.
 - `description` (string, optional): free text about the boundary.
 - `boundary` (object, required):
-  - `geometry` (WKT, required): the field boundary as a `POLYGON` or `MULTIPOLYGON`. An area left out is a hole: a further ring of the polygon whose exterior encloses it (see [Encoding](#encoding)).
+  - `geometry` (WKT, required): the field boundary, accepted as a `POLYGON` or `MULTIPOLYGON` and delivered as a `MULTIPOLYGON`. An area left out is a hole: a further ring of the polygon whose exterior encloses it (see [Encoding](#encoding)).
   - `boundaryCreationMethodCode` (string, optional): from the [ADAPT BoundaryCreationMethod](https://adaptstandard.org/dtd.html) list. Enum value like:
 
     - `UNKNOWN`:	Creation method is unknown
@@ -596,14 +596,14 @@ encodings of one geometry are one value:
 - The geometry type in upper case, one space, and, for positions with altitude, `Z` and one space.
 - Coordinates are separated by one space, positions by a comma and one space, and parentheses carry no whitespace inside them.
 - A number is the IEEE 754 double the input denotes, in the shortest decimal that reads back as it: no exponent, no leading or trailing zeros, and `0` rather than `-0`.
-- A `MULTIPOLYGON` of one polygon is that `POLYGON`.
+- A `POLYGON` is the `MULTIPOLYGON` of that one polygon, so every area is delivered as a `MULTIPOLYGON`.
 - A position that repeats the one before it is dropped.
 - A polygon's first ring runs counter-clockwise and every further ring clockwise, as in [RFC 7946](https://www.rfc-editor.org/rfc/rfc7946).
 - Every ring starts at its northmost position, then eastmost.
 - A polygon's holes follow its exterior ordered by their first position, northmost first, then eastmost, with the next positions breaking a tie. The polygons of a `MULTIPOLYGON` are ordered the same way by their exterior rings.
 
 `POLYGON((9.56 52.205,9.566 52.205,9.5665 52.208,9.56 52.205))` is delivered as
-`POLYGON ((9.5665 52.208, 9.56 52.205, 9.566 52.205, 9.5665 52.208))`.
+`MULTIPOLYGON (((9.5665 52.208, 9.56 52.205, 9.566 52.205, 9.5665 52.208)))`.
 
 Areas are in hectares: `unitOfMeasureCode` is `ha`.
 
