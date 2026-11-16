@@ -130,21 +130,66 @@ func TestNestedObjectsMergeRatherThanReplace(t *testing.T) {
 	}
 }
 
-func TestABoundaryMergesLikeAnyNestedObject(t *testing.T) {
-	// A boundary's geometry is a WKT string and replaces like any value; the
-	// boundary around it merges, so a participant that models the geometry and
-	// not how it was recorded keeps what another said about the latter.
+// boundaryWith writes FB-1 of field PFD-1 with the given boundary object.
+func boundaryWith(boundary string) string {
+	return body("fieldBoundary", "FB-1",
+		`"_agmasync_fieldRef":{"id":{"referenceId":"PFD-1"}},"boundary":`+boundary)
+}
+
+const (
+	geometryA = "POLYGON ((8 52, 8.1 52, 8.1 52.1, 8 52))"
+	geometryB = "POLYGON ((9 52, 9.1 52, 9.1 52.1, 9 52))"
+	rtkMetric = `[{"definitionCode":"MinimumGNSSQualityIndicatorCode","valueText":"4"}]`
+)
+
+// recordedBoundary sets up FB-1 recorded with RTK on geometryA and returns its
+// revision.
+func recordedBoundary(t *testing.T, p *participant) int {
+	t.Helper()
+	putFarm(t, p, body("field", "PFD-1", `"name":"North 40"`), nil)
+	return revisionOf(t, putFarm(t, p, boundaryWith(`{"geometry":"`+geometryA+`",`+
+		`"boundaryCreationMethodCode":"DRIVEN","gNSSDataQualityMetrics":`+rtkMetric+`}`), nil))
+}
+
+func TestABoundaryMergesWhileItsGeometryIsUnchanged(t *testing.T) {
+	// The boundary merges like any nested object while the geometry stays, so a
+	// participant that models the correction network but not the metrics keeps
+	// what another said about the latter.
 	f := newFixture(t)
 	p := f.join("fmis-a", "ep-a", agmasync.TypeField, agmasync.TypeFieldBoundary)
-	putFarm(t, p, body("field", "PFD-1", `"name":"North 40"`), nil)
-	base := revisionOf(t, putFarm(t, p, body("fieldBoundary", "FB-1",
-		`"_agmasync_fieldRef":{"id":{"referenceId":"PFD-1"}},`+
-			`"boundary":{"geometry":"POLYGON ((8 52, 8.1 52, 8.1 52.1, 8 52))","boundaryCreationMethodCode":"DRIVEN"}`), nil))
+	base := recordedBoundary(t, p)
 
-	got := attributesOf(t, putFarm(t, p, body("fieldBoundary", "FB-1",
-		`"_agmasync_fieldRef":{"id":{"referenceId":"PFD-1"}},`+
-			`"boundary":{"geometry":"POLYGON ((9 52, 9.1 52, 9.1 52.1, 9 52))"}`), &base))
-	want := `{"boundaryCreationMethodCode":"DRIVEN","geometry":"POLYGON ((9 52, 9.1 52, 9.1 52.1, 9 52))"}`
+	got := attributesOf(t, putFarm(t, p, boundaryWith(`{"geometry":"`+geometryA+`",`+
+		`"gNSSCorrectionNetworkName":"SAPOS"}`), &base))
+	want := `{"boundaryCreationMethodCode":"DRIVEN","gNSSCorrectionNetworkName":"SAPOS",` +
+		`"gNSSDataQualityMetrics":` + rtkMetric + `,"geometry":"` + geometryA + `"}`
+	if string(got["boundary"]) != want {
+		t.Errorf("boundary = %s, want %s", got["boundary"], want)
+	}
+}
+
+func TestANewGeometryReplacesTheBoundaryWhole(t *testing.T) {
+	// The creation method and the quality metrics describe how the previous
+	// geometry was recorded; a writer that changes the geometry without
+	// restating them removes them.
+	f := newFixture(t)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeField, agmasync.TypeFieldBoundary)
+	base := recordedBoundary(t, p)
+
+	got := attributesOf(t, putFarm(t, p, boundaryWith(`{"geometry":"`+geometryB+`"}`), &base))
+	if want := `{"geometry":"` + geometryB + `"}`; string(got["boundary"]) != want {
+		t.Errorf("boundary = %s, want %s", got["boundary"], want)
+	}
+}
+
+func TestANewGeometryKeepsWhatTheWriteRestates(t *testing.T) {
+	f := newFixture(t)
+	p := f.join("fmis-a", "ep-a", agmasync.TypeField, agmasync.TypeFieldBoundary)
+	base := recordedBoundary(t, p)
+
+	got := attributesOf(t, putFarm(t, p, boundaryWith(`{"geometry":"`+geometryB+`",`+
+		`"gNSSDataQualityMetrics":`+rtkMetric+`}`), &base))
+	want := `{"gNSSDataQualityMetrics":` + rtkMetric + `,"geometry":"` + geometryB + `"}`
 	if string(got["boundary"]) != want {
 		t.Errorf("boundary = %s, want %s", got["boundary"], want)
 	}

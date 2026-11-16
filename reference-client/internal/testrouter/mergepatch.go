@@ -20,6 +20,11 @@ import (
 // A party's _agmasync_details merge like any nested object while their
 // partyTypeCode stays the same, and are replaced whole by a write that changes
 // it, so no attribute of the other party type survives.
+//
+// A field boundary's boundary merges the same way while its geometry stays the
+// same, and is replaced whole by a write that changes the geometry: the
+// creation method, GNSS fields and quality metrics describe how the previous
+// geometry was recorded.
 
 // requiredAttributes are the attributes openapi.yaml requires in the `content`
 // of each entity type, less `id`, which is the object's identity. They are
@@ -74,6 +79,11 @@ func patchAttribute(
 		partyTypeOf(current) != partyTypeOf(patch) {
 		return canonicalJSON(mergePatch(nil, patch))
 	}
+	// A changed geometry replaces the boundary whole, for the same reason.
+	if typ == agmasync.TypeFieldBoundary && key == boundaryKey &&
+		geometryChanges(current, patch) {
+		return canonicalJSON(mergePatch(nil, patch))
+	}
 	if wholeAttributes(typ)[key] {
 		return canonicalJSON(patch)
 	}
@@ -124,4 +134,31 @@ func canonicalJSON(v json.RawMessage) json.RawMessage {
 		return v
 	}
 	return out
+}
+
+// boundaryKey is the field boundary attribute holding the geometry and how it
+// was recorded.
+const boundaryKey = "boundary"
+
+// geometryChanges reports whether a boundary patch sends a geometry other than
+// the stored one. The test router keeps geometries as sent, so it compares them
+// as strings where agrirouter compares their canonical forms.
+func geometryChanges(stored, patch json.RawMessage) bool {
+	patchGeometry, ok := geometryOf(patch)
+	if !ok {
+		return false
+	}
+	storedGeometry, ok := geometryOf(stored)
+	return ok && storedGeometry != patchGeometry
+}
+
+// geometryOf reads the geometry string of a boundary, false when there is none.
+func geometryOf(boundary json.RawMessage) (string, bool) {
+	var fields struct {
+		Geometry *string `json:"geometry"`
+	}
+	if json.Unmarshal(boundary, &fields) != nil || fields.Geometry == nil {
+		return "", false
+	}
+	return *fields.Geometry, true
 }
