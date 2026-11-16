@@ -27,6 +27,9 @@ encode is open until then.
   further one a hole. Its direction carries no meaning; agrirouter normalizes
   it, and orders holes and polygons, so an area has one encoding
   ([Encoding](../specification.md#encoding)).
+- **Every area is a `MULTIPOLYGON`.** A `POLYGON` is accepted and delivered as
+  the `MULTIPOLYGON` of that one polygon, so a receiver parses one geometry
+  type and handles one or more polygons the same way.
 
 ## Consequences
 
