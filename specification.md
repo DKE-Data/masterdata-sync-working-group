@@ -810,6 +810,7 @@ that any user wants it to.
   An endpoint that could receive boundaries but not the fields they describe could not resolve them. An endpoint with parties and fields but no farms could not link the two. agrirouter MUST reject either declaration with `400`, naming the missing entity type, rather than record it or add the type. Any other combination of entity types is valid.
 - Declaring an entity type enables no exchange, creates no route, and starts no [initial load](#initial-load). It only puts the type in front of the user as something selectable. Adding one to the declaration of an endpoint that already takes part therefore changes nothing until the user selects it.
 - Withdrawing an entity type from the declaration narrows any selection naming it. agrirouter MUST narrow the selection to what is still declared.
+- The declaration MUST stay within the entity types certified on the endpoint's software version. agrirouter MUST reject a declaration naming any other entity type with `400`, naming those types. When the endpoint's software version no longer covers a declared entity type, agrirouter MUST narrow the declaration to what the version still covers; the withdrawal rule above then applies.
 - An endpoint that has declared nothing offers the user nothing to select and cannot take part in masterdata exchange
 
 ### Selection: what an endpoint does exchange
